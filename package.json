@@ -1,0 +1,43 @@
+{
+  "name": "scalerics-logistica",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "pages:dev": "wrangler pages dev -- npm run dev",
+    "deploy": "npm run build && wrangler pages deploy dist",
+    "db:migrate:local": "wrangler d1 migrations apply logistica_db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply logistica_db --remote",
+    "db:seed:local": "wrangler d1 execute logistica_db --local --file=./migrations/0002_seed.sql",
+    "db:seed:remote": "wrangler d1 execute logistica_db --remote --file=./migrations/0002_seed.sql",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.6.14",
+    "jose": "^5.9.6",
+    "leaflet": "^1.9.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-leaflet": "^4.2.1",
+    "react-router-dom": "^6.28.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241218.0",
+    "@types/leaflet": "^1.9.15",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5",
+    "vitest": "^2.1.8",
+    "wrangler": "^3.95.0"
+  }
+}

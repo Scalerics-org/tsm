@@ -1,0 +1,22 @@
+name = "scalerics-logistica"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "dist"
+
+# --- D1 (base de datos SQLite) ---
+# Crear con:  wrangler d1 create logistica_db
+# Luego pegar el database_id que devuelve el comando.
+[[d1_databases]]
+binding = "DB"
+database_name = "logistica_db"
+database_id = "REEMPLAZAR_CON_TU_DATABASE_ID"
+
+# --- R2 (almacenamiento de fotos) ---
+# Crear con:  wrangler r2 bucket create logistica-fotos
+[[r2_buckets]]
+binding = "FOTOS"
+bucket_name = "logistica-fotos"
+
+# JWT_SECRET y NOMINATIM_UA se cargan como secrets / vars (ver .env.example)
+[vars]
+NOMINATIM_UA = "scalerics-logistica/0.1 (contacto@ejemplo.com)"

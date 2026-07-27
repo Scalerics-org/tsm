@@ -1,0 +1,207 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import {
+  PHOTO_KIND,
+  TRIP_STATUS,
+  estimateFuelLiters,
+  type PhotoKind,
+  type Trip,
+  type TripPhoto,
+  type TripPosition,
+} from "@shared/domain";
+import { api, ApiError } from "../../lib/api";
+import { Button, Card, ErrorText, Spinner, Stat, StatusBadge } from "../../components/ui";
+import { PhotoImage } from "../../components/PhotoImage";
+import { MapView, type MapPoint } from "../../components/MapView";
+import { fmtDateTime, fmtKm, fmtLiters } from "../../lib/format";
+
+interface TripDetail {
+  trip: Trip;
+  photos: TripPhoto[];
+  positions: TripPosition[];
+}
+
+const POLL_MS = 8000;
+
+export function OpsTripDetailPage() {
+  const { id } = useParams();
+  const [data, setData] = useState<TripDetail | null>(null);
+  const [error, setError] = useState("");
+  const [livePositions, setLivePositions] = useState<TripPosition[]>([]);
+  const [liveKm, setLiveKm] = useState<number | null>(null);
+  const pollRef = useRef<number | null>(null);
+
+  const load = useCallback(() => {
+    api
+      .get<TripDetail>(`/trips/${id}`)
+      .then((d) => {
+        setData(d);
+        setLivePositions(d.positions);
+        setLiveKm(d.trip.distance_km);
+      })
+      .catch((e) => setError(e instanceof ApiError ? e.message : "Error al cargar"));
+  }, [id]);
+
+  useEffect(load, [load]);
+
+  // Poll de posiciones mientras el viaje está EN_RUTA.
+  useEffect(() => {
+    if (data?.trip.status !== TRIP_STATUS.EN_RUTA) return;
+    pollRef.current = window.setInterval(() => {
+      api
+        .get<{ positions: TripPosition[]; distance_km: number }>(`/trips/${id}/positions`)
+        .then((r) => {
+          setLivePositions(r.positions);
+          setLiveKm(r.distance_km);
+        })
+        .catch(() => {});
+    }, POLL_MS);
+    return () => {
+      if (pollRef.current) window.clearInterval(pollRef.current);
+    };
+  }, [data?.trip.status, id]);
+
+  if (error) return <ErrorText>{error}</ErrorText>;
+  if (!data) return <Spinner size={28} />;
+
+  const { trip, photos } = data;
+  const km = liveKm ?? trip.distance_km;
+  const estimatedLiters = estimateFuelLiters(km, trip.truck_consumption ?? 0);
+  const fuelPhoto = photos.find((p) => p.kind === PHOTO_KIND.COMBUSTIBLE);
+  const last = livePositions[livePositions.length - 1];
+
+  const markers: MapPoint[] = [];
+  if (last) markers.push({ lat: last.lat, lon: last.lon, kind: "truck", label: "Camión" });
+  if (trip.dest_lat != null) markers.push({ lat: trip.dest_lat, lon: trip.dest_lon!, kind: "dest", label: trip.destination });
+
+  const center = last
+    ? { lat: last.lat, lon: last.lon }
+    : { lat: trip.origin_lat ?? -34.9, lon: trip.origin_lon ?? -56.16 };
+
+  async function cancel() {
+    if (!confirm("¿Cancelar este viaje?")) return;
+    await api.post(`/trips/${trip.id}/cancel`);
+    load();
+  }
+
+  return (
+    <div className="space-y-5">
+      <Link to="/panel/viajes" className="text-sm text-slate-400 hover:text-white">
+        ← Viajes
+      </Link>
+
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-white">
+            {trip.origin} → {trip.destination}
+          </h1>
+          <p className="text-sm text-slate-400">
+            {trip.driver_name} · 🚛 {trip.truck_plate} · {fmtDateTime(trip.scheduled_at)}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <StatusBadge status={trip.status} />
+          {(trip.status === TRIP_STATUS.PENDIENTE || trip.status === TRIP_STATUS.EN_RUTA) && (
+            <Button variant="danger" onClick={cancel}>
+              Cancelar
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {(livePositions.length > 0 || trip.dest_lat != null) && (
+        <div className="relative">
+          {trip.status === TRIP_STATUS.EN_RUTA && (
+            <span className="absolute right-3 top-3 z-[500] flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-emerald-300">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" /> En vivo
+            </span>
+          )}
+          <MapView
+            center={center}
+            markers={markers}
+            path={livePositions.map((p) => ({ lat: p.lat, lon: p.lon }))}
+            follow={trip.status === TRIP_STATUS.EN_RUTA}
+            zoom={9}
+            className="h-72 w-full overflow-hidden rounded-2xl"
+          />
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label="Km recorridos" value={fmtKm(km)} />
+        <Stat label="Gasolina estimada" value={fmtLiters(estimatedLiters)} hint={`${trip.truck_consumption ?? 0} L/100km`} />
+        <Stat label="Salida" value={<span className="text-base">{fmtDateTime(trip.departed_at)}</span>} />
+        <Stat label="Llegada" value={<span className="text-base">{fmtDateTime(trip.arrived_at)}</span>} />
+      </div>
+
+      {trip.cargo && (
+        <Card>
+          <div className="text-xs uppercase tracking-wide text-slate-400">Carga</div>
+          <div className="mt-1 font-semibold text-white">{trip.cargo.description}</div>
+          <div className="text-sm text-slate-400">
+            {trip.cargo.client ? `${trip.cargo.client} · ` : ""}
+            {trip.cargo.weight_kg ? `${trip.cargo.weight_kg} kg` : ""}
+            {trip.cargo.type ? ` · ${trip.cargo.type}` : ""}
+          </div>
+        </Card>
+      )}
+
+      {trip.notes && (
+        <Card className="border-amber-500/30">
+          <div className="text-xs uppercase tracking-wide text-amber-400">Observaciones / incidencia</div>
+          <p className="mt-1 text-sm text-amber-100">{trip.notes}</p>
+        </Card>
+      )}
+
+      {/* Comparación gasolina estimada vs foto real */}
+      <Card>
+        <h2 className="mb-3 font-semibold text-white">Combustible: estimado vs. evidencia</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl bg-white/[0.03] p-4">
+            <div className="text-sm text-slate-400">Estimación del sistema</div>
+            <div className="mt-1 text-3xl font-bold text-white">{fmtLiters(estimatedLiters)}</div>
+            <div className="mt-1 text-xs text-slate-500">
+              {fmtKm(km)} × {trip.truck_consumption ?? 0} L/100km
+            </div>
+          </div>
+          <div>
+            <div className="mb-1 text-sm text-slate-400">Foto del combustible (evidencia real)</div>
+            {fuelPhoto ? (
+              <PhotoImage r2Key={fuelPhoto.r2_key} alt="Combustible" className="h-40 w-full" />
+            ) : (
+              <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-white/15 text-slate-500">
+                Sin foto de combustible aún
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      <PhotoGallery photos={photos} />
+    </div>
+  );
+}
+
+function PhotoGallery({ photos }: { photos: TripPhoto[] }) {
+  const LABEL: Record<PhotoKind, string> = {
+    carga_salida: "Carga (salida)",
+    carga_llegada: "Carga (llegada)",
+    combustible: "Combustible",
+  };
+  if (photos.length === 0) return null;
+  return (
+    <div>
+      <h3 className="mb-2 font-semibold text-white">Todas las fotos</h3>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {photos.map((p) => (
+          <div key={p.id}>
+            <PhotoImage r2Key={p.r2_key} alt={LABEL[p.kind]} className="h-32 w-full" />
+            <div className="mt-1 text-xs text-slate-400">
+              {LABEL[p.kind]} · {fmtDateTime(p.taken_at)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
