@@ -4,26 +4,58 @@ export default {
   theme: {
     extend: {
       colors: {
-        brand: {
-          50: "#eef7ff",
-          100: "#d9edff",
-          200: "#bce0ff",
-          300: "#8ecbff",
-          400: "#59acff",
-          500: "#2f8bff",
-          600: "#1a6cf5",
-          700: "#1556e1",
-          800: "#1846b6",
-          900: "#1a3f8f",
-        },
+        // FLETA — sistema "industry" (blueprint industrial)
+        bg: "#f2f2f3",
+        surface: "#e9e9ea",
         ink: {
-          900: "#0b1220",
-          800: "#131c2e",
-          700: "#1e293b",
+          DEFAULT: "#1d1f20",
+        },
+        // Rampa azul (accent) del design system
+        brand: {
+          100: "#eef6ff",
+          200: "#d6ebff",
+          300: "#b5d9fd",
+          400: "#94bce3",
+          500: "#749dc4",
+          600: "#597ea3",
+          700: "#416180",
+          800: "#2c455d",
+          900: "#1d2d3d",
+          DEFAULT: "#5980a6",
+        },
+        navy: "#1d2d3d",
+        // Estados
+        st: {
+          amberBg: "#f6ecd9",
+          amberBd: "#d9b877",
+          amberTx: "#8a5a12",
+          amberDot: "#b0731f",
+          blueBg: "#d6ebff",
+          blueBd: "#94bce3",
+          blueTx: "#2c455d",
+          blueDot: "#5980a6",
+          greenBg: "#e0eee3",
+          greenBd: "#8fbf9e",
+          greenTx: "#2f6340",
+          greenDot: "#3f7d4e",
+          redBg: "#f6e2df",
+          redBd: "#cf9a92",
+          redTx: "#8c2f24",
+          redDot: "#a63d33",
         },
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ["Barlow", "system-ui", "sans-serif"],
+        cond: ["'Barlow Condensed'", "system-ui", "sans-serif"],
+      },
+      borderRadius: {
+        // La estética blueprint es de esquinas rectas.
+        none: "0",
+      },
+      boxShadow: {
+        "elev-sm": "0 1px 2px rgba(43,43,45,.14)",
+        "elev-md": "0 3px 10px rgba(43,43,45,.16)",
+        "elev-lg": "0 12px 32px rgba(43,43,45,.22)",
       },
     },
   },

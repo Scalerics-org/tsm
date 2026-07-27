@@ -181,7 +181,7 @@ export function LiveTracking({ trip, seedPositions }: { trip: Trip; seedPosition
         path={path}
         follow
         zoom={10}
-        className="h-64 w-full overflow-hidden rounded-2xl"
+        className="h-64 w-full overflow-hidden "
       />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -197,11 +197,11 @@ export function LiveTracking({ trip, seedPositions }: { trip: Trip; seedPosition
 
       <button
         onClick={toggleSimulation}
-        className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 hover:bg-white/10"
+        className="w-full border border-ink/15 bg-surface px-4 py-2 text-sm text-ink/70 hover:bg-ink/[.06]"
       >
         {simulating ? "⏸ Detener simulación" : "▶ Simular movimiento (demo sin GPS)"}
       </button>
-      <p className="text-center text-xs text-slate-500">
+      <p className="text-center text-xs text-ink/45">
         El GPS real se activa automáticamente en el celular. La simulación sirve para probar en escritorio.
       </p>
     </div>

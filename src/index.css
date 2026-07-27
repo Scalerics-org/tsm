@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html,
@@ -13,28 +13,150 @@ body,
 }
 
 body {
-  @apply bg-ink-900 text-slate-100 antialiased;
-  font-family: "Inter", system-ui, sans-serif;
+  @apply bg-bg text-ink antialiased;
+  font-family: "Barlow", system-ui, sans-serif;
+  font-size: 15px;
 }
 
-/* Leaflet: asegurar que el mapa ocupe su contenedor y los tiles no queden por encima de la UI */
-.leaflet-container {
-  background: #0b1220;
-  font-family: inherit;
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Barlow Condensed", system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.12;
 }
-.leaflet-container a {
-  color: #59acff;
+
+/* Utilidad de tipografía condensada (etiquetas, botones, números grandes). */
+.font-cond {
+  font-family: "Barlow Condensed", system-ui, sans-serif;
 }
 
 @layer components {
-  .card {
-    @apply rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur;
+  /* Marco "blueprint": borde fino, esquinas rectas, con marcas de registro. */
+  .blueprint {
+    @apply relative border border-ink/[.16] bg-white;
+  }
+  .corner {
+    position: absolute;
+    width: 11px;
+    height: 11px;
+    color: rgba(29, 31, 32, 0.5);
+    pointer-events: none;
+  }
+  .corner::before,
+  .corner::after {
+    content: "";
+    position: absolute;
+    background: currentColor;
+  }
+  .corner::before {
+    left: 5px;
+    top: 0;
+    width: 1px;
+    height: 100%;
+  }
+  .corner::after {
+    top: 5px;
+    left: 0;
+    width: 100%;
+    height: 1px;
+  }
+  .corner.tl {
+    top: -6px;
+    left: -6px;
+  }
+  .corner.tr {
+    top: -6px;
+    right: -6px;
+  }
+  .corner.bl {
+    bottom: -6px;
+    left: -6px;
+  }
+  .corner.br {
+    bottom: -6px;
+    right: -6px;
+  }
+
+  /* Panel de contenido estándar. */
+  .panel {
+    @apply relative border border-ink/[.16] bg-white;
+  }
+
+  /* Kicker / etiqueta condensada en mayúsculas. */
+  .kicker {
+    @apply font-cond font-semibold uppercase tracking-[0.12em] text-brand-700;
+    font-size: 12px;
+  }
+
+  /* Campos de formulario. */
+  .label {
+    @apply mb-1.5 block font-cond font-semibold uppercase tracking-[0.1em] text-ink/70;
+    font-size: 12px;
   }
   .input {
-    @apply w-full rounded-lg border border-white/10 bg-ink-800 px-3 py-2 text-slate-100
-      placeholder:text-slate-500 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500;
+    @apply w-full border border-ink/[.16] bg-surface px-3 py-2 text-ink
+      outline-none placeholder:text-ink/40 focus:border-brand;
+    border-radius: 0;
   }
-  .label {
-    @apply mb-1 block text-sm font-medium text-slate-300;
+
+  /* Botones FLETA (Barlow Condensed, mayúsculas, esquinas rectas). */
+  .btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 border
+      font-cond font-semibold uppercase tracking-[0.06em] transition
+      disabled:cursor-not-allowed disabled:opacity-50;
+    border-radius: 0;
+    padding: 10px 16px;
   }
+  .btn-primary {
+    @apply border-brand bg-brand text-bg hover:bg-brand-600 active:bg-brand-700;
+  }
+  .btn-navy {
+    @apply border-navy bg-navy text-bg hover:bg-brand-800;
+  }
+  .btn-secondary {
+    @apply border-ink/[.22] bg-transparent text-ink hover:bg-ink/[.06];
+  }
+  .btn-success {
+    @apply border-st-greenDot bg-st-greenDot text-bg hover:brightness-110;
+  }
+  .btn-danger {
+    @apply border-st-redDot bg-st-redDot text-bg hover:brightness-110;
+  }
+
+  /* Pills de estado. */
+  .pill {
+    @apply inline-flex items-center gap-2 border px-2.5 py-1 font-cond font-semibold
+      uppercase tracking-[0.1em];
+    font-size: 12px;
+  }
+  .pill-dot {
+    @apply block h-2 w-2;
+  }
+}
+
+/* Leaflet en tema claro. */
+.leaflet-container {
+  background: #dfe3e6;
+  font-family: inherit;
+}
+.leaflet-container a {
+  color: #416180;
+}
+
+@keyframes fl {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.animate-fl {
+  animation: fl 1.8s ease-in-out infinite;
 }

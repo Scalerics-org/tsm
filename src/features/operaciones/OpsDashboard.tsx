@@ -36,8 +36,8 @@ export function OpsDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-white">Panel de operaciones</h1>
-        <p className="text-sm text-slate-400">Estado de la flota en tiempo real.</p>
+        <h1 className="text-xl font-bold text-ink">Panel de operaciones</h1>
+        <p className="text-sm text-ink/60">Estado de la flota en tiempo real.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -49,19 +49,19 @@ export function OpsDashboard() {
       </div>
 
       {s.delayed.length > 0 && (
-        <Card className="border-amber-500/30">
-          <h2 className="mb-2 font-semibold text-amber-300">⚠ Viajes atrasados o sin registro</h2>
+        <Card className="border-st-amberBd">
+          <h2 className="mb-2 font-semibold text-st-amberTx">⚠ Viajes atrasados o sin registro</h2>
           <div className="space-y-2">
             {s.delayed.map((d) => (
               <Link
                 key={d.id}
                 to={`/panel/viajes/${d.id}`}
-                className="flex items-center justify-between rounded-lg bg-white/[0.03] px-3 py-2 text-sm hover:bg-white/[0.06]"
+                className="flex items-center justify-between bg-surface px-3 py-2 text-sm hover:bg-surface"
               >
-                <span className="text-white">
+                <span className="text-ink">
                   {d.origin} → {d.destination}
                 </span>
-                <span className="text-slate-400">
+                <span className="text-ink/60">
                   {d.driver_name} · programado {fmtDateTime(d.scheduled_at)}
                 </span>
               </Link>
@@ -72,9 +72,9 @@ export function OpsDashboard() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <h2 className="mb-3 font-semibold text-white">Km y combustible estimado por camión</h2>
+          <h2 className="mb-3 font-semibold text-ink">Km y combustible estimado por camión</h2>
           <table className="w-full text-sm">
-            <thead className="text-left text-slate-400">
+            <thead className="text-left text-ink/60">
               <tr>
                 <th className="pb-2">Camión</th>
                 <th className="pb-2 text-right">Km</th>
@@ -83,10 +83,10 @@ export function OpsDashboard() {
             </thead>
             <tbody>
               {s.byTruck.map((t) => (
-                <tr key={t.truck_id} className="border-t border-white/5">
-                  <td className="py-2 font-medium text-white">{t.plate}</td>
-                  <td className="py-2 text-right text-slate-300">{fmtKm(t.km)}</td>
-                  <td className="py-2 text-right text-slate-300">{fmtLiters(t.estimated_liters)}</td>
+                <tr key={t.truck_id} className="border-t border-ink/10">
+                  <td className="py-2 font-medium text-ink">{t.plate}</td>
+                  <td className="py-2 text-right text-ink/70">{fmtKm(t.km)}</td>
+                  <td className="py-2 text-right text-ink/70">{fmtLiters(t.estimated_liters)}</td>
                 </tr>
               ))}
             </tbody>
@@ -94,9 +94,9 @@ export function OpsDashboard() {
         </Card>
 
         <Card>
-          <h2 className="mb-3 font-semibold text-white">Ranking de choferes</h2>
+          <h2 className="mb-3 font-semibold text-ink">Ranking de choferes</h2>
           <table className="w-full text-sm">
-            <thead className="text-left text-slate-400">
+            <thead className="text-left text-ink/60">
               <tr>
                 <th className="pb-2">Chofer</th>
                 <th className="pb-2 text-right">Viajes</th>
@@ -105,10 +105,10 @@ export function OpsDashboard() {
             </thead>
             <tbody>
               {s.byDriver.map((d) => (
-                <tr key={d.driver_id} className="border-t border-white/5">
-                  <td className="py-2 font-medium text-white">{d.name}</td>
-                  <td className="py-2 text-right text-slate-300">{d.trips}</td>
-                  <td className="py-2 text-right text-slate-300">{fmtKm(d.km)}</td>
+                <tr key={d.driver_id} className="border-t border-ink/10">
+                  <td className="py-2 font-medium text-ink">{d.name}</td>
+                  <td className="py-2 text-right text-ink/70">{d.trips}</td>
+                  <td className="py-2 text-right text-ink/70">{fmtKm(d.km)}</td>
                 </tr>
               ))}
             </tbody>

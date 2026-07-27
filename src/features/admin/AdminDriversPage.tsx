@@ -34,7 +34,7 @@ export function AdminDriversPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-white">Choferes</h1>
+        <h1 className="text-xl font-bold text-ink">Choferes</h1>
         <Button onClick={() => setEditing("new")}>+ Nuevo chofer</Button>
       </div>
 
@@ -52,8 +52,8 @@ export function AdminDriversPage() {
 
       <Card className="overflow-x-auto p-0">
         <table className="w-full min-w-[640px] text-sm">
-          <thead className="text-left text-slate-400">
-            <tr className="border-b border-white/10">
+          <thead className="text-left text-ink/60">
+            <tr className="border-b border-ink/15">
               <th className="px-4 py-3">Nombre</th>
               <th className="px-4 py-3">Documento</th>
               <th className="px-4 py-3">Licencia</th>
@@ -64,23 +64,23 @@ export function AdminDriversPage() {
           </thead>
           <tbody>
             {drivers.map((d) => (
-              <tr key={d.id} className="border-b border-white/5">
-                <td className="px-4 py-3 font-medium text-white">{d.name}</td>
-                <td className="px-4 py-3 text-slate-300">{d.document}</td>
-                <td className="px-4 py-3 text-slate-300">
+              <tr key={d.id} className="border-b border-ink/10">
+                <td className="px-4 py-3 font-medium text-ink">{d.name}</td>
+                <td className="px-4 py-3 text-ink/70">{d.document}</td>
+                <td className="px-4 py-3 text-ink/70">
                   {d.license_number} {d.license_category && `(${d.license_category})`}
                 </td>
-                <td className="px-4 py-3 text-slate-400">{fmtDate(d.license_expiry)}</td>
+                <td className="px-4 py-3 text-ink/60">{fmtDate(d.license_expiry)}</td>
                 <td className="px-4 py-3">
-                  <span className={d.status === DRIVER_STATUS.ACTIVO ? "text-emerald-300" : "text-slate-500"}>
+                  <span className={d.status === DRIVER_STATUS.ACTIVO ? "text-st-greenTx" : "text-ink/45"}>
                     {d.status}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <button className="mr-3 text-brand-300 hover:underline" onClick={() => setEditing(d)}>
+                  <button className="mr-3 text-brand-700 hover:underline" onClick={() => setEditing(d)}>
                     Editar
                   </button>
-                  <button className="text-red-300 hover:underline" onClick={() => remove(d.id)}>
+                  <button className="text-st-redTx hover:underline" onClick={() => remove(d.id)}>
                     Eliminar
                   </button>
                 </td>

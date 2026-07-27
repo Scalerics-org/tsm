@@ -43,7 +43,7 @@ export function PhotoImage({
   if (failed) {
     return (
       <div
-        className={`flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-white/15 bg-white/[0.03] text-slate-500 ${className}`}
+        className={`flex flex-col items-center justify-center gap-1 border border-dashed border-ink/25 bg-surface text-ink/45 ${className}`}
       >
         <span className="text-2xl">🖼️</span>
         <span className="text-xs">Sin imagen</span>
@@ -51,7 +51,7 @@ export function PhotoImage({
     );
   }
   if (!url) {
-    return <div className={`animate-pulse rounded-xl bg-white/5 ${className}`} />;
+    return <div className={`animate-pulse bg-surface ${className}`} />;
   }
-  return <img src={url} alt={alt} className={`rounded-xl object-cover ${className}`} />;
+  return <img src={url} alt={alt} className={`object-cover ${className}`} />;
 }

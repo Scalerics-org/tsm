@@ -69,16 +69,16 @@ export function ChoferTripDetailPage() {
 
   return (
     <div className="space-y-5">
-      <Link to="/viajes" className="text-sm text-slate-400 hover:text-white">
+      <Link to="/viajes" className="text-sm text-ink/60 hover:text-ink">
         ← Mis viajes
       </Link>
 
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white">
+          <h1 className="text-xl font-bold text-ink">
             {trip.origin} → {trip.destination}
           </h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-ink/60">
             🚛 {trip.truck_plate} · {fmtDateTime(trip.scheduled_at)}
           </p>
         </div>
@@ -87,9 +87,9 @@ export function ChoferTripDetailPage() {
 
       {trip.cargo && (
         <Card>
-          <div className="text-xs uppercase tracking-wide text-slate-400">Carga</div>
-          <div className="mt-1 font-semibold text-white">{trip.cargo.description}</div>
-          <div className="text-sm text-slate-400">
+          <div className="text-xs uppercase tracking-wide text-ink/60">Carga</div>
+          <div className="mt-1 font-semibold text-ink">{trip.cargo.description}</div>
+          <div className="text-sm text-ink/60">
             {trip.cargo.client ? `${trip.cargo.client} · ` : ""}
             {trip.cargo.weight_kg ? `${trip.cargo.weight_kg} kg` : ""}
             {trip.cargo.doc_number ? ` · ${trip.cargo.doc_number}` : ""}
@@ -148,8 +148,8 @@ function DepartureForm({ trip, onDone }: { trip: Trip; onDone: () => void }) {
 
   return (
     <Card className="space-y-4">
-      <h2 className="text-lg font-semibold text-white">Registrar salida</h2>
-      <p className="text-sm text-slate-400">
+      <h2 className="text-lg font-semibold text-ink">Registrar salida</h2>
+      <p className="text-sm text-ink/60">
         Antes de partir, sacá la foto de la carga cargada. Se guarda con fecha, hora y ubicación.
       </p>
       <CameraCapture label="Foto de la carga" onChange={setFile} />
@@ -191,8 +191,8 @@ function ArrivalForm({ trip, onDone }: { trip: Trip; onDone: () => void }) {
 
   return (
     <Card className="space-y-4">
-      <h2 className="text-lg font-semibold text-white">Registrar llegada</h2>
-      <p className="text-sm text-slate-400">
+      <h2 className="text-lg font-semibold text-ink">Registrar llegada</h2>
+      <p className="text-sm text-ink/60">
         Los km se toman del GPS automáticamente. Podés cargar km a mano como respaldo si el GPS falló.
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -234,14 +234,14 @@ function IncidentForm({ tripId, onDone }: { tripId: number; onDone: () => void }
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="text-sm text-amber-300 hover:underline">
+      <button onClick={() => setOpen(true)} className="text-sm text-st-amberTx hover:underline">
         ⚠ Reportar una incidencia
       </button>
     );
   }
   return (
-    <Card className="space-y-3 border-amber-500/30">
-      <h3 className="font-semibold text-amber-300">Reportar incidencia</h3>
+    <Card className="space-y-3 border-st-amberBd">
+      <h3 className="font-semibold text-st-amberTx">Reportar incidencia</h3>
       <textarea
         className="input min-h-[80px]"
         value={notes}
@@ -274,24 +274,24 @@ function CompletedSummary({
       <Card>
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
-            <div className="text-slate-400">Estado</div>
-            <div className="font-semibold text-white">{TRIP_STATUS_LABEL[trip.status]}</div>
+            <div className="text-ink/60">Estado</div>
+            <div className="font-semibold text-ink">{TRIP_STATUS_LABEL[trip.status]}</div>
           </div>
           <div>
-            <div className="text-slate-400">Km recorridos</div>
-            <div className="font-semibold text-white">{fmtKm(trip.distance_km)}</div>
+            <div className="text-ink/60">Km recorridos</div>
+            <div className="font-semibold text-ink">{fmtKm(trip.distance_km)}</div>
           </div>
           <div>
-            <div className="text-slate-400">Salida</div>
-            <div className="text-white">{fmtDateTime(trip.departed_at)}</div>
+            <div className="text-ink/60">Salida</div>
+            <div className="text-ink">{fmtDateTime(trip.departed_at)}</div>
           </div>
           <div>
-            <div className="text-slate-400">Llegada</div>
-            <div className="text-white">{fmtDateTime(trip.arrived_at)}</div>
+            <div className="text-ink/60">Llegada</div>
+            <div className="text-ink">{fmtDateTime(trip.arrived_at)}</div>
           </div>
         </div>
         {trip.notes && (
-          <div className="mt-3 rounded-lg bg-amber-500/10 p-3 text-sm text-amber-200">{trip.notes}</div>
+          <div className="mt-3 bg-st-amberBg p-3 text-sm text-st-amberTx">{trip.notes}</div>
         )}
       </Card>
 
@@ -317,12 +317,12 @@ function PhotoGallery({ photos }: { photos: TripPhoto[] }) {
   };
   return (
     <div>
-      <h3 className="mb-2 font-semibold text-white">Fotos</h3>
+      <h3 className="mb-2 font-semibold text-ink">Fotos</h3>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {photos.map((p) => (
           <div key={p.id}>
             <PhotoImage r2Key={p.r2_key} alt={LABEL[p.kind]} className="h-32 w-full" />
-            <div className="mt-1 text-xs text-slate-400">{LABEL[p.kind]}</div>
+            <div className="mt-1 text-xs text-ink/60">{LABEL[p.kind]}</div>
           </div>
         ))}
       </div>

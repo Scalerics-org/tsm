@@ -35,7 +35,7 @@ export function AdminUsersPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-white">Usuarios</h1>
+        <h1 className="text-xl font-bold text-ink">Usuarios</h1>
         <Button onClick={() => setCreating(true)}>+ Nuevo usuario</Button>
       </div>
 
@@ -52,8 +52,8 @@ export function AdminUsersPage() {
 
       <Card className="overflow-x-auto p-0">
         <table className="w-full min-w-[560px] text-sm">
-          <thead className="text-left text-slate-400">
-            <tr className="border-b border-white/10">
+          <thead className="text-left text-ink/60">
+            <tr className="border-b border-ink/15">
               <th className="px-4 py-3">Nombre</th>
               <th className="px-4 py-3">Email</th>
               <th className="px-4 py-3">Rol</th>
@@ -62,13 +62,13 @@ export function AdminUsersPage() {
           </thead>
           <tbody>
             {users.map((u) => (
-              <tr key={u.id} className="border-b border-white/5">
-                <td className="px-4 py-3 font-medium text-white">{u.name}</td>
-                <td className="px-4 py-3 text-slate-300">{u.email}</td>
-                <td className="px-4 py-3 text-slate-300">{ROLE_LABEL[u.role]}</td>
+              <tr key={u.id} className="border-b border-ink/10">
+                <td className="px-4 py-3 font-medium text-ink">{u.name}</td>
+                <td className="px-4 py-3 text-ink/70">{u.email}</td>
+                <td className="px-4 py-3 text-ink/70">{ROLE_LABEL[u.role]}</td>
                 <td className="px-4 py-3 text-right">
                   {u.id !== me?.id && (
-                    <button className="text-red-300 hover:underline" onClick={() => remove(u.id)}>
+                    <button className="text-st-redTx hover:underline" onClick={() => remove(u.id)}>
                       Eliminar
                     </button>
                   )}

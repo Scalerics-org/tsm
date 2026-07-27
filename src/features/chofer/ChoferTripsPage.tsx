@@ -1,9 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import type { Trip } from "@shared/domain";
+import { TRIP_STATUS, type Trip, type TripStatus } from "@shared/domain";
 import { api } from "../../lib/api";
-import { Empty, Spinner, StatusBadge } from "../../components/ui";
+import { Corners, Empty, Spinner, StatusBadge } from "../../components/ui";
 import { fmtDateTime } from "../../lib/format";
+
+const ACCENT: Record<TripStatus, string> = {
+  [TRIP_STATUS.PENDIENTE]: "border-l-st-amberDot",
+  [TRIP_STATUS.EN_RUTA]: "border-l-st-blueDot",
+  [TRIP_STATUS.COMPLETADO]: "border-l-st-greenDot",
+  [TRIP_STATUS.CANCELADO]: "border-l-neutral-400",
+  [TRIP_STATUS.CON_INCIDENCIA]: "border-l-st-redDot",
+};
 
 export function ChoferTripsPage() {
   const [trips, setTrips] = useState<Trip[] | null>(null);
@@ -15,10 +23,11 @@ export function ChoferTripsPage() {
   if (!trips) return <Spinner size={28} />;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-bold text-white">Mis viajes</h1>
-        <p className="text-sm text-slate-400">Registrá salida y llegada con la cámara.</p>
+        <div className="kicker">Mis viajes</div>
+        <h1 className="text-3xl text-ink">Viajes asignados</h1>
+        <p className="text-sm text-ink/60">Registrá salida y llegada con la cámara.</p>
       </div>
 
       {trips.length === 0 ? (
@@ -29,18 +38,20 @@ export function ChoferTripsPage() {
             <Link
               key={t.id}
               to={`/viajes/${t.id}`}
-              className="card block p-4 transition hover:border-brand-500/40 hover:bg-white/[0.06]"
+              className={`panel block border-l-4 ${ACCENT[t.status]} p-4 transition hover:bg-surface`}
             >
+              <Corners />
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-base font-semibold text-white">
-                    {t.origin} → {t.destination}
-                  </div>
-                  <div className="mt-0.5 text-sm text-slate-400">
-                    🚛 {t.truck_plate} · {fmtDateTime(t.scheduled_at)}
-                  </div>
-                </div>
                 <StatusBadge status={t.status} />
+                <span className="font-cond text-sm font-semibold tracking-[0.08em] text-ink/45">
+                  VJ-{String(t.id).padStart(4, "0")}
+                </span>
+              </div>
+              <div className="mt-2 font-cond text-2xl font-semibold leading-tight text-ink">
+                {t.origin} → {t.destination}
+              </div>
+              <div className="mt-1 text-sm text-ink/60">
+                🚛 {t.truck_plate} · {fmtDateTime(t.scheduled_at)}
               </div>
             </Link>
           ))}

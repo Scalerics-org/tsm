@@ -41,7 +41,7 @@ export function AdminTrucksPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-white">Camiones</h1>
+        <h1 className="text-xl font-bold text-ink">Camiones</h1>
         <Button onClick={() => setEditing("new")}>+ Nuevo camión</Button>
       </div>
 
@@ -59,8 +59,8 @@ export function AdminTrucksPage() {
 
       <Card className="overflow-x-auto p-0">
         <table className="w-full min-w-[720px] text-sm">
-          <thead className="text-left text-slate-400">
-            <tr className="border-b border-white/10">
+          <thead className="text-left text-ink/60">
+            <tr className="border-b border-ink/15">
               <th className="px-4 py-3">Patente</th>
               <th className="px-4 py-3">Marca / Modelo</th>
               <th className="px-4 py-3">Tipo</th>
@@ -72,20 +72,20 @@ export function AdminTrucksPage() {
           </thead>
           <tbody>
             {trucks.map((t) => (
-              <tr key={t.id} className="border-b border-white/5">
-                <td className="px-4 py-3 font-medium text-white">{t.plate}</td>
-                <td className="px-4 py-3 text-slate-300">
+              <tr key={t.id} className="border-b border-ink/10">
+                <td className="px-4 py-3 font-medium text-ink">{t.plate}</td>
+                <td className="px-4 py-3 text-ink/70">
                   {t.brand} {t.model} · {t.year}
                 </td>
-                <td className="px-4 py-3 text-slate-300">{t.type}</td>
-                <td className="px-4 py-3 text-right text-slate-300">{t.odometer_km.toLocaleString("es-UY")} km</td>
-                <td className="px-4 py-3 text-right text-slate-300">{t.avg_consumption_l100}</td>
-                <td className="px-4 py-3 text-slate-300">{STATUS_LABEL[t.status]}</td>
+                <td className="px-4 py-3 text-ink/70">{t.type}</td>
+                <td className="px-4 py-3 text-right text-ink/70">{t.odometer_km.toLocaleString("es-UY")} km</td>
+                <td className="px-4 py-3 text-right text-ink/70">{t.avg_consumption_l100}</td>
+                <td className="px-4 py-3 text-ink/70">{STATUS_LABEL[t.status]}</td>
                 <td className="px-4 py-3 text-right">
-                  <button className="mr-3 text-brand-300 hover:underline" onClick={() => setEditing(t)}>
+                  <button className="mr-3 text-brand-700 hover:underline" onClick={() => setEditing(t)}>
                     Editar
                   </button>
-                  <button className="text-red-300 hover:underline" onClick={() => remove(t.id)}>
+                  <button className="text-st-redTx hover:underline" onClick={() => remove(t.id)}>
                     Eliminar
                   </button>
                 </td>

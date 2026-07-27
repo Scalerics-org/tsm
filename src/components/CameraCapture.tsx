@@ -33,11 +33,11 @@ export function CameraCapture({
       />
       {preview ? (
         <div className="relative">
-          <img src={preview} alt={label} className="h-48 w-full rounded-xl object-cover" />
+          <img src={preview} alt={label} className="h-48 w-full object-cover" />
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            className="absolute bottom-2 right-2 rounded-lg bg-black/60 px-3 py-1 text-xs font-semibold text-white"
+            className="absolute bottom-2 right-2 bg-black/60 px-3 py-1 text-xs font-semibold text-ink"
           >
             Cambiar
           </button>
@@ -46,7 +46,7 @@ export function CameraCapture({
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="flex h-48 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/15 bg-white/[0.03] text-slate-400 hover:border-brand-500/50 hover:text-brand-300"
+          className="flex h-48 w-full flex-col items-center justify-center gap-2 border-2 border-dashed border-ink/25 bg-surface text-ink/60 hover:border-brand-500/50 hover:text-brand-700"
         >
           <span className="text-4xl">📷</span>
           <span className="text-sm font-medium">Tomar foto</span>

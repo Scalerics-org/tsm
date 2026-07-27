@@ -105,16 +105,16 @@ export function OpsTripDetailPage() {
 
   return (
     <div className="space-y-5">
-      <Link to="/panel/viajes" className="text-sm text-slate-400 hover:text-white">
+      <Link to="/panel/viajes" className="text-sm text-ink/60 hover:text-ink">
         ← Viajes
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white">
+          <h1 className="text-xl font-bold text-ink">
             {trip.origin} → {trip.destination}
           </h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-ink/60">
             {trip.driver_name} · 🚛 {trip.truck_plate} · {fmtDateTime(trip.scheduled_at)}
           </p>
         </div>
@@ -131,8 +131,8 @@ export function OpsTripDetailPage() {
       {(livePositions.length > 0 || trip.dest_lat != null) && (
         <div className="relative">
           {trip.status === TRIP_STATUS.EN_RUTA && (
-            <span className="absolute right-3 top-3 z-[500] flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-emerald-300">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" /> En vivo
+            <span className="absolute right-3 top-3 z-[500] flex items-center gap-1.5 bg-navy px-3 py-1 font-cond text-xs font-semibold uppercase tracking-[0.1em] text-bg">
+              <span className="h-2 w-2 animate-fl bg-st-greenDot" /> En vivo
             </span>
           )}
           <MapView
@@ -142,7 +142,7 @@ export function OpsTripDetailPage() {
             path={livePositions.map((p) => ({ lat: p.lat, lon: p.lon }))}
             follow={trip.status === TRIP_STATUS.EN_RUTA}
             zoom={9}
-            className="h-72 w-full overflow-hidden rounded-2xl"
+            className="h-72 w-full overflow-hidden "
           />
         </div>
       )}
@@ -156,9 +156,9 @@ export function OpsTripDetailPage() {
 
       {trip.cargo && (
         <Card>
-          <div className="text-xs uppercase tracking-wide text-slate-400">Carga</div>
-          <div className="mt-1 font-semibold text-white">{trip.cargo.description}</div>
-          <div className="text-sm text-slate-400">
+          <div className="text-xs uppercase tracking-wide text-ink/60">Carga</div>
+          <div className="mt-1 font-semibold text-ink">{trip.cargo.description}</div>
+          <div className="text-sm text-ink/60">
             {trip.cargo.client ? `${trip.cargo.client} · ` : ""}
             {trip.cargo.weight_kg ? `${trip.cargo.weight_kg} kg` : ""}
             {trip.cargo.type ? ` · ${trip.cargo.type}` : ""}
@@ -167,29 +167,29 @@ export function OpsTripDetailPage() {
       )}
 
       {trip.notes && (
-        <Card className="border-amber-500/30">
-          <div className="text-xs uppercase tracking-wide text-amber-400">Observaciones / incidencia</div>
-          <p className="mt-1 text-sm text-amber-100">{trip.notes}</p>
+        <Card className="border-st-amberBd">
+          <div className="text-xs uppercase tracking-wide text-st-amberTx">Observaciones / incidencia</div>
+          <p className="mt-1 text-sm text-st-amberTx">{trip.notes}</p>
         </Card>
       )}
 
       {/* Comparación gasolina estimada vs foto real */}
       <Card>
-        <h2 className="mb-3 font-semibold text-white">Combustible: estimado vs. evidencia</h2>
+        <h2 className="mb-3 font-semibold text-ink">Combustible: estimado vs. evidencia</h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-xl bg-white/[0.03] p-4">
-            <div className="text-sm text-slate-400">Estimación del sistema</div>
-            <div className="mt-1 text-3xl font-bold text-white">{fmtLiters(estimatedLiters)}</div>
-            <div className="mt-1 text-xs text-slate-500">
+          <div className="bg-surface p-4">
+            <div className="text-sm text-ink/60">Estimación del sistema</div>
+            <div className="mt-1 text-3xl font-bold text-ink">{fmtLiters(estimatedLiters)}</div>
+            <div className="mt-1 text-xs text-ink/45">
               {fmtKm(km)} × {trip.truck_consumption ?? 0} L/100km
             </div>
           </div>
           <div>
-            <div className="mb-1 text-sm text-slate-400">Foto del combustible (evidencia real)</div>
+            <div className="mb-1 text-sm text-ink/60">Foto del combustible (evidencia real)</div>
             {fuelPhoto ? (
               <PhotoImage r2Key={fuelPhoto.r2_key} alt="Combustible" className="h-40 w-full" />
             ) : (
-              <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-white/15 text-slate-500">
+              <div className="flex h-40 items-center justify-center border border-dashed border-ink/25 text-ink/45">
                 Sin foto de combustible aún
               </div>
             )}
@@ -211,12 +211,12 @@ function PhotoGallery({ photos }: { photos: TripPhoto[] }) {
   if (photos.length === 0) return null;
   return (
     <div>
-      <h3 className="mb-2 font-semibold text-white">Todas las fotos</h3>
+      <h3 className="mb-2 font-semibold text-ink">Todas las fotos</h3>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {photos.map((p) => (
           <div key={p.id}>
             <PhotoImage r2Key={p.r2_key} alt={LABEL[p.kind]} className="h-32 w-full" />
-            <div className="mt-1 text-xs text-slate-400">
+            <div className="mt-1 text-xs text-ink/60">
               {LABEL[p.kind]} · {fmtDateTime(p.taken_at)}
             </div>
           </div>

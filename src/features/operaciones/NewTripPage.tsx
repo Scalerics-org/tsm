@@ -96,7 +96,7 @@ export function NewTripPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <h1 className="text-xl font-bold text-white">Nuevo viaje</h1>
+      <h1 className="text-xl font-bold text-ink">Nuevo viaje</h1>
 
       <form onSubmit={submit} className="space-y-4">
         <Card className="grid gap-4 sm:grid-cols-2">
@@ -144,15 +144,15 @@ export function NewTripPage() {
             <input type="datetime-local" className="input" value={form.scheduled_at} onChange={set("scheduled_at")} required />
           </Field>
           <div className="flex items-end">
-            <div className="rounded-xl bg-white/[0.03] px-4 py-2 text-sm">
-              <span className="text-slate-400">Distancia estimada: </span>
-              <span className="font-semibold text-white">{routeKm != null ? fmtKm(routeKm) : "—"}</span>
+            <div className="bg-surface px-4 py-2 text-sm">
+              <span className="text-ink/60">Distancia estimada: </span>
+              <span className="font-semibold text-ink">{routeKm != null ? fmtKm(routeKm) : "—"}</span>
             </div>
           </div>
         </Card>
 
         <Card className="space-y-4">
-          <h2 className="font-semibold text-white">Carga (opcional)</h2>
+          <h2 className="font-semibold text-ink">Carga (opcional)</h2>
           <Field label="Descripción">
             <input className="input" value={form.cargo_desc} onChange={set("cargo_desc")} placeholder="Ej: Cemento a granel" />
           </Field>
