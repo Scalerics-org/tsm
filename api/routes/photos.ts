@@ -13,7 +13,9 @@ const VALID: PhotoKind[] = [PHOTO_KIND.CARGA, PHOTO_KIND.DESCARGA, PHOTO_KIND.DO
 
 // POST /api/photos — subida multipart (file, trip_id, kind)
 photos.post("/", async (c) => {
-  if (!c.env.FOTOS) return fail(c, "Almacenamiento de fotos no configurado (habilitar R2)", 503);
+  // Si R2 no está configurado, no bloqueamos el flujo: la foto se saltea
+  // (para poder probar el circuito). Al habilitar R2, se guardan automáticamente.
+  if (!c.env.FOTOS) return ok(c, { skipped: true, reason: "R2 no configurado" });
   const user = c.get("user");
   const form = await c.req.formData().catch(() => null);
   if (!form) return fail(c, "Se esperaba multipart/form-data", 400);
