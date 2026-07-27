@@ -5,6 +5,7 @@ import { Spinner } from "./components/ui";
 import { AppShell } from "./components/AppShell";
 import { LoginPage } from "./features/auth/LoginPage";
 import { ChoferHome } from "./features/chofer/ChoferHome";
+import { ChoferClientePage } from "./features/chofer/ChoferClientePage";
 import { StartTripPage } from "./features/chofer/StartTripPage";
 import { ChoferTripPage } from "./features/chofer/ChoferTripPage";
 import { FuelPage } from "./features/chofer/FuelPage";
@@ -57,6 +58,7 @@ export default function App() {
 
         {/* Chofer */}
         <Route path="/" element={<RequireRole roles={CH}><ChoferHome /></RequireRole>} />
+        <Route path="/cliente/:providerId" element={<RequireRole roles={CH}><ChoferClientePage /></RequireRole>} />
         <Route path="/viaje/nuevo/:templateId" element={<RequireRole roles={CH}><StartTripPage /></RequireRole>} />
         <Route path="/viaje/:id" element={<RequireRole roles={CH}><ChoferTripPage /></RequireRole>} />
         <Route path="/surtida" element={<RequireRole roles={CH}><FuelPage /></RequireRole>} />

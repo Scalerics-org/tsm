@@ -4,6 +4,12 @@ import type { Trip, TripTemplate } from "@shared/domain";
 import { api } from "../../lib/api";
 import { Corners, Spinner, StatusBadge } from "../../components/ui";
 
+interface Cliente {
+  provider_id: number;
+  provider_name: string;
+  count: number;
+}
+
 export function ChoferHome() {
   const [active, setActive] = useState<Trip | null>(null);
   const [templates, setTemplates] = useState<TripTemplate[] | null>(null);
@@ -13,15 +19,19 @@ export function ChoferHome() {
     api.get<TripTemplate[]>("/templates").then(setTemplates).catch(() => setTemplates([]));
   }, []);
 
-  // Agrupar por cliente (proveedor).
-  const byProvider = useMemo(() => {
-    const map = new Map<string, TripTemplate[]>();
+  // Un card por cliente (proveedor).
+  const clientes = useMemo<Cliente[]>(() => {
+    const map = new Map<number, Cliente>();
     for (const t of templates ?? []) {
-      const list = map.get(t.provider_name ?? "") ?? [];
-      list.push(t);
-      map.set(t.provider_name ?? "", list);
+      const c = map.get(t.provider_id) ?? {
+        provider_id: t.provider_id,
+        provider_name: t.provider_name ?? "",
+        count: 0,
+      };
+      c.count += 1;
+      map.set(t.provider_id, c);
     }
-    return [...map.entries()];
+    return [...map.values()].sort((a, b) => a.provider_name.localeCompare(b.provider_name));
   }, [templates]);
 
   if (!templates) return <Spinner size={28} />;
@@ -46,39 +56,34 @@ export function ChoferHome() {
       )}
 
       <div>
-        <div className="kicker">{active ? "Otro viaje" : "Elegí tu viaje"}</div>
-        <h1 className="text-3xl text-ink">¿Qué viaje vas a hacer?</h1>
+        <div className="kicker">{active ? "Otro viaje" : "Elegí el cliente"}</div>
+        <h1 className="text-3xl text-ink">Clientes</h1>
       </div>
 
-      {byProvider.length === 0 ? (
+      {clientes.length === 0 ? (
         <div className="panel p-6 text-center text-ink/50">
           <Corners />
           No hay viajes precargados todavía.
         </div>
       ) : (
-        <div className="space-y-5">
-          {byProvider.map(([provider, list]) => (
-            <div key={provider} className="space-y-2">
-              <div className="font-cond text-[13px] font-semibold uppercase tracking-[0.12em] text-brand-700">
-                {provider}
+        <div className="space-y-3">
+          {clientes.map((c) => (
+            <Link
+              key={c.provider_id}
+              to={`/cliente/${c.provider_id}`}
+              className="panel flex items-center justify-between p-4 transition hover:bg-surface"
+            >
+              <Corners />
+              <div>
+                <div className="font-cond text-2xl font-semibold leading-tight text-ink">
+                  {c.provider_name}
+                </div>
+                <div className="mt-0.5 text-sm text-ink/55">
+                  {c.count} viaje{c.count === 1 ? "" : "s"}
+                </div>
               </div>
-              {list.map((t) => {
-                const destinos = [...new Set(t.dest_options.map((o) => o.destino))].join(" · ");
-                return (
-                  <Link
-                    key={t.id}
-                    to={`/viaje/nuevo/${t.id}`}
-                    className="panel block p-4 transition hover:bg-surface"
-                  >
-                    <Corners />
-                    <div className="font-cond text-xl font-semibold leading-tight text-ink">{t.name}</div>
-                    <div className="mt-1 text-sm text-ink/60">
-                      {t.origin} → {destinos || "destino a elegir"}
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
+              <span className="font-cond text-2xl text-brand-700">→</span>
+            </Link>
           ))}
         </div>
       )}
