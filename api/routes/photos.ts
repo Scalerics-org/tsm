@@ -17,6 +17,7 @@ const VALID_KINDS: PhotoKind[] = [
 
 // POST /api/photos — subida multipart (file, trip_id, kind, lat?, lon?, taken_at?)
 photos.post("/", async (c) => {
+  if (!c.env.FOTOS) return fail(c, "Almacenamiento de fotos no configurado (habilitar R2)", 503);
   const user = c.get("user");
   const form = await c.req.formData().catch(() => null);
   if (!form) return fail(c, "Se esperaba multipart/form-data", 400);
@@ -60,6 +61,7 @@ photos.post("/", async (c) => {
 
 // GET /api/photos/<key...> — sirve la imagen desde R2 (requiere auth)
 photos.get("/*", async (c) => {
+  if (!c.env.FOTOS) return c.notFound();
   const url = new URL(c.req.url);
   const key = decodeURIComponent(url.pathname.replace(/^\/api\/photos\//, ""));
   if (!key) return fail(c, "Falta la key", 400);

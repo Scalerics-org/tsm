@@ -9,17 +9,19 @@ pages_build_output_dir = "dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "logistica_db"
-database_id = "REEMPLAZAR_CON_TU_DATABASE_ID"
+database_id = "18e232e1-ac0b-45a9-b119-f4fe1ce93640"
 
 # --- R2 (almacenamiento de fotos) ---
-# Crear con:  wrangler r2 bucket create logistica-fotos
-[[r2_buckets]]
-binding = "FOTOS"
-bucket_name = "logistica-fotos"
+# Requiere habilitar R2 en el dashboard de Cloudflare y crear el bucket:
+#   wrangler r2 bucket create logistica-fotos
+# Una vez habilitado, descomentar este bloque y redeployar.
+# [[r2_buckets]]
+# binding = "FOTOS"
+# bucket_name = "logistica-fotos"
 
 # JWT_SECRET y VAPID_PRIVATE se cargan como secrets (ver .env.example / README)
 [vars]
 NOMINATIM_UA = "scalerics-logistica/0.1 (contacto@ejemplo.com)"
 VAPID_SUBJECT = "mailto:contacto@ejemplo.com"
 # VAPID_PUBLIC es público (lo usa el frontend); podés dejarlo acá como var.
-VAPID_PUBLIC = "BOBt7s5E6xYExd-MNiZxhteXM7-eaE1tA1syABRAAUSopr9krwwUIYtJ_JJKwM1JQ5h_gEwVoQmue0BJ7b1KsMw"
+VAPID_PUBLIC = "BJrx38I6hKnOwHkxVTf0Zp7pJrLoKc_7RlwuzgXVobJvgMzI6mu87sQLo6TnEjZZMcNWZVeOrA4GKGb1mzYG03c"

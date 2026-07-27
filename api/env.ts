@@ -3,7 +3,8 @@
 // Bindings y variables disponibles en el Worker (definidos en wrangler.toml).
 export interface Env {
   DB: D1Database;
-  FOTOS: R2Bucket;
+  // Opcional: puede no estar bindeado hasta habilitar R2 en la cuenta.
+  FOTOS?: R2Bucket;
   JWT_SECRET: string;
   NOMINATIM_UA: string;
   VAPID_PUBLIC: string;
