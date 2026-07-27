@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { haversineKm, totalPathKm, isPlausibleStep } from "@shared/geo";
+import { haversineKm, totalPathKm, robustPathKm, isPlausibleStep } from "@shared/geo";
 
 describe("haversineKm", () => {
   it("es 0 para el mismo punto", () => {
@@ -28,6 +28,22 @@ describe("totalPathKm", () => {
 
   it("es 0 con menos de 2 puntos", () => {
     expect(totalPathKm([{ lat: 0, lon: 0 }])).toBe(0);
+  });
+});
+
+describe("robustPathKm", () => {
+  it("ignora saltos implausibles (GPS fuera de la ruta)", () => {
+    // Traza normal cerca de Montevideo + una lectura basura en Paysandú (~350 km) y vuelta.
+    const pts = [
+      { lat: -34.9011, lon: -56.1645 },
+      { lat: -34.871, lon: -56.22 }, // ~6 km, cuenta
+      { lat: -32.3214, lon: -58.0756 }, // salto a Paysandú, se ignora
+      { lat: -34.845, lon: -56.278 }, // vuelta, se ignora
+    ];
+    const km = robustPathKm(pts);
+    expect(km).toBeGreaterThan(3);
+    expect(km).toBeLessThan(15); // no se dispara a miles como haría totalPathKm
+    expect(totalPathKm(pts)).toBeGreaterThan(600); // el crudo sí se dispara
   });
 });
 

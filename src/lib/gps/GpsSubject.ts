@@ -55,17 +55,15 @@ export class GpsSubject {
   /** Punto de entrada de una nueva posición (llamado por watchPosition o manualmente en tests/demo). */
   push(fix: GpsFix): void {
     const plausible = isPlausibleStep(this.last, fix, { minMeters: 15, maxJumpKm: 30 });
-    let delta = 0;
-    if (plausible) {
-      if (this.last) delta = haversineKm(this.last, fix);
-      this.totalKm += delta;
-      this.path.push(fix);
-      this.last = { lat: fix.lat, lon: fix.lon };
-    } else if (!this.last) {
-      // primer punto
-      this.path.push(fix);
-      this.last = { lat: fix.lat, lon: fix.lon };
-    }
+    // Ruido de GPS o salto implausible (p. ej. lectura fuera de la ruta): se ignora
+    // por completo — no mueve el marcador, no suma km ni se sincroniza al backend.
+    if (!plausible && this.last) return;
+
+    const delta = this.last ? haversineKm(this.last, fix) : 0;
+    this.totalKm += delta;
+    this.path.push(fix);
+    this.last = { lat: fix.lat, lon: fix.lon };
+
     const update: GpsUpdate = {
       fix,
       totalKm: this.totalKm,

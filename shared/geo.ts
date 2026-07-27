@@ -33,6 +33,19 @@ export function totalPathKm(points: LatLon[]): number {
 }
 
 /**
+ * Suma robusta: ignora los saltos implausibles (teletransportes por GPS malo o
+ * lecturas fuera de la ruta). Es la fuente de verdad de los km recorridos.
+ */
+export function robustPathKm(points: LatLon[], maxJumpKm = 30): number {
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    const d = haversineKm(points[i - 1], points[i]);
+    if (d <= maxJumpKm) total += d;
+  }
+  return total;
+}
+
+/**
  * Descarta un punto nuevo si está demasiado cerca del anterior (ruido de GPS)
  * o si el salto es implausiblemente grande (outlier). Devuelve true si el punto
  * debe contarse para el acumulado de km.

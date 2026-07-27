@@ -1,5 +1,5 @@
 import type { TripPosition } from "../../shared/domain";
-import { totalPathKm } from "../../shared/geo";
+import { robustPathKm } from "../../shared/geo";
 
 export async function listPositions(db: D1Database, tripId: number): Promise<TripPosition[]> {
   const { results } = await db
@@ -39,8 +39,8 @@ export async function appendPositions(
   return seq;
 }
 
-/** Km recorridos según la traza GPS completa (Haversine acumulado). */
+/** Km recorridos según la traza GPS (Haversine, ignorando saltos implausibles). */
 export async function distanceFromPositions(db: D1Database, tripId: number): Promise<number> {
   const points = await listPositions(db, tripId);
-  return totalPathKm(points.map((p) => ({ lat: p.lat, lon: p.lon })));
+  return robustPathKm(points.map((p) => ({ lat: p.lat, lon: p.lon })));
 }
