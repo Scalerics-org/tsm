@@ -4,15 +4,14 @@ import { useAuth } from "../../lib/auth";
 import { ApiError } from "../../lib/api";
 import { TruckMark } from "../../components/AppShell";
 
-const DEMO = [
-  { role: "Chofer", email: "carlos@demo.uy" },
-  { role: "Encargado", email: "ops@demo.uy" },
-  { role: "Admin", email: "admin@demo.uy" },
-];
+type Mode = "chofer" | "oficina";
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { loginDriver, loginOffice } = useAuth();
   const navigate = useNavigate();
+  const [mode, setMode] = useState<Mode>("chofer");
+  const [plate, setPlate] = useState("");
+  const [pin, setPin] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -23,7 +22,8 @@ export function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      await login(email, password);
+      if (mode === "chofer") await loginDriver(plate, pin);
+      else await loginOffice(email, password);
       navigate("/");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo iniciar sesión");
@@ -32,17 +32,21 @@ export function LoginPage() {
     }
   }
 
+  const inputCls =
+    "h-12 w-full border border-bg/25 bg-bg/[.08] px-3 text-bg outline-none placeholder:text-bg/40 focus:border-brand";
+  const labelCls =
+    "mb-2 block font-cond text-[12px] font-semibold uppercase tracking-[0.12em] text-bg/65";
+
   return (
     <div className="grid min-h-full place-items-center bg-bg px-4 py-10">
       <div className="w-full max-w-sm">
-        {/* Tarjeta navy estilo FLETA */}
         <div className="blueprint elev-md bg-navy p-7">
           <i className="corner tl" />
           <i className="corner tr" />
           <i className="corner bl" />
           <i className="corner br" />
 
-          <div className="mb-7 flex items-center gap-3">
+          <div className="mb-6 flex items-center gap-3">
             <span className="grid h-11 w-11 flex-none place-items-center bg-brand">
               <TruckMark size={24} />
             </span>
@@ -54,35 +58,78 @@ export function LoginPage() {
             </div>
           </div>
 
+          {/* Selector de modo */}
+          <div className="mb-5 grid grid-cols-2 border border-bg/20">
+            {(["chofer", "oficina"] as Mode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => {
+                  setMode(m);
+                  setError("");
+                }}
+                className={`py-2.5 font-cond text-sm font-semibold uppercase tracking-[0.08em] ${
+                  mode === m ? "bg-brand text-bg" : "text-bg/60"
+                }`}
+              >
+                {m === "chofer" ? "Chofer" : "Oficina"}
+              </button>
+            ))}
+          </div>
+
           <form onSubmit={submit} className="flex flex-col gap-4">
-            <div>
-              <label className="mb-2 block font-cond text-[12px] font-semibold uppercase tracking-[0.12em] text-bg/65">
-                Email
-              </label>
-              <input
-                className="h-12 w-full border border-bg/25 bg-bg/[.08] px-3 text-bg outline-none placeholder:text-bg/40 focus:border-brand"
-                type="email"
-                autoComplete="username"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="tu@empresa.uy"
-                required
-              />
-            </div>
-            <div>
-              <label className="mb-2 block font-cond text-[12px] font-semibold uppercase tracking-[0.12em] text-bg/65">
-                Clave
-              </label>
-              <input
-                className="h-12 w-full border border-bg/25 bg-bg/[.08] px-3 text-bg outline-none placeholder:text-bg/40 focus:border-brand"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-              />
-            </div>
+            {mode === "chofer" ? (
+              <>
+                <div>
+                  <label className={labelCls}>Patente del camión</label>
+                  <input
+                    className={inputCls}
+                    value={plate}
+                    onChange={(e) => setPlate(e.target.value)}
+                    placeholder="STZ 4821"
+                    autoCapitalize="characters"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>PIN</label>
+                  <input
+                    className={`${inputCls} tracking-[0.4em]`}
+                    type="password"
+                    inputMode="numeric"
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value)}
+                    placeholder="••••"
+                    required
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className={labelCls}>Email</label>
+                  <input
+                    className={inputCls}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="tu@empresa.uy"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Contraseña</label>
+                  <input
+                    className={inputCls}
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+              </>
+            )}
 
             {error && (
               <p className="border-l-4 border-st-redDot bg-st-redBg px-3 py-2 text-sm text-st-redTx">
@@ -100,29 +147,31 @@ export function LoginPage() {
           </form>
         </div>
 
-        {/* Cuentas de demo */}
         <div className="panel mt-6 p-4 text-sm">
           <i className="corner tl" />
           <i className="corner br" />
-          <p className="mb-2 font-cond font-semibold uppercase tracking-[0.1em] text-brand-700">
-            Cuentas de demo · clave demo1234
-          </p>
-          <ul className="space-y-1">
-            {DEMO.map((d) => (
-              <li key={d.email} className="flex items-center justify-between">
-                <span className="text-ink/55">{d.role}</span>
-                <button
-                  className="font-mono text-brand-700 hover:underline"
-                  onClick={() => {
-                    setEmail(d.email);
-                    setPassword("demo1234");
-                  }}
-                >
-                  {d.email}
-                </button>
-              </li>
-            ))}
-          </ul>
+          <p className="mb-2 font-cond font-semibold uppercase tracking-[0.1em] text-brand-700">Demo</p>
+          {mode === "chofer" ? (
+            <button
+              className="font-mono text-brand-700 hover:underline"
+              onClick={() => {
+                setPlate("STZ 4821");
+                setPin("1234");
+              }}
+            >
+              Patente STZ 4821 · PIN 1234
+            </button>
+          ) : (
+            <button
+              className="font-mono text-brand-700 hover:underline"
+              onClick={() => {
+                setEmail("ops@demo.uy");
+                setPassword("demo1234");
+              }}
+            >
+              ops@demo.uy · demo1234
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -4,20 +4,20 @@ import { ROLES, type Role } from "@shared/domain";
 import { Spinner } from "./components/ui";
 import { AppShell } from "./components/AppShell";
 import { LoginPage } from "./features/auth/LoginPage";
-import { ChoferTripsPage } from "./features/chofer/ChoferTripsPage";
-import { ChoferTripDetailPage } from "./features/chofer/ChoferTripDetailPage";
-import { OpsDashboard } from "./features/operaciones/OpsDashboard";
+import { ChoferHome } from "./features/chofer/ChoferHome";
+import { StartTripPage } from "./features/chofer/StartTripPage";
+import { ChoferTripPage } from "./features/chofer/ChoferTripPage";
+import { FuelPage } from "./features/chofer/FuelPage";
+import { OpsSummary } from "./features/operaciones/OpsSummary";
 import { OpsTripsPage } from "./features/operaciones/OpsTripsPage";
 import { OpsTripDetailPage } from "./features/operaciones/OpsTripDetailPage";
-import { NewTripPage } from "./features/operaciones/NewTripPage";
+import { TemplatesPage } from "./features/operaciones/TemplatesPage";
 import { AdminDriversPage } from "./features/admin/AdminDriversPage";
 import { AdminTrucksPage } from "./features/admin/AdminTrucksPage";
 import { AdminUsersPage } from "./features/admin/AdminUsersPage";
 
 function homePath(role: Role): string {
-  if (role === ROLES.CHOFER) return "/viajes";
-  if (role === ROLES.ADMIN) return "/panel";
-  return "/panel";
+  return role === ROLES.CHOFER ? "/" : "/panel";
 }
 
 function RequireRole({ roles, children }: { roles: Role[]; children: JSX.Element }) {
@@ -48,6 +48,7 @@ export default function App() {
   }
 
   const OPS: Role[] = [ROLES.ENCARGADO, ROLES.ADMIN];
+  const CH: Role[] = [ROLES.CHOFER];
 
   return (
     <AppShell>
@@ -55,90 +56,21 @@ export default function App() {
         <Route path="/login" element={<Navigate to={homePath(user.role)} replace />} />
 
         {/* Chofer */}
-        <Route
-          path="/viajes"
-          element={
-            <RequireRole roles={[ROLES.CHOFER]}>
-              <ChoferTripsPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/viajes/:id"
-          element={
-            <RequireRole roles={[ROLES.CHOFER]}>
-              <ChoferTripDetailPage />
-            </RequireRole>
-          }
-        />
+        <Route path="/" element={<RequireRole roles={CH}><ChoferHome /></RequireRole>} />
+        <Route path="/viaje/nuevo/:templateId" element={<RequireRole roles={CH}><StartTripPage /></RequireRole>} />
+        <Route path="/viaje/:id" element={<RequireRole roles={CH}><ChoferTripPage /></RequireRole>} />
+        <Route path="/surtida" element={<RequireRole roles={CH}><FuelPage /></RequireRole>} />
 
-        {/* Encargado / Admin */}
-        <Route
-          path="/panel"
-          element={
-            <RequireRole roles={OPS}>
-              <OpsDashboard />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/panel/viajes"
-          element={
-            <RequireRole roles={OPS}>
-              <OpsTripsPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/panel/viajes/nuevo"
-          element={
-            <RequireRole roles={OPS}>
-              <NewTripPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/panel/viajes/:id"
-          element={
-            <RequireRole roles={OPS}>
-              <OpsTripDetailPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/panel/viajes/:id/editar"
-          element={
-            <RequireRole roles={OPS}>
-              <NewTripPage />
-            </RequireRole>
-          }
-        />
+        {/* Oficina */}
+        <Route path="/panel" element={<RequireRole roles={OPS}><OpsSummary /></RequireRole>} />
+        <Route path="/panel/viajes" element={<RequireRole roles={OPS}><OpsTripsPage /></RequireRole>} />
+        <Route path="/panel/viajes/:id" element={<RequireRole roles={OPS}><OpsTripDetailPage /></RequireRole>} />
+        <Route path="/panel/plantillas" element={<RequireRole roles={OPS}><TemplatesPage /></RequireRole>} />
 
         {/* Admin */}
-        <Route
-          path="/admin/choferes"
-          element={
-            <RequireRole roles={[ROLES.ADMIN]}>
-              <AdminDriversPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/admin/camiones"
-          element={
-            <RequireRole roles={[ROLES.ADMIN]}>
-              <AdminTrucksPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="/admin/usuarios"
-          element={
-            <RequireRole roles={[ROLES.ADMIN]}>
-              <AdminUsersPage />
-            </RequireRole>
-          }
-        />
+        <Route path="/admin/choferes" element={<RequireRole roles={[ROLES.ADMIN]}><AdminDriversPage /></RequireRole>} />
+        <Route path="/admin/camiones" element={<RequireRole roles={[ROLES.ADMIN]}><AdminTrucksPage /></RequireRole>} />
+        <Route path="/admin/usuarios" element={<RequireRole roles={[ROLES.ADMIN]}><AdminUsersPage /></RequireRole>} />
 
         <Route path="*" element={<Navigate to={homePath(user.role)} replace />} />
       </Routes>

@@ -8,15 +8,15 @@ import {
   type TripStatus,
   type Truck,
 } from "@shared/domain";
-import { api } from "../../lib/api";
-import { Card, Empty, Spinner, StatusBadge } from "../../components/ui";
-import { fmtDateTime, fmtKm } from "../../lib/format";
+import { api, downloadFile } from "../../lib/api";
+import { Button, Card, Empty, Spinner, StatusBadge } from "../../components/ui";
+import { fmtDateTime } from "../../lib/format";
 
 export function OpsTripsPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [trips, setTrips] = useState<Trip[] | null>(null);
-  const [f, setF] = useState({ driver: "", truck: "", status: "", date: "" });
+  const [f, setF] = useState({ driver: "", truck: "", status: "", from: "", to: "" });
 
   useEffect(() => {
     api.get<Driver[]>("/drivers").then(setDrivers).catch(() => {});
@@ -28,7 +28,8 @@ export function OpsTripsPage() {
     if (f.driver) p.set("driver", f.driver);
     if (f.truck) p.set("truck", f.truck);
     if (f.status) p.set("status", f.status);
-    if (f.date) p.set("date", f.date);
+    if (f.from) p.set("from", f.from);
+    if (f.to) p.set("to", f.to);
     const s = p.toString();
     return s ? `?${s}` : "";
   }, [f]);
@@ -41,16 +42,13 @@ export function OpsTripsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-ink">Viajes</h1>
-        <Link
-          to="/panel/viajes/nuevo"
-          className="bg-brand-600 px-4 py-2 text-sm font-semibold text-ink hover:bg-brand-500"
-        >
-          + Nuevo viaje
-        </Link>
+        <h1 className="text-3xl text-ink">Viajes</h1>
+        <Button variant="secondary" onClick={() => downloadFile(`/reports/trips.csv${query}`, "viajes.csv")}>
+          ⬇ Exportar Excel
+        </Button>
       </div>
 
-      <Card className="grid gap-3 sm:grid-cols-4">
+      <Card className="grid gap-3 sm:grid-cols-5">
         <select className="input" value={f.driver} onChange={(e) => setF({ ...f, driver: e.target.value })}>
           <option value="">Todos los choferes</option>
           {drivers.map((d) => (
@@ -75,7 +73,8 @@ export function OpsTripsPage() {
             </option>
           ))}
         </select>
-        <input type="date" className="input" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} />
+        <input type="date" className="input" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} />
+        <input type="date" className="input" value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} />
       </Card>
 
       {!trips ? (
@@ -84,14 +83,14 @@ export function OpsTripsPage() {
         <Empty>No hay viajes con esos filtros.</Empty>
       ) : (
         <Card className="overflow-x-auto p-0">
-          <table className="w-full min-w-[640px] text-sm">
+          <table className="w-full min-w-[760px] text-sm">
             <thead className="text-left text-ink/60">
               <tr className="border-b border-ink/15">
-                <th className="px-4 py-3">Ruta</th>
+                <th className="px-4 py-3">Proveedor / Ruta</th>
                 <th className="px-4 py-3">Chofer</th>
                 <th className="px-4 py-3">Camión</th>
-                <th className="px-4 py-3">Programado</th>
-                <th className="px-4 py-3 text-right">Km</th>
+                <th className="px-4 py-3 text-right">Kilos</th>
+                <th className="px-4 py-3">Salida</th>
                 <th className="px-4 py-3">Estado</th>
               </tr>
             </thead>
@@ -102,11 +101,14 @@ export function OpsTripsPage() {
                     <Link to={`/panel/viajes/${t.id}`} className="font-medium text-ink hover:text-brand-700">
                       {t.origin} → {t.destination}
                     </Link>
+                    <div className="text-xs text-ink/50">{t.provider_name}</div>
                   </td>
                   <td className="px-4 py-3 text-ink/70">{t.driver_name}</td>
                   <td className="px-4 py-3 text-ink/70">{t.truck_plate}</td>
-                  <td className="px-4 py-3 text-ink/60">{fmtDateTime(t.scheduled_at)}</td>
-                  <td className="px-4 py-3 text-right text-ink/70">{fmtKm(t.distance_km)}</td>
+                  <td className="px-4 py-3 text-right text-ink/70">
+                    {t.kilos != null ? `${t.kilos.toLocaleString("es-UY")} kg` : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-ink/60">{fmtDateTime(t.started_at)}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={t.status} />
                   </td>

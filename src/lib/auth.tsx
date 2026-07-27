@@ -5,7 +5,8 @@ import { api, getToken, setToken, clearToken } from "./api";
 interface AuthState {
   user: AuthUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  loginOffice: (email: string, password: string) => Promise<void>;
+  loginDriver: (plate: string, pin: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -27,10 +28,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  async function login(email: string, password: string) {
+  async function loginOffice(email: string, password: string) {
     const { token, user } = await api.post<{ token: string; user: AuthUser }>("/auth/login", {
       email,
       password,
+    });
+    setToken(token);
+    setUser(user);
+  }
+
+  async function loginDriver(plate: string, pin: string) {
+    const { token, user } = await api.post<{ token: string; user: AuthUser }>("/auth/driver-login", {
+      plate,
+      pin,
     });
     setToken(token);
     setUser(user);
@@ -42,7 +52,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, loading, loginOffice, loginDriver, logout }}>
+      {children}
+    </AuthContext.Provider>
   );
 }
 

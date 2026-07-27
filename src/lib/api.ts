@@ -59,6 +59,24 @@ export const api = {
   upload: <T>(path: string, formData: FormData) => request<T>(path, { method: "POST", formData }),
 };
 
+/** Descarga un archivo protegido (ej. CSV) con el token y dispara la descarga. */
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`/api${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new ApiError("No se pudo descargar", res.status);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 /** Descarga una foto protegida y devuelve un object URL (para <img src>). */
 export async function fetchPhotoUrl(r2Key: string): Promise<string | null> {
   const token = getToken();

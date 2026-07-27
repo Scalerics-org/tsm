@@ -77,13 +77,7 @@ const STATUS: Record<
   TripStatus,
   { bg: string; bd: string; tx: string; dot: string; pulse?: boolean }
 > = {
-  [TRIP_STATUS.PENDIENTE]: {
-    bg: "bg-st-amberBg",
-    bd: "border-st-amberBd",
-    tx: "text-st-amberTx",
-    dot: "bg-st-amberDot",
-  },
-  [TRIP_STATUS.EN_RUTA]: {
+  [TRIP_STATUS.EN_CURSO]: {
     bg: "bg-st-blueBg",
     bd: "border-st-blueBd",
     tx: "text-st-blueTx",
@@ -101,12 +95,6 @@ const STATUS: Record<
     bd: "border-neutral-400",
     tx: "text-neutral-600",
     dot: "bg-neutral-500",
-  },
-  [TRIP_STATUS.CON_INCIDENCIA]: {
-    bg: "bg-st-redBg",
-    bd: "border-st-redBd",
-    tx: "text-st-redTx",
-    dot: "bg-st-redDot",
   },
 };
 

@@ -1,28 +1,26 @@
 import { useEffect, useState } from "react";
-import { ROLES, type AuthUser, type Driver, type Role } from "@shared/domain";
+import { ROLES, type AuthUser, type Role } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
 import { useAuth } from "../../lib/auth";
 
-const ROLE_LABEL: Record<Role, string> = {
-  chofer: "Chofer",
+const ROLE_LABEL: Record<string, string> = {
   encargado: "Encargado",
   admin: "Administrador",
+  chofer: "Chofer",
 };
+
+const OFFICE_ROLES: Role[] = [ROLES.ENCARGADO, ROLES.ADMIN];
 
 export function AdminUsersPage() {
   const { user: me } = useAuth();
   const [users, setUsers] = useState<AuthUser[] | null>(null);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [creating, setCreating] = useState(false);
 
   function load() {
     api.get<AuthUser[]>("/users").then(setUsers).catch(() => setUsers([]));
   }
-  useEffect(() => {
-    load();
-    api.get<Driver[]>("/drivers").then(setDrivers).catch(() => {});
-  }, []);
+  useEffect(load, []);
 
   async function remove(id: number) {
     if (!confirm("¿Eliminar este usuario?")) return;
@@ -35,13 +33,15 @@ export function AdminUsersPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-ink">Usuarios</h1>
+        <div>
+          <h1 className="text-3xl text-ink">Usuarios de oficina</h1>
+          <p className="text-sm text-ink/60">Los choferes se gestionan en la sección Choferes (con PIN).</p>
+        </div>
         <Button onClick={() => setCreating(true)}>+ Nuevo usuario</Button>
       </div>
 
       {creating && (
         <UserForm
-          drivers={drivers}
           onClose={() => setCreating(false)}
           onSaved={() => {
             setCreating(false);
@@ -51,7 +51,7 @@ export function AdminUsersPage() {
       )}
 
       <Card className="overflow-x-auto p-0">
-        <table className="w-full min-w-[560px] text-sm">
+        <table className="w-full min-w-[520px] text-sm">
           <thead className="text-left text-ink/60">
             <tr className="border-b border-ink/15">
               <th className="px-4 py-3">Nombre</th>
@@ -82,16 +82,8 @@ export function AdminUsersPage() {
   );
 }
 
-function UserForm({
-  drivers,
-  onClose,
-  onSaved,
-}: {
-  drivers: Driver[];
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [f, setF] = useState({ name: "", email: "", password: "", role: ROLES.CHOFER as Role, driver_id: "" });
+function UserForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [f, setF] = useState({ name: "", email: "", password: "", role: ROLES.ENCARGADO as Role });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -100,13 +92,7 @@ function UserForm({
     setError("");
     setBusy(true);
     try {
-      await api.post("/users", {
-        name: f.name,
-        email: f.email,
-        password: f.password,
-        role: f.role,
-        driver_id: f.role === ROLES.CHOFER && f.driver_id ? Number(f.driver_id) : null,
-      });
+      await api.post("/users", { name: f.name, email: f.email, password: f.password, role: f.role });
       onSaved();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo crear el usuario");
@@ -129,25 +115,13 @@ function UserForm({
         </Field>
         <Field label="Rol">
           <select className="input" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as Role })}>
-            {Object.values(ROLES).map((r) => (
+            {OFFICE_ROLES.map((r) => (
               <option key={r} value={r}>
                 {ROLE_LABEL[r]}
               </option>
             ))}
           </select>
         </Field>
-        {f.role === ROLES.CHOFER && (
-          <Field label="Chofer vinculado">
-            <select className="input" value={f.driver_id} onChange={(e) => setF({ ...f, driver_id: e.target.value })}>
-              <option value="">Sin vincular</option>
-              {drivers.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-        )}
         <div className="col-span-full">
           <ErrorText>{error}</ErrorText>
           <div className="flex gap-2">

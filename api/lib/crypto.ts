@@ -47,18 +47,20 @@ export async function verifyPassword(password: string, stored: string): Promise<
 
 interface JwtClaims {
   sub: string;
-  email: string;
+  email: string | null;
   name: string;
   role: Role;
   driver_id: number | null;
+  truck_id: number | null;
 }
 
 export async function signToken(user: AuthUser, secret: string): Promise<string> {
   return new SignJWT({
-    email: user.email,
+    email: user.email ?? null,
     name: user.name,
     role: user.role,
     driver_id: user.driver_id,
+    truck_id: user.truck_id,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(String(user.id))
@@ -77,6 +79,7 @@ export async function verifyToken(token: string, secret: string): Promise<AuthUs
       name: c.name,
       role: c.role,
       driver_id: c.driver_id,
+      truck_id: c.truck_id ?? null,
     };
   } catch {
     return null;

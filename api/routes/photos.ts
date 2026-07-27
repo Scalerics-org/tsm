@@ -9,13 +9,9 @@ import * as photosRepo from "../repos/photos";
 const photos = new Hono<{ Bindings: Env; Variables: Vars }>();
 photos.use("*", requireAuth);
 
-const VALID_KINDS: PhotoKind[] = [
-  PHOTO_KIND.CARGA_SALIDA,
-  PHOTO_KIND.CARGA_LLEGADA,
-  PHOTO_KIND.COMBUSTIBLE,
-];
+const VALID: PhotoKind[] = [PHOTO_KIND.CARGA, PHOTO_KIND.DESCARGA, PHOTO_KIND.DOCUMENTO];
 
-// POST /api/photos — subida multipart (file, trip_id, kind, lat?, lon?, taken_at?)
+// POST /api/photos — subida multipart (file, trip_id, kind)
 photos.post("/", async (c) => {
   if (!c.env.FOTOS) return fail(c, "Almacenamiento de fotos no configurado (habilitar R2)", 503);
   const user = c.get("user");
@@ -27,9 +23,8 @@ photos.post("/", async (c) => {
   const kind = String(form.get("kind")) as PhotoKind;
 
   if (!fileEntry || typeof fileEntry === "string") return fail(c, "Falta el archivo", 400);
-  const file = fileEntry as unknown as File;
   if (!tripId) return fail(c, "Falta trip_id", 400);
-  if (!VALID_KINDS.includes(kind)) return fail(c, "Tipo de foto inválido", 400);
+  if (!VALID.includes(kind)) return fail(c, "Tipo de foto inválido", 400);
 
   const trip = await tripsRepo.getTrip(c.env.DB, tripId);
   if (!trip) return fail(c, "Viaje no encontrado", 404);
@@ -37,11 +32,7 @@ photos.post("/", async (c) => {
     return fail(c, "No podés subir fotos a este viaje", 403);
   }
 
-  const lat = form.get("lat") ? Number(form.get("lat")) : null;
-  const lon = form.get("lon") ? Number(form.get("lon")) : null;
-  const takenAt =
-    (form.get("taken_at") as string) || new Date().toISOString().replace("T", " ").slice(0, 19);
-
+  const file = fileEntry as unknown as File;
   const ext = (file.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
   const key = `trips/${tripId}/${kind}-${Date.now()}.${ext}`;
   await c.env.FOTOS.put(key, await file.arrayBuffer(), {
@@ -52,9 +43,7 @@ photos.post("/", async (c) => {
     trip_id: tripId,
     r2_key: key,
     kind,
-    taken_at: takenAt,
-    lat,
-    lon,
+    taken_at: new Date().toISOString().replace("T", " ").slice(0, 19),
   });
   return ok(c, { id, r2_key: key }, 201);
 });
