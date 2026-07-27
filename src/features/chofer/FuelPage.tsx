@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText, Field } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
+import { compressImage } from "../../lib/image";
 
 export function FuelPage() {
   const navigate = useNavigate();
@@ -20,7 +21,7 @@ export function FuelPage() {
     setBusy(true);
     try {
       const fd = new FormData();
-      fd.append("file", file);
+      fd.append("file", await compressImage(file));
       fd.append("odometer_km", odometer);
       fd.append("liters", liters);
       fd.append("is_full", String(isFull));

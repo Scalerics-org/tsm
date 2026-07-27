@@ -4,10 +4,11 @@ import { PHOTO_KIND, type Trip, type TripTemplate } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { Button, Card, Corners, ErrorText, Field, Spinner } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
+import { compressImage } from "../../lib/image";
 
 async function uploadPhoto(tripId: number, file: File, kind: string) {
   const fd = new FormData();
-  fd.append("file", file);
+  fd.append("file", await compressImage(file));
   fd.append("trip_id", String(tripId));
   fd.append("kind", kind);
   await api.upload("/photos", fd);

@@ -12,6 +12,7 @@ import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText, Spinner, StatusBadge } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
 import { PhotoImage } from "../../components/PhotoImage";
+import { compressImage } from "../../lib/image";
 import { fmtDateTime } from "../../lib/format";
 
 interface Detail {
@@ -21,7 +22,7 @@ interface Detail {
 
 async function uploadPhoto(tripId: number, file: File, kind: string) {
   const fd = new FormData();
-  fd.append("file", file);
+  fd.append("file", await compressImage(file));
   fd.append("trip_id", String(tripId));
   fd.append("kind", kind);
   await api.upload("/photos", fd);
