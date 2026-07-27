@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
 import { requireAuth } from "../middleware/auth";
-import { ROLES } from "../../shared/domain";
+import { ROLES, fuelFeedback } from "../../shared/domain";
 import * as repo from "../repos/fuel";
 
 const fuel = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -43,16 +43,29 @@ fuel.post("/", async (c) => {
     });
   }
 
+  const isFull = form.get("is_full") !== "false";
   const id = await repo.createFuelLog(c.env.DB, {
     truck_id: truckId,
     driver_id: user.driver_id,
     trip_id: form.get("trip_id") ? Number(form.get("trip_id")) : null,
     odometer_km: odometer,
     liters,
-    is_full: form.get("is_full") !== "false",
+    is_full: isFull,
     r2_key: r2Key,
   });
-  return ok(c, { id, r2_key: r2Key }, 201);
+
+  // Feedback de consumo (tramo cerrado al llenar + acumulado mensual).
+  const logs = await repo.listFuelLogs(c.env.DB, { truckId });
+  const feedback = fuelFeedback(
+    logs.map((l) => ({
+      odometer_km: l.odometer_km,
+      liters: l.liters,
+      is_full: !!l.is_full,
+      logged_at: l.logged_at,
+    })),
+    { odometer_km: odometer, liters, is_full: isFull, logged_at: new Date().toISOString().slice(0, 10) },
+  );
+  return ok(c, { id, r2_key: r2Key, feedback }, 201);
 });
 
 export default fuel;

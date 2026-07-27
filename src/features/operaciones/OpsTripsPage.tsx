@@ -89,7 +89,7 @@ export function OpsTripsPage() {
                 <th className="px-4 py-3">Proveedor / Ruta</th>
                 <th className="px-4 py-3">Chofer</th>
                 <th className="px-4 py-3">Camión</th>
-                <th className="px-4 py-3 text-right">Kilos</th>
+                <th className="px-4 py-3 text-right">Ton</th>
                 <th className="px-4 py-3">Salida</th>
                 <th className="px-4 py-3">Estado</th>
               </tr>
@@ -106,7 +106,7 @@ export function OpsTripsPage() {
                   <td className="px-4 py-3 text-ink/70">{t.driver_name}</td>
                   <td className="px-4 py-3 text-ink/70">{t.truck_plate}</td>
                   <td className="px-4 py-3 text-right text-ink/70">
-                    {t.kilos != null ? `${t.kilos.toLocaleString("es-UY")} kg` : "—"}
+                    {t.weight_tons != null ? `${t.weight_tons} t` : "—"}
                   </td>
                   <td className="px-4 py-3 text-ink/60">{fmtDateTime(t.started_at)}</td>
                   <td className="px-4 py-3">

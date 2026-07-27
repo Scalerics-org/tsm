@@ -4,6 +4,7 @@ import {
   PHOTO_KIND_LABEL,
   TRIP_STATUS,
   type PhotoKind,
+  type TemplateField,
   type Trip,
   type TripPhoto,
 } from "@shared/domain";
@@ -13,7 +14,7 @@ import { PhotoImage } from "../../components/PhotoImage";
 import { fmtDateTime } from "../../lib/format";
 
 interface Detail {
-  trip: Trip;
+  trip: Trip & { fields?: TemplateField[] };
   photos: TripPhoto[];
 }
 
@@ -33,6 +34,7 @@ export function OpsTripDetailPage() {
   if (error) return <ErrorText>{error}</ErrorText>;
   if (!data) return <Spinner size={28} />;
   const { trip, photos } = data;
+  const fields = trip.fields ?? [];
 
   async function cancel() {
     if (!confirm("¿Cancelar este viaje?")) return;
@@ -51,6 +53,7 @@ export function OpsTripDetailPage() {
           <div className="kicker">{trip.provider_name}</div>
           <h1 className="text-2xl text-ink">
             {trip.origin} → {trip.destination}
+            {trip.destinatario ? ` (${trip.destinatario})` : ""}
           </h1>
           <p className="text-sm text-ink/60">
             {trip.driver_name} · 🚛 {trip.truck_plate}
@@ -69,12 +72,20 @@ export function OpsTripDetailPage() {
       <Card>
         <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
           <Info label="Carga" value={trip.cargo_type || "—"} />
-          <Info label="Kilos" value={trip.kilos != null ? `${trip.kilos.toLocaleString("es-UY")} kg` : "—"} />
+          <Info label="Toneladas" value={trip.weight_tons != null ? `${trip.weight_tons} t` : "—"} />
+          {fields
+            .filter((f) => !f.is_weight)
+            .map((f) => (
+              <Info key={f.key} label={f.label} value={trip.field_values[f.key] || "—"} />
+            ))}
           <Info label="Salida" value={fmtDateTime(trip.started_at)} />
           <Info label="Llegada" value={trip.finished_at ? fmtDateTime(trip.finished_at) : "—"} />
-          {trip.extra_label && <Info label={trip.extra_label} value={trip.extra_value || "—"} />}
-          {trip.notes && <Info label="Notas" value={trip.notes} />}
         </div>
+        {trip.notes && (
+          <div className="mt-3 border-l-4 border-brand bg-surface p-3 text-sm text-ink/80">
+            <span className="font-semibold">Observaciones:</span> {trip.notes}
+          </div>
+        )}
       </Card>
 
       {photos.length > 0 ? (

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { PHOTO_KIND, type Trip, type TripTemplate } from "@shared/domain";
+import { FIELD_STAGE, PHOTO_KIND, type Trip, type TripTemplate } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { Button, Card, Corners, ErrorText, Field, Spinner } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
@@ -18,10 +18,9 @@ export function StartTripPage() {
   const { templateId } = useParams();
   const navigate = useNavigate();
   const [tpl, setTpl] = useState<TripTemplate | null>(null);
-  const [destination, setDestination] = useState("");
-  const [otherDest, setOtherDest] = useState("");
-  const [kilos, setKilos] = useState("");
-  const [extra, setExtra] = useState("");
+  const [optIdx, setOptIdx] = useState("");
+  const [otroDest, setOtroDest] = useState("");
+  const [values, setValues] = useState<Record<string, string>>({});
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -35,23 +34,29 @@ export function StartTripPage() {
 
   if (!tpl) return <Spinner size={28} />;
 
-  const dest = destination === "__otro__" ? otherDest.trim() : destination;
+  const cargaFields = tpl.fields.filter((f) => f.stage === FIELD_STAGE.CARGA);
+  const opt = optIdx !== "" ? tpl.dest_options[Number(optIdx)] : null;
+  const destinatarioFinal =
+    opt?.destinatario === "Otro" && otroDest.trim() ? otroDest.trim() : opt?.destinatario ?? "";
+
+  const setVal = (k: string, v: string) => setValues((prev) => ({ ...prev, [k]: v }));
 
   async function confirm() {
     setError("");
-    if (!dest) return setError("Elegí el destino.");
-    if (tpl!.requires_kilos && !kilos) return setError("Cargá los kilos de carga.");
-    if (tpl!.extra_type !== "none" && tpl!.extra_required && !extra)
-      return setError(`Cargá ${tpl!.extra_label}.`);
+    if (!opt) return setError("Elegí el destino.");
+    for (const f of cargaFields) {
+      if (f.required && !String(values[f.key] ?? "").trim()) return setError(`Cargá ${f.label}.`);
+    }
     if (!file) return setError("Sacá la foto de la carga.");
 
     setBusy(true);
     try {
       const trip = await api.post<Trip>("/trips", {
         template_id: tpl!.id,
-        destination: dest,
-        kilos: kilos ? Number(kilos) : undefined,
-        extra_value: extra || undefined,
+        origin: tpl!.origin,
+        destino: opt.destino,
+        destinatario: destinatarioFinal,
+        field_values: values,
       });
       await uploadPhoto(trip.id, file, PHOTO_KIND.CARGA);
       navigate(`/viaje/${trip.id}`);
@@ -75,43 +80,32 @@ export function StartTripPage() {
 
       <Card className="space-y-4">
         <Field label="Destino">
-          <select className="input" value={destination} onChange={(e) => setDestination(e.target.value)}>
+          <select className="input" value={optIdx} onChange={(e) => setOptIdx(e.target.value)}>
             <option value="">Elegí…</option>
-            {tpl.destinations.map((d) => (
-              <option key={d} value={d}>
-                {d}
+            {tpl.dest_options.map((o, i) => (
+              <option key={i} value={i}>
+                {o.destino}
+                {o.destinatario ? ` · ${o.destinatario}` : ""}
               </option>
             ))}
-            <option value="__otro__">Otro…</option>
           </select>
         </Field>
-        {destination === "__otro__" && (
-          <Field label="¿A dónde?">
-            <input className="input" value={otherDest} onChange={(e) => setOtherDest(e.target.value)} />
+        {opt?.destinatario === "Otro" && (
+          <Field label="¿Qué destinatario?">
+            <input className="input" value={otroDest} onChange={(e) => setOtroDest(e.target.value)} />
           </Field>
         )}
-        {tpl.requires_kilos && (
-          <Field label="Kilos de carga">
+        {cargaFields.map((f) => (
+          <Field key={f.key} label={`${f.label}${f.required ? "" : " (opcional)"}`}>
             <input
               className="input"
-              type="number"
-              inputMode="decimal"
-              value={kilos}
-              onChange={(e) => setKilos(e.target.value)}
-              placeholder="Ej: 24000"
+              type={f.type === "numero" ? "number" : "text"}
+              inputMode={f.type === "numero" ? "decimal" : undefined}
+              value={values[f.key] ?? ""}
+              onChange={(e) => setVal(f.key, e.target.value)}
             />
           </Field>
-        )}
-        {tpl.extra_type !== "none" && (
-          <Field label={`${tpl.extra_label}${tpl.extra_required ? "" : " (opcional)"}`}>
-            <input
-              className="input"
-              type={tpl.extra_type === "numero" ? "number" : "text"}
-              value={extra}
-              onChange={(e) => setExtra(e.target.value)}
-            />
-          </Field>
-        )}
+        ))}
       </Card>
 
       <Card className="space-y-3">

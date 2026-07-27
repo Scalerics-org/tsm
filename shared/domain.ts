@@ -33,12 +33,33 @@ export const PHOTO_KIND_LABEL: Record<PhotoKind, string> = {
   documento: "Documento",
 };
 
-export const EXTRA_TYPE = {
-  NONE: "none",
+export const FIELD_TYPE = {
   TEXTO: "texto",
   NUMERO: "numero",
 } as const;
-export type ExtraType = (typeof EXTRA_TYPE)[keyof typeof EXTRA_TYPE];
+export type FieldType = (typeof FIELD_TYPE)[keyof typeof FIELD_TYPE];
+
+export const FIELD_STAGE = {
+  CARGA: "carga",
+  DESCARGA: "descarga",
+} as const;
+export type FieldStage = (typeof FIELD_STAGE)[keyof typeof FIELD_STAGE];
+
+/** Campo configurable de una plantilla (ej. "Remito de carga", "Toneladas"). */
+export interface TemplateField {
+  key: string; // identificador estable
+  label: string;
+  type: FieldType;
+  required: boolean;
+  stage: FieldStage; // se pide en la carga o en la descarga
+  is_weight?: boolean; // marca el campo de peso/toneladas (para reportes)
+}
+
+/** Opción de destino que elige el chofer (destino + destinatario). */
+export interface DestOption {
+  destino: string;
+  destinatario: string;
+}
 
 export const DRIVER_STATUS = { ACTIVO: "activo", INACTIVO: "inactivo" } as const;
 export type DriverStatus = (typeof DRIVER_STATUS)[keyof typeof DRIVER_STATUS];
@@ -89,12 +110,10 @@ export interface TripTemplate {
   provider_name?: string; // join
   name: string;
   origin: string;
-  destinations: string[]; // parseado de JSON
   cargo_type: string;
-  requires_kilos: boolean;
-  extra_label: string | null;
-  extra_type: ExtraType;
-  extra_required: boolean;
+  dest_options: DestOption[]; // destino + destinatario que puede elegir el chofer
+  fields: TemplateField[]; // campos configurables (carga/descarga)
+  arrival_photo_label: string | null; // etiqueta de la foto de descarga (ej. "Hoja rosada firmada")
   active: boolean;
 }
 
@@ -104,20 +123,21 @@ export interface Trip {
   provider_name: string;
   origin: string;
   destination: string;
+  destinatario: string | null;
   driver_id: number;
   truck_id: number;
   cargo_type: string;
-  kilos: number | null;
-  extra_label: string | null;
-  extra_value: string | null;
+  weight_tons: number | null; // del campo marcado como peso (para reportes)
+  field_values: Record<string, string>; // valores de los campos configurables
   status: TripStatus;
   started_at: string;
   finished_at: string | null;
-  notes: string | null;
+  notes: string | null; // observaciones
   created_at: string;
   // joins
   driver_name?: string;
   truck_plate?: string;
+  fields?: TemplateField[]; // definición (para mostrar etiquetas), viene de la plantilla
 }
 
 export interface TripPhoto {
@@ -169,6 +189,81 @@ export type ApiResponse<T> = ApiOk<T> | ApiErr;
 export function estimateFuelLiters(km: number, consumptionL100: number): number {
   if (km <= 0 || consumptionL100 <= 0) return 0;
   return (km * consumptionL100) / 100;
+}
+
+export interface FuelFeedback {
+  closed: boolean; // ¿cerró el tramo? (el chofer llenó)
+  segment_km: number | null;
+  segment_liters: number | null;
+  segment_l100: number | null;
+  month_km: number;
+  month_liters: number;
+  month_l100: number | null;
+}
+
+interface FLog {
+  odometer_km: number;
+  liters: number;
+  is_full: boolean;
+  logged_at: string; // "YYYY-MM-DD ..."
+}
+
+/**
+ * Feedback de consumo al registrar una surtida (según el cliente):
+ * - Si llenó, cierra el tramo desde el último llenado completo y devuelve su consumo.
+ * - Si no llenó ("chorro"), el tramo queda abierto (closed=false).
+ * - Siempre devuelve el acumulado del mes desde el primer llenado del mes.
+ * `logs` debe incluir la surtida recién registrada (`current`).
+ */
+export function fuelFeedback(logs: FLog[], current: FLog): FuelFeedback {
+  const sorted = [...logs].sort((a, b) => a.odometer_km - b.odometer_km);
+  const closed = current.is_full;
+
+  let segment_km: number | null = null;
+  let segment_liters: number | null = null;
+  let segment_l100: number | null = null;
+
+  if (closed) {
+    // último llenado completo anterior a la surtida actual
+    let prev: FLog | null = null;
+    for (const l of sorted) {
+      if (l.odometer_km >= current.odometer_km) break;
+      if (l.is_full) prev = l;
+    }
+    if (prev) {
+      const km = current.odometer_km - prev.odometer_km;
+      const liters = sorted
+        .filter((l) => l.odometer_km > prev!.odometer_km && l.odometer_km <= current.odometer_km)
+        .reduce((s, l) => s + l.liters, 0);
+      segment_km = km;
+      segment_liters = liters;
+      segment_l100 = km > 0 ? (liters / km) * 100 : null;
+    }
+  }
+
+  const month = current.logged_at.slice(0, 7);
+  const monthLogs = sorted.filter((l) => l.logged_at.slice(0, 7) === month);
+  const firstFull = monthLogs.find((l) => l.is_full);
+  let month_km = 0;
+  let month_liters = 0;
+  let month_l100: number | null = null;
+  if (firstFull && firstFull.odometer_km < current.odometer_km) {
+    month_km = current.odometer_km - firstFull.odometer_km;
+    month_liters = monthLogs
+      .filter((l) => l.odometer_km > firstFull.odometer_km && l.odometer_km <= current.odometer_km)
+      .reduce((s, l) => s + l.liters, 0);
+    month_l100 = month_km > 0 ? (month_liters / month_km) * 100 : null;
+  }
+
+  return {
+    closed,
+    segment_km,
+    segment_liters,
+    segment_l100,
+    month_km,
+    month_liters,
+    month_l100,
+  };
 }
 
 /**

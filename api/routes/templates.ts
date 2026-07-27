@@ -2,37 +2,56 @@ import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { ROLES, EXTRA_TYPE, type ExtraType } from "../../shared/domain";
+import { ROLES, FIELD_STAGE, FIELD_TYPE } from "../../shared/domain";
 import * as repo from "../repos/templates";
 
 const templates = new Hono<{ Bindings: Env; Variables: Vars }>();
 templates.use("*", requireAuth);
 
-// Choferes ven las plantillas activas (para elegir viaje); oficina ve todas.
+// Choferes ven plantillas activas; oficina ve todas.
 templates.get("/", async (c) => {
-  const user = c.get("user");
-  const onlyActive = user.role === ROLES.CHOFER;
+  const onlyActive = c.get("user").role === ROLES.CHOFER;
   return ok(c, await repo.listTemplates(c.env.DB, onlyActive));
 });
 
-const VALID_EXTRA: ExtraType[] = [EXTRA_TYPE.NONE, EXTRA_TYPE.TEXTO, EXTRA_TYPE.NUMERO];
+function slug(s: string): string {
+  return (
+    s
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_|_$/g, "") || "campo"
+  );
+}
 
 function parse(b: any): repo.TemplateInput | null {
   if (!b || !b.provider_id || !b.name || !b.origin) return null;
-  const destinations = Array.isArray(b.destinations)
-    ? b.destinations.map((d: unknown) => String(d)).filter(Boolean)
+  const dest_options = Array.isArray(b.dest_options)
+    ? b.dest_options
+        .map((o: any) => ({ destino: String(o?.destino ?? "").trim(), destinatario: String(o?.destinatario ?? "").trim() }))
+        .filter((o: any) => o.destino)
     : [];
-  const extra_type: ExtraType = VALID_EXTRA.includes(b.extra_type) ? b.extra_type : EXTRA_TYPE.NONE;
+  const fields = Array.isArray(b.fields)
+    ? b.fields
+        .map((f: any) => ({
+          key: String(f?.key || slug(String(f?.label ?? ""))),
+          label: String(f?.label ?? "").trim(),
+          type: f?.type === FIELD_TYPE.NUMERO ? FIELD_TYPE.NUMERO : FIELD_TYPE.TEXTO,
+          required: !!f?.required,
+          stage: f?.stage === FIELD_STAGE.DESCARGA ? FIELD_STAGE.DESCARGA : FIELD_STAGE.CARGA,
+          is_weight: !!f?.is_weight,
+        }))
+        .filter((f: any) => f.label)
+    : [];
   return {
     provider_id: Number(b.provider_id),
     name: String(b.name),
     origin: String(b.origin),
-    destinations,
     cargo_type: String(b.cargo_type ?? ""),
-    requires_kilos: !!b.requires_kilos,
-    extra_label: extra_type !== EXTRA_TYPE.NONE ? String(b.extra_label ?? "").trim() || null : null,
-    extra_type,
-    extra_required: !!b.extra_required,
+    dest_options,
+    fields,
+    arrival_photo_label: b.arrival_photo_label ? String(b.arrival_photo_label).trim() : null,
     active: b.active === undefined ? true : !!b.active,
   };
 }

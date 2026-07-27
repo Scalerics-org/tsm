@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { estimateFuelLiters, fuelSummary } from "@shared/domain";
+import { estimateFuelLiters, fuelSummary, fuelFeedback } from "@shared/domain";
 
 describe("estimateFuelLiters", () => {
   it("km × (L/100km) / 100", () => {
@@ -34,5 +34,40 @@ describe("fuelSummary (llenado a llenado)", () => {
   it("sin datos suficientes devuelve consumo null", () => {
     expect(fuelSummary([{ odometer_km: 1, liters: 10 }]).consumption_l100).toBeNull();
     expect(fuelSummary([]).consumption_l100).toBeNull();
+  });
+});
+
+describe("fuelFeedback (cierre por llenado + mensual)", () => {
+  const base = { odometer_km: 100000, liters: 300, is_full: true, logged_at: "2026-07-01 08:00:00" };
+
+  it("cierra el tramo al llenar y calcula consumo", () => {
+    const cur = { odometer_km: 100450, liters: 157, is_full: true, logged_at: "2026-07-20 08:00:00" };
+    const r = fuelFeedback([base, cur], cur);
+    expect(r.closed).toBe(true);
+    expect(r.segment_km).toBe(450);
+    expect(r.segment_liters).toBe(157);
+    expect(r.segment_l100).toBeCloseTo(34.9, 1);
+  });
+
+  it("un 'chorro' (no llenó) no cierra el tramo", () => {
+    const cur = { odometer_km: 100200, liters: 100, is_full: false, logged_at: "2026-07-10 08:00:00" };
+    const r = fuelFeedback([base, cur], cur);
+    expect(r.closed).toBe(false);
+    expect(r.segment_l100).toBeNull();
+  });
+
+  it("incluye el chorro intermedio en el consumo del tramo al llenar", () => {
+    const chorro = { odometer_km: 100200, liters: 100, is_full: false, logged_at: "2026-07-10 08:00:00" };
+    const cur = { odometer_km: 100450, liters: 57, is_full: true, logged_at: "2026-07-20 08:00:00" };
+    const r = fuelFeedback([base, chorro, cur], cur);
+    expect(r.segment_km).toBe(450);
+    expect(r.segment_liters).toBe(157); // 100 (chorro) + 57 (llenado)
+  });
+
+  it("calcula el acumulado del mes desde el primer llenado", () => {
+    const cur = { odometer_km: 100450, liters: 157, is_full: true, logged_at: "2026-07-20 08:00:00" };
+    const r = fuelFeedback([base, cur], cur);
+    expect(r.month_km).toBe(450);
+    expect(r.month_l100).toBeCloseTo(34.9, 1);
   });
 });

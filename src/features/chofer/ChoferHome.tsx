@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Trip, TripTemplate } from "@shared/domain";
 import { api } from "../../lib/api";
@@ -13,6 +13,17 @@ export function ChoferHome() {
     api.get<TripTemplate[]>("/templates").then(setTemplates).catch(() => setTemplates([]));
   }, []);
 
+  // Agrupar por cliente (proveedor).
+  const byProvider = useMemo(() => {
+    const map = new Map<string, TripTemplate[]>();
+    for (const t of templates ?? []) {
+      const list = map.get(t.provider_name ?? "") ?? [];
+      list.push(t);
+      map.set(t.provider_name ?? "", list);
+    }
+    return [...map.entries()];
+  }, [templates]);
+
   if (!templates) return <Spinner size={28} />;
 
   return (
@@ -26,6 +37,7 @@ export function ChoferHome() {
           </div>
           <div className="mt-2 font-cond text-2xl font-semibold leading-tight text-ink">
             {active.origin} → {active.destination}
+            {active.destinatario ? ` (${active.destinatario})` : ""}
           </div>
           <div className="mt-1 text-sm text-ink/60">
             {active.provider_name} · 🚛 {active.truck_plate}
@@ -38,38 +50,40 @@ export function ChoferHome() {
         <h1 className="text-3xl text-ink">¿Qué viaje vas a hacer?</h1>
       </div>
 
-      <div className="space-y-3">
-        {templates.length === 0 ? (
-          <div className="panel p-6 text-center text-ink/50">
-            <Corners />
-            No hay viajes precargados todavía.
-          </div>
-        ) : (
-          templates.map((t) => (
-            <Link
-              key={t.id}
-              to={`/viaje/nuevo/${t.id}`}
-              className="panel block p-4 transition hover:bg-surface"
-            >
-              <Corners />
-              <div className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-brand-700">
-                {t.provider_name}
+      {byProvider.length === 0 ? (
+        <div className="panel p-6 text-center text-ink/50">
+          <Corners />
+          No hay viajes precargados todavía.
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {byProvider.map(([provider, list]) => (
+            <div key={provider} className="space-y-2">
+              <div className="font-cond text-[13px] font-semibold uppercase tracking-[0.12em] text-brand-700">
+                {provider}
               </div>
-              <div className="mt-1 font-cond text-2xl font-semibold leading-tight text-ink">
-                {t.name}
-              </div>
-              <div className="mt-1 text-sm text-ink/60">
-                {t.origin} → {t.destinations.join(" · ") || "destino a elegir"}
-              </div>
-            </Link>
-          ))
-        )}
-      </div>
+              {list.map((t) => {
+                const destinos = [...new Set(t.dest_options.map((o) => o.destino))].join(" · ");
+                return (
+                  <Link
+                    key={t.id}
+                    to={`/viaje/nuevo/${t.id}`}
+                    className="panel block p-4 transition hover:bg-surface"
+                  >
+                    <Corners />
+                    <div className="font-cond text-xl font-semibold leading-tight text-ink">{t.name}</div>
+                    <div className="mt-1 text-sm text-ink/60">
+                      {t.origin} → {destinos || "destino a elegir"}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
 
-      <Link
-        to="/surtida"
-        className="btn btn-navy w-full py-4 text-lg"
-      >
+      <Link to="/surtida" className="btn btn-navy w-full py-4 text-lg">
         ⛽ Registrar surtida
       </Link>
     </div>

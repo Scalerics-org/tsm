@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { EXTRA_TYPE, type ExtraType, type Provider, type TripTemplate } from "@shared/domain";
+import {
+  FIELD_STAGE,
+  FIELD_TYPE,
+  type DestOption,
+  type Provider,
+  type TemplateField,
+  type TripTemplate,
+} from "@shared/domain";
 import { api } from "../../lib/api";
 import { Button, Card, Field, Spinner } from "../../components/ui";
 
@@ -21,7 +28,6 @@ export function TemplatesPage() {
     setNewProvider("");
     load();
   }
-
   async function removeTemplate(id: number) {
     if (!confirm("¿Eliminar esta plantilla?")) return;
     await api.del(`/templates/${id}`);
@@ -42,24 +48,18 @@ export function TemplatesPage() {
         </Button>
       </div>
 
-      {/* Proveedores */}
       <Card className="space-y-3">
-        <h2 className="font-cond text-lg font-semibold text-ink">Proveedores</h2>
+        <h2 className="font-cond text-lg font-semibold text-ink">Clientes / Proveedores</h2>
         <div className="flex flex-wrap gap-2">
           {providers.map((p) => (
             <span key={p.id} className="border border-ink/15 bg-surface px-3 py-1 text-sm text-ink">
               {p.name}
             </span>
           ))}
-          {providers.length === 0 && <span className="text-sm text-ink/50">Agregá un proveedor primero.</span>}
+          {providers.length === 0 && <span className="text-sm text-ink/50">Agregá un cliente primero.</span>}
         </div>
         <div className="flex gap-2">
-          <input
-            className="input max-w-xs"
-            value={newProvider}
-            onChange={(e) => setNewProvider(e.target.value)}
-            placeholder="Nuevo proveedor"
-          />
+          <input className="input max-w-xs" value={newProvider} onChange={(e) => setNewProvider(e.target.value)} placeholder="Nuevo cliente" />
           <Button variant="secondary" onClick={addProvider}>
             Agregar
           </Button>
@@ -78,7 +78,6 @@ export function TemplatesPage() {
         />
       )}
 
-      {/* Plantillas */}
       <div className="space-y-3">
         {templates.map((t) => (
           <Card key={t.id}>
@@ -89,12 +88,11 @@ export function TemplatesPage() {
                 </div>
                 <div className="font-cond text-xl font-semibold text-ink">{t.name}</div>
                 <div className="mt-1 text-sm text-ink/60">
-                  {t.origin} → {t.destinations.join(" · ")}
+                  {t.origin} → {[...new Set(t.dest_options.map((o) => o.destino))].join(" · ")}
                 </div>
                 <div className="mt-1 text-xs text-ink/50">
-                  {t.cargo_type}
-                  {t.requires_kilos && " · pide kilos"}
-                  {t.extra_type !== "none" && ` · pide "${t.extra_label}"`}
+                  {t.dest_options.length} destino(s) · {t.fields.length} campo(s)
+                  {t.arrival_photo_label ? ` · foto: ${t.arrival_photo_label}` : ""}
                 </div>
               </div>
               <div className="flex shrink-0 gap-3 text-sm">
@@ -125,17 +123,17 @@ function TemplateForm({
   onSaved: () => void;
 }) {
   const [f, setF] = useState({
-    provider_id: initial?.provider_id ? String(initial.provider_id) : String(providers[0]?.id ?? ""),
+    provider_id: String(initial?.provider_id ?? providers[0]?.id ?? ""),
     name: initial?.name ?? "",
     origin: initial?.origin ?? "",
-    destinations: (initial?.destinations ?? []).join(", "),
     cargo_type: initial?.cargo_type ?? "",
-    requires_kilos: initial?.requires_kilos ?? false,
-    extra_type: (initial?.extra_type ?? EXTRA_TYPE.NONE) as ExtraType,
-    extra_label: initial?.extra_label ?? "",
-    extra_required: initial?.extra_required ?? false,
+    arrival_photo_label: initial?.arrival_photo_label ?? "",
     active: initial?.active ?? true,
   });
+  const [dests, setDests] = useState<DestOption[]>(initial?.dest_options ?? [{ destino: "", destinatario: "" }]);
+  const [fields, setFields] = useState<TemplateField[]>(
+    initial?.fields ?? [{ key: "", label: "", type: FIELD_TYPE.TEXTO, required: false, stage: FIELD_STAGE.CARGA }],
+  );
   const [busy, setBusy] = useState(false);
 
   async function save(e: React.FormEvent) {
@@ -145,16 +143,11 @@ function TemplateForm({
       provider_id: Number(f.provider_id),
       name: f.name,
       origin: f.origin,
-      destinations: f.destinations
-        .split(/[,\n]/)
-        .map((s) => s.trim())
-        .filter(Boolean),
       cargo_type: f.cargo_type,
-      requires_kilos: f.requires_kilos,
-      extra_type: f.extra_type,
-      extra_label: f.extra_label,
-      extra_required: f.extra_required,
+      arrival_photo_label: f.arrival_photo_label || null,
       active: f.active,
+      dest_options: dests.filter((d) => d.destino.trim()),
+      fields: fields.filter((x) => x.label.trim()),
     };
     try {
       if (initial) await api.put(`/templates/${initial.id}`, payload);
@@ -167,60 +160,102 @@ function TemplateForm({
 
   return (
     <Card>
-      <form onSubmit={save} className="grid gap-4 sm:grid-cols-2">
-        <Field label="Proveedor">
-          <select className="input" value={f.provider_id} onChange={(e) => setF({ ...f, provider_id: e.target.value })}>
-            {providers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Nombre del viaje">
-          <input className="input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required placeholder="Harina desde molino" />
-        </Field>
-        <Field label="Origen">
-          <input className="input" value={f.origin} onChange={(e) => setF({ ...f, origin: e.target.value })} required />
-        </Field>
-        <Field label="Tipo de carga">
-          <input className="input" value={f.cargo_type} onChange={(e) => setF({ ...f, cargo_type: e.target.value })} placeholder="Harina" />
-        </Field>
-        <div className="sm:col-span-2">
-          <Field label="Destinos posibles (separados por coma)">
-            <input className="input" value={f.destinations} onChange={(e) => setF({ ...f, destinations: e.target.value })} placeholder="Paysandú, Trinidad, Rivera" />
+      <form onSubmit={save} className="space-y-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Cliente / Proveedor">
+            <select className="input" value={f.provider_id} onChange={(e) => setF({ ...f, provider_id: e.target.value })}>
+              {providers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
           </Field>
+          <Field label="Nombre del viaje">
+            <input className="input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required placeholder="Carga Casarone" />
+          </Field>
+          <Field label="Origen">
+            <input className="input" value={f.origin} onChange={(e) => setF({ ...f, origin: e.target.value })} required />
+          </Field>
+          <Field label="Tipo de carga">
+            <input className="input" value={f.cargo_type} onChange={(e) => setF({ ...f, cargo_type: e.target.value })} />
+          </Field>
+          <Field label="Foto que se pide al descargar (opcional)">
+            <input className="input" value={f.arrival_photo_label} onChange={(e) => setF({ ...f, arrival_photo_label: e.target.value })} placeholder="Hoja rosada firmada" />
+          </Field>
+          <label className="flex items-end gap-2 pb-2 text-sm text-ink">
+            <input type="checkbox" className="h-4 w-4 accent-brand" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} />
+            Activa (visible para choferes)
+          </label>
         </div>
 
-        <label className="flex items-center gap-2 text-sm text-ink">
-          <input type="checkbox" className="h-4 w-4 accent-brand" checked={f.requires_kilos} onChange={(e) => setF({ ...f, requires_kilos: e.target.checked })} />
-          Pide kilos de carga
-        </label>
-        <label className="flex items-center gap-2 text-sm text-ink">
-          <input type="checkbox" className="h-4 w-4 accent-brand" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} />
-          Activa (visible para choferes)
-        </label>
+        {/* Destinos + destinatarios */}
+        <div>
+          <div className="mb-2 font-cond text-[13px] font-semibold uppercase tracking-[0.1em] text-ink/60">
+            Destinos que puede elegir el chofer
+          </div>
+          <div className="space-y-2">
+            {dests.map((d, i) => (
+              <div key={i} className="flex gap-2">
+                <input className="input" placeholder="Destino (ej. Salto)" value={d.destino} onChange={(e) => setDests(dests.map((x, j) => (j === i ? { ...x, destino: e.target.value } : x)))} />
+                <input className="input" placeholder="Destinatario (ej. Roig)" value={d.destinatario} onChange={(e) => setDests(dests.map((x, j) => (j === i ? { ...x, destinatario: e.target.value } : x)))} />
+                <button type="button" onClick={() => setDests(dests.filter((_, j) => j !== i))} className="px-2 text-st-redTx">
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={() => setDests([...dests, { destino: "", destinatario: "" }])} className="mt-2 text-sm text-brand-700 hover:underline">
+            + Agregar destino
+          </button>
+        </div>
 
-        <Field label="Campo extra">
-          <select className="input" value={f.extra_type} onChange={(e) => setF({ ...f, extra_type: e.target.value as ExtraType })}>
-            <option value={EXTRA_TYPE.NONE}>Ninguno</option>
-            <option value={EXTRA_TYPE.TEXTO}>Texto (ej. Número MIC)</option>
-            <option value={EXTRA_TYPE.NUMERO}>Número</option>
-          </select>
-        </Field>
-        {f.extra_type !== EXTRA_TYPE.NONE && (
-          <>
-            <Field label="Etiqueta del campo extra">
-              <input className="input" value={f.extra_label} onChange={(e) => setF({ ...f, extra_label: e.target.value })} placeholder="Número MIC" />
-            </Field>
-            <label className="flex items-center gap-2 text-sm text-ink sm:col-span-2">
-              <input type="checkbox" className="h-4 w-4 accent-brand" checked={f.extra_required} onChange={(e) => setF({ ...f, extra_required: e.target.checked })} />
-              El campo extra es obligatorio
-            </label>
-          </>
-        )}
+        {/* Campos configurables */}
+        <div>
+          <div className="mb-2 font-cond text-[13px] font-semibold uppercase tracking-[0.1em] text-ink/60">
+            Campos que completa el chofer
+          </div>
+          <div className="space-y-2">
+            {fields.map((fld, i) => (
+              <div key={i} className="grid grid-cols-2 gap-2 border border-ink/10 p-2 sm:grid-cols-12">
+                <input className="input sm:col-span-4" placeholder="Etiqueta (ej. Remito)" value={fld.label} onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
+                <select className="input sm:col-span-2" value={fld.type} onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, type: e.target.value as TemplateField["type"] } : x)))}>
+                  <option value={FIELD_TYPE.TEXTO}>Texto</option>
+                  <option value={FIELD_TYPE.NUMERO}>Número</option>
+                </select>
+                <select className="input sm:col-span-2" value={fld.stage} onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, stage: e.target.value as TemplateField["stage"] } : x)))}>
+                  <option value={FIELD_STAGE.CARGA}>En carga</option>
+                  <option value={FIELD_STAGE.DESCARGA}>En descarga</option>
+                </select>
+                <label className="flex items-center gap-1 text-xs text-ink sm:col-span-2">
+                  <input type="checkbox" className="h-4 w-4 accent-brand" checked={fld.required} onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, required: e.target.checked } : x)))} />
+                  Oblig.
+                </label>
+                <div className="flex items-center gap-2 sm:col-span-2">
+                  <label className="flex items-center gap-1 text-xs text-ink">
+                    <input type="checkbox" className="h-4 w-4 accent-brand" checked={!!fld.is_weight} onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, is_weight: e.target.checked } : x)))} />
+                    Peso
+                  </label>
+                  <button type="button" onClick={() => setFields(fields.filter((_, j) => j !== i))} className="ml-auto px-2 text-st-redTx">
+                    ✕
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setFields([...fields, { key: "", label: "", type: FIELD_TYPE.TEXTO, required: false, stage: FIELD_STAGE.CARGA }])}
+            className="mt-2 text-sm text-brand-700 hover:underline"
+          >
+            + Agregar campo
+          </button>
+          <p className="mt-1 text-xs text-ink/45">
+            "Peso" marca el campo de toneladas para los reportes. "En descarga" = se pide al registrar la llegada.
+          </p>
+        </div>
 
-        <div className="flex gap-2 sm:col-span-2">
+        <div className="flex gap-2">
           <Button type="submit" loading={busy}>
             Guardar plantilla
           </Button>

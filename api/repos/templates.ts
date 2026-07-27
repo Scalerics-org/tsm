@@ -1,4 +1,4 @@
-import type { ExtraType, TripTemplate } from "../../shared/domain";
+import type { DestOption, TemplateField, TripTemplate } from "../../shared/domain";
 
 interface TemplateRow {
   id: number;
@@ -6,40 +6,40 @@ interface TemplateRow {
   provider_name: string;
   name: string;
   origin: string;
-  destinations: string; // JSON text
   cargo_type: string;
-  requires_kilos: number;
-  extra_label: string | null;
-  extra_type: ExtraType;
-  extra_required: number;
+  dest_options: string; // JSON
+  fields: string; // JSON
+  arrival_photo_label: string | null;
   active: number;
 }
 
-function toTemplate(r: TemplateRow): TripTemplate {
-  let destinations: string[] = [];
+function parseJson<T>(s: string, fallback: T): T {
   try {
-    destinations = JSON.parse(r.destinations || "[]");
+    return JSON.parse(s || "");
   } catch {
-    destinations = [];
+    return fallback;
   }
+}
+
+function toTemplate(r: TemplateRow): TripTemplate {
   return {
     id: r.id,
     provider_id: r.provider_id,
     provider_name: r.provider_name,
     name: r.name,
     origin: r.origin,
-    destinations,
     cargo_type: r.cargo_type,
-    requires_kilos: !!r.requires_kilos,
-    extra_label: r.extra_label,
-    extra_type: r.extra_type,
-    extra_required: !!r.extra_required,
+    dest_options: parseJson<DestOption[]>(r.dest_options, []),
+    fields: parseJson<TemplateField[]>(r.fields, []),
+    arrival_photo_label: r.arrival_photo_label,
     active: !!r.active,
   };
 }
 
 const SELECT = `
-  SELECT tt.*, p.name AS provider_name
+  SELECT tt.id, tt.provider_id, tt.name, tt.origin, tt.cargo_type,
+         tt.dest_options, tt.fields, tt.arrival_photo_label, tt.active,
+         p.name AS provider_name
   FROM trip_templates tt JOIN providers p ON p.id = tt.provider_id
 `;
 
@@ -58,12 +58,10 @@ export interface TemplateInput {
   provider_id: number;
   name: string;
   origin: string;
-  destinations: string[];
   cargo_type: string;
-  requires_kilos: boolean;
-  extra_label: string | null;
-  extra_type: ExtraType;
-  extra_required: boolean;
+  dest_options: DestOption[];
+  fields: TemplateField[];
+  arrival_photo_label: string | null;
   active: boolean;
 }
 
@@ -72,12 +70,10 @@ function bindArgs(t: TemplateInput) {
     t.provider_id,
     t.name,
     t.origin,
-    JSON.stringify(t.destinations ?? []),
     t.cargo_type,
-    t.requires_kilos ? 1 : 0,
-    t.extra_label || null,
-    t.extra_type,
-    t.extra_required ? 1 : 0,
+    JSON.stringify(t.dest_options ?? []),
+    JSON.stringify(t.fields ?? []),
+    t.arrival_photo_label || null,
     t.active ? 1 : 0,
   ];
 }
@@ -85,8 +81,8 @@ function bindArgs(t: TemplateInput) {
 export async function createTemplate(db: D1Database, t: TemplateInput): Promise<number> {
   const res = await db
     .prepare(
-      `INSERT INTO trip_templates (provider_id, name, origin, destinations, cargo_type, requires_kilos, extra_label, extra_type, extra_required, active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO trip_templates (provider_id, name, origin, cargo_type, dest_options, fields, arrival_photo_label, active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(...bindArgs(t))
     .run();
@@ -96,7 +92,7 @@ export async function createTemplate(db: D1Database, t: TemplateInput): Promise<
 export async function updateTemplate(db: D1Database, id: number, t: TemplateInput): Promise<void> {
   await db
     .prepare(
-      `UPDATE trip_templates SET provider_id=?, name=?, origin=?, destinations=?, cargo_type=?, requires_kilos=?, extra_label=?, extra_type=?, extra_required=?, active=?
+      `UPDATE trip_templates SET provider_id=?, name=?, origin=?, cargo_type=?, dest_options=?, fields=?, arrival_photo_label=?, active=?
        WHERE id=?`,
     )
     .bind(...bindArgs(t), id)

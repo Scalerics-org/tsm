@@ -29,7 +29,7 @@ reports.get("/summary", async (c) => {
       plate: t.plate,
       trips: tTrips.length,
       completed: tTrips.filter((x) => x.status === TRIP_STATUS.COMPLETADO).length,
-      tons: Math.round((tTrips.reduce((s, x) => s + (x.kilos ?? 0), 0) / 1000) * 10) / 10,
+      tons: Math.round(tTrips.reduce((s, x) => s + (x.weight_tons ?? 0), 0) * 10) / 10,
       km: Math.round(fs.km),
       liters: Math.round(fs.liters),
       consumption_l100: fs.consumption_l100 != null ? Math.round(fs.consumption_l100 * 10) / 10 : null,
@@ -51,7 +51,7 @@ function csvCell(v: unknown): string {
   const s = v == null ? "" : String(v);
   return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
-function csvResponse(c: any, filename: string, rows: (string | number | null)[][]): Response {
+function csvResponse(filename: string, rows: (string | number | null)[][]): Response {
   const body = "﻿" + rows.map((r) => r.map(csvCell).join(";")).join("\r\n");
   return new Response(body, {
     headers: {
@@ -61,22 +61,28 @@ function csvResponse(c: any, filename: string, rows: (string | number | null)[][
   });
 }
 
-// GET /api/reports/trips.csv — export de viajes
+function flattenFields(t: Trip): string {
+  return Object.entries(t.field_values ?? {})
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(" · ");
+}
+
+// GET /api/reports/trips.csv
 reports.get("/trips.csv", async (c) => {
   const q = c.req.query();
   const trips = await listTrips(c.env.DB, { from: q.from, to: q.to });
   const header = [
-    "ID", "Proveedor", "Origen", "Destino", "Chofer", "Camión", "Carga",
-    "Kilos", "Campo extra", "Valor", "Estado", "Inicio", "Fin",
+    "ID", "Proveedor", "Origen", "Destino", "Destinatario", "Chofer", "Camión", "Carga",
+    "Toneladas", "Campos", "Estado", "Inicio", "Fin", "Observaciones",
   ];
-  const rows = trips.map((t: Trip) => [
-    t.id, t.provider_name, t.origin, t.destination, t.driver_name ?? "", t.truck_plate ?? "",
-    t.cargo_type, t.kilos ?? "", t.extra_label ?? "", t.extra_value ?? "", t.status, t.started_at, t.finished_at ?? "",
+  const rows = trips.map((t) => [
+    t.id, t.provider_name, t.origin, t.destination, t.destinatario ?? "", t.driver_name ?? "", t.truck_plate ?? "",
+    t.cargo_type, t.weight_tons ?? "", flattenFields(t), t.status, t.started_at, t.finished_at ?? "", t.notes ?? "",
   ]);
-  return csvResponse(c, "viajes.csv", [header, ...rows]);
+  return csvResponse("viajes.csv", [header, ...rows]);
 });
 
-// GET /api/reports/fuel.csv — export de surtidas
+// GET /api/reports/fuel.csv
 reports.get("/fuel.csv", async (c) => {
   const q = c.req.query();
   const fuel = await listFuelLogs(c.env.DB, { from: q.from, to: q.to, truckId: q.truck ? Number(q.truck) : undefined });
@@ -84,7 +90,7 @@ reports.get("/fuel.csv", async (c) => {
   const rows = fuel.map((f) => [
     f.id, f.truck_plate ?? "", f.driver_name ?? "", f.odometer_km, f.liters, f.is_full ? "Sí" : "No", f.logged_at,
   ]);
-  return csvResponse(c, "surtidas.csv", [header, ...rows]);
+  return csvResponse("surtidas.csv", [header, ...rows]);
 });
 
 export default reports;
