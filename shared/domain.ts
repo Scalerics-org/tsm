@@ -122,6 +122,7 @@ export interface Trip {
   cargo_id: number | null;
   distance_km: number;
   manual_km: number | null;
+  actual_liters: number | null;
   departed_at: string | null;
   arrived_at: string | null;
   notes: string | null;

@@ -9,6 +9,7 @@ import drivers from "./routes/drivers";
 import trucks from "./routes/trucks";
 import users from "./routes/users";
 import reports from "./routes/reports";
+import push from "./routes/push";
 
 export const app = new Hono<{ Bindings: Env; Variables: Vars }>().basePath("/api");
 
@@ -22,6 +23,7 @@ app.route("/drivers", drivers);
 app.route("/trucks", trucks);
 app.route("/users", users);
 app.route("/reports", reports);
+app.route("/push", push);
 
 app.notFound((c) => fail(c, "Recurso no encontrado", 404));
 app.onError((err, c) => {

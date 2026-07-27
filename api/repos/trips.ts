@@ -124,12 +124,32 @@ export async function markArrived(
   when: string,
   distanceKm: number,
   manualKm: number | null,
+  actualLiters: number | null,
 ): Promise<void> {
   await db
     .prepare(
-      "UPDATE trips SET status='COMPLETADO', arrived_at=?, distance_km=?, manual_km=? WHERE id=? AND status='EN_RUTA'",
+      "UPDATE trips SET status='COMPLETADO', arrived_at=?, distance_km=?, manual_km=?, actual_liters=? WHERE id=? AND status='EN_RUTA'",
     )
-    .bind(when, distanceKm, manualKm, id)
+    .bind(when, distanceKm, manualKm, actualLiters, id)
+    .run();
+}
+
+/** Edita los campos de un viaje (solo tiene sentido en estado PENDIENTE). */
+export async function editTrip(
+  db: D1Database,
+  id: number,
+  t: Omit<NewTrip, "created_by">,
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE trips SET driver_id=?, truck_id=?, origin=?, origin_lat=?, origin_lon=?,
+         destination=?, dest_lat=?, dest_lon=?, scheduled_at=?, cargo_id=?, distance_km=?
+       WHERE id=? AND status='PENDIENTE'`,
+    )
+    .bind(
+      t.driver_id, t.truck_id, t.origin, t.origin_lat, t.origin_lon, t.destination, t.dest_lat, t.dest_lon,
+      t.scheduled_at, t.cargo_id, t.distance_km, id,
+    )
     .run();
 }
 

@@ -120,6 +120,11 @@ export function OpsTripDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={trip.status} />
+          {trip.status === TRIP_STATUS.PENDIENTE && (
+            <Link to={`/panel/viajes/${trip.id}/editar`} className="btn btn-secondary">
+              Editar
+            </Link>
+          )}
           {(trip.status === TRIP_STATUS.PENDIENTE || trip.status === TRIP_STATUS.EN_RUTA) && (
             <Button variant="danger" onClick={cancel}>
               Cancelar
@@ -173,24 +178,45 @@ export function OpsTripDetailPage() {
         </Card>
       )}
 
-      {/* Comparación gasolina estimada vs foto real */}
+      {/* Comparación gasolina estimada vs. litros reales vs. foto */}
       <Card>
-        <h2 className="mb-3 font-semibold text-ink">Combustible: estimado vs. evidencia</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="bg-surface p-4">
-            <div className="text-sm text-ink/60">Estimación del sistema</div>
-            <div className="mt-1 text-3xl font-bold text-ink">{fmtLiters(estimatedLiters)}</div>
+        <h2 className="mb-3 font-semibold text-ink">Combustible: estimado vs. real</h2>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="border-l-4 border-l-st-blueDot bg-surface p-4">
+            <div className="font-cond text-[11px] font-semibold uppercase tracking-[0.12em] text-brand-700">
+              Estimado del sistema
+            </div>
+            <div className="mt-1 font-cond text-3xl font-semibold text-ink">{fmtLiters(estimatedLiters)}</div>
             <div className="mt-1 text-xs text-ink/45">
               {fmtKm(km)} × {trip.truck_consumption ?? 0} L/100km
             </div>
           </div>
-          <div>
-            <div className="mb-1 text-sm text-ink/60">Foto del combustible (evidencia real)</div>
-            {fuelPhoto ? (
-              <PhotoImage r2Key={fuelPhoto.r2_key} alt="Combustible" className="h-40 w-full" />
+
+          <div className="border-l-4 border-l-st-greenDot bg-surface p-4">
+            <div className="font-cond text-[11px] font-semibold uppercase tracking-[0.12em] text-st-greenTx">
+              Cargado por el chofer
+            </div>
+            {trip.actual_liters != null ? (
+              <>
+                <div className="mt-1 font-cond text-3xl font-semibold text-ink">
+                  {fmtLiters(trip.actual_liters)}
+                </div>
+                <FuelDiff estimated={estimatedLiters} actual={trip.actual_liters} />
+              </>
             ) : (
-              <div className="flex h-40 items-center justify-center border border-dashed border-ink/25 text-ink/45">
-                Sin foto de combustible aún
+              <div className="mt-2 text-sm text-ink/45">Sin registro de litros</div>
+            )}
+          </div>
+
+          <div>
+            <div className="mb-1 font-cond text-[11px] font-semibold uppercase tracking-[0.12em] text-ink/55">
+              Foto (evidencia)
+            </div>
+            {fuelPhoto ? (
+              <PhotoImage r2Key={fuelPhoto.r2_key} alt="Combustible" className="h-32 w-full" />
+            ) : (
+              <div className="flex h-32 items-center justify-center border border-dashed border-ink/25 text-ink/45">
+                Sin foto
               </div>
             )}
           </div>
@@ -198,6 +224,23 @@ export function OpsTripDetailPage() {
       </Card>
 
       <PhotoGallery photos={photos} />
+    </div>
+  );
+}
+
+function FuelDiff({ estimated, actual }: { estimated: number; actual: number }) {
+  if (estimated <= 0) return null;
+  const diff = actual - estimated;
+  const pct = (diff / estimated) * 100;
+  const over = pct > 8; // consumo real por encima de lo esperado
+  const under = pct < -8;
+  const cls = over ? "text-st-redTx" : under ? "text-st-amberTx" : "text-st-greenTx";
+  const sign = diff >= 0 ? "+" : "";
+  return (
+    <div className={`mt-1 font-cond text-sm font-semibold ${cls}`}>
+      {sign}
+      {diff.toFixed(1)} L ({sign}
+      {pct.toFixed(0)}%) {over ? "· sobreconsumo" : under ? "· bajo lo esperado" : "· ok"}
     </div>
   );
 }

@@ -105,6 +105,14 @@ export default function App() {
             </RequireRole>
           }
         />
+        <Route
+          path="/panel/viajes/:id/editar"
+          element={
+            <RequireRole roles={OPS}>
+              <NewTripPage />
+            </RequireRole>
+          }
+        />
 
         {/* Admin */}
         <Route

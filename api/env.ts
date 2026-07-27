@@ -6,6 +6,9 @@ export interface Env {
   FOTOS: R2Bucket;
   JWT_SECRET: string;
   NOMINATIM_UA: string;
+  VAPID_PUBLIC: string;
+  VAPID_PRIVATE: string;
+  VAPID_SUBJECT: string;
 }
 
 // Variables que colgamos del contexto Hono tras autenticar.

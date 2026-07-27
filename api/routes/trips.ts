@@ -7,6 +7,7 @@ import * as tripsRepo from "../repos/trips";
 import * as positionsRepo from "../repos/positions";
 import * as photosRepo from "../repos/photos";
 import * as trucksRepo from "../repos/trucks";
+import { notifyDriver, notifyRole } from "../lib/push";
 
 const trips = new Hono<{ Bindings: Env; Variables: Vars }>();
 trips.use("*", requireAuth);
@@ -96,7 +97,55 @@ trips.post("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
     created_by: user.id,
   });
   const trip = await tripsRepo.getTrip(c.env.DB, id);
+  await notifyDriver(c.env, Number(b.driver_id), {
+    title: "Nuevo viaje asignado",
+    body: `${b.origin} → ${b.destination}`,
+    url: "/viajes",
+    tag: `trip-${id}`,
+  });
   return ok(c, trip, 201);
+});
+
+// PUT /api/trips/:id — editar un viaje pendiente (encargado/admin)
+trips.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+  const id = Number(c.req.param("id"));
+  const existing = await tripsRepo.getTrip(c.env.DB, id);
+  if (!existing) return fail(c, "Viaje no encontrado", 404);
+  if (existing.status !== TRIP_STATUS.PENDIENTE) {
+    return fail(c, "Solo se puede editar un viaje pendiente", 409);
+  }
+  const b = await c.req.json<any>().catch(() => null);
+  if (!b || !b.driver_id || !b.truck_id || !b.origin || !b.destination || !b.scheduled_at) {
+    return fail(c, "Faltan campos obligatorios", 400);
+  }
+
+  // Reemplaza la carga (crea una nueva si viene descripción).
+  let cargoId: number | null = existing.cargo_id;
+  if (b.cargo && b.cargo.description) {
+    cargoId = await tripsRepo.createCargo(c.env.DB, {
+      description: b.cargo.description,
+      weight_kg: b.cargo.weight_kg ?? null,
+      quantity: b.cargo.quantity ?? null,
+      client: b.cargo.client ?? null,
+      type: b.cargo.type ?? null,
+      doc_number: b.cargo.doc_number ?? null,
+    });
+  }
+
+  await tripsRepo.editTrip(c.env.DB, id, {
+    driver_id: Number(b.driver_id),
+    truck_id: Number(b.truck_id),
+    origin: b.origin,
+    origin_lat: b.origin_lat ?? null,
+    origin_lon: b.origin_lon ?? null,
+    destination: b.destination,
+    dest_lat: b.dest_lat ?? null,
+    dest_lon: b.dest_lon ?? null,
+    scheduled_at: b.scheduled_at,
+    cargo_id: cargoId,
+    distance_km: Number(b.distance_km ?? 0),
+  });
+  return ok(c, await tripsRepo.getTrip(c.env.DB, id));
 });
 
 // POST /api/trips/:id/departure — registrar salida (chofer dueño)
@@ -109,6 +158,12 @@ trips.post("/:id/departure", async (c) => {
   }
   await tripsRepo.markDeparted(c.env.DB, trip.id, nowIso());
   await trucksRepo.setTruckStatus(c.env.DB, trip.truck_id, "en_viaje");
+  await notifyRole(c.env, ROLES.ENCARGADO, {
+    title: "Viaje en ruta",
+    body: `${trip.origin} → ${trip.destination} salió`,
+    url: `/panel/viajes/${trip.id}`,
+    tag: `trip-${trip.id}`,
+  });
   return ok(c, await tripsRepo.getTrip(c.env.DB, trip.id));
 });
 
@@ -145,16 +200,23 @@ trips.post("/:id/arrival", async (c) => {
   if (trip.status !== TRIP_STATUS.EN_RUTA) {
     return fail(c, "El viaje no está en ruta", 409);
   }
-  const b = (await c.req.json().catch(() => ({}))) as { manual_km?: number };
+  const b = (await c.req.json().catch(() => ({}))) as { manual_km?: number; actual_liters?: number };
 
   const gpsKm = await positionsRepo.distanceFromPositions(c.env.DB, trip.id);
   const manualKm = b.manual_km != null ? Number(b.manual_km) : null;
+  const actualLiters = b.actual_liters != null && b.actual_liters !== 0 ? Number(b.actual_liters) : null;
   // GPS es la fuente principal; si no hubo señal (gpsKm ~ 0) usamos el respaldo manual.
   const finalKm = gpsKm > 0.1 ? gpsKm : manualKm ?? 0;
 
-  await tripsRepo.markArrived(c.env.DB, trip.id, nowIso(), finalKm, manualKm);
+  await tripsRepo.markArrived(c.env.DB, trip.id, nowIso(), finalKm, manualKm, actualLiters);
   await trucksRepo.setTruckStatus(c.env.DB, trip.truck_id, "disponible");
   await trucksRepo.addOdometer(c.env.DB, trip.truck_id, finalKm);
+  await notifyRole(c.env, ROLES.ENCARGADO, {
+    title: "Viaje completado",
+    body: `${trip.origin} → ${trip.destination} llegó`,
+    url: `/panel/viajes/${trip.id}`,
+    tag: `trip-${trip.id}`,
+  });
   return ok(c, await tripsRepo.getTrip(c.env.DB, trip.id));
 });
 
@@ -164,6 +226,12 @@ trips.post("/:id/incident", async (c) => {
   if ("error" in scoped) return fail(c, scoped.error, scoped.status);
   const b = (await c.req.json().catch(() => ({}))) as { notes?: string };
   await tripsRepo.setStatus(c.env.DB, scoped.trip.id, TRIP_STATUS.CON_INCIDENCIA, b.notes ?? "");
+  await notifyRole(c.env, ROLES.ENCARGADO, {
+    title: "⚠ Incidencia en viaje",
+    body: `${scoped.trip.origin} → ${scoped.trip.destination}: ${b.notes ?? "sin detalle"}`,
+    url: `/panel/viajes/${scoped.trip.id}`,
+    tag: `trip-${scoped.trip.id}`,
+  });
   return ok(c, await tripsRepo.getTrip(c.env.DB, scoped.trip.id));
 });
 

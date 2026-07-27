@@ -32,6 +32,7 @@ export function LiveTracking({ trip, seedPositions }: { trip: Trip; seedPosition
   const [remaining, setRemaining] = useState<number | null>(null);
   const [locality, setLocality] = useState<{ locality: string; department: string } | null>(null);
   const [routeGeom, setRouteGeom] = useState<LatLon[]>([]);
+  const [routeTotalKm, setRouteTotalKm] = useState<number | null>(null);
   const [path, setPath] = useState<LatLon[]>([]);
   const [current, setCurrent] = useState<LatLon>(origin);
   const [simulating, setSimulating] = useState(false);
@@ -66,6 +67,7 @@ export function LiveTracking({ trip, seedPositions }: { trip: Trip; seedPosition
         const traveled = rg.geometry.slice(0, startIdx + 1);
         seedFixes = traveled.map((p) => ({ lat: p.lat, lon: p.lon, accuracy: 0, timestamp: Date.now() }));
         setRouteGeom(rg.geometry);
+        setRouteTotalKm(rg.distance_km);
         setPath(traveled);
         setCurrent(rg.geometry[startIdx]);
         if (dest) setRemaining(Math.max(0, rg.distance_km - rg.cumKm[startIdx]));
@@ -172,6 +174,17 @@ export function LiveTracking({ trip, seedPositions }: { trip: Trip; seedPosition
     markers.push({ lat: trip.dest_lat, lon: trip.dest_lon, kind: "dest", label: trip.destination });
   }
 
+  const totalKm = routeTotalKm ?? km + (remaining ?? 0);
+  const progress = totalKm > 0 ? Math.min(100, (km / totalKm) * 100) : 0;
+  const AVG_KMH = 75;
+  const eta =
+    remaining != null && remaining > 0.5
+      ? new Date(Date.now() + (remaining / AVG_KMH) * 3_600_000).toLocaleTimeString("es-UY", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "—";
+
   return (
     <div className="space-y-4">
       <MapView
@@ -183,6 +196,26 @@ export function LiveTracking({ trip, seedPositions }: { trip: Trip; seedPosition
         zoom={10}
         className="h-64 w-full overflow-hidden "
       />
+
+      {/* Barra de progreso + ETA */}
+      <div className="panel p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-ink/60">
+            {trip.origin} → {trip.destination}
+          </span>
+          <span className="font-cond text-[13px] font-semibold tracking-[0.06em] text-brand-700">
+            ETA {eta}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="h-2 flex-1 bg-neutral-300">
+            <div className="h-full bg-brand" style={{ width: `${progress}%` }} />
+          </div>
+          <span className="font-cond text-sm font-semibold tracking-[0.06em] text-ink/70">
+            {progress.toFixed(0)}%
+          </span>
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Km recorridos" value={fmtKm(km)} />

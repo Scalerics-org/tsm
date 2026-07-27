@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { ROLES } from "@shared/domain";
+import { NotificationsButton } from "./NotificationsButton";
 
 /** Ícono de camión del sistema FLETA. */
 export function TruckMark({ size = 20, stroke = "#f2f2f3" }: { size?: number; stroke?: string }) {
@@ -102,10 +103,13 @@ function ChoferShell({ children }: { children: ReactNode }) {
     <div className="mx-auto flex min-h-full max-w-md flex-col bg-bg">
       <header className="sticky top-0 z-[500] flex items-center gap-3 bg-navy px-4 py-3">
         <Logo />
-        <span className="ml-auto text-right leading-tight">
-          <span className="block text-sm font-semibold text-bg">{user?.name}</span>
-          <span className="block text-[11px] text-bg/55">Chofer</span>
-        </span>
+        <div className="ml-auto flex items-center gap-3">
+          <NotificationsButton compact />
+          <span className="text-right leading-tight">
+            <span className="block text-sm font-semibold text-bg">{user?.name}</span>
+            <span className="block text-[11px] text-bg/55">Chofer</span>
+          </span>
+        </div>
       </header>
 
       <main className="flex-1 px-4 py-5 pb-24">{children}</main>
@@ -172,12 +176,15 @@ function DesktopShell({ items, children }: { items: NavItem[]; children: ReactNo
             {user?.name}
           </div>
           <div className="mt-0.5 text-[12px] capitalize text-bg/55">{user?.role}</div>
+          <div className="mt-3">
+            <NotificationsButton />
+          </div>
           <button
             onClick={() => {
               logout();
               navigate("/login");
             }}
-            className="mt-3 font-cond text-[13px] font-semibold uppercase tracking-[0.08em] text-brand-400 hover:text-bg"
+            className="mt-3 block font-cond text-[13px] font-semibold uppercase tracking-[0.08em] text-brand-400 hover:text-bg"
           >
             Cerrar sesión
           </button>

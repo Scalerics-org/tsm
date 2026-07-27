@@ -17,6 +17,9 @@ database_id = "REEMPLAZAR_CON_TU_DATABASE_ID"
 binding = "FOTOS"
 bucket_name = "logistica-fotos"
 
-# JWT_SECRET y NOMINATIM_UA se cargan como secrets / vars (ver .env.example)
+# JWT_SECRET y VAPID_PRIVATE se cargan como secrets (ver .env.example / README)
 [vars]
 NOMINATIM_UA = "scalerics-logistica/0.1 (contacto@ejemplo.com)"
+VAPID_SUBJECT = "mailto:contacto@ejemplo.com"
+# VAPID_PUBLIC es público (lo usa el frontend); podés dejarlo acá como var.
+VAPID_PUBLIC = "BOBt7s5E6xYExd-MNiZxhteXM7-eaE1tA1syABRAAUSopr9krwwUIYtJ_JJKwM1JQ5h_gEwVoQmue0BJ7b1KsMw"

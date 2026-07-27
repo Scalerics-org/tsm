@@ -165,6 +165,7 @@ function ArrivalForm({ trip, onDone }: { trip: Trip; onDone: () => void }) {
   const [cargoFile, setCargoFile] = useState<File | null>(null);
   const [fuelFile, setFuelFile] = useState<File | null>(null);
   const [manualKm, setManualKm] = useState("");
+  const [liters, setLiters] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -180,6 +181,7 @@ function ArrivalForm({ trip, onDone }: { trip: Trip; onDone: () => void }) {
       await uploadPhoto(trip.id, fuelFile, PHOTO_KIND.COMBUSTIBLE);
       await api.post(`/trips/${trip.id}/arrival`, {
         manual_km: manualKm ? Number(manualKm) : undefined,
+        actual_liters: liters ? Number(liters) : undefined,
       });
       onDone();
     } catch (e) {
@@ -199,16 +201,31 @@ function ArrivalForm({ trip, onDone }: { trip: Trip; onDone: () => void }) {
         <CameraCapture label="Foto de la carga" onChange={setCargoFile} />
         <CameraCapture label="Foto del combustible" onChange={setFuelFile} />
       </div>
-      <Field label="Km a mano (respaldo, opcional)">
-        <input
-          className="input"
-          type="number"
-          inputMode="decimal"
-          value={manualKm}
-          onChange={(e) => setManualKm(e.target.value)}
-          placeholder="Ej: 72"
-        />
-      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Km a mano (respaldo, opcional)">
+          <input
+            className="input"
+            type="number"
+            inputMode="decimal"
+            value={manualKm}
+            onChange={(e) => setManualKm(e.target.value)}
+            placeholder="Ej: 72"
+          />
+        </Field>
+        <Field label="Litros cargados (opcional)">
+          <input
+            className="input"
+            type="number"
+            inputMode="decimal"
+            value={liters}
+            onChange={(e) => setLiters(e.target.value)}
+            placeholder="Ej: 140"
+          />
+        </Field>
+      </div>
+      <p className="text-xs text-ink/50">
+        Los litros que cargues acá se comparan con el estimado del sistema en el panel.
+      </p>
       <ErrorText>{error}</ErrorText>
       <Button variant="success" loading={busy} onClick={confirm} className="w-full">
         Confirmar llegada ✓

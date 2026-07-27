@@ -81,11 +81,26 @@ npm run db:seed:remote
 ### 4. Secrets
 
 En local, las variables están en `.dev.vars` (ya incluido, no se commitea).
-En producción, cargá el secret del JWT:
+En producción, cargá los secrets:
 
 ```bash
 npx wrangler pages secret put JWT_SECRET
+npx wrangler pages secret put VAPID_PRIVATE
 ```
+
+`VAPID_PUBLIC` y `VAPID_SUBJECT` van como vars públicas en `wrangler.toml`.
+
+### Notificaciones push (Web Push / VAPID)
+
+Para producción, generá tu propio par de claves VAPID y reemplazá las de demo:
+
+```bash
+node -e "const c=require('crypto'),e=c.createECDH('prime256v1');e.generateKeys();const b=x=>x.toString('base64url');console.log('PUBLIC',b(e.getPublicKey()));console.log('PRIVATE',b(e.getPrivateKey()))"
+```
+
+Poné el `PUBLIC` en `wrangler.toml` (var `VAPID_PUBLIC`) y cargá el `PRIVATE` como secret.
+El chofer/encargado activa las notificaciones desde el botón de campana en la app
+(requiere HTTPS — funciona en `localhost` y en Cloudflare Pages).
 
 ## Correr en local
 

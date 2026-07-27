@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { TRUCK_STATUS, type Driver, type Trip, type Truck } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
@@ -9,6 +9,8 @@ import { fmtKm } from "../../lib/format";
 
 export function NewTripPage() {
   const navigate = useNavigate();
+  const { id } = useParams(); // presente => modo edición
+  const editing = Boolean(id);
   const [drivers, setDrivers] = useState<Driver[] | null>(null);
   const [trucks, setTrucks] = useState<Truck[] | null>(null);
   const [error, setError] = useState("");
@@ -31,6 +33,27 @@ export function NewTripPage() {
     api.get<Driver[]>("/drivers").then(setDrivers).catch(() => setDrivers([]));
     api.get<Truck[]>("/trucks").then(setTrucks).catch(() => setTrucks([]));
   }, []);
+
+  // Modo edición: precargar el viaje.
+  useEffect(() => {
+    if (!id) return;
+    api
+      .get<{ trip: Trip }>(`/trips/${id}`)
+      .then(({ trip }) => {
+        setForm({
+          driver_id: String(trip.driver_id),
+          truck_id: String(trip.truck_id),
+          origin: trip.origin,
+          destination: trip.destination,
+          scheduled_at: trip.scheduled_at.replace(" ", "T").slice(0, 16),
+          cargo_desc: trip.cargo?.description ?? "",
+          cargo_weight: trip.cargo?.weight_kg != null ? String(trip.cargo.weight_kg) : "",
+          cargo_client: trip.cargo?.client ?? "",
+          cargo_doc: trip.cargo?.doc_number ?? "",
+        });
+      })
+      .catch(() => setError("No se pudo cargar el viaje"));
+  }, [id]);
 
   const originCity = URUGUAY_CITIES.find((c) => c.name === form.origin);
   const destCity = URUGUAY_CITIES.find((c) => c.name === form.destination);
@@ -62,30 +85,33 @@ export function NewTripPage() {
       return;
     }
     setBusy(true);
+    const payload = {
+      driver_id: Number(form.driver_id),
+      truck_id: Number(form.truck_id),
+      origin: originCity.name,
+      origin_lat: originCity.lat,
+      origin_lon: originCity.lon,
+      destination: destCity.name,
+      dest_lat: destCity.lat,
+      dest_lon: destCity.lon,
+      scheduled_at: form.scheduled_at.replace("T", " ") + ":00",
+      distance_km: routeKm ?? 0,
+      cargo: form.cargo_desc
+        ? {
+            description: form.cargo_desc,
+            weight_kg: form.cargo_weight ? Number(form.cargo_weight) : null,
+            client: form.cargo_client || null,
+            doc_number: form.cargo_doc || null,
+          }
+        : null,
+    };
     try {
-      const trip = await api.post<Trip>("/trips", {
-        driver_id: Number(form.driver_id),
-        truck_id: Number(form.truck_id),
-        origin: originCity.name,
-        origin_lat: originCity.lat,
-        origin_lon: originCity.lon,
-        destination: destCity.name,
-        dest_lat: destCity.lat,
-        dest_lon: destCity.lon,
-        scheduled_at: form.scheduled_at.replace("T", " ") + ":00",
-        distance_km: routeKm ?? 0,
-        cargo: form.cargo_desc
-          ? {
-              description: form.cargo_desc,
-              weight_kg: form.cargo_weight ? Number(form.cargo_weight) : null,
-              client: form.cargo_client || null,
-              doc_number: form.cargo_doc || null,
-            }
-          : null,
-      });
+      const trip = editing
+        ? await api.put<Trip>(`/trips/${id}`, payload)
+        : await api.post<Trip>("/trips", payload);
       navigate(`/panel/viajes/${trip.id}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo crear el viaje");
+      setError(err instanceof ApiError ? err.message : "No se pudo guardar el viaje");
     } finally {
       setBusy(false);
     }
@@ -96,7 +122,7 @@ export function NewTripPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <h1 className="text-xl font-bold text-ink">Nuevo viaje</h1>
+      <h1 className="text-xl font-bold text-ink">{editing ? "Editar viaje" : "Nuevo viaje"}</h1>
 
       <form onSubmit={submit} className="space-y-4">
         <Card className="grid gap-4 sm:grid-cols-2">
@@ -172,7 +198,7 @@ export function NewTripPage() {
         <ErrorText>{error}</ErrorText>
         <div className="flex gap-2">
           <Button type="submit" loading={busy}>
-            Crear viaje
+            {editing ? "Guardar cambios" : "Crear viaje"}
           </Button>
           <Button type="button" variant="ghost" onClick={() => navigate("/panel/viajes")}>
             Cancelar
