@@ -50,7 +50,7 @@ VALUES (1,3,3,'Montevideo',-34.9011,-56.1645,'Punta del Este',-34.9600,-54.9500,
 INSERT INTO trips (id,driver_id,truck_id,origin,origin_lat,origin_lon,destination,dest_lat,dest_lon,
                    scheduled_at,status,cargo_id,distance_km,manual_km,departed_at,arrived_at,notes,created_by,created_at)
 VALUES (2,1,1,'Montevideo',-34.9011,-56.1645,'Colonia del Sacramento',-34.4626,-57.8400,
-        '2026-07-27 08:00:00','EN_RUTA',1,71.9,NULL,'2026-07-27 08:15:00',NULL,
+        '2026-07-27 08:00:00','EN_RUTA',1,14.0,NULL,'2026-07-27 08:15:00',NULL,
         NULL,2,'2026-07-26 20:00:00');
 
 -- (3) PENDIENTE: Paysandú -> Salto
@@ -80,11 +80,10 @@ INSERT INTO trip_photos (trip_id,r2_key,kind,taken_at,lat,lon) VALUES
   (2,'seed/t2_salida.jpg','carga_salida','2026-07-27 08:15:00',-34.9011,-56.1645),
   (4,'seed/t4_salida.jpg','carga_salida','2026-07-24 05:20:00',-34.9011,-56.1645);
 
--- Traza GPS del viaje 2 (EN_RUTA), Montevideo hacia Colonia por Ruta 1
+-- Traza GPS del viaje 2 (EN_RUTA): tramo inicial sobre tierra saliendo de Montevideo
+-- por Ruta 1. El resto de la ruta se ve punteada (OSRM) y avanza con el seguimiento real
+-- del chofer o con el botón de simulación.
 INSERT INTO trip_positions (trip_id,lat,lon,recorded_at,seq) VALUES
   (2,-34.9011,-56.1645,'2026-07-27 08:15:00',1),
-  (2,-34.8300,-56.3000,'2026-07-27 08:32:00',2),
-  (2,-34.7600,-56.4500,'2026-07-27 08:50:00',3),
-  (2,-34.6800,-56.7200,'2026-07-27 09:10:00',4),
-  (2,-34.6100,-57.0500,'2026-07-27 09:30:00',5),
-  (2,-34.5400,-57.3800,'2026-07-27 09:52:00',6);
+  (2,-34.8710,-56.2200,'2026-07-27 08:25:00',2),
+  (2,-34.8450,-56.2780,'2026-07-27 08:35:00',3);

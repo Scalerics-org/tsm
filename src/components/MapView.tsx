@@ -38,13 +38,17 @@ export function MapView({
   center,
   markers = [],
   path = [],
+  route = [],
   className = "h-72 w-full rounded-2xl overflow-hidden",
   follow = false,
   zoom = 9,
 }: {
   center: { lat: number; lon: number };
   markers?: MapPoint[];
+  /** Traza GPS real recorrida (línea azul llena). */
   path?: { lat: number; lon: number }[];
+  /** Ruta planificada por calles (OSRM), línea de fondo punteada. */
+  route?: { lat: number; lon: number }[];
   className?: string;
   follow?: boolean;
   zoom?: number;
@@ -56,6 +60,12 @@ export function MapView({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        {route.length > 1 && (
+          <Polyline
+            positions={route.map((p) => [p.lat, p.lon])}
+            pathOptions={{ color: "#64748b", weight: 4, opacity: 0.6, dashArray: "6 8" }}
+          />
+        )}
         {path.length > 1 && (
           <Polyline positions={path.map((p) => [p.lat, p.lon])} pathOptions={{ color: "#2f8bff", weight: 4 }} />
         )}

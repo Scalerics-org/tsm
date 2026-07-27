@@ -13,6 +13,8 @@ import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText, Spinner, Stat, StatusBadge } from "../../components/ui";
 import { PhotoImage } from "../../components/PhotoImage";
 import { MapView, type MapPoint } from "../../components/MapView";
+import { fetchRouteGeometry } from "../../lib/routeGeometry";
+import type { LatLon } from "@shared/geo";
 import { fmtDateTime, fmtKm, fmtLiters } from "../../lib/format";
 
 interface TripDetail {
@@ -29,6 +31,7 @@ export function OpsTripDetailPage() {
   const [error, setError] = useState("");
   const [livePositions, setLivePositions] = useState<TripPosition[]>([]);
   const [liveKm, setLiveKm] = useState<number | null>(null);
+  const [routeGeom, setRouteGeom] = useState<LatLon[]>([]);
   const pollRef = useRef<number | null>(null);
 
   const load = useCallback(() => {
@@ -43,6 +46,22 @@ export function OpsTripDetailPage() {
   }, [id]);
 
   useEffect(load, [load]);
+
+  // Ruta real por calles (OSRM) para dibujarla en el mapa.
+  useEffect(() => {
+    const t = data?.trip;
+    if (!t || t.origin_lat == null || t.origin_lon == null || t.dest_lat == null || t.dest_lon == null) return;
+    let active = true;
+    fetchRouteGeometry(
+      { lat: t.origin_lat, lon: t.origin_lon },
+      { lat: t.dest_lat, lon: t.dest_lon },
+    ).then((rg) => {
+      if (active && rg) setRouteGeom(rg.geometry);
+    });
+    return () => {
+      active = false;
+    };
+  }, [data?.trip.id, data?.trip.origin_lat, data?.trip.dest_lat]);
 
   // Poll de posiciones mientras el viaje está EN_RUTA.
   useEffect(() => {
@@ -119,6 +138,7 @@ export function OpsTripDetailPage() {
           <MapView
             center={center}
             markers={markers}
+            route={routeGeom}
             path={livePositions.map((p) => ({ lat: p.lat, lon: p.lon }))}
             follow={trip.status === TRIP_STATUS.EN_RUTA}
             zoom={9}

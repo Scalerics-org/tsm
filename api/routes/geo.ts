@@ -55,9 +55,9 @@ geo.get("/route", async (c) => {
 
   const key = `route:${fromLat},${fromLon}->${toLat},${toLon}`;
   try {
-    const res = await cached(key, 600, () =>
+    const res = await cached(key, 3600, () =>
       fetch(
-        `https://router.project-osrm.org/route/v1/driving/${fromLon},${fromLat};${toLon},${toLat}?overview=false`,
+        `https://router.project-osrm.org/route/v1/driving/${fromLon},${fromLat};${toLon},${toLat}?overview=full&geometries=geojson`,
         { headers: { Accept: "application/json" } },
       ),
     );
@@ -65,9 +65,14 @@ geo.get("/route", async (c) => {
     const data = (await res.json()) as any;
     const route = data.routes?.[0];
     if (!route) return fail(c, "Sin ruta disponible", 404);
+    // GeoJSON entrega coordenadas como [lon, lat]; las pasamos a {lat, lon}.
+    const geometry: { lat: number; lon: number }[] = (route.geometry?.coordinates ?? []).map(
+      (p: [number, number]) => ({ lat: p[1], lon: p[0] }),
+    );
     return ok(c, {
       distance_km: route.distance / 1000,
       duration_min: route.duration / 60,
+      geometry,
     });
   } catch {
     return fail(c, "No se pudo calcular la ruta", 502);
