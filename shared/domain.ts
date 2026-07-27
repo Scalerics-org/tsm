@@ -266,6 +266,54 @@ export function fuelFeedback(logs: FLog[], current: FLog): FuelFeedback {
   };
 }
 
+export interface MonthlyConsumption {
+  month: string; // "YYYY-MM"
+  km: number;
+  liters: number;
+  l100: number | null;
+  closed: boolean; // cerrado con el primer llenado del mes siguiente
+}
+
+/**
+ * Cierre de consumo mensual por camión (según el cliente): el consumo de un mes
+ * va desde su primer llenado completo hasta el primer llenado completo del mes
+ * siguiente (esa surtida cierra el mes y abre el próximo). El mes en curso queda
+ * "abierto" (closed=false) hasta que haya un llenado el mes que viene.
+ */
+export function monthlyConsumption(logs: FLog[]): MonthlyConsumption[] {
+  const sorted = [...logs].sort((a, b) => a.odometer_km - b.odometer_km);
+  if (sorted.length === 0) return [];
+
+  // Ancla de cada mes = primer llenado completo del mes (menor odómetro).
+  const anchorByMonth = new Map<string, FLog>();
+  for (const l of sorted) {
+    if (!l.is_full) continue;
+    const m = l.logged_at.slice(0, 7);
+    if (!anchorByMonth.has(m)) anchorByMonth.set(m, l);
+  }
+  const anchors = [...anchorByMonth.values()].sort((a, b) => a.odometer_km - b.odometer_km);
+  const lastOdo = sorted[sorted.length - 1].odometer_km;
+
+  const out: MonthlyConsumption[] = [];
+  for (let i = 0; i < anchors.length; i++) {
+    const a = anchors[i];
+    const next = anchors[i + 1] ?? null;
+    const endOdo = next ? next.odometer_km : lastOdo;
+    const km = endOdo - a.odometer_km;
+    const liters = sorted
+      .filter((l) => l.odometer_km > a.odometer_km && l.odometer_km <= endOdo)
+      .reduce((s, l) => s + l.liters, 0);
+    out.push({
+      month: a.logged_at.slice(0, 7),
+      km,
+      liters,
+      l100: km > 0 ? (liters / km) * 100 : null,
+      closed: !!next,
+    });
+  }
+  return out.reverse(); // más reciente primero
+}
+
 /**
  * Consumo de un camión a partir de sus surtidas (modelo llenado a llenado):
  * el primer llenado es la línea de base (tanque lleno) y NO cuenta como consumo;

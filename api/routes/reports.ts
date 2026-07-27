@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { ROLES, TRIP_STATUS, fuelSummary, type Trip } from "../../shared/domain";
+import { ROLES, TRIP_STATUS, fuelSummary, monthlyConsumption, type Trip } from "../../shared/domain";
 import { listTrips } from "../repos/trips";
 import { listFuelLogs } from "../repos/fuel";
 import { listTrucks } from "../repos/trucks";
@@ -36,6 +36,29 @@ reports.get("/summary", async (c) => {
     };
   });
 
+  // Cierre de consumo mensual por camión (usa TODAS las surtidas, sin filtro de fecha,
+  // porque el cierre de un mes se hace con el primer llenado del mes siguiente).
+  const allFuel = await listFuelLogs(c.env.DB, {});
+  const monthlyByTruck = trucks
+    .map((t) => ({
+      truck_id: t.id,
+      plate: t.plate,
+      months: monthlyConsumption(
+        allFuel
+          .filter((f) => f.truck_id === t.id)
+          .map((f) => ({ odometer_km: f.odometer_km, liters: f.liters, is_full: !!f.is_full, logged_at: f.logged_at })),
+      )
+        .slice(0, 6)
+        .map((m) => ({
+          month: m.month,
+          km: Math.round(m.km),
+          liters: Math.round(m.liters),
+          l100: m.l100 != null ? Math.round(m.l100 * 10) / 10 : null,
+          closed: m.closed,
+        })),
+    }))
+    .filter((t) => t.months.length > 0);
+
   return ok(c, {
     totals: {
       trips: trips.length,
@@ -44,6 +67,7 @@ reports.get("/summary", async (c) => {
       surtidas: fuel.length,
     },
     byTruck,
+    monthlyByTruck,
   });
 });
 

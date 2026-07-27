@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { estimateFuelLiters, fuelSummary, fuelFeedback } from "@shared/domain";
+import { estimateFuelLiters, fuelSummary, fuelFeedback, monthlyConsumption } from "@shared/domain";
 
 describe("estimateFuelLiters", () => {
   it("km × (L/100km) / 100", () => {
@@ -69,5 +69,24 @@ describe("fuelFeedback (cierre por llenado + mensual)", () => {
     const r = fuelFeedback([base, cur], cur);
     expect(r.month_km).toBe(450);
     expect(r.month_l100).toBeCloseTo(34.9, 1);
+  });
+});
+
+describe("monthlyConsumption (cierre con el primer llenado del mes siguiente)", () => {
+  it("cierra julio con la primera surtida de agosto", () => {
+    const logs = [
+      { odometer_km: 100000, liters: 300, is_full: true, logged_at: "2026-07-05 08:00:00" },
+      { odometer_km: 100450, liters: 150, is_full: true, logged_at: "2026-07-27 08:00:00" },
+      { odometer_km: 100900, liters: 160, is_full: true, logged_at: "2026-08-02 08:00:00" },
+    ];
+    const r = monthlyConsumption(logs); // más reciente primero
+    const julio = r.find((m) => m.month === "2026-07")!;
+    expect(julio.closed).toBe(true);
+    expect(julio.km).toBe(900); // de la 1ª de julio a la 1ª de agosto
+    expect(julio.liters).toBe(310); // 150 + 160, no cuenta el llenado base
+    expect(julio.l100).toBeCloseTo(34.4, 1);
+
+    const agosto = r.find((m) => m.month === "2026-08")!;
+    expect(agosto.closed).toBe(false); // mes en curso
   });
 });

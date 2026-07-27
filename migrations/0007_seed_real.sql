@@ -23,7 +23,7 @@ INSERT INTO trip_templates (id,provider_id,name,origin,cargo_type,dest_options,f
 
   (2,2,'Carga Nayna (Saman)','Tacuarembó','Carga',
     '[{"destino":"Montevideo","destinatario":"Tifecom"},{"destino":"Montevideo","destinatario":"TGM"},{"destino":"Montevideo","destinatario":"Otro"}]',
-    '[{"key":"remito_carga","label":"Remito de carga","type":"numero","required":true,"stage":"carga"},{"key":"toneladas","label":"Toneladas","type":"numero","required":true,"stage":"carga","is_weight":true}]',
+    '[{"key":"remito_carga","label":"Remito de carga","type":"numero","required":true,"stage":"carga"},{"key":"toneladas","label":"Toneladas","type":"numero","required":true,"stage":"carga","is_weight":true},{"key":"boleta_rosada","label":"Datos boleta rosada","type":"texto","required":false,"stage":"descarga"}]',
     'Hoja rosada firmada',1),
 
   (3,3,'Reparto Molino Cañuelas','Montevideo','Pallets',
@@ -45,5 +45,6 @@ INSERT INTO trips (id,template_id,provider_name,origin,destination,destinatario,
 INSERT INTO fuel_logs (truck_id,driver_id,trip_id,odometer_km,liters,is_full,r2_key,logged_at) VALUES
   (1,1,NULL,182000,300,1,NULL,'2026-07-05 08:00:00'),
   (1,1,NULL,182450,157,1,NULL,'2026-07-27 07:05:00'),
+  (1,1,NULL,182900,160,1,NULL,'2026-08-01 08:00:00'),  -- cierra julio y abre agosto
   (3,3,2,98500,60,1,NULL,'2026-07-26 05:50:00'),
   (3,3,2,98700,70,1,NULL,'2026-07-26 12:40:00');
