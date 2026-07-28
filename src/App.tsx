@@ -13,6 +13,9 @@ import { OpsSummary } from "./features/operaciones/OpsSummary";
 import { OpsTripsPage } from "./features/operaciones/OpsTripsPage";
 import { OpsTripDetailPage } from "./features/operaciones/OpsTripDetailPage";
 import { TemplatesPage } from "./features/operaciones/TemplatesPage";
+import { ControlPage } from "./features/operaciones/ControlPage";
+import { TruckDetailPage } from "./features/operaciones/TruckDetailPage";
+import { DriverDetailPage } from "./features/operaciones/DriverDetailPage";
 import { AdminDriversPage } from "./features/admin/AdminDriversPage";
 import { AdminTrucksPage } from "./features/admin/AdminTrucksPage";
 import { AdminUsersPage } from "./features/admin/AdminUsersPage";
@@ -65,8 +68,11 @@ export default function App() {
 
         {/* Oficina */}
         <Route path="/panel" element={<RequireRole roles={OPS}><OpsSummary /></RequireRole>} />
+        <Route path="/panel/control" element={<RequireRole roles={OPS}><ControlPage /></RequireRole>} />
         <Route path="/panel/viajes" element={<RequireRole roles={OPS}><OpsTripsPage /></RequireRole>} />
         <Route path="/panel/viajes/:id" element={<RequireRole roles={OPS}><OpsTripDetailPage /></RequireRole>} />
+        <Route path="/panel/camion/:id" element={<RequireRole roles={OPS}><TruckDetailPage /></RequireRole>} />
+        <Route path="/panel/chofer/:id" element={<RequireRole roles={OPS}><DriverDetailPage /></RequireRole>} />
         <Route path="/panel/plantillas" element={<RequireRole roles={OPS}><TemplatesPage /></RequireRole>} />
 
         {/* Admin */}

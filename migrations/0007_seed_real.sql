@@ -36,10 +36,17 @@ INSERT INTO trip_templates (id,provider_id,name,origin,cargo_type,dest_options,f
     '[{"key":"origen_retiro","label":"Origen del retiro","type":"texto","required":true,"stage":"carga"},{"key":"remito_empresa","label":"Remito empresa","type":"texto","required":false,"stage":"carga"},{"key":"rto_molino","label":"N° Rto Molino","type":"texto","required":false,"stage":"carga"},{"key":"pallets","label":"Cantidad de pallets","type":"numero","required":false,"stage":"carga"}]',
     NULL,1);
 
--- Un viaje en curso (Casarone, Carlos/STZ 4821) y uno completado (Reparto, Diego/MRC 1177)
+-- Viajes: uno en curso, uno completado con evidencia, y uno completado SIN foto de descarga (para la alerta)
 INSERT INTO trips (id,template_id,provider_name,origin,destination,destinatario,driver_id,truck_id,cargo_type,kilos,field_values,status,started_at,finished_at,notes) VALUES
   (1,1,'Casarone','Artigas','Montevideo','Tifecom',1,1,'Carga',28.07,'{"remito_carga":"113430","toneladas":"28.07"}','EN_CURSO','2026-07-27 07:10:00',NULL,NULL),
-  (2,3,'Molino Cañuelas','Montevideo','Rivera','Jhon',3,3,'Pallets',NULL,'{"hoja_ruta":"HR-4821","pallets":"18"}','COMPLETADO','2026-07-26 06:00:00','2026-07-26 12:30:00','Entrega sin novedad.');
+  (2,3,'Molino Cañuelas','Montevideo','Rivera','Jhon',3,3,'Pallets',NULL,'{"hoja_ruta":"HR-4821","pallets":"18"}','COMPLETADO','2026-07-26 06:00:00','2026-07-26 12:30:00','Entrega sin novedad.'),
+  (3,2,'Nayna','Tacuarembó','Montevideo','Tifecom',2,2,'Carga',28.07,'{"remito_carga":"113430","toneladas":"28.07"}','COMPLETADO','2026-07-24 06:00:00','2026-07-24 14:00:00',NULL);
+
+-- Fotos (placeholder). El viaje 2 tiene carga+descarga; el 3 le falta la descarga (dispara alerta).
+INSERT INTO trip_photos (trip_id,r2_key,kind,taken_at) VALUES
+  (2,'seed/t2_carga.jpg','carga','2026-07-26 06:05:00'),
+  (2,'seed/t2_descarga.jpg','descarga','2026-07-26 12:20:00'),
+  (3,'seed/t3_carga.jpg','carga','2026-07-24 06:05:00');
 
 -- Surtidas del camión 1 (llenado a llenado)
 INSERT INTO fuel_logs (truck_id,driver_id,trip_id,odometer_km,liters,is_full,r2_key,logged_at) VALUES

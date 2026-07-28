@@ -65,6 +65,7 @@ export interface TripFilters {
   truckId?: number;
   status?: TripStatus;
   onlyDriverId?: number;
+  provider?: string;
   from?: string;
   to?: string;
 }
@@ -84,6 +85,10 @@ export async function listTrips(db: D1Database, f: TripFilters): Promise<Trip[]>
   if (f.status) {
     where.push("t.status = ?");
     binds.push(f.status);
+  }
+  if (f.provider) {
+    where.push("t.provider_name = ?");
+    binds.push(f.provider);
   }
   if (f.from) {
     where.push("substr(t.started_at,1,10) >= ?");

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { DRIVER_STATUS, type Driver, type Truck } from "@shared/domain";
 import { api } from "../../lib/api";
 import { Button, Card, Field, Spinner } from "../../components/ui";
@@ -69,6 +70,9 @@ export function AdminDriversPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right">
+                  <Link to={`/panel/chofer/${d.id}`} className="mr-3 text-brand-700 hover:underline">
+                    Ver
+                  </Link>
                   <button className="mr-3 text-brand-700 hover:underline" onClick={() => setEditing(d)}>
                     Editar
                   </button>

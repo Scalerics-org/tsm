@@ -32,6 +32,7 @@ interface NavItem {
 
 const OPS_NAV: NavItem[] = [
   { to: "/panel", label: "Resumen" },
+  { to: "/panel/control", label: "Control" },
   { to: "/panel/viajes", label: "Viajes" },
   { to: "/panel/plantillas", label: "Plantillas" },
 ];
