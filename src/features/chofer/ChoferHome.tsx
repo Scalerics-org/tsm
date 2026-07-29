@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { Trip, TripTemplate } from "@shared/domain";
 import { api } from "../../lib/api";
 import { Corners, Spinner, StatusBadge } from "../../components/ui";
+import { estimateTravel, fmtDuration } from "../../lib/eta";
 
 interface Cliente {
   provider_id: number;
@@ -52,6 +53,18 @@ export function ChoferHome() {
           <div className="mt-1 text-sm text-ink/60">
             {active.provider_name} · 🚛 {active.truck_plate}
           </div>
+          {(() => {
+            const e = estimateTravel(active.origin, active.destination);
+            if (!e) return null;
+            const llegada = new Date(
+              (Date.parse(active.started_at.replace(" ", "T") + "Z") || Date.now()) + e.hours * 3_600_000,
+            ).toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" });
+            return (
+              <div className="mt-1 font-cond text-sm font-semibold tracking-[0.04em] text-brand-700">
+                🕒 {fmtDuration(e.hours)} · llegada aprox. {llegada}
+              </div>
+            );
+          })()}
         </Link>
       )}
 
