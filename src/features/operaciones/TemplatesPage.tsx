@@ -8,9 +8,13 @@ import {
   type TripTemplate,
 } from "@shared/domain";
 import { api } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
+import { ROLES } from "@shared/domain";
 import { Button, Card, Field, Spinner } from "../../components/ui";
 
 export function TemplatesPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === ROLES.ADMIN;
   const [providers, setProviders] = useState<Provider[]>([]);
   const [templates, setTemplates] = useState<TripTemplate[] | null>(null);
   const [editing, setEditing] = useState<TripTemplate | "new" | null>(null);
@@ -26,6 +30,22 @@ export function TemplatesPage() {
     if (!newProvider.trim()) return;
     await api.post("/providers", { name: newProvider.trim() });
     setNewProvider("");
+    load();
+  }
+  async function renameProvider(p: Provider) {
+    const name = prompt("Nuevo nombre del cliente:", p.name);
+    if (!name || !name.trim() || name.trim() === p.name) return;
+    await api.put(`/providers/${p.id}`, { name: name.trim() });
+    load();
+  }
+  async function removeProvider(p: Provider) {
+    const count = (templates ?? []).filter((t) => t.provider_id === p.id).length;
+    const msg =
+      count > 0
+        ? `Al eliminar "${p.name}" se borran también sus ${count} viaje(s) precargado(s). ¿Eliminar?`
+        : `¿Eliminar el cliente "${p.name}"?`;
+    if (!confirm(msg)) return;
+    await api.del(`/providers/${p.id}`);
     load();
   }
   async function removeTemplate(id: number) {
@@ -52,8 +72,29 @@ export function TemplatesPage() {
         <h2 className="font-cond text-lg font-semibold text-ink">Clientes / Proveedores</h2>
         <div className="flex flex-wrap gap-2">
           {providers.map((p) => (
-            <span key={p.id} className="border border-ink/15 bg-surface px-3 py-1 text-sm text-ink">
+            <span
+              key={p.id}
+              className="inline-flex items-center gap-2 border border-ink/15 bg-surface px-3 py-1 text-sm text-ink"
+            >
               {p.name}
+              <button
+                type="button"
+                onClick={() => renameProvider(p)}
+                className="text-ink/45 hover:text-brand-700"
+                title="Renombrar"
+              >
+                ✎
+              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => removeProvider(p)}
+                  className="text-ink/45 hover:text-st-redTx"
+                  title="Eliminar cliente"
+                >
+                  ✕
+                </button>
+              )}
             </span>
           ))}
           {providers.length === 0 && <span className="text-sm text-ink/50">Agregá un cliente primero.</span>}
