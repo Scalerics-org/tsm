@@ -15,6 +15,7 @@ import { Button, Card, ErrorText, Field, Spinner, StatusBadge } from "../../comp
 import { CameraCapture } from "../../components/CameraCapture";
 import { PhotoImage } from "../../components/PhotoImage";
 import { compressImage } from "../../lib/image";
+import { estimateTravel, fmtDuration } from "../../lib/eta";
 import { fmtDateTime } from "../../lib/format";
 
 interface Detail {
@@ -68,6 +69,26 @@ export function ChoferTripPage() {
         </div>
         <StatusBadge status={trip.status} />
       </div>
+
+      {trip.status === TRIP_STATUS.EN_CURSO &&
+        (() => {
+          const est = estimateTravel(trip.origin, trip.destination);
+          if (!est) return null;
+          const llegada = new Date(
+            (Date.parse(trip.started_at.replace(" ", "T") + "Z") || Date.now()) + est.hours * 3_600_000,
+          ).toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" });
+          return (
+            <div className="border-l-4 border-l-st-blueDot bg-surface px-4 py-3">
+              <div className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-brand-700">
+                Tiempo estimado
+              </div>
+              <div className="font-cond text-3xl font-semibold text-ink">{fmtDuration(est.hours)}</div>
+              <div className="text-xs text-ink/55">
+                ≈ {est.km} km · llegada aprox. {llegada}
+              </div>
+            </div>
+          );
+        })()}
 
       <Card>
         <div className="grid grid-cols-2 gap-3 text-sm">

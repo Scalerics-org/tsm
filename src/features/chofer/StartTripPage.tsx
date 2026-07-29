@@ -5,6 +5,7 @@ import { api, ApiError } from "../../lib/api";
 import { Button, Card, Corners, ErrorText, Field, Spinner } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
 import { compressImage } from "../../lib/image";
+import { estimateTravel, fmtDuration, etaClock } from "../../lib/eta";
 
 async function uploadPhoto(tripId: number, file: File, kind: string) {
   const fd = new FormData();
@@ -36,6 +37,7 @@ export function StartTripPage() {
 
   const cargaFields = tpl.fields.filter((f) => f.stage === FIELD_STAGE.CARGA);
   const opt = optIdx !== "" ? tpl.dest_options[Number(optIdx)] : null;
+  const est = opt ? estimateTravel(tpl.origin, opt.destino) : null;
   const destinatarioFinal =
     opt?.destinatario === "Otro" && otroDest.trim() ? otroDest.trim() : opt?.destinatario ?? "";
 
@@ -107,6 +109,18 @@ export function StartTripPage() {
           </Field>
         ))}
       </Card>
+
+      {est && (
+        <div className="border-l-4 border-l-st-blueDot bg-surface px-4 py-3">
+          <div className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-brand-700">
+            Tiempo estimado
+          </div>
+          <div className="font-cond text-2xl font-semibold text-ink">{fmtDuration(est.hours)}</div>
+          <div className="text-xs text-ink/55">
+            ≈ {est.km} km · llegada aprox. {etaClock(est.hours)}
+          </div>
+        </div>
+      )}
 
       <Card className="space-y-3">
         <Corners />
