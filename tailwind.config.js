@@ -45,8 +45,8 @@ export default {
         },
       },
       fontFamily: {
-        sans: ["Barlow", "system-ui", "sans-serif"],
-        cond: ["'Barlow Condensed'", "system-ui", "sans-serif"],
+        sans: ["'Public Sans'", "system-ui", "sans-serif"],
+        cond: ["'Bricolage Grotesque'", "system-ui", "sans-serif"],
       },
       borderRadius: {
         // La estética blueprint es de esquinas rectas.

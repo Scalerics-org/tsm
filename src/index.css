@@ -14,7 +14,7 @@ body,
 
 body {
   @apply bg-bg text-ink antialiased;
-  font-family: "Barlow", system-ui, sans-serif;
+  font-family: "Public Sans", system-ui, sans-serif;
   font-size: 15px;
 }
 
@@ -24,15 +24,15 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: "Barlow Condensed", system-ui, sans-serif;
+  font-family: "Bricolage Grotesque", system-ui, sans-serif;
   font-weight: 600;
   letter-spacing: -0.015em;
   line-height: 1.12;
 }
 
-/* Utilidad de tipografía condensada (etiquetas, botones, números grandes). */
+/* Utilidad de tipografía de títulos (etiquetas, botones, números grandes). */
 .font-cond {
-  font-family: "Barlow Condensed", system-ui, sans-serif;
+  font-family: "Bricolage Grotesque", system-ui, sans-serif;
 }
 
 @layer components {
