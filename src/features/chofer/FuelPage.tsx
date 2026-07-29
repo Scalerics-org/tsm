@@ -18,14 +18,14 @@ export function FuelPage() {
 
   async function confirm() {
     setError("");
-    if (!file) return setError("Sacá la foto del tacógrafo.");
     if (!odometer) return setError("Cargá el kilometraje.");
     if (isFull === null) return setError("Indicá si llenaste o no.");
+    if (isFull && !file) return setError("Sacá la foto del tacógrafo (obligatoria al llenar).");
     if (!liters) return setError("Cargá los litros.");
     setBusy(true);
     try {
       const fd = new FormData();
-      fd.append("file", await compressImage(file));
+      if (file) fd.append("file", await compressImage(file));
       fd.append("odometer_km", odometer);
       fd.append("liters", liters);
       fd.append("is_full", String(isFull));
@@ -51,8 +51,7 @@ export function FuelPage() {
       </div>
 
       <Card className="space-y-4">
-        <CameraCapture label="1 · Foto del tacógrafo" onChange={setFile} />
-        <Field label="2 · Kilometraje (km)">
+        <Field label="1 · Kilometraje (km)">
           <input
             className="input"
             type="number"
@@ -63,7 +62,7 @@ export function FuelPage() {
           />
         </Field>
         <div>
-          <span className="label">3 · ¿Llenaste el tanque?</span>
+          <span className="label">2 · ¿Llenaste el tanque?</span>
           <div className="grid grid-cols-2 gap-2">
             {[
               { v: true, l: "Sí, llené" },
@@ -72,7 +71,10 @@ export function FuelPage() {
               <button
                 key={o.l}
                 type="button"
-                onClick={() => setIsFull(o.v)}
+                onClick={() => {
+                  setIsFull(o.v);
+                  if (!o.v) setFile(null);
+                }}
                 className={`border py-3 font-cond font-semibold uppercase tracking-[0.06em] ${
                   isFull === o.v ? "border-brand bg-brand text-bg" : "border-ink/20 text-ink"
                 }`}
@@ -82,7 +84,17 @@ export function FuelPage() {
             ))}
           </div>
         </div>
-        <Field label="4 · Litros cargados">
+        {isFull === true && (
+          <div>
+            <CameraCapture label="3 · Foto del tacógrafo (obligatoria al llenar)" onChange={setFile} />
+          </div>
+        )}
+        {isFull === false && (
+          <p className="border-l-4 border-l-st-blueDot bg-surface px-3 py-2 text-sm text-ink/70">
+            Sin foto del tacógrafo: el consumo se calcula recién cuando llenes el tanque.
+          </p>
+        )}
+        <Field label={`${isFull === true ? "4" : "3"} · Litros cargados`}>
           <input
             className="input"
             type="number"

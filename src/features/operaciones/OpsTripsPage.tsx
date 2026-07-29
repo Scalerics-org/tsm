@@ -4,6 +4,7 @@ import {
   TRIP_STATUS,
   TRIP_STATUS_LABEL,
   type Driver,
+  type Provider,
   type Trip,
   type TripStatus,
   type Truck,
@@ -15,16 +16,19 @@ import { fmtDateTime } from "../../lib/format";
 export function OpsTripsPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
+  const [providers, setProviders] = useState<Provider[]>([]);
   const [trips, setTrips] = useState<Trip[] | null>(null);
-  const [f, setF] = useState({ driver: "", truck: "", status: "", from: "", to: "" });
+  const [f, setF] = useState({ provider: "", driver: "", truck: "", status: "", from: "", to: "" });
 
   useEffect(() => {
     api.get<Driver[]>("/drivers").then(setDrivers).catch(() => {});
     api.get<Truck[]>("/trucks").then(setTrucks).catch(() => {});
+    api.get<Provider[]>("/providers").then(setProviders).catch(() => {});
   }, []);
 
   const query = useMemo(() => {
     const p = new URLSearchParams();
+    if (f.provider) p.set("provider", f.provider);
     if (f.driver) p.set("driver", f.driver);
     if (f.truck) p.set("truck", f.truck);
     if (f.status) p.set("status", f.status);
@@ -43,12 +47,25 @@ export function OpsTripsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl text-ink">Viajes</h1>
-        <Button variant="secondary" onClick={() => downloadFile(`/reports/trips.csv${query}`, "viajes.csv")}>
+        <Button
+          variant="secondary"
+          onClick={() =>
+            downloadFile(`/reports/trips.csv${query}`, f.provider ? `viajes-${f.provider}.csv` : "viajes.csv")
+          }
+        >
           ⬇ Exportar Excel
         </Button>
       </div>
 
-      <Card className="grid gap-3 sm:grid-cols-5">
+      <Card className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <select className="input" value={f.provider} onChange={(e) => setF({ ...f, provider: e.target.value })}>
+          <option value="">Todos los clientes</option>
+          {providers.map((p) => (
+            <option key={p.id} value={p.name}>
+              {p.name}
+            </option>
+          ))}
+        </select>
         <select className="input" value={f.driver} onChange={(e) => setF({ ...f, driver: e.target.value })}>
           <option value="">Todos los choferes</option>
           {drivers.map((d) => (

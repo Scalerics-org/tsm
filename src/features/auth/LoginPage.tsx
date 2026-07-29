@@ -52,9 +52,9 @@ export function LoginPage() {
             </span>
             <div>
               <div className="font-cond text-3xl font-semibold leading-none tracking-[0.04em] text-bg">
-                FLETA
+                TSM
               </div>
-              <p className="mt-1 text-[13px] text-bg/60">Control de viajes de flota</p>
+              <p className="mt-1 text-[13px] text-bg/60">Transporte Santa María · Control de viajes</p>
             </div>
           </div>
 

@@ -2,10 +2,16 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { FIELD_STAGE, PHOTO_KIND, type Trip, type TripTemplate } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
 import { Button, Card, Corners, ErrorText, Field, Spinner } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
 import { compressImage } from "../../lib/image";
 import { estimateTravel, fmtDuration, etaClock } from "../../lib/eta";
+
+interface TruckOption {
+  id: number;
+  plate: string;
+}
 
 async function uploadPhoto(tripId: number, file: File, kind: string) {
   const fd = new FormData();
@@ -18,11 +24,14 @@ async function uploadPhoto(tripId: number, file: File, kind: string) {
 export function StartTripPage() {
   const { templateId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [tpl, setTpl] = useState<TripTemplate | null>(null);
   const [optIdx, setOptIdx] = useState("");
   const [otroDest, setOtroDest] = useState("");
   const [values, setValues] = useState<Record<string, string>>({});
   const [file, setFile] = useState<File | null>(null);
+  const [trucks, setTrucks] = useState<TruckOption[]>([]);
+  const [truckId, setTruckId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -32,6 +41,17 @@ export function StartTripPage() {
       .then((list) => setTpl(list.find((t) => t.id === Number(templateId)) ?? null))
       .catch(() => setTpl(null));
   }, [templateId]);
+
+  // Camión asignado por defecto; el chofer puede cambiarlo si hoy maneja otro.
+  useEffect(() => {
+    api
+      .get<TruckOption[]>("/trucks/options")
+      .then((list) => {
+        setTrucks(list);
+        setTruckId(String(user?.truck_id ?? list[0]?.id ?? ""));
+      })
+      .catch(() => {});
+  }, [user?.truck_id]);
 
   if (!tpl) return <Spinner size={28} />;
 
@@ -59,6 +79,7 @@ export function StartTripPage() {
         destino: opt.destino,
         destinatario: destinatarioFinal,
         field_values: values,
+        truck_id: truckId ? Number(truckId) : undefined,
       });
       await uploadPhoto(trip.id, file, PHOTO_KIND.CARGA);
       navigate(`/viaje/${trip.id}`);
@@ -81,6 +102,17 @@ export function StartTripPage() {
       </div>
 
       <Card className="space-y-4">
+        <Field label="Camión">
+          <select className="input" value={truckId} onChange={(e) => setTruckId(e.target.value)}>
+            {trucks.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.plate}
+                {t.id === user?.truck_id ? " (asignado)" : ""}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-ink/50">Cambialo solo si hoy manejás otro camión.</p>
+        </Field>
         <Field label="Destino">
           <select className="input" value={optIdx} onChange={(e) => setOptIdx(e.target.value)}>
             <option value="">Elegí…</option>

@@ -104,7 +104,7 @@ h6 {
     border-radius: 0;
   }
 
-  /* Botones FLETA (Barlow Condensed, mayúsculas, esquinas rectas). */
+  /* Botones TSM (Barlow Condensed, mayúsculas, esquinas rectas). */
   .btn {
     @apply inline-flex cursor-pointer items-center justify-center gap-2 border
       font-cond font-semibold uppercase tracking-[0.06em] transition

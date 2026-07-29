@@ -12,6 +12,11 @@ trucks.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) =>
   ok(c, await repo.listTrucks(c.env.DB)),
 );
 
+// Lista mínima (id + patente) para que el chofer elija con qué camión viaja.
+trucks.get("/options", async (c) =>
+  ok(c, (await repo.listTrucks(c.env.DB)).map((t) => ({ id: t.id, plate: t.plate }))),
+);
+
 const STATUSES: TruckStatus[] = [
   TRUCK_STATUS.DISPONIBLE,
   TRUCK_STATUS.EN_VIAJE,

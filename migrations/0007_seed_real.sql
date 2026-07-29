@@ -23,8 +23,8 @@ INSERT INTO trip_templates (id,provider_id,name,origin,remite,cargo_type,dest_op
 
   (2,2,'Carga Nayna (Saman)','Tacuarembó','Saman','Carga',
     '[{"destino":"Montevideo","destinatario":"Tifecom"},{"destino":"Montevideo","destinatario":"TGM"},{"destino":"Montevideo","destinatario":"Otro"}]',
-    '[{"key":"remito_carga","label":"Remito de carga","type":"numero","required":true,"stage":"carga"},{"key":"toneladas","label":"Toneladas","type":"numero","required":true,"stage":"carga","is_weight":true},{"key":"boleta_rosada","label":"Datos boleta rosada","type":"texto","required":false,"stage":"descarga"}]',
-    'Hoja rosada firmada',1),
+    '[{"key":"remito_carga","label":"N° remito de carga","type":"numero","required":true,"stage":"carga"},{"key":"toneladas","label":"Toneladas","type":"numero","required":true,"stage":"carga","is_weight":true},{"key":"boleta_rosada","label":"N° boleta rosada (remito válido)","type":"texto","required":false,"stage":"descarga"}]',
+    'Boleta rosada firmada (remito válido)',1),
 
   (3,3,'Reparto Molino Cañuelas','Montevideo','Cañuelas','Pallets',
     '[{"destino":"Salto","destinatario":"Depósito"},{"destino":"Salto","destinatario":"Depósito y Roig"},{"destino":"Salto","destinatario":"Depósito, Roig, Polacof"},{"destino":"Salto","destinatario":"Roig"},{"destino":"Rivera","destinatario":"Jhon"},{"destino":"Artigas","destinatario":"Adriana"},{"destino":"Tacuarembó","destinatario":"Hexion"},{"destino":"Bella Unión","destinatario":"Robalez"},{"destino":"Salto y Artigas","destinatario":"Varios"}]',

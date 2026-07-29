@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        // FLETA — sistema "industry" (blueprint industrial)
+        // TSM — sistema "industry" (blueprint industrial)
         bg: "#f2f2f3",
         surface: "#e9e9ea",
         ink: {

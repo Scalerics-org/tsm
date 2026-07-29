@@ -262,12 +262,44 @@ reports.get("/trips.csv", async (c) => {
   return csvResponse(q.provider ? `viajes-${q.provider}.csv` : "viajes.csv", [header, ...rows]);
 });
 
+// Consumo por tramo (L/100km): se asigna a la surtida que CIERRA el tramo (la de llenado).
+// Un tramo va de un llenado al siguiente; los litros = todo lo cargado en el medio + el llenado final.
+function segmentConsumption(
+  logs: { id: number; truck_id: number; odometer_km: number; liters: number; is_full: number; logged_at: string }[],
+): Map<number, number> {
+  const out = new Map<number, number>();
+  const byTruck = new Map<number, typeof logs>();
+  for (const l of logs) {
+    const arr = byTruck.get(l.truck_id) ?? [];
+    arr.push(l);
+    byTruck.set(l.truck_id, arr);
+  }
+  for (const arr of byTruck.values()) {
+    arr.sort((a, b) => (a.logged_at < b.logged_at ? -1 : a.logged_at > b.logged_at ? 1 : 0));
+    let accum = 0;
+    let prevFullOdo: number | null = null;
+    for (const e of arr) {
+      accum += e.liters;
+      if (e.is_full) {
+        if (prevFullOdo != null && e.odometer_km > prevFullOdo) {
+          out.set(e.id, (accum / (e.odometer_km - prevFullOdo)) * 100);
+        }
+        prevFullOdo = e.odometer_km;
+        accum = 0;
+      }
+    }
+  }
+  return out;
+}
+
 reports.get("/fuel.csv", async (c) => {
   const q = c.req.query();
   const fuel = await listFuelLogs(c.env.DB, { from: q.from, to: q.to, truckId: q.truck ? Number(q.truck) : undefined });
-  const header = ["ID", "Camión", "Chofer", "Odómetro", "Litros", "Llenado completo", "Fecha"];
+  const cons = segmentConsumption(fuel.map((f) => ({ ...f, is_full: f.is_full ? 1 : 0 })));
+  const header = ["ID", "Camión", "Chofer", "Odómetro", "Litros", "Llenado completo", "Consumo L/100km", "Fecha"];
   const rows = fuel.map((f) => [
-    f.id, f.truck_plate ?? "", f.driver_name ?? "", f.odometer_km, f.liters, f.is_full ? "Sí" : "No", f.logged_at,
+    f.id, f.truck_plate ?? "", f.driver_name ?? "", f.odometer_km, f.liters, f.is_full ? "Sí" : "No",
+    cons.has(f.id) ? roundTo(cons.get(f.id)!) : "", f.logged_at,
   ]);
   return csvResponse("surtidas.csv", [header, ...rows]);
 });

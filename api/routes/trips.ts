@@ -40,6 +40,7 @@ trips.get("/", async (c) => {
   const filters: tripsRepo.TripFilters = {
     truckId: q.truck ? Number(q.truck) : undefined,
     status: (q.status as Trip["status"]) || undefined,
+    provider: q.provider || undefined,
     from: q.from || undefined,
     to: q.to || undefined,
   };

@@ -20,7 +20,7 @@ function Logo() {
       <span className="grid h-9 w-9 flex-none place-items-center bg-brand">
         <TruckMark />
       </span>
-      <span className="font-cond text-[22px] font-semibold tracking-[0.06em] text-bg">FLETA</span>
+      <span className="font-cond text-[22px] font-semibold tracking-[0.06em] text-bg">TSM</span>
     </div>
   );
 }
