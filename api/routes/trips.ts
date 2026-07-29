@@ -97,6 +97,7 @@ trips.post("/", async (c) => {
     template_id: tpl.id,
     provider_name: tpl.provider_name ?? "",
     origin: b.origin ? String(b.origin) : tpl.origin,
+    remite: tpl.remite,
     destination: String(b.destino),
     destinatario: b.destinatario ? String(b.destinatario) : null,
     driver_id: user.driver_id,

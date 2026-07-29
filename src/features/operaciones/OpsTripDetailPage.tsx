@@ -71,6 +71,7 @@ export function OpsTripDetailPage() {
 
       <Card>
         <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+          {trip.remite && <Info label="Remite" value={trip.remite} />}
           <Info label="Carga" value={trip.cargo_type || "—"} />
           <Info label="Toneladas" value={trip.weight_tons != null ? `${trip.weight_tons} t` : "—"} />
           {fields

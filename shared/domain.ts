@@ -110,6 +110,7 @@ export interface TripTemplate {
   provider_name?: string; // join
   name: string;
   origin: string;
+  remite: string | null; // quién remite/carga (ej. "Saman" para Nayna)
   cargo_type: string;
   dest_options: DestOption[]; // destino + destinatario que puede elegir el chofer
   fields: TemplateField[]; // campos configurables (carga/descarga)
@@ -122,6 +123,7 @@ export interface Trip {
   template_id: number | null;
   provider_name: string;
   origin: string;
+  remite: string | null;
   destination: string;
   destinatario: string | null;
   driver_id: number;

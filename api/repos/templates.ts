@@ -6,6 +6,7 @@ interface TemplateRow {
   provider_name: string;
   name: string;
   origin: string;
+  remite: string | null;
   cargo_type: string;
   dest_options: string; // JSON
   fields: string; // JSON
@@ -28,6 +29,7 @@ function toTemplate(r: TemplateRow): TripTemplate {
     provider_name: r.provider_name,
     name: r.name,
     origin: r.origin,
+    remite: r.remite,
     cargo_type: r.cargo_type,
     dest_options: parseJson<DestOption[]>(r.dest_options, []),
     fields: parseJson<TemplateField[]>(r.fields, []),
@@ -37,7 +39,7 @@ function toTemplate(r: TemplateRow): TripTemplate {
 }
 
 const SELECT = `
-  SELECT tt.id, tt.provider_id, tt.name, tt.origin, tt.cargo_type,
+  SELECT tt.id, tt.provider_id, tt.name, tt.origin, tt.remite, tt.cargo_type,
          tt.dest_options, tt.fields, tt.arrival_photo_label, tt.active,
          p.name AS provider_name
   FROM trip_templates tt JOIN providers p ON p.id = tt.provider_id
@@ -58,6 +60,7 @@ export interface TemplateInput {
   provider_id: number;
   name: string;
   origin: string;
+  remite: string | null;
   cargo_type: string;
   dest_options: DestOption[];
   fields: TemplateField[];
@@ -70,6 +73,7 @@ function bindArgs(t: TemplateInput) {
     t.provider_id,
     t.name,
     t.origin,
+    t.remite || null,
     t.cargo_type,
     JSON.stringify(t.dest_options ?? []),
     JSON.stringify(t.fields ?? []),
@@ -81,8 +85,8 @@ function bindArgs(t: TemplateInput) {
 export async function createTemplate(db: D1Database, t: TemplateInput): Promise<number> {
   const res = await db
     .prepare(
-      `INSERT INTO trip_templates (provider_id, name, origin, cargo_type, dest_options, fields, arrival_photo_label, active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO trip_templates (provider_id, name, origin, remite, cargo_type, dest_options, fields, arrival_photo_label, active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(...bindArgs(t))
     .run();
@@ -92,7 +96,7 @@ export async function createTemplate(db: D1Database, t: TemplateInput): Promise<
 export async function updateTemplate(db: D1Database, id: number, t: TemplateInput): Promise<void> {
   await db
     .prepare(
-      `UPDATE trip_templates SET provider_id=?, name=?, origin=?, cargo_type=?, dest_options=?, fields=?, arrival_photo_label=?, active=?
+      `UPDATE trip_templates SET provider_id=?, name=?, origin=?, remite=?, cargo_type=?, dest_options=?, fields=?, arrival_photo_label=?, active=?
        WHERE id=?`,
     )
     .bind(...bindArgs(t), id)

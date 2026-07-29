@@ -92,6 +92,7 @@ export function ChoferTripPage() {
 
       <Card>
         <div className="grid grid-cols-2 gap-3 text-sm">
+          {trip.remite && <Info label="Remite" value={trip.remite} />}
           {fields.map((f) => (
             <Info key={f.key} label={f.label} value={trip.field_values[f.key] || "—"} />
           ))}

@@ -5,6 +5,7 @@ interface TripRow {
   template_id: number | null;
   provider_name: string;
   origin: string;
+  remite: string | null;
   destination: string;
   destinatario: string | null;
   driver_id: number;
@@ -22,7 +23,7 @@ interface TripRow {
 }
 
 const SELECT = `
-  SELECT t.id, t.template_id, t.provider_name, t.origin, t.destination, t.destinatario,
+  SELECT t.id, t.template_id, t.provider_name, t.origin, t.remite, t.destination, t.destinatario,
          t.driver_id, t.truck_id, t.cargo_type, t.kilos, t.field_values, t.status,
          t.started_at, t.finished_at, t.notes, t.created_at,
          d.name AS driver_name, tr.plate AS truck_plate
@@ -43,6 +44,7 @@ function toTrip(r: TripRow): Trip {
     template_id: r.template_id,
     provider_name: r.provider_name,
     origin: r.origin,
+    remite: r.remite,
     destination: r.destination,
     destinatario: r.destinatario,
     driver_id: r.driver_id,
@@ -112,6 +114,7 @@ export interface StartTripInput {
   template_id: number | null;
   provider_name: string;
   origin: string;
+  remite: string | null;
   destination: string;
   destinatario: string | null;
   driver_id: number;
@@ -124,11 +127,11 @@ export interface StartTripInput {
 export async function startTrip(db: D1Database, t: StartTripInput): Promise<number> {
   const res = await db
     .prepare(
-      `INSERT INTO trips (template_id, provider_name, origin, destination, destinatario, driver_id, truck_id, cargo_type, kilos, field_values, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'EN_CURSO')`,
+      `INSERT INTO trips (template_id, provider_name, origin, remite, destination, destinatario, driver_id, truck_id, cargo_type, kilos, field_values, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'EN_CURSO')`,
     )
     .bind(
-      t.template_id, t.provider_name, t.origin, t.destination, t.destinatario, t.driver_id, t.truck_id,
+      t.template_id, t.provider_name, t.origin, t.remite, t.destination, t.destinatario, t.driver_id, t.truck_id,
       t.cargo_type, t.weight_tons, JSON.stringify(t.field_values ?? {}),
     )
     .run();

@@ -48,6 +48,7 @@ function parse(b: any): repo.TemplateInput | null {
     provider_id: Number(b.provider_id),
     name: String(b.name),
     origin: String(b.origin),
+    remite: b.remite ? String(b.remite).trim() : null,
     cargo_type: String(b.cargo_type ?? ""),
     dest_options,
     fields,

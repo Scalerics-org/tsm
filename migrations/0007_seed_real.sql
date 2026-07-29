@@ -15,32 +15,32 @@ INSERT INTO providers (id,name) VALUES
   (3,'Molino Cañuelas');
 
 -- Plantillas de viaje (precargadas), con campos y foto de descarga por viaje.
-INSERT INTO trip_templates (id,provider_id,name,origin,cargo_type,dest_options,fields,arrival_photo_label,active) VALUES
-  (1,1,'Carga Casarone','Artigas','Carga',
+INSERT INTO trip_templates (id,provider_id,name,origin,remite,cargo_type,dest_options,fields,arrival_photo_label,active) VALUES
+  (1,1,'Carga Casarone','Artigas','Casarone','Carga',
     '[{"destino":"Montevideo","destinatario":"Tifecom"},{"destino":"Montevideo","destinatario":"TGM"},{"destino":"Montevideo","destinatario":"Otro"}]',
     '[{"key":"remito_carga","label":"Remito de carga","type":"numero","required":true,"stage":"carga"},{"key":"toneladas","label":"Toneladas","type":"numero","required":true,"stage":"carga","is_weight":true}]',
     'Remito de descarga',1),
 
-  (2,2,'Carga Nayna (Saman)','Tacuarembó','Carga',
+  (2,2,'Carga Nayna (Saman)','Tacuarembó','Saman','Carga',
     '[{"destino":"Montevideo","destinatario":"Tifecom"},{"destino":"Montevideo","destinatario":"TGM"},{"destino":"Montevideo","destinatario":"Otro"}]',
     '[{"key":"remito_carga","label":"Remito de carga","type":"numero","required":true,"stage":"carga"},{"key":"toneladas","label":"Toneladas","type":"numero","required":true,"stage":"carga","is_weight":true},{"key":"boleta_rosada","label":"Datos boleta rosada","type":"texto","required":false,"stage":"descarga"}]',
     'Hoja rosada firmada',1),
 
-  (3,3,'Reparto Molino Cañuelas','Montevideo','Pallets',
+  (3,3,'Reparto Molino Cañuelas','Montevideo','Cañuelas','Pallets',
     '[{"destino":"Salto","destinatario":"Depósito"},{"destino":"Salto","destinatario":"Depósito y Roig"},{"destino":"Salto","destinatario":"Depósito, Roig, Polacof"},{"destino":"Salto","destinatario":"Roig"},{"destino":"Rivera","destinatario":"Jhon"},{"destino":"Artigas","destinatario":"Adriana"},{"destino":"Tacuarembó","destinatario":"Hexion"},{"destino":"Bella Unión","destinatario":"Robalez"},{"destino":"Salto y Artigas","destinatario":"Varios"}]',
     '[{"key":"hoja_ruta","label":"N° hoja de ruta","type":"texto","required":false,"stage":"carga"},{"key":"pallets","label":"Cantidad de pallets","type":"numero","required":false,"stage":"carga"}]',
     'Hoja de ruta firmada',1),
 
-  (4,3,'Devoluciones Molino Cañuelas','Interior (retiro)','Devolución',
+  (4,3,'Devoluciones Molino Cañuelas','Interior (retiro)',NULL,'Devolución',
     '[{"destino":"Montevideo","destinatario":"Molino"}]',
     '[{"key":"origen_retiro","label":"Origen del retiro","type":"texto","required":true,"stage":"carga"},{"key":"remito_empresa","label":"Remito empresa","type":"texto","required":false,"stage":"carga"},{"key":"rto_molino","label":"N° Rto Molino","type":"texto","required":false,"stage":"carga"},{"key":"pallets","label":"Cantidad de pallets","type":"numero","required":false,"stage":"carga"}]',
     NULL,1);
 
 -- Viajes: uno en curso, uno completado con evidencia, y uno completado SIN foto de descarga (para la alerta)
-INSERT INTO trips (id,template_id,provider_name,origin,destination,destinatario,driver_id,truck_id,cargo_type,kilos,field_values,status,started_at,finished_at,notes) VALUES
-  (1,1,'Casarone','Artigas','Montevideo','Tifecom',1,1,'Carga',28.07,'{"remito_carga":"113430","toneladas":"28.07"}','EN_CURSO','2026-07-27 07:10:00',NULL,NULL),
-  (2,3,'Molino Cañuelas','Montevideo','Rivera','Jhon',3,3,'Pallets',NULL,'{"hoja_ruta":"HR-4821","pallets":"18"}','COMPLETADO','2026-07-26 06:00:00','2026-07-26 12:30:00','Entrega sin novedad.'),
-  (3,2,'Nayna','Tacuarembó','Montevideo','Tifecom',2,2,'Carga',28.07,'{"remito_carga":"113430","toneladas":"28.07"}','COMPLETADO','2026-07-24 06:00:00','2026-07-24 14:00:00',NULL);
+INSERT INTO trips (id,template_id,provider_name,origin,remite,destination,destinatario,driver_id,truck_id,cargo_type,kilos,field_values,status,started_at,finished_at,notes) VALUES
+  (1,1,'Casarone','Artigas','Casarone','Montevideo','Tifecom',1,1,'Carga',28.07,'{"remito_carga":"113430","toneladas":"28.07"}','EN_CURSO','2026-07-27 07:10:00',NULL,NULL),
+  (2,3,'Molino Cañuelas','Montevideo','Cañuelas','Rivera','Jhon',3,3,'Pallets',NULL,'{"hoja_ruta":"HR-4821","pallets":"18"}','COMPLETADO','2026-07-26 06:00:00','2026-07-26 12:30:00','Entrega sin novedad.'),
+  (3,2,'Nayna','Tacuarembó','Saman','Montevideo','Tifecom',2,2,'Carga',28.07,'{"remito_carga":"113430","toneladas":"28.07"}','COMPLETADO','2026-07-24 06:00:00','2026-07-24 14:00:00',NULL);
 
 -- Fotos (placeholder). El viaje 2 tiene carga+descarga; el 3 le falta la descarga (dispara alerta).
 INSERT INTO trip_photos (trip_id,r2_key,kind,taken_at) VALUES

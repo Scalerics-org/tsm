@@ -252,11 +252,11 @@ reports.get("/trips.csv", async (c) => {
   const q = c.req.query();
   const trips = await listTrips(c.env.DB, { from: q.from, to: q.to, provider: q.provider || undefined });
   const header = [
-    "ID", "Proveedor", "Origen", "Destino", "Destinatario", "Chofer", "Camión", "Carga",
+    "ID", "Proveedor", "Remite", "Origen", "Destino", "Destinatario", "Chofer", "Camión", "Carga",
     "Toneladas", "Campos", "Estado", "Inicio", "Fin", "Observaciones",
   ];
   const rows = trips.map((t) => [
-    t.id, t.provider_name, t.origin, t.destination, t.destinatario ?? "", t.driver_name ?? "", t.truck_plate ?? "",
+    t.id, t.provider_name, t.remite ?? "", t.origin, t.destination, t.destinatario ?? "", t.driver_name ?? "", t.truck_plate ?? "",
     t.cargo_type, t.weight_tons ?? "", flattenFields(t), t.status, t.started_at, t.finished_at ?? "", t.notes ?? "",
   ]);
   return csvResponse(q.provider ? `viajes-${q.provider}.csv` : "viajes.csv", [header, ...rows]);

@@ -167,6 +167,7 @@ function TemplateForm({
     provider_id: String(initial?.provider_id ?? providers[0]?.id ?? ""),
     name: initial?.name ?? "",
     origin: initial?.origin ?? "",
+    remite: initial?.remite ?? "",
     cargo_type: initial?.cargo_type ?? "",
     arrival_photo_label: initial?.arrival_photo_label ?? "",
     active: initial?.active ?? true,
@@ -184,6 +185,7 @@ function TemplateForm({
       provider_id: Number(f.provider_id),
       name: f.name,
       origin: f.origin,
+      remite: f.remite || null,
       cargo_type: f.cargo_type,
       arrival_photo_label: f.arrival_photo_label || null,
       active: f.active,
@@ -217,6 +219,9 @@ function TemplateForm({
           </Field>
           <Field label="Origen">
             <input className="input" value={f.origin} onChange={(e) => setF({ ...f, origin: e.target.value })} required />
+          </Field>
+          <Field label="Remite (opcional)">
+            <input className="input" value={f.remite} onChange={(e) => setF({ ...f, remite: e.target.value })} placeholder="Ej: Saman" />
           </Field>
           <Field label="Tipo de carga">
             <input className="input" value={f.cargo_type} onChange={(e) => setF({ ...f, cargo_type: e.target.value })} />
