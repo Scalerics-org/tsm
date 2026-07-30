@@ -1,11 +1,15 @@
 # Spec — Viajes flexibles (libreta, renglones y facturación automática)
 
-> Estado: propuesta técnica · v2 · Autor: Scalerics · Proyecto: TSM (Transporte Santa María)
+> Estado: propuesta técnica · v3 · Autor: Scalerics · Proyecto: TSM (Transporte Santa María)
 > Alcance: extensión sobre la app base ya funcionando (Casarone, Nayna, Molino).
 >
-> **Cambios respecto a v1:** el "historial autocompletado" se reemplaza por una **libreta curada**;
-> los 3 modos de campo se reducen a **2**; la regla de cobro pasa del renglón a la **libreta**
-> (deja de ser trabajo manual diario); se agrega **N° de remito por renglón** y **edición de viajes cerrados**.
+> **v2:** el "historial autocompletado" se reemplaza por una **libreta curada**; los 3 modos de campo se reducen
+> a **2**; la regla de cobro pasa del renglón a la **libreta** (deja de ser trabajo manual diario); se agrega
+> **N° de remito por renglón** y **edición de viajes cerrados**.
+>
+> **v3:** la regla de cobro pasa a ser **por combinación remitente+destinatario** (§2.3) para no heredar valores
+> equivocados en silencio; se prohíbe **"Varios" dentro de un renglón** (§2.4), que anulaba el propósito de la
+> función; las 4 preguntas al cliente se reducen a **1** (§10).
 
 ## 1. Objetivo
 
@@ -46,17 +50,32 @@ La libreta es la misma UX para el chofer (busca, filtra, elige) pero **curada**:
 
 **Además, la libreta es donde vive la regla de facturación** (§2.3).
 
-### 2.3 La regla de cobro va en la libreta, no en el renglón
+### 2.3 La regla de cobro va en la libreta (por combinación), no en el renglón
 
 En v1, la oficina etiquetaba "se cobra a" en **cada renglón de cada viaje**. Con ~10 viajes/día × 3 renglones son ~30 acciones manuales diarias: se abandona en semanas y los datos dejan de servir.
 
 Como el par remitente/destinatario se repite en el 90 %+ de los casos, **la regla de cobro se repite con él**. Entonces:
 
-- Cada entrada de libreta lleva `cobro_tipo` (cliente/proveedor) y `cobro_a` (a quién se factura).
-- Al crear un renglón, **el cobro se hereda automáticamente** de la entrada elegida.
+- La regla se guarda en una tabla `cobro_reglas`, **con clave el par `remitente + destinatario`**.
+- Al crear un renglón, **el cobro se hereda automáticamente** de la regla que matchea.
 - La oficina **solo interviene en las excepciones** (override manual, queda marcado).
 
 Trabajo diario recurrente: **cero**.
+
+> **Por qué por par y no solo por remitente.** Un mismo remitente puede cobrarse distinto según a dónde vaya
+> (`Armco → Varios Clientes` = cliente, pero `Armco → Galpón` = proveedor). Una regla por remitente solo
+> **heredaría el valor equivocado en silencio**, que es peor que no tener regla: la oficina factura mal confiando
+> en el dato. La clave por par puede expresar una regla por remitente (dejando el destinatario en `*`), pero no al revés.
+> **Pendiente de confirmar con el cliente** (§10.1): si el cobro depende únicamente de quién entrega, se simplifica.
+
+### 2.4 "Varios" no es un valor válido dentro de un renglón
+
+`Varios` puede ser el nombre de la **plantilla** (`Mdeo → Bella Unión (Varios)`), pero **nunca una entrada de libreta
+seleccionable en un renglón**. Si lo fuera, el chofer la elegiría por ser la opción más rápida y el renglón no
+registraría nada — que es exactamente el problema que estos viajes vienen a resolver
+(*"tengo miedo que se me pierda info de carga… porque en esos viajes donde va a decir varios…"*).
+
+Implementación: las entradas de libreta marcadas `agrupador: true` no aparecen en el selector de renglones.
 
 ---
 
@@ -89,8 +108,7 @@ interface LibretaEntry {
   tipo: LibretaTipo;
   nombre: string;
   provider_id: number | null;   // null = disponible para todos los clientes
-  cobro_tipo: CobroTipo | null; // regla de facturación que heredan los renglones
-  cobro_a: string | null;
+  agrupador: boolean;           // true = "Varios" y similares: NO seleccionable en renglones
   estado: LibretaEstado;
   usos: number;                 // para ordenar por frecuencia
   created_by: number | null;    // driver_id que la dio de alta
@@ -103,8 +121,7 @@ CREATE TABLE libreta (
   tipo        TEXT    NOT NULL,
   nombre      TEXT    NOT NULL,
   provider_id INTEGER REFERENCES providers(id) ON DELETE CASCADE,
-  cobro_tipo  TEXT,
-  cobro_a     TEXT,
+  agrupador   INTEGER NOT NULL DEFAULT 0,
   estado      TEXT    NOT NULL DEFAULT 'confirmado',
   usos        INTEGER NOT NULL DEFAULT 0,
   created_by  INTEGER REFERENCES drivers(id),
@@ -112,6 +129,16 @@ CREATE TABLE libreta (
   UNIQUE(tipo, nombre, provider_id)
 );
 CREATE INDEX idx_libreta_lookup ON libreta(tipo, provider_id, usos DESC);
+
+-- Regla de facturación por combinación. destinatario_id NULL = "cualquier destino".
+CREATE TABLE cobro_reglas (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  remitente_id    INTEGER NOT NULL REFERENCES libreta(id) ON DELETE CASCADE,
+  destinatario_id INTEGER REFERENCES libreta(id) ON DELETE CASCADE,
+  cobro_tipo      TEXT NOT NULL,   -- 'cliente' | 'proveedor'
+  cobro_a         TEXT NOT NULL,
+  UNIQUE(remitente_id, destinatario_id)
+);
 ```
 
 **Alcance recomendado:** entradas **por cliente** (`provider_id`) con opción global (`null`). Al chofer le aparecen primero las de su cliente, no una lista de 200.
@@ -205,18 +232,24 @@ interface Trip {
 
 ```
 para cada renglón:
-  entry = libreta.buscar(tipo="remitente", nombre=renglón.remitente, provider_id)
-  si entry tiene cobro_tipo → renglón.cobro_tipo/cobro_a = los de entry
-  si no                     → quedan null y el renglón aparece en "Pendientes de asignar"
+  rem  = libreta.buscar("remitente",    renglón.remitente,    provider_id)
+  dest = libreta.buscar("destinatario", renglón.destinatario, provider_id)
+
+  regla = cobro_reglas.buscar(rem.id, dest.id)          # match exacto del par
+       ?? cobro_reglas.buscar(rem.id, NULL)             # fallback: regla del remitente
+
+  si regla → renglón.cobro_tipo/cobro_a = los de la regla
+  si no    → quedan null y el renglón entra en "Pendientes de asignar"
   renglón.cobro_manual = false
 ```
 
-La oficina ve un contador de **"renglones sin regla de cobro"** — ahí está el único trabajo real, y es una vez por remitente nuevo, no por viaje.
+La oficina ve un contador de **"renglones sin regla de cobro"** — ahí está el único trabajo real, y es una vez por combinación nueva, no por viaje.
 
 ### 4.3 Validación (server-side, fail-fast)
 
 - Cada `CampoUbicacion` requerido debe traer valor; si es `libreta`, debe existir la entrada o venir con alta.
 - Si `multi_renglon`: al menos 1 renglón con sus campos requeridos.
+- **Rechazar entradas `agrupador` en los renglones** ("Varios" y similares): el renglón debe nombrar una entidad real.
 - Foto de carga solo obligatoria si `foto_carga_requerida`; de descarga solo si `arrival_photo_label != null`.
 
 ---
@@ -304,13 +337,15 @@ Libreta precargada para `origen`: Arg. Mercedes Ctes., Arg. Rosario, Arg. Gualeg
 
 Libreta con la regla de cobro ya cargada:
 
-| Entrada | Tipo | Cobro |
-|---------|------|-------|
-| Armco | remitente | cliente → Armco |
-| Agencia | remitente | proveedor → Agencia |
-| Proveedores | remitente | proveedor |
+| Remitente | Destinatario | Se factura a |
+|-----------|--------------|--------------|
+| Armco | Varios Clientes | cliente |
+| Armco | Galpón | **proveedor** ← mismo remitente, otro cobro |
+| Agencia | Galpón | proveedor |
+| Agronorte | *(cualquiera)* | cliente |
 
-El chofer agrega 3 renglones eligiendo remitente y destinatario; **el cobro se completa solo**.
+El chofer agrega 3 renglones eligiendo remitente y destinatario reales; **el cobro se completa solo**.
+`Varios` queda como nombre de la plantilla, no como opción de renglón.
 
 ---
 
@@ -341,10 +376,24 @@ Cada fase se despliega y se prueba sola, sin romper lo que ya anda.
 
 ## 10. Decisiones a confirmar
 
-1. **Libreta:** ¿una sola global o separada por cliente (recomendado, con opción global)?
-2. **Renglones:** ¿toneladas/bultos por renglón, o alcanza con remitente + destinatario + remito?
-3. **Regla de cobro en la libreta con override manual:** ¿se adopta?
-4. **Foto opcional en combinados:** ¿se deja disponible aunque no sea obligatoria?
+### 10.1 La única que bloquea el modelo de datos
+
+> **Cuando se combinan cargas, ¿a quién se factura depende únicamente de quién entregó la carga,
+> o de la combinación entrega + destino?**
+
+- Si es **por combinación** → se implementa `cobro_reglas` como está especificado (opción segura, ya asumida).
+- Si es **solo por remitente** → se simplifica: la regla puede vivir en la entrada de libreta y se borra `cobro_reglas`.
+
+Se asume la primera hasta tener respuesta, porque puede representar a la segunda y no al revés.
+
+### 10.2 Resueltas por defecto (no hace falta preguntar)
+
+| Decisión | Default adoptado |
+|----------|------------------|
+| Alcance de la libreta | Por cliente, con opción de ver todas |
+| Toneladas / bultos por renglón | Disponibles y opcionales |
+| Foto en combinados | Opcional, siempre habilitada |
+| Override manual del cobro | Sí, y queda marcado |
 
 ---
 
