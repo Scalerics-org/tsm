@@ -68,14 +68,25 @@ Trabajo diario recurrente: **cero**.
 > en el dato. La clave por par puede expresar una regla por remitente (dejando el destinatario en `*`), pero no al revés.
 > **Pendiente de confirmar con el cliente** (§10.1): si el cobro depende únicamente de quién entrega, se simplifica.
 
-### 2.4 "Varios" no es un valor válido dentro de un renglón
+### 2.4 "Varios" no es un remitente válido dentro de un renglón
 
-`Varios` puede ser el nombre de la **plantilla** (`Mdeo → Bella Unión (Varios)`), pero **nunca una entrada de libreta
-seleccionable en un renglón**. Si lo fuera, el chofer la elegiría por ser la opción más rápida y el renglón no
-registraría nada — que es exactamente el problema que estos viajes vienen a resolver
+`Varios` puede ser el nombre de la **plantilla** (`Mdeo → Bella Unión (Varios)`), pero **nunca el remitente
+de un renglón**. Si lo fuera, el chofer lo elegiría por ser la opción más rápida y el renglón no registraría
+nada — que es exactamente el problema que estos viajes vienen a resolver
 (*"tengo miedo que se me pierda info de carga… porque en esos viajes donde va a decir varios…"*).
 
-Implementación: las entradas de libreta marcadas `agrupador: true` no aparecen en el selector de renglones.
+**La restricción es asimétrica, y a propósito:**
+
+| Lado | Regla | Por qué |
+|------|-------|---------|
+| **Remitente** (carga) | Debe ser una entidad real | Es lo que determina a quién se factura. Acá no se puede perder nada. |
+| **Destinatario** (entrega) | Puede ser grueso (`Varios Clientes`) | En Bella Unión reparte a muchos clientes chicos; enumerarlos serían 20 renglones y el chofer lo abandona. |
+
+Esto es coherente con que **el renglón se ancla en la carga, no en la entrega**: él carga en 2 o 3 lugares
+pero reparte en muchos, y su preocupación de cobro es sobre las cargas.
+
+Implementación: las entradas marcadas `agrupador: true` no se ofrecen como remitente de un renglón
+(`GET /libreta?seleccionables=1`).
 
 ---
 

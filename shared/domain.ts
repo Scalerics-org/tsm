@@ -174,6 +174,91 @@ export interface AuthUser {
   email?: string | null;
 }
 
+// ── Libreta (remitentes / destinatarios / lugares curados) ──
+
+export const LIBRETA_TIPO = {
+  REMITENTE: "remitente",
+  DESTINATARIO: "destinatario",
+  LUGAR: "lugar",
+} as const;
+export type LibretaTipo = (typeof LIBRETA_TIPO)[keyof typeof LIBRETA_TIPO];
+
+export const LIBRETA_ESTADO = {
+  CONFIRMADO: "confirmado",
+  NUEVO: "nuevo", // alta hecha por un chofer, pendiente de revisión en oficina
+} as const;
+export type LibretaEstado = (typeof LIBRETA_ESTADO)[keyof typeof LIBRETA_ESTADO];
+
+export const COBRO_TIPO = { CLIENTE: "cliente", PROVEEDOR: "proveedor" } as const;
+export type CobroTipo = (typeof COBRO_TIPO)[keyof typeof COBRO_TIPO];
+
+export interface LibretaEntry {
+  id: number;
+  tipo: LibretaTipo;
+  nombre: string;
+  provider_id: number | null; // null = disponible para todos los clientes
+  /** "Varios" y similares: se pueden usar como nombre de plantilla, nunca dentro de un renglón. */
+  agrupador: boolean;
+  estado: LibretaEstado;
+  usos: number;
+  created_by: number | null;
+}
+
+/** Regla de facturación. `destinatario_id: null` = aplica a cualquier destino. */
+export interface CobroRegla {
+  id: number;
+  remitente_id: number;
+  destinatario_id: number | null;
+  cobro_tipo: CobroTipo;
+  cobro_a: string;
+}
+
+export interface CobroResuelto {
+  cobro_tipo: CobroTipo | null;
+  cobro_a: string | null;
+}
+
+/**
+ * Resuelve a quién se factura un renglón: primero el par exacto remitente+destinatario,
+ * y si no hay, la regla general del remitente (destinatario NULL).
+ *
+ * Nunca adivina: sin regla devuelve null y el renglón queda "pendiente de asignar" en oficina.
+ * Un mismo remitente puede cobrarse distinto según el destino, por eso la clave es el par.
+ */
+export function resolveCobro(
+  reglas: CobroRegla[],
+  remitenteId: number | null,
+  destinatarioId: number | null,
+): CobroResuelto {
+  const SIN_REGLA: CobroResuelto = { cobro_tipo: null, cobro_a: null };
+  if (remitenteId == null) return SIN_REGLA;
+
+  const delRemitente = reglas.filter((r) => r.remitente_id === remitenteId);
+  const exacta =
+    destinatarioId != null ? delRemitente.find((r) => r.destinatario_id === destinatarioId) : undefined;
+  const general = delRemitente.find((r) => r.destinatario_id == null);
+
+  const match = exacta ?? general;
+  return match ? { cobro_tipo: match.cobro_tipo, cobro_a: match.cobro_a } : SIN_REGLA;
+}
+
+/** Marcas de acento que NFD deja sueltas (U+0300–U+036F). Se arma por código para no meter
+ *  caracteres combinantes literales en el fuente, que se corrompen fácil al editar. */
+const COMBINING_MARKS = new RegExp("[\\u0300-\\u036f]", "g");
+
+/**
+ * Clave de comparación de nombres de libreta: sin mayúsculas, acentos ni espacios de más.
+ * Sirve para no dar de alta "Galpón" cuando ya existe "GALPON".
+ */
+export function normalizeNombre(nombre: string): string {
+  return nombre
+    .normalize("NFD")
+    .replace(COMBINING_MARKS, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
 // Envelope de API
 export interface ApiOk<T> {
   success: true;
