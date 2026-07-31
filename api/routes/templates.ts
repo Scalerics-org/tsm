@@ -2,7 +2,14 @@ import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { ROLES, FIELD_STAGE, FIELD_TYPE } from "../../shared/domain";
+import {
+  ROLES,
+  FIELD_STAGE,
+  FIELD_TYPE,
+  CAMPO_MODO,
+  LIBRETA_TIPO,
+  type CamposUbicacion,
+} from "../../shared/domain";
 import * as repo from "../repos/templates";
 
 const templates = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -23,6 +30,39 @@ function slug(s: string): string {
       .replace(/[^a-z0-9]+/g, "_")
       .replace(/^_|_$/g, "") || "campo"
   );
+}
+
+const PARTES = ["origen", "remitente", "destino", "destinatario"] as const;
+const LIBRETA_TIPOS = Object.values(LIBRETA_TIPO) as string[];
+
+/** Normaliza las partes configurables. Devuelve null si no se configuró ninguna (flujo clásico). */
+function parseCamposUbicacion(raw: any): CamposUbicacion | null {
+  if (!raw || typeof raw !== "object") return null;
+  const out: CamposUbicacion = {};
+  for (const parte of PARTES) {
+    const c = raw[parte];
+    if (!c || typeof c !== "object") continue;
+    if (c.modo === CAMPO_MODO.LIBRETA) {
+      const tipo = LIBRETA_TIPOS.includes(c.libreta_tipo) ? c.libreta_tipo : LIBRETA_TIPO.LUGAR;
+      out[parte] = {
+        modo: CAMPO_MODO.LIBRETA,
+        label: c.label ? String(c.label).trim() : undefined,
+        libreta_tipo: tipo,
+        permite_alta: c.permite_alta === undefined ? true : !!c.permite_alta,
+        requerido: c.requerido === undefined ? true : !!c.requerido,
+      };
+    } else if (c.modo === CAMPO_MODO.FIJO) {
+      const valor = String(c.valor ?? "").trim();
+      if (!valor) continue; // un campo fijo sin valor no aporta nada
+      out[parte] = {
+        modo: CAMPO_MODO.FIJO,
+        label: c.label ? String(c.label).trim() : undefined,
+        valor,
+        requerido: c.requerido === undefined ? true : !!c.requerido,
+      };
+    }
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 function parse(b: any): repo.TemplateInput | null {
@@ -53,6 +93,7 @@ function parse(b: any): repo.TemplateInput | null {
     dest_options,
     fields,
     arrival_photo_label: b.arrival_photo_label ? String(b.arrival_photo_label).trim() : null,
+    campos_ubicacion: parseCamposUbicacion(b.campos_ubicacion),
     active: b.active === undefined ? true : !!b.active,
   };
 }

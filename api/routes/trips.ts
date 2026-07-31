@@ -98,7 +98,9 @@ trips.post("/", async (c) => {
     template_id: tpl.id,
     provider_name: tpl.provider_name ?? "",
     origin: b.origin ? String(b.origin) : tpl.origin,
-    remite: tpl.remite,
+    // El remitente puede venir de la libreta (plantillas con campos_ubicacion);
+    // si no, se mantiene el fijo de la plantilla.
+    remite: b.remitente ? String(b.remitente).trim() : tpl.remite,
     destination: String(b.destino),
     destinatario: b.destinatario ? String(b.destinatario) : null,
     driver_id: user.driver_id,

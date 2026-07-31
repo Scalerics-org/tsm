@@ -115,6 +115,8 @@ export interface TripTemplate {
   dest_options: DestOption[]; // destino + destinatario que puede elegir el chofer
   fields: TemplateField[]; // campos configurables (carga/descarga)
   arrival_photo_label: string | null; // etiqueta de la foto de descarga (ej. "Hoja rosada firmada")
+  /** Partes que se resuelven con la libreta. Ausente = flujo clásico con dest_options. */
+  campos_ubicacion: CamposUbicacion | null;
   active: boolean;
 }
 
@@ -202,6 +204,34 @@ export interface LibretaEntry {
   estado: LibretaEstado;
   usos: number;
   created_by: number | null;
+}
+
+export const CAMPO_MODO = {
+  /** Lo define la oficina en la plantilla; el chofer no lo toca. */
+  FIJO: "fijo",
+  /** El chofer elige de la libreta curada (y puede dar de alta si `permite_alta`). */
+  LIBRETA: "libreta",
+} as const;
+export type CampoModo = (typeof CAMPO_MODO)[keyof typeof CAMPO_MODO];
+
+/** Configuración de una parte del viaje (origen / remitente / destino / destinatario). */
+export interface CampoUbicacion {
+  modo: CampoModo;
+  label?: string;
+  /** si modo = "fijo" */
+  valor?: string;
+  /** si modo = "libreta" */
+  libreta_tipo?: LibretaTipo;
+  permite_alta?: boolean;
+  requerido?: boolean;
+}
+
+/** Partes configurables de una plantilla. Ausente = comportamiento clásico (dest_options). */
+export interface CamposUbicacion {
+  origen?: CampoUbicacion;
+  remitente?: CampoUbicacion;
+  destino?: CampoUbicacion;
+  destinatario?: CampoUbicacion;
 }
 
 /** Regla de facturación. `destinatario_id: null` = aplica a cualquier destino. */

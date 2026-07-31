@@ -1,4 +1,4 @@
-import type { DestOption, TemplateField, TripTemplate } from "../../shared/domain";
+import type { CamposUbicacion, DestOption, TemplateField, TripTemplate } from "../../shared/domain";
 
 interface TemplateRow {
   id: number;
@@ -11,6 +11,7 @@ interface TemplateRow {
   dest_options: string; // JSON
   fields: string; // JSON
   arrival_photo_label: string | null;
+  campos_ubicacion: string | null; // JSON
   active: number;
 }
 
@@ -34,13 +35,14 @@ function toTemplate(r: TemplateRow): TripTemplate {
     dest_options: parseJson<DestOption[]>(r.dest_options, []),
     fields: parseJson<TemplateField[]>(r.fields, []),
     arrival_photo_label: r.arrival_photo_label,
+    campos_ubicacion: r.campos_ubicacion ? parseJson<CamposUbicacion | null>(r.campos_ubicacion, null) : null,
     active: !!r.active,
   };
 }
 
 const SELECT = `
   SELECT tt.id, tt.provider_id, tt.name, tt.origin, tt.remite, tt.cargo_type,
-         tt.dest_options, tt.fields, tt.arrival_photo_label, tt.active,
+         tt.dest_options, tt.fields, tt.arrival_photo_label, tt.campos_ubicacion, tt.active,
          p.name AS provider_name
   FROM trip_templates tt JOIN providers p ON p.id = tt.provider_id
 `;
@@ -65,6 +67,7 @@ export interface TemplateInput {
   dest_options: DestOption[];
   fields: TemplateField[];
   arrival_photo_label: string | null;
+  campos_ubicacion: CamposUbicacion | null;
   active: boolean;
 }
 
@@ -78,6 +81,7 @@ function bindArgs(t: TemplateInput) {
     JSON.stringify(t.dest_options ?? []),
     JSON.stringify(t.fields ?? []),
     t.arrival_photo_label || null,
+    t.campos_ubicacion ? JSON.stringify(t.campos_ubicacion) : null,
     t.active ? 1 : 0,
   ];
 }
@@ -85,8 +89,8 @@ function bindArgs(t: TemplateInput) {
 export async function createTemplate(db: D1Database, t: TemplateInput): Promise<number> {
   const res = await db
     .prepare(
-      `INSERT INTO trip_templates (provider_id, name, origin, remite, cargo_type, dest_options, fields, arrival_photo_label, active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO trip_templates (provider_id, name, origin, remite, cargo_type, dest_options, fields, arrival_photo_label, campos_ubicacion, active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(...bindArgs(t))
     .run();
@@ -96,7 +100,7 @@ export async function createTemplate(db: D1Database, t: TemplateInput): Promise<
 export async function updateTemplate(db: D1Database, id: number, t: TemplateInput): Promise<void> {
   await db
     .prepare(
-      `UPDATE trip_templates SET provider_id=?, name=?, origin=?, remite=?, cargo_type=?, dest_options=?, fields=?, arrival_photo_label=?, active=?
+      `UPDATE trip_templates SET provider_id=?, name=?, origin=?, remite=?, cargo_type=?, dest_options=?, fields=?, arrival_photo_label=?, campos_ubicacion=?, active=?
        WHERE id=?`,
     )
     .bind(...bindArgs(t), id)
