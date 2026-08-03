@@ -1,44 +1,80 @@
-# Scalerics Logística — Sistema de Logística de Camiones
+# TSM · Control de viajes y combustible
 
-MVP funcional para gestionar viajes de carga con **trazabilidad por evidencia fotográfica** y
-**seguimiento GPS en vivo**. Tres roles: **chofer** (móvil), **encargado/operaciones** (escritorio)
-y **administrador**.
+Sistema para que los choferes de **Transporte Santa María** registren sus viajes desde el celular
+—con la evidencia fotográfica que la oficina necesita para facturar— y para que la oficina deje de
+reconstruir esa información a mano desde WhatsApp y Excel.
+
+Tres roles: **chofer** (móvil), **encargado/operaciones** (escritorio) y **administrador**.
+
+> **El modelo es "viajes precargados".** La oficina define plantillas de viaje por cliente y el chofer
+> elige una: no crea viajes ni completa datos libres. Todo lo que se le pide está pensado para hacerse
+> con una mano, en un muelle de carga. **No hay GPS ni mapas** — se sacaron a pedido del cliente
+> porque no aportaban a la operación real.
 
 ## Stack
 
 - **Frontend:** React + Vite + TypeScript + Tailwind CSS
 - **Backend/API:** Cloudflare Pages Functions (Workers) con Hono
 - **Base de datos:** Cloudflare D1 (SQLite) + migraciones SQL
-- **Fotos:** Cloudflare R2
-- **Auth:** JWT (HS256) + PBKDF2 (WebCrypto), 3 roles
-- **Mapa:** Leaflet + react-leaflet (tiles OpenStreetMap)
-- **Geocodificación inversa:** Nominatim (proxy por el Worker con cache)
-- **Ruta / km faltantes:** OSRM (proxy por el Worker con cache)
+- **Fotos:** Cloudflare R2 *(opcional — ver abajo)*
+- **Auth:** JWT (HS256) + PBKDF2 (WebCrypto)
 
 ## Funcionalidades
 
-**Chofer (celular):** login, ver viajes asignados (solo los suyos), registrar **salida** con foto de la
-carga, seguimiento **en vivo** (mapa, km recorridos, localidad/departamento, km faltantes y estimado de
-gasolina), registrar **llegada** con foto de carga + foto de combustible (km por GPS con respaldo manual),
-reportar incidencias.
+### Chofer (celular)
 
-**Encargado (panel):** crear y asignar viajes, ver todos los viajes con filtros (chofer/camión/fecha/estado),
-mapa **en vivo** del camión, fotos de salida/llegada/combustible, **comparación gasolina estimada vs. foto real**,
-alertas de viajes atrasados, métricas por camión y chofer.
+Entra con **patente + PIN** (no usa email). Elige el cliente, después el viaje precargado, y completa
+solo los campos que esa plantilla define. Puede **cambiar el camión** si hoy maneja otro.
 
-**Admin:** ABM de choferes, camiones (con rendimiento L/100km) y usuarios/roles.
+- **Salida:** destino, campos de carga (remito, toneladas, MIC…), foto de la carga
+- **Llegada:** campos de descarga, foto de descarga y observaciones
+- **Surtida:** kilometraje, si llenó el tanque, litros. La **foto del tacógrafo solo se pide cuando
+  llena** (es lo único que cierra el consumo). Al guardar ve su consumo del tramo y del mes.
 
-### Patrón Observer (GPS)
+### Encargado / operaciones (panel)
 
-El GPS es el **sujeto observable** (`src/lib/gps/GpsSubject.ts`, envuelve `watchPosition`). Los
-**observadores** (`src/lib/gps/observers.ts`) reaccionan a cada nueva posición: mapa, contador de km
-(Haversine), localidad (Nominatim), estimado de gasolina y sincronizador con reintento ante mala señal.
+- **Resumen:** totales, por camión, por cliente y consumo mensual por camión
+- **Control:** viajes atrasados, viajes sin foto, licencias por vencer, consumo anómalo
+- **Viajes:** filtros por cliente, chofer, camión, estado y fechas + exportación a Excel
+- **Plantillas:** ABM de clientes y de viajes, con campos configurables por viaje
+- **Fichas** por camión y por chofer
+
+### Admin
+
+ABM de choferes (con PIN y camión asignado), camiones y usuarios de oficina.
+
+## Modelo de viajes
+
+Una **plantilla** (`trip_templates`) define un viaje repetitivo de un cliente:
+
+| Campo | Para qué |
+|---|---|
+| `origin`, `remite` | Origen y quién remite la carga |
+| `dest_options` | Pares destino + destinatario que el chofer elige |
+| `fields` | Campos configurables (texto/número), por etapa (carga o descarga) y obligatorios o no |
+| `arrival_photo_label` | Etiqueta de la foto de descarga (`null` = no se pide) |
+| `campos_ubicacion` | Partes que se resuelven con la libreta (ver abajo). `NULL` = flujo clásico |
+| `active` | Si le aparece o no al chofer |
+
+### Libreta (en construcción — Etapa 2)
+
+La **libreta** es una lista curada de remitentes, destinatarios y lugares. El chofer elige de ahí en vez
+de escribir; si aparece uno nuevo lo agrega y sigue viaje, y queda marcado como `nuevo` para que la
+oficina lo confirme. Evita que entren `Galpón` / `GALPON` / `galpon` como tres cosas distintas, que
+fragmentaría los reportes de facturación.
+
+Las **reglas de cobro** (`cobro_reglas`) definen a quién se factura cada combinación
+`remitente + destinatario`; con `destinatario_id NULL` la regla aplica a cualquier destino.
+
+> El backend está desplegado pero **ninguna pantalla lo usa todavía**: las 4 plantillas actuales tienen
+> `campos_ubicacion` en `NULL`, así que el chofer ve el flujo de siempre. Ver
+> [docs/spec-viajes-flexibles.md](docs/spec-viajes-flexibles.md).
 
 ## Requisitos
 
 - Node.js 18+
-- Cuenta de Cloudflare (para deploy; local funciona sin cuenta)
-- `wrangler` (se instala como dependencia de desarrollo)
+- Cuenta de Cloudflare para desplegar (en local funciona sin cuenta)
+- `wrangler` (viene como dependencia de desarrollo)
 
 ## Instalación
 
@@ -46,87 +82,85 @@ El GPS es el **sujeto observable** (`src/lib/gps/GpsSubject.ts`, envuelve `watch
 npm install
 ```
 
-## Configuración de D1 y R2
+## Base de datos
 
-### 1. Crear la base D1
+### Crear la base D1
 
 ```bash
 npx wrangler d1 create logistica_db
 ```
 
-Copiá el `database_id` que devuelve y pegalo en `wrangler.toml` (campo `database_id`).
+Copiá el `database_id` que devuelve y pegalo en `wrangler.toml`.
 
-### 2. Crear el bucket R2
+### Migraciones y datos de ejemplo
+
+```bash
+npm run db:migrate:local     # esquema en local
+npm run db:seed:local        # datos de ejemplo (clientes reales del Excel)
+
+npm run db:migrate:remote    # esquema en producción
+npm run db:seed:remote       # datos de ejemplo en producción
+```
+
+Las migraciones son incrementales y se aplican en orden. `0007_seed_real.sql` carga los clientes reales
+(Casarone, Nayna, Molino Cañuelas) junto con viajes de ejemplo.
+
+### Limpiar los datos de ejemplo (puesta en marcha)
+
+```bash
+npx wrangler d1 execute logistica_db --remote --file scripts/go-live-limpiar-demo.sql
+```
+
+Borra viajes, fotos y surtidas de ejemplo sin tocar clientes, plantillas, camiones ni choferes.
+
+## Fotos (R2)
+
+**R2 está deshabilitado.** El binding está comentado en `wrangler.toml` para poder probar el flujo sin
+tenerlo contratado: `POST /api/photos` devuelve `{ skipped: true }` y **el viaje se cierra igual**.
+
+Para habilitarlo:
 
 ```bash
 npx wrangler r2 bucket create logistica-fotos
 ```
 
-### 3. Aplicar migraciones y datos de ejemplo
+Después descomentá el bloque `[[r2_buckets]]` en `wrangler.toml` y volvé a desplegar.
 
-**Local:**
+> Sin R2 el sistema funciona, pero **no guarda evidencia** — que es la mitad del valor para la oficina.
+> Es lo primero a habilitar antes de un uso real.
 
-```bash
-npm run db:migrate:local
-npm run db:seed:local
-```
+## Secrets
 
-**Producción (remoto):**
-
-```bash
-npm run db:migrate:remote
-npm run db:seed:remote
-```
-
-### 4. Secrets
-
-En local, las variables están en `.dev.vars` (ya incluido, no se commitea).
-En producción, cargá los secrets:
+En local van en `.dev.vars` (no se commitea). En producción:
 
 ```bash
 npx wrangler pages secret put JWT_SECRET
-npx wrangler pages secret put VAPID_PRIVATE
 ```
-
-`VAPID_PUBLIC` y `VAPID_SUBJECT` van como vars públicas en `wrangler.toml`.
-
-### Notificaciones push (Web Push / VAPID)
-
-Para producción, generá tu propio par de claves VAPID y reemplazá las de demo:
-
-```bash
-node -e "const c=require('crypto'),e=c.createECDH('prime256v1');e.generateKeys();const b=x=>x.toString('base64url');console.log('PUBLIC',b(e.getPublicKey()));console.log('PRIVATE',b(e.getPrivateKey()))"
-```
-
-Poné el `PUBLIC` en `wrangler.toml` (var `VAPID_PUBLIC`) y cargá el `PRIVATE` como secret.
-El chofer/encargado activa las notificaciones desde el botón de campana en la app
-(requiere HTTPS — funciona en `localhost` y en Cloudflare Pages).
 
 ## Correr en local
 
-Levanta frontend (Vite) + API (Pages Functions) juntos:
-
 ```bash
-npx wrangler pages dev -- npm run dev
+npm run pages:dev
 ```
 
-Esto sirve el frontend con hot-reload y las Functions bajo `/api/*`, con los bindings de D1 y R2 locales.
-Abrí la URL que muestra wrangler (típicamente `http://localhost:8788`).
+Levanta el frontend con hot-reload y las Functions bajo `/api/*`, con los bindings de D1 locales.
+Típicamente en `http://localhost:8788`.
 
-> Alternativa solo-frontend: `npm run dev` (Vite en :5173) proxea `/api` al worker en :8788.
+Para probar contra un build ya compilado:
 
-## Usuarios de demo
+```bash
+npm run build && npx wrangler pages dev dist --port 8788 --local
+```
 
-Todos con contraseña **`demo1234`**:
+## Usuarios de ejemplo
 
-| Rol | Email |
-|-----|-------|
-| Administrador | `admin@demo.uy` |
-| Encargado | `ops@demo.uy` |
-| Chofer | `carlos@demo.uy`, `marta@demo.uy`, `diego@demo.uy` |
+Vienen del seed y **hay que reemplazarlos antes de un uso real**. La pantalla de login ya no los muestra.
 
-El viaje **Montevideo → Colonia** está *EN RUTA* con traza GPS para ver el seguimiento en vivo.
-En escritorio, el chofer puede usar el botón **"Simular movimiento"** para probar el mapa sin GPS real.
+| Rol | Acceso |
+|-----|--------|
+| Administrador | `admin@demo.uy` · `demo1234` |
+| Encargado | `ops@demo.uy` · `demo1234` |
+| Choferes | patentes `STZ 4821`, `BQL 7390`, `MRC 1177` · PIN `1234` |
 
 ## Tests
 
@@ -134,37 +168,57 @@ En escritorio, el chofer puede usar el botón **"Simular movimiento"** para prob
 npm test
 ```
 
-Cubre: Haversine y acumulado de km, estimado de combustible, patrón Observer del GPS y verificación de contraseñas.
+Cubren la lógica pura: consumo de combustible (tramo y cierre mensual), resolución de las reglas de
+cobro y normalización de nombres de la libreta, y verificación de contraseñas.
 
-## Deploy a Cloudflare Pages
+## Deploy
 
 ```bash
 npm run deploy
 ```
 
-O conectá el repo en el dashboard de Cloudflare Pages:
+> **Antes de desplegar, aplicá las migraciones pendientes en producción.**
+>
+> ```bash
+> npm run db:migrate:remote && npm run deploy
+> ```
+>
+> El Worker y la base se despliegan por separado. Si sube código que consulta una columna que todavía
+> no existe en producción, la API devuelve 500 y **la app deja de funcionar para los choferes**.
+> Ya pasó una vez: es la causa más probable de una caída en este proyecto.
 
-- **Build command:** `npm run build`
-- **Build output directory:** `dist`
-- Agregá los bindings de **D1** (`DB`) y **R2** (`FOTOS`) y el secret **`JWT_SECRET`** en la configuración del proyecto.
+Después de cada deploy, verificá que responda:
+
+```bash
+curl -s https://scalerics-logistica.pages.dev/api/health
+```
 
 ## Estructura
 
 ```
-api/            Backend Hono (rutas, repos, middleware, lib) importado por functions/
+api/            Backend Hono
+  routes/       Endpoints por recurso (auth, trips, fuel, libreta, reports…)
+  repos/        Acceso a D1
+  middleware/   Autenticación y roles
 functions/      Catch-all de Pages Functions (delega /api/* a Hono)
-migrations/     SQL de D1 (esquema + seed)
-shared/         Dominio y utilidades compartidas front/back (constantes, tipos, geo)
+migrations/     Esquema y seeds de D1, incrementales
+scripts/        Utilidades de puesta en marcha
+shared/         Dominio compartido front/back: tipos, constantes y lógica pura
 src/            Frontend React
-  components/   UI, mapa, cámara, foto protegida, layout
+  components/   UI, cámara, foto protegida, layout, selector de libreta
   features/     auth / chofer / operaciones / admin
-  lib/          api client, auth, formato, gps (Observer)
+  lib/          cliente de API, auth, formato, estimación de tiempos
 tests/          Vitest
+docs/           Specs y propuestas
 ```
 
-## Notas de seguridad
+`shared/domain.ts` concentra los tipos y **toda la lógica pura** (consumo, reglas de cobro,
+normalización). Es lo que está cubierto por tests y lo que no debería depender de React ni de D1.
 
-- Cada chofer solo ve sus propios viajes (validado en el backend por rol).
-- Las fotos se sirven desde R2 solo con token válido.
-- Contraseñas hasheadas con PBKDF2; JWT firmado con secret fuera del código.
-- Nominatim/OSRM se consumen vía proxy del Worker con cache, respetando sus límites de uso.
+## Seguridad
+
+- Cada chofer solo ve y modifica **sus propios viajes** (validado en el backend por rol)
+- El chofer **nunca ve información de facturación**: las reglas de cobro son de oficina
+- Renombrar, fusionar entradas de libreta y definir reglas requiere rol encargado o admin
+- Las fotos se sirven desde R2 solo con token válido
+- Contraseñas y PIN hasheados con PBKDF2; JWT firmado con un secret fuera del código
