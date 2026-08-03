@@ -147,57 +147,9 @@ export function LoginPage() {
           </form>
         </div>
 
-        <div className="panel mt-6 p-4 text-sm">
-          <i className="corner tl" />
-          <i className="corner br" />
-          <p className="mb-2 font-cond font-semibold uppercase tracking-[0.1em] text-brand-700">
-            Usuarios de demo
-          </p>
-          {mode === "chofer" ? (
-            <ul className="space-y-1.5">
-              {[
-                { name: "Carlos", plate: "STZ 4821" },
-                { name: "Marta", plate: "BQL 7390" },
-                { name: "Diego", plate: "MRC 1177" },
-              ].map((d) => (
-                <li key={d.plate} className="flex items-center justify-between gap-2">
-                  <span className="text-ink/55">{d.name}</span>
-                  <button
-                    type="button"
-                    className="font-mono text-brand-700 hover:underline"
-                    onClick={() => {
-                      setPlate(d.plate);
-                      setPin("1234");
-                    }}
-                  >
-                    {d.plate} · PIN 1234
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <ul className="space-y-1.5">
-              {[
-                { rol: "Encargado", email: "ops@demo.uy" },
-                { rol: "Administrador", email: "admin@demo.uy" },
-              ].map((u) => (
-                <li key={u.email} className="flex items-center justify-between gap-2">
-                  <span className="text-ink/55">{u.rol}</span>
-                  <button
-                    type="button"
-                    className="font-mono text-brand-700 hover:underline"
-                    onClick={() => {
-                      setEmail(u.email);
-                      setPassword("demo1234");
-                    }}
-                  >
-                    {u.email} · demo1234
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <p className="mt-5 text-center text-[12.5px] text-ink/45">
+          ¿Problemas para entrar? Escribinos y te damos una mano.
+        </p>
       </div>
     </div>
   );
