@@ -1,4 +1,8 @@
-name = "scalerics-logistica"
+name = "tsm-scalerics"
+# OJO: el proyecto vive en la cuenta *Scalerics*, no en la personal.
+# Los proyectos Pages no aceptan `account_id` acá, así que hay que exportar
+# la variable antes de correr wrangler (ver README):
+#   CLOUDFLARE_ACCOUNT_ID=79da115d272d36fd6ac8a5b08291642e
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "dist"
@@ -9,7 +13,7 @@ pages_build_output_dir = "dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "logistica_db"
-database_id = "18e232e1-ac0b-45a9-b119-f4fe1ce93640"
+database_id = "768f2a51-6dec-49cd-9f85-718242e17fca"
 
 # --- R2 (almacenamiento de fotos) ---
 # Requiere habilitar R2 en el dashboard de Cloudflare y crear el bucket:

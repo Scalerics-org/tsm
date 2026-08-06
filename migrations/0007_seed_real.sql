@@ -1,6 +1,13 @@
 -- Datos reales del cliente (del Excel "EJEMPLO VIAJES"). Reemplaza las plantillas demo.
 -- Mantiene camiones/choferes/usuarios del seed 0005 (choferes PIN 1234, oficina demo1234).
 
+-- "Remite" (quién remite/carga la mercadería, ej: cliente Nayna, remite Saman).
+-- Estas dos columnas vivían en 0008, pero el seed de abajo las necesita: sobre una base
+-- nueva la cadena de migraciones fallaba con "table trip_templates has no column named
+-- remite". Se mueven acá y 0008 queda como no-op.
+ALTER TABLE trip_templates ADD COLUMN remite TEXT;
+ALTER TABLE trips ADD COLUMN remite TEXT;
+
 DELETE FROM fuel_logs;
 DELETE FROM trip_photos;
 DELETE FROM trips;
