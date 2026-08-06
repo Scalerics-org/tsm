@@ -7,15 +7,15 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "pages:dev": "wrangler pages dev -- npm run dev",
-    "deploy": "npm run build && wrangler pages deploy dist",
+    "deploy": "npm run build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply logistica_db --local",
     "db:migrate:remote": "wrangler d1 migrations apply logistica_db --remote",
     "db:seed:local": "wrangler d1 execute logistica_db --local --file=./migrations/0007_seed_real.sql",
     "db:seed:remote": "wrangler d1 execute logistica_db --remote --file=./migrations/0007_seed_real.sql",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b --noEmit",
+    "dev:worker": "wrangler dev"
   },
   "dependencies": {
     "hono": "^4.6.14",
@@ -25,7 +25,7 @@
     "react-router-dom": "^6.28.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20241218.0",
+    "@cloudflare/workers-types": "^5.20260804.1",
     "@types/react": "^18.3.17",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
@@ -35,6 +35,6 @@
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
     "vitest": "^2.1.8",
-    "wrangler": "^3.95.0"
+    "wrangler": "^4.119.0"
   }
 }

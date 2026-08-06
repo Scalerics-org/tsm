@@ -1,31 +1,49 @@
-name = "tsm-scalerics"
-# OJO: el proyecto vive en la cuenta *Scalerics*, no en la personal.
-# Los proyectos Pages no aceptan `account_id` acá, así que hay que exportar
-# la variable antes de correr wrangler (ver README):
-#   CLOUDFLARE_ACCOUNT_ID=79da115d272d36fd6ac8a5b08291642e
+name = "tsm"
+main = "api/worker.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = "dist"
+
+# OJO: el proyecto vive en la cuenta *Scalerics*, no en la personal.
+# Antes de correr wrangler, exportá:
+#   CLOUDFLARE_ACCOUNT_ID=79da115d272d36fd6ac8a5b08291642e
+account_id = "79da115d272d36fd6ac8a5b08291642e"
+
+# Dominio propio. Cloudflare crea el registro DNS solo (la zona scalerics.com
+# tiene que estar en esta misma cuenta).
+routes = [{ pattern = "tsm.scalerics.com", custom_domain = true }]
+
+# --- Frontend (archivos estáticos del build de Vite) ---
+# `run_worker_first` manda /api/* al Worker; el resto se sirve como archivo.
+# `single-page-application` devuelve index.html en las rutas del front
+# (/viaje/3, /panel/viajes...) para que las resuelva React Router.
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+# --- Observabilidad ---
+# Logs del Worker en el panel. No está disponible en Pages; es una de las razones
+# por las que el proyecto se movió a Workers.
+[observability]
+enabled = true
 
 # --- D1 (base de datos SQLite) ---
-# Crear con:  wrangler d1 create logistica_db
-# Luego pegar el database_id que devuelve el comando.
 [[d1_databases]]
 binding = "DB"
 database_name = "logistica_db"
 database_id = "768f2a51-6dec-49cd-9f85-718242e17fca"
 
 # --- R2 (almacenamiento de fotos) ---
-# Requiere habilitar R2 en el dashboard de Cloudflare y crear el bucket:
-#   wrangler r2 bucket create logistica-fotos
-# Una vez habilitado, descomentar este bloque y redeployar.
+# Requiere habilitar R2 en la cuenta de Scalerics y crear el bucket:
+#   npx wrangler r2 bucket create logistica-fotos
+# Una vez creado, descomentar y volver a desplegar.
 # [[r2_buckets]]
 # binding = "FOTOS"
 # bucket_name = "logistica-fotos"
 
-# JWT_SECRET y VAPID_PRIVATE se cargan como secrets (ver .env.example / README)
+# JWT_SECRET se carga como secret:  npx wrangler secret put JWT_SECRET
 [vars]
-NOMINATIM_UA = "scalerics-logistica/0.1 (contacto@ejemplo.com)"
-VAPID_SUBJECT = "mailto:contacto@ejemplo.com"
-# VAPID_PUBLIC es público (lo usa el frontend); podés dejarlo acá como var.
-VAPID_PUBLIC = "BJrx38I6hKnOwHkxVTf0Zp7pJrLoKc_7RlwuzgXVobJvgMzI6mu87sQLo6TnEjZZMcNWZVeOrA4GKGb1mzYG03c"
+NOMINATIM_UA = "tsm-scalerics/1.0 (contacto@scalerics.com)"
+VAPID_SUBJECT = "mailto:contacto@scalerics.com"
+VAPID_PUBLIC = ""

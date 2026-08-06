@@ -13,8 +13,9 @@ Tres roles: **chofer** (móvil), **encargado/operaciones** (escritorio) y **admi
 
 ## Stack
 
-- **Frontend:** React + Vite + TypeScript + Tailwind CSS
-- **Backend/API:** Cloudflare Pages Functions (Workers) con Hono
+- **Frontend:** React + Vite + TypeScript + Tailwind CSS, servido por el mismo Worker
+  como *static assets* (`[assets]` en `wrangler.toml`)
+- **Backend/API:** Cloudflare Workers con Hono (`api/worker.ts`)
 - **Base de datos:** Cloudflare D1 (SQLite) + migraciones SQL
 - **Fotos:** Cloudflare R2 *(opcional — ver abajo)*
 - **Auth:** JWT (HS256) + PBKDF2 (WebCrypto)
@@ -139,17 +140,16 @@ npx wrangler pages secret put JWT_SECRET
 
 ## Correr en local
 
+Frontend con hot-reload (Vite en :5173, proxea `/api` al Worker):
+
 ```bash
-npm run pages:dev
+npm run dev
 ```
 
-Levanta el frontend con hot-reload y las Functions bajo `/api/*`, con los bindings de D1 locales.
-Típicamente en `http://localhost:8788`.
-
-Para probar contra un build ya compilado:
+Worker completo con los bindings de D1 locales, sobre el build:
 
 ```bash
-npm run build && npx wrangler pages dev dist --port 8788 --local
+npm run build && npm run dev:worker
 ```
 
 ## Usuarios de ejemplo
@@ -173,9 +173,15 @@ cobro y normalización de nombres de la libreta, y verificación de contraseñas
 
 ## Deploy
 
+El proyecto vive en la cuenta de Cloudflare de **Scalerics**, no en una personal.
+El `account_id` está en `wrangler.toml`, así que no hace falta exportar nada.
+
 ```bash
 npm run deploy
 ```
+
+Publica en **https://tsm.scalerics.com** (dominio propio, configurado como `custom_domain`
+en `wrangler.toml`: Cloudflare crea el registro DNS solo).
 
 > **Antes de desplegar, aplicá las migraciones pendientes en producción.**
 >
@@ -190,17 +196,17 @@ npm run deploy
 Después de cada deploy, verificá que responda:
 
 ```bash
-curl -s https://scalerics-logistica.pages.dev/api/health
+curl -s https://tsm.scalerics.com/api/health
 ```
 
 ## Estructura
 
 ```
 api/            Backend Hono
+  worker.ts     Punto de entrada del Worker
   routes/       Endpoints por recurso (auth, trips, fuel, libreta, reports…)
   repos/        Acceso a D1
   middleware/   Autenticación y roles
-functions/      Catch-all de Pages Functions (delega /api/* a Hono)
 migrations/     Esquema y seeds de D1, incrementales
 scripts/        Utilidades de puesta en marcha
 shared/         Dominio compartido front/back: tipos, constantes y lógica pura
