@@ -120,11 +120,16 @@ export interface TripTemplate {
   /** El chofer agrega una carga por cada lugar donde cargó (viajes combinados). */
   multi_renglon: boolean;
   /** Renglones ya puestos por la oficina (ida y vuelta): el chofer solo completa. */
-  renglones_fijos: TripSegmentInput[] | null;
+  renglones_fijos: RenglonFijo[] | null;
   pide_kilometros: boolean;
   /** Viaje sin carga (retornos vacíos). No pide cargas ni fotos de carga. */
   viaje_vacio: boolean;
-  /** Si se exige foto de la carga para cerrar. `false` en los combinados: el respaldo es el remito. */
+  /**
+   * Si se exige foto de la carga para cerrar el viaje.
+   *
+   * En los combinados (`multi_renglon`) se exige **una por cada lugar de carga**, no una
+   * del viaje: con una sola no se sabe cuál de las tres cargas quedó documentada.
+   */
   foto_carga_requerida: boolean;
   /** Camiones que ven esta plantilla. Vacío = la ven todos. */
   truck_ids: number[];
@@ -167,6 +172,8 @@ export interface TripPhoto {
   r2_key: string;
   kind: PhotoKind;
   taken_at: string;
+  /** Carga a la que pertenece la foto (`TripSegment.sid`). `null` = foto del viaje entero. */
+  segment_sid: string | null;
 }
 
 export interface FuelLog {
@@ -261,6 +268,13 @@ export type Unidad = (typeof UNIDAD)[keyof typeof UNIDAD];
  * equivale a una fila del Excel del cliente.
  */
 export interface TripSegment {
+  /**
+   * Id propio de la carga, estable durante toda su vida.
+   *
+   * Las cargas se guardan como lista y se borran por posición: si la foto colgara del
+   * índice, borrar la primera dejaría a todas las fotos apuntando a la carga equivocada.
+   */
+  sid: string;
   /** Lugar de carga. Debe ser una entidad real: "Varios" no vale acá. */
   remitente: string;
   remitente_id: number | null;
@@ -279,8 +293,17 @@ export interface TripSegment {
 /** Renglón sin la parte de facturación: es lo que manda el chofer. */
 export type TripSegmentInput = Pick<
   TripSegment,
-  "remitente" | "remitente_id" | "clientes" | "cliente_ids" | "cantidad" | "unidad" | "remito"
+  "sid" | "remitente" | "remitente_id" | "clientes" | "cliente_ids" | "cantidad" | "unidad" | "remito"
 >;
+
+/**
+ * Renglón precargado en la plantilla (ida y vuelta de Manassi).
+ *
+ * Es una definición, no una carga: el `sid` lo recibe cada viaje al instanciarlo, porque
+ * si viniera de la plantilla todos los viajes compartirían el mismo y las fotos de uno
+ * aparecerían en los demás.
+ */
+export type RenglonFijo = Omit<TripSegmentInput, "sid">;
 
 /** Regla de facturación. `destinatario_id: null` = aplica a cualquier destino. */
 export interface CobroRegla {
@@ -377,6 +400,23 @@ export function aplicarCobro(
  */
 export function completarPendientes(reglas: CobroRegla[], segmentos: TripSegment[]): TripSegment[] {
   return segmentos.map((s) => (s.cobro_manual || s.cobro_tipo ? s : aplicarCobro(reglas, [s])[0]));
+}
+
+/**
+ * Cargas que todavía no tienen su foto.
+ *
+ * En los combinados la evidencia es una foto por lugar de carga, no una del viaje: con
+ * una sola no se sabe cuál de las tres cargas quedó documentada. Se cruza por `sid` y no
+ * por posición, así borrar una carga no corre las fotos de las demás.
+ */
+export function renglonesSinFoto(
+  segments: TripSegment[],
+  photos: Pick<TripPhoto, "kind" | "segment_sid">[],
+): TripSegment[] {
+  const conFoto = new Set(
+    photos.filter((p) => p.kind === PHOTO_KIND.CARGA && p.segment_sid).map((p) => p.segment_sid),
+  );
+  return segments.filter((s) => !conFoto.has(s.sid));
 }
 
 /**

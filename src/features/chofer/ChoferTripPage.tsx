@@ -119,16 +119,22 @@ export function ChoferTripPage() {
           tripId={trip.id}
           providerId={provider_id}
           segments={trip.segments}
+          photos={photos}
+          pideFoto={data.foto_carga_requerida}
           editable={enCurso}
           onChange={load}
         />
       )}
 
       {/* Si la foto de la carga no llegó a subirse (mala señal en el muelle), el viaje no
-          puede cerrarse. Se puede sacar de nuevo desde acá para no quedar trabado. */}
-      {enCurso && data.foto_carga_requerida && !photos.some((p) => p.kind === PHOTO_KIND.CARGA) && (
-        <MissingCargoPhoto tripId={trip.id} onDone={load} />
-      )}
+          puede cerrarse. Se puede sacar de nuevo desde acá para no quedar trabado.
+          En los combinados la foto va por carga, así que la pide CargasPanel. */}
+      {enCurso &&
+        !multi_renglon &&
+        data.foto_carga_requerida &&
+        !photos.some((p) => p.kind === PHOTO_KIND.CARGA) && (
+          <MissingCargoPhoto tripId={trip.id} onDone={load} />
+        )}
 
       {trip.status === TRIP_STATUS.EN_CURSO && (
         <ArrivalForm

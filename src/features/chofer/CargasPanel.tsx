@@ -1,19 +1,27 @@
 import { useEffect, useState } from "react";
 import {
   LIBRETA_TIPO,
+  PHOTO_KIND,
   UNIDAD,
   type LibretaEntry,
+  type TripPhoto,
+  renglonesSinFoto,
   type TripSegment,
   type Unidad,
 } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
-import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
+import { Button, Card, ErrorText, Spinner } from "../../components/ui";
 import { LibretaPicker } from "../../components/LibretaPicker";
+import { CameraCapture } from "../../components/CameraCapture";
+import { compressImage } from "../../lib/image";
 
 interface Props {
   tripId: number;
   providerId: number | null;
   segments: TripSegment[];
+  photos: TripPhoto[];
+  /** Si cada carga necesita su foto para poder cerrar el viaje. */
+  pideFoto: boolean;
   editable: boolean;
   onChange: () => void;
 }
@@ -22,8 +30,17 @@ interface Props {
  * Cargas del viaje combinado. El chofer registra dónde cargó y para quién, una línea
  * por lugar. No ve nada de facturación: eso lo completan solas las reglas de la libreta.
  */
-export function CargasPanel({ tripId, providerId, segments, editable, onChange }: Props) {
+export function CargasPanel({
+  tripId,
+  providerId,
+  segments,
+  photos,
+  pideFoto,
+  editable,
+  onChange,
+}: Props) {
   const [agregando, setAgregando] = useState(false);
+  const sinFoto = new Set(renglonesSinFoto(segments, photos).map((s) => s.sid));
 
   return (
     <div>
@@ -42,7 +59,7 @@ export function CargasPanel({ tripId, providerId, segments, editable, onChange }
 
       <div className="space-y-2">
         {segments.map((s, i) => (
-          <div key={i} className="flex items-start gap-3 border border-ink/15 bg-bg p-3">
+          <div key={s.sid} className="flex items-start gap-3 border border-ink/15 bg-bg p-3">
             <span className="grid h-6 w-6 flex-none place-items-center border border-ink/20 bg-surface font-cond text-[13px] font-semibold text-ink/60">
               {i + 1}
             </span>
@@ -51,7 +68,9 @@ export function CargasPanel({ tripId, providerId, segments, editable, onChange }
               {s.clientes.length > 0 && (
                 <div className="text-sm text-ink/60">{s.clientes.join(" · ")}</div>
               )}
-              {s.remito && <div className="text-xs text-ink/45">Remito {s.remito}</div>}
+              {pideFoto && sinFoto.has(s.sid) && (
+                <div className="text-xs font-semibold text-st-amberTx">Falta la foto</div>
+              )}
             </div>
             {s.cantidad != null && (
               <div className="flex-none text-right">
@@ -82,12 +101,15 @@ export function CargasPanel({ tripId, providerId, segments, editable, onChange }
       {editable &&
         (agregando ? (
           <NuevaCarga
+            // Al guardar y seguir, se remonta limpio en vez de conservar lo anterior:
+            // en un combinado cada carga es de otro lugar y otro cliente.
+            key={segments.length}
             tripId={tripId}
             providerId={providerId}
-            ultimoLugar={segments.length ? segments[segments.length - 1] : null}
+            pideFoto={pideFoto}
             onCancel={() => setAgregando(false)}
-            onSaved={() => {
-              setAgregando(false);
+            onSaved={(seguirCargando) => {
+              setAgregando(seguirCargando);
               onChange();
             }}
           />
@@ -107,24 +129,22 @@ export function CargasPanel({ tripId, providerId, segments, editable, onChange }
 function NuevaCarga({
   tripId,
   providerId,
-  ultimoLugar,
+  pideFoto,
   onCancel,
   onSaved,
 }: {
   tripId: number;
   providerId: number | null;
-  ultimoLugar: TripSegment | null;
+  pideFoto: boolean;
   onCancel: () => void;
-  onSaved: () => void;
+  onSaved: (seguirCargando: boolean) => void;
 }) {
-  // Si viene cargando en el mismo lugar (Timber para tres clientes), arranca con ese
-  // puesto: así la segunda y la tercera son un solo toque.
   const [lugar, setLugar] = useState<LibretaEntry | null>(null);
   const [clientes, setClientes] = useState<LibretaEntry[]>([]);
   const [opciones, setOpciones] = useState<LibretaEntry[] | null>(null);
   const [cantidad, setCantidad] = useState("");
   const [unidad, setUnidad] = useState<Unidad>(UNIDAD.KILOS);
-  const [remito, setRemito] = useState("");
+  const [foto, setFoto] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -142,25 +162,37 @@ function NuevaCarga({
       prev.some((c) => c.id === e.id) ? prev.filter((c) => c.id !== e.id) : [...prev, e],
     );
 
-  async function guardar() {
+  async function guardar(seguirCargando: boolean) {
     if (!lugar) return setError("Elegí dónde cargaste.");
+    if (pideFoto && !foto) return setError("Sacá la foto de esta carga.");
     setError("");
     setBusy(true);
     try {
+      // El sid lo genera el celular para poder subir la foto sin esperar respuesta;
+      // el backend lo respeta y garantiza que no choque con otro.
+      const sid = crypto.randomUUID();
       await api.post(`/trips/${tripId}/segments`, {
         segments: [
           {
+            sid,
             remitente: lugar.nombre,
             remitente_id: lugar.id,
             clientes: clientes.map((c) => c.nombre),
             cliente_ids: clientes.map((c) => c.id),
             cantidad: cantidad ? Number(cantidad) : null,
             unidad: cantidad ? unidad : null,
-            remito: remito.trim() || null,
           },
         ],
       });
-      onSaved();
+      if (foto) {
+        const fd = new FormData();
+        fd.append("file", await compressImage(foto));
+        fd.append("trip_id", String(tripId));
+        fd.append("kind", PHOTO_KIND.CARGA);
+        fd.append("segment_sid", sid);
+        await api.upload("/photos", fd);
+      }
+      onSaved(seguirCargando);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "No se pudo guardar la carga");
     } finally {
@@ -204,7 +236,7 @@ function NuevaCarga({
             })}
           </div>
         )}
-        {ultimoLugar && <p className="mt-1 text-xs text-ink/45">Podés marcar más de uno.</p>}
+        <p className="mt-1 text-xs text-ink/45">Podés marcar más de uno.</p>
       </div>
 
       <div>
@@ -235,18 +267,28 @@ function NuevaCarga({
         </div>
       </div>
 
-      <Field label="N° de remito (opcional)">
-        <input className="input" value={remito} onChange={(e) => setRemito(e.target.value)} />
-      </Field>
+      <CameraCapture
+        label={pideFoto ? "Foto de esta carga" : "Foto de esta carga (opcional)"}
+        onChange={setFoto}
+      />
 
       <ErrorText>{error}</ErrorText>
-      <div className="flex gap-2">
-        <Button loading={busy} onClick={guardar} className="flex-1 py-3">
-          Guardar carga
+
+      {/* Dos salidas: la de siempre y la de seguir cargando. En un combinado el chofer
+          registra 3 lugares seguidos, y volver a la lista para tocar "+" cada vez es el
+          tipo de fricción por la que se abandona la app. */}
+      <div className="space-y-2">
+        <Button loading={busy} onClick={() => guardar(true)} className="w-full py-4 text-lg">
+          Guardar y cargar otra
         </Button>
-        <Button variant="ghost" onClick={onCancel} className="py-3">
-          Cancelar
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" loading={busy} onClick={() => guardar(false)} className="flex-1 py-3">
+            Guardar y listo
+          </Button>
+          <Button variant="ghost" onClick={onCancel} className="py-3">
+            Cancelar
+          </Button>
+        </div>
       </div>
     </Card>
   );

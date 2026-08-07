@@ -8,6 +8,7 @@ import {
   PHOTO_KIND,
   UNIDAD,
   aplicarCobro,
+  renglonesSinFoto,
   requiereFotoCarga,
   type Trip,
   type TripSegmentInput,
@@ -35,10 +36,23 @@ async function scoped(c: any): Promise<Scope> {
 }
 
 /** Normaliza los renglones que manda el chofer. Un renglón sin lugar de carga no sirve. */
-function parseSegments(raw: any): TripSegmentInput[] {
+/**
+ * Id de la carga. Se respeta el que manda el cliente —así la foto que subió recién sigue
+ * apuntando a su carga, y editar desde oficina no deja fotos huérfanas— pero se garantiza
+ * que sea único dentro del viaje.
+ */
+function sidDe(raw: unknown, usados: Set<string>): string {
+  const propuesto = typeof raw === "string" ? raw.trim() : "";
+  const sid = propuesto && !usados.has(propuesto) ? propuesto : crypto.randomUUID();
+  usados.add(sid);
+  return sid;
+}
+
+function parseSegments(raw: any, usados = new Set<string>()): TripSegmentInput[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .map((r: any) => ({
+      sid: sidDe(r?.sid, usados),
       remitente: String(r?.remitente ?? "").trim(),
       remitente_id: r?.remitente_id ? Number(r.remitente_id) : null,
       clientes: Array.isArray(r?.clientes) ? r.clientes.map((c: any) => String(c).trim()).filter(Boolean) : [],
@@ -110,8 +124,10 @@ trips.get("/:id", async (c) => {
     multi_renglon: !!tpl?.multi_renglon,
     pide_kilometros: !!tpl?.pide_kilometros,
     viaje_vacio: !!tpl?.viaje_vacio,
-    // Misma regla que valida el cierre: la pantalla no puede pedir algo que el backend no exige.
-    foto_carga_requerida: requiereFotoCarga(tpl),
+    // Misma regla que valida el cierre: la pantalla no puede pedir algo que el backend no
+    // exige. Sin R2 las fotos ni se guardan, así que tampoco se piden — si no, el chofer
+    // no podría registrar una carga y le quedaría un "falta la foto" que nunca se va.
+    foto_carga_requerida: !!c.env.FOTOS && requiereFotoCarga(tpl),
     provider_id: tpl?.provider_id ?? null,
   });
 });
@@ -176,7 +192,9 @@ trips.post("/:id/segments", async (c) => {
   if (s.trip.status !== TRIP_STATUS.EN_CURSO) return fail(c, "El viaje no está en curso", 409);
 
   const b = (await c.req.json().catch(() => ({}))) as { segments?: unknown };
-  const nuevos = parseSegments(b.segments);
+  // Los sid ya usados entran al set para que una carga nueva no pise el de otra —
+  // y con él, la foto de otra.
+  const nuevos = parseSegments(b.segments, new Set(s.trip.segments.map((x) => x.sid)));
   if (!nuevos.length) return fail(c, "Falta el lugar de carga", 400);
 
   // Los agrupadores ("Varios") no valen como lugar de carga: es justo el dato
@@ -266,8 +284,17 @@ trips.post("/:id/finish", async (c) => {
   if (c.env.FOTOS) {
     const fotos = await photosRepo.listPhotos(c.env.DB, s.trip.id);
     const faltantes: string[] = [];
-    if (requiereFotoCarga(tpl) && !fotos.some((f) => f.kind === PHOTO_KIND.CARGA)) {
-      faltantes.push("la foto de la carga");
+    if (requiereFotoCarga(tpl)) {
+      if (tpl?.multi_renglon) {
+        // En los combinados la evidencia es una foto por lugar de carga: con una sola
+        // no se sabe cuál de las tres cargas quedó documentada.
+        const sinFoto = renglonesSinFoto(s.trip.segments, fotos);
+        if (sinFoto.length) {
+          faltantes.push(`la foto de: ${sinFoto.map((x) => x.remitente).join(", ")}`);
+        }
+      } else if (!fotos.some((f) => f.kind === PHOTO_KIND.CARGA)) {
+        faltantes.push("la foto de la carga");
+      }
     }
     if (tpl?.arrival_photo_label && !fotos.some((f) => f.kind === PHOTO_KIND.DESCARGA)) {
       faltantes.push(`la foto: ${tpl.arrival_photo_label}`);

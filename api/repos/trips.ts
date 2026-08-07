@@ -47,7 +47,10 @@ function parseSegments(raw: string | null): TripSegment[] {
   if (!raw) return [];
   try {
     const v = JSON.parse(raw);
-    return Array.isArray(v) ? v : [];
+    if (!Array.isArray(v)) return [];
+    // Las cargas guardadas antes del `sid` no tienen ninguna foto colgada, así que
+    // alcanza con darles uno estable por posición para no dejar el campo vacío.
+    return v.map((s: TripSegment, i: number) => (s?.sid ? s : { ...s, sid: `legacy-${i}` }));
   } catch {
     return [];
   }

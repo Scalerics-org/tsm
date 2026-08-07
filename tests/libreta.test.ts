@@ -54,7 +54,7 @@ describe("resolveCobro", () => {
 });
 
 describe("aplicarCobro (herencia de la regla en cada renglón)", () => {
-  const base = { cantidad: null, unidad: null, remito: null, cliente_ids: [] as number[] };
+  const base = { sid: "s1", cantidad: null, unidad: null, remito: null, cliente_ids: [] as number[] };
 
   it("cada renglón hereda según su propio par", () => {
     const r = aplicarCobro(REGLAS, [
@@ -100,6 +100,7 @@ describe("aplicarCobro (herencia de la regla en cada renglón)", () => {
 describe("completarPendientes (la oficina define una regla nueva)", () => {
   function carga(s: Partial<TripSegment> = {}): TripSegment {
     return {
+      sid: "s1",
       remitente: "Armco",
       remitente_id: 1,
       clientes: ["Galpón"],

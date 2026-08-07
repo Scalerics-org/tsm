@@ -2,7 +2,7 @@ import type {
   CamposUbicacion,
   DestOption,
   TemplateField,
-  TripSegmentInput,
+  RenglonFijo,
   TripTemplate,
 } from "../../shared/domain";
 
@@ -49,7 +49,7 @@ function toTemplate(r: TemplateRow): TripTemplate {
     arrival_photo_label: r.arrival_photo_label,
     campos_ubicacion: r.campos_ubicacion ? parseJson<CamposUbicacion | null>(r.campos_ubicacion, null) : null,
     multi_renglon: !!r.multi_renglon,
-    renglones_fijos: r.renglones_fijos ? parseJson<TripSegmentInput[]>(r.renglones_fijos, []) : null,
+    renglones_fijos: r.renglones_fijos ? parseJson<RenglonFijo[]>(r.renglones_fijos, []) : null,
     pide_kilometros: !!r.pide_kilometros,
     viaje_vacio: !!r.viaje_vacio,
     foto_carga_requerida: !!r.foto_carga_requerida,
@@ -89,7 +89,7 @@ export interface TemplateInput {
   arrival_photo_label: string | null;
   campos_ubicacion: CamposUbicacion | null;
   multi_renglon: boolean;
-  renglones_fijos: TripSegmentInput[] | null;
+  renglones_fijos: RenglonFijo[] | null;
   pide_kilometros: boolean;
   viaje_vacio: boolean;
   foto_carga_requerida: boolean;

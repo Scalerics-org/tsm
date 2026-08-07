@@ -23,6 +23,8 @@ photos.post("/", async (c) => {
   const fileEntry = form.get("file");
   const tripId = Number(form.get("trip_id"));
   const kind = String(form.get("kind")) as PhotoKind;
+  // Foto de una carga puntual (combinados). Sin esto, es del viaje entero.
+  const segmentSid = form.get("segment_sid") ? String(form.get("segment_sid")) : null;
 
   if (!fileEntry || typeof fileEntry === "string") return fail(c, "Falta el archivo", 400);
   if (!tripId) return fail(c, "Falta trip_id", 400);
@@ -32,6 +34,10 @@ photos.post("/", async (c) => {
   if (!trip) return fail(c, "Viaje no encontrado", 404);
   if (user.role === ROLES.CHOFER && trip.driver_id !== user.driver_id) {
     return fail(c, "No podés subir fotos a este viaje", 403);
+  }
+  // Una foto colgada de una carga que no existe no la encuentra nadie después.
+  if (segmentSid && !trip.segments.some((s) => s.sid === segmentSid)) {
+    return fail(c, "La carga de esa foto no existe en el viaje", 400);
   }
 
   const file = fileEntry as unknown as File;
@@ -46,6 +52,7 @@ photos.post("/", async (c) => {
     r2_key: key,
     kind,
     taken_at: new Date().toISOString().replace("T", " ").slice(0, 19),
+    segment_sid: segmentSid,
   });
   return ok(c, { id, r2_key: key }, 201);
 });

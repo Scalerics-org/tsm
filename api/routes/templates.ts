@@ -10,7 +10,7 @@ import {
   LIBRETA_TIPO,
   UNIDAD,
   type CamposUbicacion,
-  type TripSegmentInput,
+  type RenglonFijo,
 } from "../../shared/domain";
 import * as repo from "../repos/templates";
 
@@ -80,7 +80,7 @@ function parseCamposUbicacion(raw: any): CamposUbicacion | null {
 }
 
 /** Renglones que la oficina deja precargados (ida y vuelta). */
-function parseRenglonesFijos(raw: any): TripSegmentInput[] | null {
+function parseRenglonesFijos(raw: any): RenglonFijo[] | null {
   if (!Array.isArray(raw) || !raw.length) return null;
   const out = raw
     .map((r: any) => ({
@@ -92,7 +92,7 @@ function parseRenglonesFijos(raw: any): TripSegmentInput[] | null {
       unidad: r?.unidad === UNIDAD.KILOS || r?.unidad === UNIDAD.PALLETS ? r.unidad : null,
       remito: r?.remito ? String(r.remito).trim() : null,
     }))
-    .filter((r: TripSegmentInput) => r.remitente || r.clientes.length);
+    .filter((r: RenglonFijo) => r.remitente || r.clientes.length);
   return out.length ? out : null;
 }
 

@@ -52,11 +52,20 @@ export async function tripPhotoStatus(
 
 export async function insertPhoto(
   db: D1Database,
-  p: { trip_id: number; r2_key: string; kind: PhotoKind; taken_at: string },
+  p: {
+    trip_id: number;
+    r2_key: string;
+    kind: PhotoKind;
+    taken_at: string;
+    /** Carga a la que pertenece. `null` = foto del viaje entero. */
+    segment_sid?: string | null;
+  },
 ): Promise<number> {
   const res = await db
-    .prepare("INSERT INTO trip_photos (trip_id, r2_key, kind, taken_at) VALUES (?, ?, ?, ?)")
-    .bind(p.trip_id, p.r2_key, p.kind, p.taken_at)
+    .prepare(
+      "INSERT INTO trip_photos (trip_id, r2_key, kind, taken_at, segment_sid) VALUES (?, ?, ?, ?, ?)",
+    )
+    .bind(p.trip_id, p.r2_key, p.kind, p.taken_at, p.segment_sid ?? null)
     .run();
   return res.meta.last_row_id as number;
 }
