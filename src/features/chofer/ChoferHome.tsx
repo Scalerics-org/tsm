@@ -69,11 +69,26 @@ export function ChoferHome() {
       )}
 
       <div>
-        <div className="kicker">{active ? "Otro viaje" : "Elegí el cliente"}</div>
+        <div className="kicker">{active ? "Viaje sin cerrar" : "Elegí el cliente"}</div>
         <h1 className="text-3xl text-ink">Clientes</h1>
       </div>
 
-      {clientes.length === 0 ? (
+      {active ? (
+        /* Un viaje a la vez: hasta registrar la llegada no se ofrece empezar otro. */
+        <div className="panel border-l-4 border-l-st-amberDot p-4">
+          <Corners />
+          <p className="text-sm text-ink/75">
+            Primero registrá la llegada del viaje que tenés en curso. Cuando lo cierres vas a poder
+            empezar otro.
+          </p>
+          <Link
+            to={`/viaje/${active.id}`}
+            className="mt-3 inline-block font-cond font-semibold text-brand-700"
+          >
+            Ir al viaje en curso →
+          </Link>
+        </div>
+      ) : clientes.length === 0 ? (
         <div className="panel p-6 text-center text-ink/50">
           <Corners />
           No hay viajes precargados todavía.

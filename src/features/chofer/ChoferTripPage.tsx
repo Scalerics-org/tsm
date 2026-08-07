@@ -106,6 +106,12 @@ export function ChoferTripPage() {
         )}
       </Card>
 
+      {/* Si la foto de la carga no llegó a subirse (mala señal en el muelle), el viaje no
+          puede cerrarse. Se puede sacar de nuevo desde acá para no quedar trabado. */}
+      {trip.status === TRIP_STATUS.EN_CURSO && !photos.some((p) => p.kind === PHOTO_KIND.CARGA) && (
+        <MissingCargoPhoto tripId={trip.id} onDone={load} />
+      )}
+
       {trip.status === TRIP_STATUS.EN_CURSO && (
         <ArrivalForm
           tripId={trip.id}
@@ -141,6 +147,43 @@ function Info({ label, value }: { label: string; value: string }) {
       </div>
       <div className="font-medium text-ink">{value}</div>
     </div>
+  );
+}
+
+/** Reintento de la foto de la carga cuando no quedó guardada al iniciar el viaje. */
+function MissingCargoPhoto({ tripId, onDone }: { tripId: number; onDone: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function subir() {
+    if (!file) return setError("Sacá la foto de la carga.");
+    setError("");
+    setBusy(true);
+    try {
+      await uploadPhoto(tripId, file, PHOTO_KIND.CARGA);
+      onDone();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudo subir la foto");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card accent="amber" className="space-y-3">
+      <div>
+        <h2 className="text-lg font-semibold text-ink">Falta la foto de la carga</h2>
+        <p className="text-sm text-ink/60">
+          No llegó a guardarse cuando saliste. Sacala de nuevo para poder cerrar el viaje.
+        </p>
+      </div>
+      <CameraCapture label="Foto de la carga" onChange={setFile} />
+      <ErrorText>{error}</ErrorText>
+      <Button loading={busy} onClick={subir} className="w-full py-3">
+        Guardar foto
+      </Button>
+    </Card>
   );
 }
 

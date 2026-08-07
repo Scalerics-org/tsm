@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { ROLES, TRIP_STATUS, type Trip, type TripTemplate } from "../../shared/domain";
+import { ROLES, TRIP_STATUS, PHOTO_KIND, type Trip, type TripTemplate } from "../../shared/domain";
 import * as tripsRepo from "../repos/trips";
 import * as templatesRepo from "../repos/templates";
 import * as photosRepo from "../repos/photos";
@@ -78,6 +78,18 @@ trips.post("/", async (c) => {
   if (user.role !== ROLES.CHOFER || user.driver_id == null) {
     return fail(c, "Solo un chofer puede iniciar un viaje", 403);
   }
+
+  // Un viaje a la vez: hasta no cerrar el actual no se puede abrir otro. Evita que se
+  // acumulen viajes abiertos sin evidencia y que la oficina no sepa cuál está en curso.
+  const abierto = await tripsRepo.activeTripForDriver(c.env.DB, user.driver_id);
+  if (abierto) {
+    return fail(
+      c,
+      `Todavía tenés un viaje sin cerrar: ${abierto.origin} → ${abierto.destination}. Registrá la llegada antes de empezar otro.`,
+      409,
+    );
+  }
+
   const b = await c.req.json<any>().catch(() => null);
   if (!b || !b.template_id || !b.destino) return fail(c, "Elegí el viaje y el destino", 400);
 
@@ -124,11 +136,24 @@ trips.post("/:id/finish", async (c) => {
   };
   const merged = { ...s.trip.field_values, ...(b.field_values ?? {}) };
 
-  if (s.trip.template_id) {
-    const tpl = await templatesRepo.getTemplate(c.env.DB, s.trip.template_id);
-    if (tpl) {
-      const missing = missingField(tpl, "descarga", merged);
-      if (missing) return fail(c, `Falta: ${missing}`, 400);
+  const tpl = s.trip.template_id ? await templatesRepo.getTemplate(c.env.DB, s.trip.template_id) : null;
+  if (tpl) {
+    const missing = missingField(tpl, "descarga", merged);
+    if (missing) return fail(c, `Falta: ${missing}`, 400);
+  }
+
+  // Un viaje no se cierra sin su evidencia: queda pendiente hasta que estén las fotos.
+  // Solo se exige si R2 está configurado — sin R2 las fotos no se guardan y el viaje
+  // nunca podría cerrarse. Al habilitarlo, la regla empieza a aplicar sola.
+  if (c.env.FOTOS) {
+    const fotos = await photosRepo.listPhotos(c.env.DB, s.trip.id);
+    const faltantes: string[] = [];
+    if (!fotos.some((f) => f.kind === PHOTO_KIND.CARGA)) faltantes.push("la foto de la carga");
+    if (tpl?.arrival_photo_label && !fotos.some((f) => f.kind === PHOTO_KIND.DESCARGA)) {
+      faltantes.push(`la foto: ${tpl.arrival_photo_label}`);
+    }
+    if (faltantes.length) {
+      return fail(c, `El viaje queda pendiente hasta que cargues ${faltantes.join(" y ")}.`, 409);
     }
   }
 
