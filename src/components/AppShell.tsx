@@ -35,6 +35,7 @@ const OPS_NAV: NavItem[] = [
   { to: "/panel/control", label: "Control" },
   { to: "/panel/viajes", label: "Viajes" },
   { to: "/panel/plantillas", label: "Plantillas" },
+  { to: "/panel/libreta", label: "Libreta" },
 ];
 const ADMIN_NAV: NavItem[] = [
   ...OPS_NAV,

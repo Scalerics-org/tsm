@@ -11,6 +11,7 @@ import {
   type LibretaTipo,
 } from "../../shared/domain";
 import * as repo from "../repos/libreta";
+import * as tripsRepo from "../repos/trips";
 
 const libreta = new Hono<{ Bindings: Env; Variables: Vars }>();
 libreta.use("*", requireAuth);
@@ -127,7 +128,14 @@ libreta.post("/reglas", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => 
     cobro_tipo: b.cobro_tipo,
     cobro_a: b.cobro_a.trim(),
   });
-  return ok(c, { saved: true }, 201);
+
+  // La regla vale también para lo ya cargado: si no, el pendiente nunca se limpia y
+  // definir la regla dejaría de resolver el problema que la oficina vino a resolver.
+  const destrabadas = await tripsRepo.completarCobrosPendientes(
+    c.env.DB,
+    await repo.listReglas(c.env.DB),
+  );
+  return ok(c, { saved: true, destrabadas }, 201);
 });
 
 libreta.delete("/reglas/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {

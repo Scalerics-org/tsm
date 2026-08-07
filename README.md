@@ -57,7 +57,7 @@ Una **plantilla** (`trip_templates`) define un viaje repetitivo de un cliente:
 | `campos_ubicacion` | Partes que se resuelven con la libreta (ver abajo). `NULL` = flujo clásico |
 | `active` | Si le aparece o no al chofer |
 
-### Libreta (en construcción — Etapa 2)
+### Libreta
 
 La **libreta** es una lista curada de remitentes, destinatarios y lugares. El chofer elige de ahí en vez
 de escribir; si aparece uno nuevo lo agrega y sigue viaje, y queda marcado como `nuevo` para que la
@@ -67,9 +67,15 @@ fragmentaría los reportes de facturación.
 Las **reglas de cobro** (`cobro_reglas`) definen a quién se factura cada combinación
 `remitente + destinatario`; con `destinatario_id NULL` la regla aplica a cualquier destino.
 
-> El backend está desplegado pero **ninguna pantalla lo usa todavía**: las 4 plantillas actuales tienen
-> `campos_ubicacion` en `NULL`, así que el chofer ve el flujo de siempre. Ver
-> [docs/spec-viajes-flexibles.md](docs/spec-viajes-flexibles.md).
+La oficina la administra en **Panel → Libreta** (`/panel/libreta`): confirma las altas de los choferes,
+renombra, fusiona duplicados y define las reglas. Las cargas que quedaron sin regla se muestran
+**agrupadas por combinación**, porque el trabajo es una regla por combinación y no uno por viaje;
+al guardar una regla se aplica también a las cargas ya registradas que la estaban esperando
+(`completarPendientes`), así el contador de pendientes efectivamente baja.
+
+Las plantillas actuales tienen `campos_ubicacion` en `NULL`, así que el chofer sigue viendo el flujo
+clásico hasta que se carguen las plantillas nuevas. Ver
+[docs/spec-viajes-flexibles.md](docs/spec-viajes-flexibles.md).
 
 ## Requisitos
 

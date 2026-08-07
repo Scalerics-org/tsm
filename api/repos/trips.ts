@@ -1,4 +1,10 @@
-import type { Trip, TripSegment, TripStatus } from "../../shared/domain";
+import {
+  completarPendientes,
+  type CobroRegla,
+  type Trip,
+  type TripSegment,
+  type TripStatus,
+} from "../../shared/domain";
 
 interface TripRow {
   id: number;
@@ -191,6 +197,32 @@ export async function updateSegments(
     return;
   }
   await db.prepare("UPDATE trips SET segments=? WHERE id=?").bind(json, id).run();
+}
+
+/**
+ * Aplica las reglas a las cargas que habían quedado sin cobro y devuelve cuántas se destrabaron.
+ *
+ * Corre cuando la oficina define una regla: es lo que hace que definirla una vez alcance para
+ * todas las cargas que ya la estaban esperando. No toca las que ya tenían cobro ni las manuales.
+ */
+export async function completarCobrosPendientes(
+  db: D1Database,
+  reglas: CobroRegla[],
+): Promise<number> {
+  const trips = await listTrips(db, {});
+  let destrabadas = 0;
+
+  for (const t of trips) {
+    if (!t.segments.some((s) => !s.cobro_tipo && !s.cobro_manual)) continue;
+
+    const actualizados = completarPendientes(reglas, t.segments);
+    const resueltas = actualizados.filter((s, i) => s.cobro_tipo && !t.segments[i].cobro_tipo).length;
+    if (!resueltas) continue;
+
+    await updateSegments(db, t.id, actualizados);
+    destrabadas += resueltas;
+  }
+  return destrabadas;
 }
 
 export async function setKilometros(db: D1Database, id: number, km: number | null): Promise<void> {

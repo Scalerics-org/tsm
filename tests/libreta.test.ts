@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { resolveCobro, aplicarCobro, normalizeNombre, type CobroRegla } from "@shared/domain";
+import {
+  resolveCobro,
+  aplicarCobro,
+  completarPendientes,
+  normalizeNombre,
+  type CobroRegla,
+  type TripSegment,
+} from "@shared/domain";
 
 // Libreta: 1=Armco, 2=Agencia (remitentes) · 10=Varios Clientes, 11=Galpón (destinatarios)
 const REGLAS: CobroRegla[] = [
@@ -87,6 +94,47 @@ describe("aplicarCobro (herencia de la regla en cada renglón)", () => {
     const r = aplicarCobro(REGLAS, previos);
     expect(r[0].cobro_a).toBe("Excepción");
     expect(r[0].cobro_manual).toBe(true);
+  });
+});
+
+describe("completarPendientes (la oficina define una regla nueva)", () => {
+  function carga(s: Partial<TripSegment> = {}): TripSegment {
+    return {
+      remitente: "Armco",
+      remitente_id: 1,
+      clientes: ["Galpón"],
+      cliente_ids: [11],
+      cantidad: null,
+      unidad: null,
+      remito: null,
+      cobro_tipo: null,
+      cobro_a: null,
+      cobro_manual: false,
+      ...s,
+    };
+  }
+
+  it("destraba las cargas que estaban esperando la regla", () => {
+    // Sin esto el contador de pendientes nunca bajaría: la regla solo valdría para lo futuro.
+    const r = completarPendientes(REGLAS, [carga(), carga()]);
+    expect(r.map((s) => s.cobro_tipo)).toEqual(["proveedor", "proveedor"]);
+  });
+
+  it("no reescribe una carga que ya tenía cobro", () => {
+    const previa = carga({ cobro_tipo: "cliente", cobro_a: "Lo facturado" });
+    expect(completarPendientes(REGLAS, [previa])[0].cobro_a).toBe("Lo facturado");
+  });
+
+  it("respeta el override manual de la oficina", () => {
+    const manual = carga({ cobro_tipo: null, cobro_a: null, cobro_manual: true });
+    const r = completarPendientes(REGLAS, [manual])[0];
+    expect(r.cobro_tipo).toBeNull();
+    expect(r.cobro_manual).toBe(true);
+  });
+
+  it("lo que sigue sin regla sigue pendiente, no se inventa", () => {
+    const r = completarPendientes(REGLAS, [carga({ remitente: "Timber", remitente_id: 77 })]);
+    expect(r[0].cobro_tipo).toBeNull();
   });
 });
 

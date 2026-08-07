@@ -294,6 +294,14 @@ export interface CobroResuelto {
   cobro_a: string | null;
 }
 
+/** Carga que quedó sin regla de facturación, con el viaje del que salió. */
+export interface PendienteCobro extends TripSegment {
+  idx: number;
+  trip_id: number;
+  fecha: string;
+  cliente: string;
+}
+
 /**
  * Resuelve a quién se factura un renglón: primero el par exacto remitente+destinatario,
  * y si no hay, la regla general del remitente (destinatario NULL).
@@ -353,6 +361,20 @@ export function aplicarCobro(
     }
     return { ...s, ...resuelto, cobro_manual: false } as TripSegment;
   });
+}
+
+/**
+ * Completa solo las cargas que quedaron pendientes, sin tocar las que ya tienen cobro.
+ *
+ * Se usa cuando la oficina define una regla nueva: sin esto la regla solo valdría para las
+ * cargas futuras y el contador de pendientes nunca bajaría — el trabajo dejaría de ser
+ * "una vez por combinación" y volvería a ser diario.
+ *
+ * No reescribe lo ya resuelto: una carga con cobro puede estar facturada, y cambiarla es
+ * una corrección explícita de la oficina, no un efecto secundario de crear una regla.
+ */
+export function completarPendientes(reglas: CobroRegla[], segmentos: TripSegment[]): TripSegment[] {
+  return segmentos.map((s) => (s.cobro_manual || s.cobro_tipo ? s : aplicarCobro(reglas, [s])[0]));
 }
 
 /** Marcas de acento que NFD deja sueltas (U+0300–U+036F). Se arma por código para no meter

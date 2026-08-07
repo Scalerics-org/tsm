@@ -2,7 +2,14 @@ import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { ROLES, TRIP_STATUS, fuelSummary, monthlyConsumption, type Trip } from "../../shared/domain";
+import {
+  ROLES,
+  TRIP_STATUS,
+  fuelSummary,
+  monthlyConsumption,
+  type PendienteCobro,
+  type Trip,
+} from "../../shared/domain";
 import { listTrips } from "../repos/trips";
 import { listFuelLogs } from "../repos/fuel";
 import { listTrucks, getTruck } from "../repos/trucks";
@@ -291,7 +298,7 @@ reports.get("/trips.csv", async (c) => {
 // por combinación nueva, no por viaje.
 reports.get("/pendientes-cobro", async (c) => {
   const trips = await listTrips(c.env.DB, {});
-  const pendientes = trips.flatMap((t) =>
+  const pendientes: PendienteCobro[] = trips.flatMap((t) =>
     t.segments
       .map((s, idx) => ({ ...s, idx, trip_id: t.id, fecha: t.started_at.slice(0, 10), cliente: t.provider_name }))
       .filter((s) => !s.cobro_tipo),

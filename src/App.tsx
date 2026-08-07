@@ -13,6 +13,7 @@ import { OpsSummary } from "./features/operaciones/OpsSummary";
 import { OpsTripsPage } from "./features/operaciones/OpsTripsPage";
 import { OpsTripDetailPage } from "./features/operaciones/OpsTripDetailPage";
 import { TemplatesPage } from "./features/operaciones/TemplatesPage";
+import { LibretaPage } from "./features/operaciones/LibretaPage";
 import { ControlPage } from "./features/operaciones/ControlPage";
 import { TruckDetailPage } from "./features/operaciones/TruckDetailPage";
 import { DriverDetailPage } from "./features/operaciones/DriverDetailPage";
@@ -74,6 +75,7 @@ export default function App() {
         <Route path="/panel/camion/:id" element={<RequireRole roles={OPS}><TruckDetailPage /></RequireRole>} />
         <Route path="/panel/chofer/:id" element={<RequireRole roles={OPS}><DriverDetailPage /></RequireRole>} />
         <Route path="/panel/plantillas" element={<RequireRole roles={OPS}><TemplatesPage /></RequireRole>} />
+        <Route path="/panel/libreta" element={<RequireRole roles={OPS}><LibretaPage /></RequireRole>} />
 
         {/* Admin */}
         <Route path="/admin/choferes" element={<RequireRole roles={[ROLES.ADMIN]}><AdminDriversPage /></RequireRole>} />
