@@ -14,6 +14,7 @@ import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner, StatusBadge } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
 import { PhotoImage } from "../../components/PhotoImage";
+import { CargasPanel } from "./CargasPanel";
 import { compressImage } from "../../lib/image";
 import { estimateTravel, fmtDuration } from "../../lib/eta";
 import { fmtDateTime } from "../../lib/format";
@@ -22,6 +23,10 @@ interface Detail {
   trip: Trip & { fields?: TemplateField[] };
   photos: TripPhoto[];
   arrival_photo_label: string | null;
+  multi_renglon: boolean;
+  pide_kilometros: boolean;
+  viaje_vacio: boolean;
+  provider_id: number | null;
 }
 
 async function uploadPhoto(tripId: number, file: File, kind: string) {
@@ -48,8 +53,9 @@ export function ChoferTripPage() {
 
   if (error) return <ErrorText>{error}</ErrorText>;
   if (!data) return <Spinner size={28} />;
-  const { trip, photos, arrival_photo_label } = data;
+  const { trip, photos, arrival_photo_label, multi_renglon, provider_id } = data;
   const fields = trip.fields ?? [];
+  const enCurso = trip.status === TRIP_STATUS.EN_CURSO;
 
   return (
     <div className="space-y-5">
@@ -106,9 +112,19 @@ export function ChoferTripPage() {
         )}
       </Card>
 
+      {multi_renglon && (
+        <CargasPanel
+          tripId={trip.id}
+          providerId={provider_id}
+          segments={trip.segments}
+          editable={enCurso}
+          onChange={load}
+        />
+      )}
+
       {/* Si la foto de la carga no llegó a subirse (mala señal en el muelle), el viaje no
           puede cerrarse. Se puede sacar de nuevo desde acá para no quedar trabado. */}
-      {trip.status === TRIP_STATUS.EN_CURSO && !photos.some((p) => p.kind === PHOTO_KIND.CARGA) && (
+      {enCurso && !data.viaje_vacio && !photos.some((p) => p.kind === PHOTO_KIND.CARGA) && (
         <MissingCargoPhoto tripId={trip.id} onDone={load} />
       )}
 
@@ -117,6 +133,7 @@ export function ChoferTripPage() {
           tripId={trip.id}
           descargaFields={fields.filter((f) => f.stage === FIELD_STAGE.DESCARGA)}
           photoLabel={arrival_photo_label}
+          pideKilometros={data.pide_kilometros}
           onDone={load}
         />
       )}
@@ -191,13 +208,16 @@ function ArrivalForm({
   tripId,
   descargaFields,
   photoLabel,
+  pideKilometros,
   onDone,
 }: {
   tripId: number;
   descargaFields: TemplateField[];
   photoLabel: string | null;
+  pideKilometros: boolean;
   onDone: () => void;
 }) {
+  const [kilometros, setKilometros] = useState("");
   const [descarga, setDescarga] = useState<File | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
@@ -211,10 +231,15 @@ function ArrivalForm({
       if (f.required && !String(values[f.key] ?? "").trim()) return setError(`Cargá ${f.label}.`);
     }
     if (photoRequired && !descarga) return setError(`Sacá la foto: ${photoLabel}.`);
+    if (pideKilometros && !kilometros) return setError("Cargá los kilómetros del recorrido.");
     setBusy(true);
     try {
       if (descarga) await uploadPhoto(tripId, descarga, PHOTO_KIND.DESCARGA);
-      await api.post(`/trips/${tripId}/finish`, { field_values: values, notes: notes || undefined });
+      await api.post(`/trips/${tripId}/finish`, {
+        field_values: values,
+        notes: notes || undefined,
+        kilometros: kilometros ? Number(kilometros) : undefined,
+      });
       onDone();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "No se pudo registrar la llegada");
@@ -236,6 +261,18 @@ function ArrivalForm({
           />
         </Field>
       ))}
+      {pideKilometros && (
+        <Field label="Kilómetros del recorrido">
+          <input
+            className="input"
+            type="number"
+            inputMode="decimal"
+            value={kilometros}
+            onChange={(e) => setKilometros(e.target.value)}
+            placeholder="Ej: 500"
+          />
+        </Field>
+      )}
       <CameraCapture
         label={photoLabel ? `Foto: ${photoLabel}` : "Foto de descarga (opcional)"}
         onChange={setDescarga}

@@ -248,18 +248,55 @@ function flattenFields(t: Trip): string {
     .join(" · ");
 }
 
+// Una fila por carga: es la unidad facturable. Los viajes de un solo tramo
+// exportan una fila, igual que antes.
 reports.get("/trips.csv", async (c) => {
   const q = c.req.query();
   const trips = await listTrips(c.env.DB, { from: q.from, to: q.to, provider: q.provider || undefined });
   const header = [
-    "ID", "Proveedor", "Remite", "Origen", "Destino", "Destinatario", "Chofer", "Camión", "Carga",
-    "Toneladas", "Campos", "Estado", "Inicio", "Fin", "Observaciones",
+    "ID viaje", "Fecha", "Cliente", "Origen", "Destino", "Lugar de carga", "Clientes de la carga",
+    "Cantidad", "Unidad", "N° remito", "Se cobra a", "Tipo", "Toneladas", "Km", "Campos",
+    "Chofer", "Camión", "Estado", "Inicio", "Fin", "Observaciones",
   ];
-  const rows = trips.map((t) => [
-    t.id, t.provider_name, t.remite ?? "", t.origin, t.destination, t.destinatario ?? "", t.driver_name ?? "", t.truck_plate ?? "",
-    t.cargo_type, t.weight_tons ?? "", flattenFields(t), t.status, t.started_at, t.finished_at ?? "", t.notes ?? "",
-  ]);
+
+  const rows: (string | number | null)[][] = [];
+  for (const t of trips) {
+    const comunes = [t.id, t.started_at.slice(0, 10), t.provider_name, t.origin, t.destination];
+    const cola = [
+      t.weight_tons ?? "", t.kilometros ?? "", flattenFields(t),
+      t.driver_name ?? "", t.truck_plate ?? "", t.status, t.started_at, t.finished_at ?? "", t.notes ?? "",
+    ];
+    if (!t.segments.length) {
+      rows.push([...comunes, t.remite ?? "", t.destinatario ?? "", "", "", "", "", "", ...cola]);
+      continue;
+    }
+    for (const s of t.segments) {
+      rows.push([
+        ...comunes,
+        s.remitente,
+        s.clientes.join(" / "),
+        s.cantidad ?? "",
+        s.unidad ?? "",
+        s.remito ?? "",
+        s.cobro_a ?? "",
+        s.cobro_tipo ?? "",
+        ...cola,
+      ]);
+    }
+  }
   return csvResponse(q.provider ? `viajes-${q.provider}.csv` : "viajes.csv", [header, ...rows]);
+});
+
+// Cargas sin regla de facturación: el único trabajo manual que queda, y es una vez
+// por combinación nueva, no por viaje.
+reports.get("/pendientes-cobro", async (c) => {
+  const trips = await listTrips(c.env.DB, {});
+  const pendientes = trips.flatMap((t) =>
+    t.segments
+      .map((s, idx) => ({ ...s, idx, trip_id: t.id, fecha: t.started_at.slice(0, 10), cliente: t.provider_name }))
+      .filter((s) => !s.cobro_tipo),
+  );
+  return ok(c, pendientes);
 });
 
 // Consumo por tramo (L/100km): se asigna a la surtida que CIERRA el tramo (la de llenado).

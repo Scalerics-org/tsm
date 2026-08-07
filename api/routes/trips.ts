@@ -101,7 +101,16 @@ trips.get("/:id", async (c) => {
     s.trip.template_id ? templatesRepo.getTemplate(c.env.DB, s.trip.template_id) : Promise.resolve(null),
   ]);
   const trip = { ...s.trip, fields: tpl?.fields ?? [] };
-  return ok(c, { trip, photos, arrival_photo_label: tpl?.arrival_photo_label ?? null });
+  return ok(c, {
+    trip,
+    photos,
+    arrival_photo_label: tpl?.arrival_photo_label ?? null,
+    // Lo que la pantalla del chofer necesita saber de la plantilla.
+    multi_renglon: !!tpl?.multi_renglon,
+    pide_kilometros: !!tpl?.pide_kilometros,
+    viaje_vacio: !!tpl?.viaje_vacio,
+    provider_id: tpl?.provider_id ?? null,
+  });
 });
 
 // POST /api/trips — el chofer inicia un viaje desde una plantilla
