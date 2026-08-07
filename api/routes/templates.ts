@@ -129,6 +129,9 @@ function parse(b: any): repo.TemplateInput | null {
     renglones_fijos: parseRenglonesFijos(b.renglones_fijos),
     pide_kilometros: !!b.pide_kilometros,
     viaje_vacio: !!b.viaje_vacio,
+    // Si no viene, se pide la foto — salvo en los vacíos, que no tienen qué fotografiar.
+    foto_carga_requerida:
+      b.foto_carga_requerida === undefined ? !b.viaje_vacio : !!b.foto_carga_requerida,
     truck_ids: Array.isArray(b.truck_ids) ? b.truck_ids.map(Number).filter((n: number) => !isNaN(n)) : [],
     active: b.active === undefined ? true : !!b.active,
   };

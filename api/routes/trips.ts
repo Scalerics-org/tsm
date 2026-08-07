@@ -8,6 +8,7 @@ import {
   PHOTO_KIND,
   UNIDAD,
   aplicarCobro,
+  requiereFotoCarga,
   type Trip,
   type TripSegmentInput,
   type TripTemplate,
@@ -109,6 +110,8 @@ trips.get("/:id", async (c) => {
     multi_renglon: !!tpl?.multi_renglon,
     pide_kilometros: !!tpl?.pide_kilometros,
     viaje_vacio: !!tpl?.viaje_vacio,
+    // Misma regla que valida el cierre: la pantalla no puede pedir algo que el backend no exige.
+    foto_carga_requerida: requiereFotoCarga(tpl),
     provider_id: tpl?.provider_id ?? null,
   });
 });
@@ -263,7 +266,7 @@ trips.post("/:id/finish", async (c) => {
   if (c.env.FOTOS) {
     const fotos = await photosRepo.listPhotos(c.env.DB, s.trip.id);
     const faltantes: string[] = [];
-    if (!tpl?.viaje_vacio && !fotos.some((f) => f.kind === PHOTO_KIND.CARGA)) {
+    if (requiereFotoCarga(tpl) && !fotos.some((f) => f.kind === PHOTO_KIND.CARGA)) {
       faltantes.push("la foto de la carga");
     }
     if (tpl?.arrival_photo_label && !fotos.some((f) => f.kind === PHOTO_KIND.DESCARGA)) {

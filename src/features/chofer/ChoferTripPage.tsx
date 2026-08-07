@@ -26,6 +26,8 @@ interface Detail {
   multi_renglon: boolean;
   pide_kilometros: boolean;
   viaje_vacio: boolean;
+  /** Si el cierre va a exigir la foto de la carga. Lo resuelve el backend con la plantilla. */
+  foto_carga_requerida: boolean;
   provider_id: number | null;
 }
 
@@ -124,7 +126,7 @@ export function ChoferTripPage() {
 
       {/* Si la foto de la carga no llegó a subirse (mala señal en el muelle), el viaje no
           puede cerrarse. Se puede sacar de nuevo desde acá para no quedar trabado. */}
-      {enCurso && !data.viaje_vacio && !photos.some((p) => p.kind === PHOTO_KIND.CARGA) && (
+      {enCurso && data.foto_carga_requerida && !photos.some((p) => p.kind === PHOTO_KIND.CARGA) && (
         <MissingCargoPhoto tripId={trip.id} onDone={load} />
       )}
 

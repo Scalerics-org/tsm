@@ -4,6 +4,7 @@ import {
   CAMPO_MODO,
   FIELD_STAGE,
   PHOTO_KIND,
+  requiereFotoCarga,
   type CampoUbicacion,
   type LibretaEntry,
   type Trip,
@@ -67,6 +68,8 @@ export function StartTripPage() {
 
   const cargaFields = tpl.fields.filter((f) => f.stage === FIELD_STAGE.CARGA);
   const cu = tpl.campos_ubicacion ?? {};
+  // Misma regla que valida el cierre en el backend: la pantalla no exige lo que no se exige.
+  const pideFoto = requiereFotoCarga(tpl);
 
   /** Valor de una parte según su modo: fijo lo trae la plantilla, libreta lo elige el chofer. */
   const valorDe = (campo: CampoUbicacion | undefined, key: string, fallback: string): string => {
@@ -112,7 +115,7 @@ export function StartTripPage() {
     for (const f of cargaFields) {
       if (f.required && !String(values[f.key] ?? "").trim()) return setError(`Cargá ${f.label}.`);
     }
-    if (!file) return setError("Sacá la foto de la carga.");
+    if (pideFoto && !file) return setError("Sacá la foto de la carga.");
 
     setBusy(true);
     try {
@@ -125,7 +128,7 @@ export function StartTripPage() {
         field_values: values,
         truck_id: truckId ? Number(truckId) : undefined,
       });
-      await uploadPhoto(trip.id, file, PHOTO_KIND.CARGA);
+      if (file) await uploadPhoto(trip.id, file, PHOTO_KIND.CARGA);
       navigate(`/viaje/${trip.id}`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "No se pudo iniciar el viaje");
@@ -248,9 +251,14 @@ export function StartTripPage() {
         </div>
       )}
 
+      {/* En los combinados carga en 3 o 4 lugares: una foto por cada uno es documentación
+          excesiva, y el respaldo pasa a ser el N° de remito. Igual se puede sacar. */}
       <Card className="space-y-3">
         <Corners />
-        <CameraCapture label="Foto de la carga" onChange={setFile} />
+        <CameraCapture
+          label={pideFoto ? "Foto de la carga" : "Foto de la carga (opcional)"}
+          onChange={setFile}
+        />
       </Card>
 
       <ErrorText>{error}</ErrorText>

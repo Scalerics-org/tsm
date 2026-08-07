@@ -22,6 +22,7 @@ interface TemplateRow {
   renglones_fijos: string | null; // JSON
   pide_kilometros: number;
   viaje_vacio: number;
+  foto_carga_requerida: number;
   active: number;
   truck_ids?: string; // group_concat de template_trucks
 }
@@ -51,6 +52,7 @@ function toTemplate(r: TemplateRow): TripTemplate {
     renglones_fijos: r.renglones_fijos ? parseJson<TripSegmentInput[]>(r.renglones_fijos, []) : null,
     pide_kilometros: !!r.pide_kilometros,
     viaje_vacio: !!r.viaje_vacio,
+    foto_carga_requerida: !!r.foto_carga_requerida,
     truck_ids: r.truck_ids ? r.truck_ids.split(",").map(Number).filter((n) => !isNaN(n)) : [],
     active: !!r.active,
   };
@@ -59,7 +61,7 @@ function toTemplate(r: TemplateRow): TripTemplate {
 const SELECT = `
   SELECT tt.id, tt.provider_id, tt.name, tt.origin, tt.remite, tt.cargo_type,
          tt.dest_options, tt.fields, tt.arrival_photo_label, tt.campos_ubicacion,
-         tt.multi_renglon, tt.renglones_fijos, tt.pide_kilometros, tt.viaje_vacio, tt.active,
+         tt.multi_renglon, tt.renglones_fijos, tt.pide_kilometros, tt.viaje_vacio, tt.foto_carga_requerida, tt.active,
          p.name AS provider_name,
          (SELECT group_concat(truck_id) FROM template_trucks WHERE template_id = tt.id) AS truck_ids
   FROM trip_templates tt JOIN providers p ON p.id = tt.provider_id
@@ -90,6 +92,7 @@ export interface TemplateInput {
   renglones_fijos: TripSegmentInput[] | null;
   pide_kilometros: boolean;
   viaje_vacio: boolean;
+  foto_carga_requerida: boolean;
   truck_ids: number[];
   active: boolean;
 }
@@ -109,6 +112,7 @@ function bindArgs(t: TemplateInput) {
     t.renglones_fijos?.length ? JSON.stringify(t.renglones_fijos) : null,
     t.pide_kilometros ? 1 : 0,
     t.viaje_vacio ? 1 : 0,
+    t.foto_carga_requerida ? 1 : 0,
     t.active ? 1 : 0,
   ];
 }
@@ -116,8 +120,8 @@ function bindArgs(t: TemplateInput) {
 export async function createTemplate(db: D1Database, t: TemplateInput): Promise<number> {
   const res = await db
     .prepare(
-      `INSERT INTO trip_templates (provider_id, name, origin, remite, cargo_type, dest_options, fields, arrival_photo_label, campos_ubicacion, multi_renglon, renglones_fijos, pide_kilometros, viaje_vacio, active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO trip_templates (provider_id, name, origin, remite, cargo_type, dest_options, fields, arrival_photo_label, campos_ubicacion, multi_renglon, renglones_fijos, pide_kilometros, viaje_vacio, foto_carga_requerida, active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(...bindArgs(t))
     .run();
@@ -127,7 +131,7 @@ export async function createTemplate(db: D1Database, t: TemplateInput): Promise<
 export async function updateTemplate(db: D1Database, id: number, t: TemplateInput): Promise<void> {
   await db
     .prepare(
-      `UPDATE trip_templates SET provider_id=?, name=?, origin=?, remite=?, cargo_type=?, dest_options=?, fields=?, arrival_photo_label=?, campos_ubicacion=?, multi_renglon=?, renglones_fijos=?, pide_kilometros=?, viaje_vacio=?, active=?
+      `UPDATE trip_templates SET provider_id=?, name=?, origin=?, remite=?, cargo_type=?, dest_options=?, fields=?, arrival_photo_label=?, campos_ubicacion=?, multi_renglon=?, renglones_fijos=?, pide_kilometros=?, viaje_vacio=?, foto_carga_requerida=?, active=?
        WHERE id=?`,
     )
     .bind(...bindArgs(t), id)

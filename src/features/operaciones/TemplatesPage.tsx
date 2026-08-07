@@ -170,6 +170,7 @@ function TemplateForm({
     remite: initial?.remite ?? "",
     cargo_type: initial?.cargo_type ?? "",
     arrival_photo_label: initial?.arrival_photo_label ?? "",
+    foto_carga_requerida: initial?.foto_carga_requerida ?? true,
     active: initial?.active ?? true,
   });
   const [dests, setDests] = useState<DestOption[]>(initial?.dest_options ?? [{ destino: "", destinatario: "" }]);
@@ -188,6 +189,7 @@ function TemplateForm({
       remite: f.remite || null,
       cargo_type: f.cargo_type,
       arrival_photo_label: f.arrival_photo_label || null,
+      foto_carga_requerida: f.foto_carga_requerida,
       active: f.active,
       dest_options: dests.filter((d) => d.destino.trim()),
       fields: fields.filter((x) => x.label.trim()),
@@ -232,6 +234,17 @@ function TemplateForm({
           <label className="flex items-end gap-2 pb-2 text-sm text-ink">
             <input type="checkbox" className="h-4 w-4 accent-brand" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} />
             Activa (visible para choferes)
+          </label>
+          {/* En los combinados carga en varios lugares: pedir foto por cada uno es documentación
+              excesiva y el respaldo pasa a ser el N° de remito del renglón. */}
+          <label className="flex items-end gap-2 pb-2 text-sm text-ink">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-brand"
+              checked={f.foto_carga_requerida}
+              onChange={(e) => setF({ ...f, foto_carga_requerida: e.target.checked })}
+            />
+            Exigir foto de la carga para cerrar
           </label>
         </div>
 

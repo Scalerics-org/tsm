@@ -54,6 +54,7 @@ Una **plantilla** (`trip_templates`) define un viaje repetitivo de un cliente:
 | `dest_options` | Pares destino + destinatario que el chofer elige |
 | `fields` | Campos configurables (texto/número), por etapa (carga o descarga) y obligatorios o no |
 | `arrival_photo_label` | Etiqueta de la foto de descarga (`null` = no se pide) |
+| `foto_carga_requerida` | Si se exige foto de la carga para cerrar (default `1`; `0` en los combinados) |
 | `campos_ubicacion` | Partes que se resuelven con la libreta (ver abajo). `NULL` = flujo clásico |
 | `active` | Si le aparece o no al chofer |
 

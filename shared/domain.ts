@@ -124,6 +124,8 @@ export interface TripTemplate {
   pide_kilometros: boolean;
   /** Viaje sin carga (retornos vacíos). No pide cargas ni fotos de carga. */
   viaje_vacio: boolean;
+  /** Si se exige foto de la carga para cerrar. `false` en los combinados: el respaldo es el remito. */
+  foto_carga_requerida: boolean;
   /** Camiones que ven esta plantilla. Vacío = la ven todos. */
   truck_ids: number[];
   active: boolean;
@@ -375,6 +377,20 @@ export function aplicarCobro(
  */
 export function completarPendientes(reglas: CobroRegla[], segmentos: TripSegment[]): TripSegment[] {
   return segmentos.map((s) => (s.cobro_manual || s.cobro_tipo ? s : aplicarCobro(reglas, [s])[0]));
+}
+
+/**
+ * Si hay que exigir foto de la carga para cerrar el viaje.
+ *
+ * Un viaje sin plantilla la exige: es como venía funcionando, y quedarse sin evidencia es
+ * peor que pedirla de más. Solo la plantilla puede eximir — el vacío no tiene qué
+ * fotografiar y el combinado se respalda con el N° de remito de cada renglón.
+ */
+export function requiereFotoCarga(
+  tpl: Pick<TripTemplate, "viaje_vacio" | "foto_carga_requerida"> | null,
+): boolean {
+  if (!tpl) return true;
+  return !tpl.viaje_vacio && tpl.foto_carga_requerida;
 }
 
 /** Marcas de acento que NFD deja sueltas (U+0300–U+036F). Se arma por código para no meter
