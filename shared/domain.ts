@@ -117,6 +117,15 @@ export interface TripTemplate {
   arrival_photo_label: string | null; // etiqueta de la foto de descarga (ej. "Hoja rosada firmada")
   /** Partes que se resuelven con la libreta. Ausente = flujo clásico con dest_options. */
   campos_ubicacion: CamposUbicacion | null;
+  /** El chofer agrega una carga por cada lugar donde cargó (viajes combinados). */
+  multi_renglon: boolean;
+  /** Renglones ya puestos por la oficina (ida y vuelta): el chofer solo completa. */
+  renglones_fijos: TripSegmentInput[] | null;
+  pide_kilometros: boolean;
+  /** Viaje sin carga (retornos vacíos). No pide cargas ni fotos de carga. */
+  viaje_vacio: boolean;
+  /** Camiones que ven esta plantilla. Vacío = la ven todos. */
+  truck_ids: number[];
   active: boolean;
 }
 
@@ -138,6 +147,12 @@ export interface Trip {
   finished_at: string | null;
   notes: string | null; // observaciones
   created_at: string;
+  /** Cargas del viaje. Vacío en los viajes de un solo tramo. */
+  segments: TripSegment[];
+  kilometros: number | null;
+  /** Auditoría de correcciones de oficina sobre viajes ya cerrados. */
+  edited_by: number | null;
+  edited_at: string | null;
   // joins
   driver_name?: string;
   truck_plate?: string;
@@ -234,6 +249,37 @@ export interface CamposUbicacion {
   destinatario?: CampoUbicacion;
 }
 
+// ── Renglones (una carga dentro de un viaje) ──
+
+export const UNIDAD = { KILOS: "kilos", PALLETS: "pallets" } as const;
+export type Unidad = (typeof UNIDAD)[keyof typeof UNIDAD];
+
+/**
+ * Una carga del viaje: dónde cargó y para quién. Es la unidad facturable —
+ * equivale a una fila del Excel del cliente.
+ */
+export interface TripSegment {
+  /** Lugar de carga. Debe ser una entidad real: "Varios" no vale acá. */
+  remitente: string;
+  remitente_id: number | null;
+  /** Una misma carga puede ir a varios clientes (ej. Timber → Jair y Agronorte). */
+  clientes: string[];
+  cliente_ids: number[];
+  cantidad: number | null;
+  unidad: Unidad | null;
+  remito: string | null;
+  /** Facturación: heredada de las reglas. El chofer no la ve ni la toca. */
+  cobro_tipo: CobroTipo | null;
+  cobro_a: string | null;
+  cobro_manual: boolean;
+}
+
+/** Renglón sin la parte de facturación: es lo que manda el chofer. */
+export type TripSegmentInput = Pick<
+  TripSegment,
+  "remitente" | "remitente_id" | "clientes" | "cliente_ids" | "cantidad" | "unidad" | "remito"
+>;
+
 /** Regla de facturación. `destinatario_id: null` = aplica a cualquier destino. */
 export interface CobroRegla {
   id: number;
@@ -270,6 +316,43 @@ export function resolveCobro(
 
   const match = exacta ?? general;
   return match ? { cobro_tipo: match.cobro_tipo, cobro_a: match.cobro_a } : SIN_REGLA;
+}
+
+/**
+ * Completa la facturación de cada renglón a partir de las reglas.
+ *
+ * Un renglón puede ir a varios clientes: alcanza con que uno tenga regla para saber a
+ * quién se factura esa carga. Si ninguno matchea queda en null y la oficina lo ve como
+ * pendiente — nunca se inventa un cobro, porque facturar mal en silencio es peor que
+ * no tener el dato.
+ *
+ * Respeta los renglones que la oficina corrigió a mano (`cobro_manual`).
+ */
+export function aplicarCobro(
+  reglas: CobroRegla[],
+  segmentos: (TripSegmentInput & Partial<Pick<TripSegment, "cobro_tipo" | "cobro_a" | "cobro_manual">>)[],
+): TripSegment[] {
+  return segmentos.map((s) => {
+    if (s.cobro_manual) {
+      return {
+        ...s,
+        cobro_tipo: s.cobro_tipo ?? null,
+        cobro_a: s.cobro_a ?? null,
+        cobro_manual: true,
+      } as TripSegment;
+    }
+
+    const destinos: (number | null)[] = s.cliente_ids.length ? s.cliente_ids : [null];
+    let resuelto: CobroResuelto = { cobro_tipo: null, cobro_a: null };
+    for (const destinatarioId of destinos) {
+      const r = resolveCobro(reglas, s.remitente_id, destinatarioId);
+      if (r.cobro_tipo) {
+        resuelto = r;
+        break;
+      }
+    }
+    return { ...s, ...resuelto, cobro_manual: false } as TripSegment;
+  });
 }
 
 /** Marcas de acento que NFD deja sueltas (U+0300–U+036F). Se arma por código para no meter

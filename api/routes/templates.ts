@@ -8,7 +8,9 @@ import {
   FIELD_TYPE,
   CAMPO_MODO,
   LIBRETA_TIPO,
+  UNIDAD,
   type CamposUbicacion,
+  type TripSegmentInput,
 } from "../../shared/domain";
 import * as repo from "../repos/templates";
 
@@ -17,8 +19,20 @@ templates.use("*", requireAuth);
 
 // Choferes ven plantillas activas; oficina ve todas.
 templates.get("/", async (c) => {
-  const onlyActive = c.get("user").role === ROLES.CHOFER;
-  return ok(c, await repo.listTemplates(c.env.DB, onlyActive));
+  const user = c.get("user");
+  const esChofer = user.role === ROLES.CHOFER;
+  const todas = await repo.listTemplates(c.env.DB, esChofer);
+  if (!esChofer) return ok(c, todas);
+
+  // Hay camiones que no hacen ciertos trabajos: si la plantilla tiene camiones
+  // asignados y el suyo no está, no se la ofrecemos. Sin asignación, la ven todos.
+  // El camión puede venir por query (el chofer eligió otro al iniciar el viaje).
+  const q = c.req.query("truck");
+  const truckId = q ? Number(q) : user.truck_id;
+  return ok(
+    c,
+    todas.filter((t) => !t.truck_ids.length || (truckId != null && t.truck_ids.includes(truckId))),
+  );
 });
 
 function slug(s: string): string {
@@ -65,6 +79,23 @@ function parseCamposUbicacion(raw: any): CamposUbicacion | null {
   return Object.keys(out).length ? out : null;
 }
 
+/** Renglones que la oficina deja precargados (ida y vuelta). */
+function parseRenglonesFijos(raw: any): TripSegmentInput[] | null {
+  if (!Array.isArray(raw) || !raw.length) return null;
+  const out = raw
+    .map((r: any) => ({
+      remitente: String(r?.remitente ?? "").trim(),
+      remitente_id: r?.remitente_id ? Number(r.remitente_id) : null,
+      clientes: Array.isArray(r?.clientes) ? r.clientes.map((c: any) => String(c).trim()).filter(Boolean) : [],
+      cliente_ids: Array.isArray(r?.cliente_ids) ? r.cliente_ids.map(Number).filter((n: number) => !isNaN(n)) : [],
+      cantidad: r?.cantidad != null && r.cantidad !== "" ? Number(r.cantidad) : null,
+      unidad: r?.unidad === UNIDAD.KILOS || r?.unidad === UNIDAD.PALLETS ? r.unidad : null,
+      remito: r?.remito ? String(r.remito).trim() : null,
+    }))
+    .filter((r: TripSegmentInput) => r.remitente || r.clientes.length);
+  return out.length ? out : null;
+}
+
 function parse(b: any): repo.TemplateInput | null {
   if (!b || !b.provider_id || !b.name || !b.origin) return null;
   const dest_options = Array.isArray(b.dest_options)
@@ -94,6 +125,11 @@ function parse(b: any): repo.TemplateInput | null {
     fields,
     arrival_photo_label: b.arrival_photo_label ? String(b.arrival_photo_label).trim() : null,
     campos_ubicacion: parseCamposUbicacion(b.campos_ubicacion),
+    multi_renglon: !!b.multi_renglon,
+    renglones_fijos: parseRenglonesFijos(b.renglones_fijos),
+    pide_kilometros: !!b.pide_kilometros,
+    viaje_vacio: !!b.viaje_vacio,
+    truck_ids: Array.isArray(b.truck_ids) ? b.truck_ids.map(Number).filter((n: number) => !isNaN(n)) : [],
     active: b.active === undefined ? true : !!b.active,
   };
 }
@@ -102,6 +138,7 @@ templates.post("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const input = parse(await c.req.json().catch(() => null));
   if (!input) return fail(c, "Faltan campos (proveedor, nombre, origen)", 400);
   const id = await repo.createTemplate(c.env.DB, input);
+  await repo.setTemplateTrucks(c.env.DB, id, input.truck_ids);
   return ok(c, await repo.getTemplate(c.env.DB, id), 201);
 });
 
@@ -110,6 +147,7 @@ templates.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   if (!input) return fail(c, "Faltan campos (proveedor, nombre, origen)", 400);
   const id = Number(c.req.param("id"));
   await repo.updateTemplate(c.env.DB, id, input);
+  await repo.setTemplateTrucks(c.env.DB, id, input.truck_ids);
   return ok(c, await repo.getTemplate(c.env.DB, id));
 });
 

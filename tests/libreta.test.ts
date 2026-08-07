@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveCobro, normalizeNombre, type CobroRegla } from "@shared/domain";
+import { resolveCobro, aplicarCobro, normalizeNombre, type CobroRegla } from "@shared/domain";
 
 // Libreta: 1=Armco, 2=Agencia (remitentes) · 10=Varios Clientes, 11=Galpón (destinatarios)
 const REGLAS: CobroRegla[] = [
@@ -43,6 +43,50 @@ describe("resolveCobro", () => {
 
   it("con destinatario desconocido igual aplica la regla general", () => {
     expect(resolveCobro(REGLAS, 2, null).cobro_tipo).toBe("proveedor");
+  });
+});
+
+describe("aplicarCobro (herencia de la regla en cada renglón)", () => {
+  const base = { cantidad: null, unidad: null, remito: null, cliente_ids: [] as number[] };
+
+  it("cada renglón hereda según su propio par", () => {
+    const r = aplicarCobro(REGLAS, [
+      { ...base, remitente: "Armco", remitente_id: 1, clientes: ["Varios Clientes"], cliente_ids: [10] },
+      { ...base, remitente: "Armco", remitente_id: 1, clientes: ["Galpón"], cliente_ids: [11] },
+      { ...base, remitente: "Agencia", remitente_id: 2, clientes: ["Ancap"], cliente_ids: [99] },
+    ]);
+    expect(r.map((s) => s.cobro_tipo)).toEqual(["cliente", "proveedor", "proveedor"]);
+    expect(r.every((s) => s.cobro_manual === false)).toBe(true);
+  });
+
+  it("sin regla queda pendiente, no inventa un cobro", () => {
+    const r = aplicarCobro(REGLAS, [
+      { ...base, remitente: "Timber", remitente_id: 77, clientes: ["Jair"], cliente_ids: [50] },
+    ]);
+    expect(r[0].cobro_tipo).toBeNull();
+    expect(r[0].cobro_a).toBeNull();
+  });
+
+  it("con varios clientes usa el primero que tenga regla", () => {
+    // Timber → Jair y Agronorte: alcanza con que uno matchee para saber a quién se factura.
+    const reglas: CobroRegla[] = [
+      { id: 9, remitente_id: 77, destinatario_id: 51, cobro_tipo: "cliente", cobro_a: "Timber" },
+    ];
+    const r = aplicarCobro(reglas, [
+      { ...base, remitente: "Timber", remitente_id: 77, clientes: ["Jair", "Agronorte"], cliente_ids: [50, 51] },
+    ]);
+    expect(r[0].cobro_tipo).toBe("cliente");
+    expect(r[0].cobro_a).toBe("Timber");
+  });
+
+  it("no pisa un cobro puesto a mano por la oficina", () => {
+    const previos = [
+      { ...base, remitente: "Armco", remitente_id: 1, clientes: [], cliente_ids: [],
+        cobro_tipo: "proveedor" as const, cobro_a: "Excepción", cobro_manual: true },
+    ];
+    const r = aplicarCobro(REGLAS, previos);
+    expect(r[0].cobro_a).toBe("Excepción");
+    expect(r[0].cobro_manual).toBe(true);
   });
 });
 

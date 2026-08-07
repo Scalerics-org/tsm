@@ -1,4 +1,4 @@
-import type { Trip, TripStatus } from "../../shared/domain";
+import type { Trip, TripSegment, TripStatus } from "../../shared/domain";
 
 interface TripRow {
   id: number;
@@ -18,6 +18,10 @@ interface TripRow {
   finished_at: string | null;
   notes: string | null;
   created_at: string;
+  segments: string | null; // JSON
+  kilometros: number | null;
+  edited_by: number | null;
+  edited_at: string | null;
   driver_name?: string;
   truck_plate?: string;
 }
@@ -26,11 +30,22 @@ const SELECT = `
   SELECT t.id, t.template_id, t.provider_name, t.origin, t.remite, t.destination, t.destinatario,
          t.driver_id, t.truck_id, t.cargo_type, t.kilos, t.field_values, t.status,
          t.started_at, t.finished_at, t.notes, t.created_at,
+         t.segments, t.kilometros, t.edited_by, t.edited_at,
          d.name AS driver_name, tr.plate AS truck_plate
   FROM trips t
   JOIN drivers d ON d.id = t.driver_id
   JOIN trucks tr ON tr.id = t.truck_id
 `;
+
+function parseSegments(raw: string | null): TripSegment[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
 
 function toTrip(r: TripRow): Trip {
   let field_values: Record<string, string> = {};
@@ -57,6 +72,10 @@ function toTrip(r: TripRow): Trip {
     finished_at: r.finished_at,
     notes: r.notes,
     created_at: r.created_at,
+    segments: parseSegments(r.segments),
+    kilometros: r.kilometros,
+    edited_by: r.edited_by,
+    edited_at: r.edited_at,
     driver_name: r.driver_name,
     truck_plate: r.truck_plate,
   };
@@ -122,17 +141,20 @@ export interface StartTripInput {
   cargo_type: string;
   weight_tons: number | null;
   field_values: Record<string, string>;
+  segments?: TripSegment[];
+  kilometros?: number | null;
 }
 
 export async function startTrip(db: D1Database, t: StartTripInput): Promise<number> {
   const res = await db
     .prepare(
-      `INSERT INTO trips (template_id, provider_name, origin, remite, destination, destinatario, driver_id, truck_id, cargo_type, kilos, field_values, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'EN_CURSO')`,
+      `INSERT INTO trips (template_id, provider_name, origin, remite, destination, destinatario, driver_id, truck_id, cargo_type, kilos, field_values, segments, kilometros, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'EN_CURSO')`,
     )
     .bind(
       t.template_id, t.provider_name, t.origin, t.remite, t.destination, t.destinatario, t.driver_id, t.truck_id,
       t.cargo_type, t.weight_tons, JSON.stringify(t.field_values ?? {}),
+      t.segments?.length ? JSON.stringify(t.segments) : null, t.kilometros ?? null,
     )
     .run();
   return res.meta.last_row_id as number;
@@ -151,6 +173,28 @@ export async function finishTrip(
     )
     .bind(when, JSON.stringify(fieldValues ?? {}), notes, id)
     .run();
+}
+
+/** Reemplaza los renglones del viaje. Lo usa el chofer al agregar cargas y la oficina al corregir. */
+export async function updateSegments(
+  db: D1Database,
+  id: number,
+  segments: TripSegment[],
+  editor?: { userId: number; when: string },
+): Promise<void> {
+  const json = segments.length ? JSON.stringify(segments) : null;
+  if (editor) {
+    await db
+      .prepare("UPDATE trips SET segments=?, edited_by=?, edited_at=? WHERE id=?")
+      .bind(json, editor.userId, editor.when, id)
+      .run();
+    return;
+  }
+  await db.prepare("UPDATE trips SET segments=? WHERE id=?").bind(json, id).run();
+}
+
+export async function setKilometros(db: D1Database, id: number, km: number | null): Promise<void> {
+  await db.prepare("UPDATE trips SET kilometros=? WHERE id=?").bind(km, id).run();
 }
 
 export async function cancelTrip(db: D1Database, id: number, notes: string): Promise<void> {

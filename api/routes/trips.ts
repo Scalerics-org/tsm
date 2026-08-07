@@ -2,10 +2,20 @@ import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { ROLES, TRIP_STATUS, PHOTO_KIND, type Trip, type TripTemplate } from "../../shared/domain";
+import {
+  ROLES,
+  TRIP_STATUS,
+  PHOTO_KIND,
+  UNIDAD,
+  aplicarCobro,
+  type Trip,
+  type TripSegmentInput,
+  type TripTemplate,
+} from "../../shared/domain";
 import * as tripsRepo from "../repos/trips";
 import * as templatesRepo from "../repos/templates";
 import * as photosRepo from "../repos/photos";
+import * as libretaRepo from "../repos/libreta";
 
 const trips = new Hono<{ Bindings: Env; Variables: Vars }>();
 trips.use("*", requireAuth);
@@ -21,6 +31,28 @@ async function scoped(c: any): Promise<Scope> {
     return { error: "No podés acceder a este viaje", status: 403 };
   }
   return { trip };
+}
+
+/** Normaliza los renglones que manda el chofer. Un renglón sin lugar de carga no sirve. */
+function parseSegments(raw: any): TripSegmentInput[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((r: any) => ({
+      remitente: String(r?.remitente ?? "").trim(),
+      remitente_id: r?.remitente_id ? Number(r.remitente_id) : null,
+      clientes: Array.isArray(r?.clientes) ? r.clientes.map((c: any) => String(c).trim()).filter(Boolean) : [],
+      cliente_ids: Array.isArray(r?.cliente_ids) ? r.cliente_ids.map(Number).filter((n: number) => !isNaN(n)) : [],
+      cantidad: r?.cantidad != null && r.cantidad !== "" ? Number(r.cantidad) : null,
+      unidad: r?.unidad === UNIDAD.KILOS || r?.unidad === UNIDAD.PALLETS ? r.unidad : null,
+      remito: r?.remito ? String(r.remito).trim() : null,
+    }))
+    .filter((r) => r.remitente);
+}
+
+/** Completa la facturación de cada carga con las reglas. El chofer nunca manda esto. */
+async function conCobro(db: D1Database, segs: TripSegmentInput[]) {
+  if (!segs.length) return [];
+  return aplicarCobro(await libretaRepo.listReglas(db), segs);
 }
 
 // Valida los campos requeridos de una etapa (carga/descarga) contra los valores enviados.
@@ -120,8 +152,69 @@ trips.post("/", async (c) => {
     cargo_type: tpl.cargo_type,
     weight_tons: weight != null && !isNaN(weight) ? weight : null,
     field_values: values,
+    segments: await conCobro(c.env.DB, parseSegments(b.segments)),
   });
   return ok(c, await tripsRepo.getTrip(c.env.DB, id), 201);
+});
+
+// POST /api/trips/:id/segments — el chofer suma una carga al viaje en curso.
+trips.post("/:id/segments", async (c) => {
+  const s = await scoped(c);
+  if ("error" in s) return fail(c, s.error, s.status);
+  if (s.trip.status !== TRIP_STATUS.EN_CURSO) return fail(c, "El viaje no está en curso", 409);
+
+  const b = (await c.req.json().catch(() => ({}))) as { segments?: unknown };
+  const nuevos = parseSegments(b.segments);
+  if (!nuevos.length) return fail(c, "Falta el lugar de carga", 400);
+
+  // Los agrupadores ("Varios") no valen como lugar de carga: es justo el dato
+  // que no se puede perder para poder facturar.
+  for (const seg of nuevos) {
+    if (seg.remitente_id == null) continue;
+    const entrada = await libretaRepo.getEntry(c.env.DB, seg.remitente_id);
+    if (entrada?.agrupador) {
+      return fail(c, `"${entrada.nombre}" no sirve como lugar de carga: elegí dónde cargaste.`, 400);
+    }
+  }
+
+  const todos = [...s.trip.segments, ...(await conCobro(c.env.DB, nuevos))];
+  await tripsRepo.updateSegments(c.env.DB, s.trip.id, todos);
+  return ok(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
+});
+
+// DELETE /api/trips/:id/segments/:idx — quitar una carga cargada por error.
+trips.delete("/:id/segments/:idx", async (c) => {
+  const s = await scoped(c);
+  if ("error" in s) return fail(c, s.error, s.status);
+  if (s.trip.status !== TRIP_STATUS.EN_CURSO) return fail(c, "El viaje no está en curso", 409);
+  const idx = Number(c.req.param("idx"));
+  if (isNaN(idx) || idx < 0 || idx >= s.trip.segments.length) return fail(c, "Carga inexistente", 404);
+  const quedan = s.trip.segments.filter((_, i) => i !== idx);
+  await tripsRepo.updateSegments(c.env.DB, s.trip.id, quedan);
+  return ok(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
+});
+
+// PUT /api/trips/:id/segments — la oficina corrige las cargas, incluso de un viaje cerrado.
+trips.put("/:id/segments", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+  const trip = await tripsRepo.getTrip(c.env.DB, Number(c.req.param("id")));
+  if (!trip) return fail(c, "Viaje no encontrado", 404);
+  const b = (await c.req.json().catch(() => ({}))) as { segments?: unknown };
+  const segs = parseSegments(b.segments);
+  const conReglas = await conCobro(c.env.DB, segs);
+
+  // La oficina puede fijar el cobro a mano; eso no lo pisa la regla después.
+  const raw = Array.isArray(b.segments) ? (b.segments as any[]) : [];
+  const finales = conReglas.map((seg, i) => {
+    const m = raw[i];
+    if (!m?.cobro_manual) return seg;
+    return { ...seg, cobro_tipo: m.cobro_tipo ?? null, cobro_a: m.cobro_a ?? null, cobro_manual: true };
+  });
+
+  await tripsRepo.updateSegments(c.env.DB, trip.id, finales, {
+    userId: c.get("user").id,
+    when: nowIso(),
+  });
+  return ok(c, await tripsRepo.getTrip(c.env.DB, trip.id));
 });
 
 // POST /api/trips/:id/finish — registrar llegada (campos de descarga + observaciones)
@@ -133,6 +226,7 @@ trips.post("/:id/finish", async (c) => {
   const b = (await c.req.json().catch(() => ({}))) as {
     field_values?: Record<string, string>;
     notes?: string;
+    kilometros?: number;
   };
   const merged = { ...s.trip.field_values, ...(b.field_values ?? {}) };
 
@@ -142,13 +236,27 @@ trips.post("/:id/finish", async (c) => {
     if (missing) return fail(c, `Falta: ${missing}`, 400);
   }
 
+  // Un viaje combinado sin ninguna carga registrada no sirve para facturar.
+  if (tpl?.multi_renglon && !tpl.viaje_vacio && !s.trip.segments.length) {
+    return fail(c, "Registrá al menos una carga antes de cerrar el viaje.", 409);
+  }
+
+  if (tpl?.pide_kilometros && b.kilometros == null && s.trip.kilometros == null) {
+    return fail(c, "Falta: kilómetros del recorrido.", 400);
+  }
+  if (b.kilometros != null) {
+    await tripsRepo.setKilometros(c.env.DB, s.trip.id, Number(b.kilometros));
+  }
+
   // Un viaje no se cierra sin su evidencia: queda pendiente hasta que estén las fotos.
   // Solo se exige si R2 está configurado — sin R2 las fotos no se guardan y el viaje
   // nunca podría cerrarse. Al habilitarlo, la regla empieza a aplicar sola.
   if (c.env.FOTOS) {
     const fotos = await photosRepo.listPhotos(c.env.DB, s.trip.id);
     const faltantes: string[] = [];
-    if (!fotos.some((f) => f.kind === PHOTO_KIND.CARGA)) faltantes.push("la foto de la carga");
+    if (!tpl?.viaje_vacio && !fotos.some((f) => f.kind === PHOTO_KIND.CARGA)) {
+      faltantes.push("la foto de la carga");
+    }
     if (tpl?.arrival_photo_label && !fotos.some((f) => f.kind === PHOTO_KIND.DESCARGA)) {
       faltantes.push(`la foto: ${tpl.arrival_photo_label}`);
     }
