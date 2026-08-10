@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
-  PHOTO_KIND_LABEL,
   TRIP_STATUS,
-  type PhotoKind,
   type TemplateField,
   type Trip,
   type TripPhoto,
 } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText, Spinner, StatusBadge } from "../../components/ui";
-import { PhotoImage } from "../../components/PhotoImage";
 import { fmtDateTime } from "../../lib/format";
+import { CargasDelViaje } from "./CargasDelViaje";
 
 interface Detail {
   trip: Trip & { fields?: TemplateField[] };
@@ -89,23 +87,7 @@ export function OpsTripDetailPage() {
         )}
       </Card>
 
-      {photos.length > 0 ? (
-        <div>
-          <h3 className="mb-2 font-semibold text-ink">Fotos</h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {photos.map((p) => (
-              <div key={p.id}>
-                <PhotoImage r2Key={p.r2_key} alt={PHOTO_KIND_LABEL[p.kind as PhotoKind]} className="h-32 w-full" />
-                <div className="mt-1 text-xs text-ink/60">
-                  {PHOTO_KIND_LABEL[p.kind as PhotoKind]} · {fmtDateTime(p.taken_at)}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <p className="text-sm text-ink/50">Sin fotos cargadas todavía.</p>
-      )}
+      <CargasDelViaje segments={trip.segments} photos={photos} />
     </div>
   );
 }

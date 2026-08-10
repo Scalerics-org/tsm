@@ -440,6 +440,33 @@ export function renglonesSinFoto<T extends Pick<TripSegment, "sid">>(
 }
 
 /**
+ * Reparte las fotos entre las cargas a las que pertenecen.
+ *
+ * En un combinado de tres paradas hay tres fotos de "carga": sin repartirlas, la oficina
+ * ve tres imágenes con la misma etiqueta y tiene que adivinar cuál es cuál. Las que no
+ * pertenecen a ninguna carga (descarga, documento, o las de antes de este cambio) quedan
+ * en `delViaje`.
+ */
+export function fotosPorRenglon(photos: TripPhoto[]): {
+  porCarga: Map<string, TripPhoto[]>;
+  delViaje: TripPhoto[];
+} {
+  const porCarga = new Map<string, TripPhoto[]>();
+  const delViaje: TripPhoto[] = [];
+
+  for (const p of photos) {
+    if (!p.segment_sid) {
+      delViaje.push(p);
+      continue;
+    }
+    const previas = porCarga.get(p.segment_sid);
+    if (previas) previas.push(p);
+    else porCarga.set(p.segment_sid, [p]);
+  }
+  return { porCarga, delViaje };
+}
+
+/**
  * Si hay que exigir foto de la carga para cerrar el viaje.
  *
  * Un viaje sin plantilla la exige: es como venía funcionando, y quedarse sin evidencia es
