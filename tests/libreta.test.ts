@@ -4,6 +4,7 @@ import {
   aplicarCobro,
   completarPendientes,
   normalizeNombre,
+  sinCobro,
   type CobroRegla,
   type TripSegment,
 } from "@shared/domain";
@@ -148,5 +149,56 @@ describe("normalizeNombre (detección de duplicados en la libreta)", () => {
 
   it("distingue nombres realmente distintos", () => {
     expect(normalizeNombre("Armco")).not.toBe(normalizeNombre("Agencia"));
+  });
+});
+
+describe("sinCobro (el chofer no accede a la facturación)", () => {
+  const viaje = {
+    id: 1,
+    segments: [
+      {
+        sid: "a",
+        remitente: "Armco",
+        remitente_id: 1,
+        clientes: ["Galpón"],
+        cliente_ids: [11],
+        cantidad: 100,
+        unidad: "kilos" as const,
+        remito: "R-1",
+        cobro_tipo: "cliente" as const,
+        cobro_a: "Armco",
+        cobro_manual: false,
+      },
+    ],
+  } as unknown as Parameters<typeof sinCobro>[0];
+
+  it("saca el cobro de cada carga", () => {
+    // No alcanza con no mostrarlo: si viaja al celular, se lee abriendo el inspector.
+    const carga = sinCobro(viaje).segments[0] as Record<string, unknown>;
+    expect(carga.cobro_tipo).toBeUndefined();
+    expect(carga.cobro_a).toBeUndefined();
+    expect(carga.cobro_manual).toBeUndefined();
+  });
+
+  it("deja intacto lo que el chofer sí necesita", () => {
+    const carga = sinCobro(viaje).segments[0];
+    expect(carga).toMatchObject({
+      sid: "a",
+      remitente: "Armco",
+      clientes: ["Galpón"],
+      cantidad: 100,
+      unidad: "kilos",
+      remito: "R-1",
+    });
+  });
+
+  it("no toca el viaje original", () => {
+    sinCobro(viaje);
+    expect((viaje.segments[0] as Record<string, unknown>).cobro_a).toBe("Armco");
+  });
+
+  it("un viaje sin cargas no rompe", () => {
+    const vacio = { ...viaje, segments: [] };
+    expect(sinCobro(vacio).segments).toEqual([]);
   });
 });

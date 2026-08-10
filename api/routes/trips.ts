@@ -9,6 +9,7 @@ import {
   UNIDAD,
   aplicarCobro,
   renglonesSinFoto,
+  sinCobro,
   requiereFotoCarga,
   type Trip,
   type TripSegmentInput,
@@ -64,6 +65,15 @@ function parseSegments(raw: any, usados = new Set<string>()): TripSegmentInput[]
     .filter((r) => r.remitente);
 }
 
+/**
+ * Devuelve el viaje sacándole la facturación si quien pregunta es un chofer.
+ * Se usa en TODA respuesta que lleve un viaje: alcanza con olvidarse en una para filtrarla.
+ */
+function okViaje(c: any, trip: Trip | null) {
+  const esChofer = c.get("user").role === ROLES.CHOFER;
+  return ok(c, trip && esChofer ? sinCobro(trip) : trip);
+}
+
 /** Completa la facturación de cada carga con las reglas. El chofer nunca manda esto. */
 async function conCobro(db: D1Database, segs: TripSegmentInput[]) {
   if (!segs.length) return [];
@@ -97,14 +107,16 @@ trips.get("/", async (c) => {
   } else if (q.driver) {
     filters.driverId = Number(q.driver);
   }
-  return ok(c, await tripsRepo.listTrips(c.env.DB, filters));
+  const viajes = await tripsRepo.listTrips(c.env.DB, filters);
+  return ok(c, user.role === ROLES.CHOFER ? viajes.map(sinCobro) : viajes);
 });
 
 // GET /api/trips/active — viaje en curso del chofer
 trips.get("/active", async (c) => {
   const user = c.get("user");
   if (user.role !== ROLES.CHOFER || user.driver_id == null) return ok(c, null);
-  return ok(c, await tripsRepo.activeTripForDriver(c.env.DB, user.driver_id));
+  const activo = await tripsRepo.activeTripForDriver(c.env.DB, user.driver_id);
+  return ok(c, activo ? sinCobro(activo) : null);
 });
 
 // GET /api/trips/:id — detalle + fotos + definición de campos de la plantilla
@@ -115,7 +127,9 @@ trips.get("/:id", async (c) => {
     photosRepo.listPhotos(c.env.DB, s.trip.id),
     s.trip.template_id ? templatesRepo.getTemplate(c.env.DB, s.trip.template_id) : Promise.resolve(null),
   ]);
-  const trip = { ...s.trip, fields: tpl?.fields ?? [] };
+  const esChofer = c.get("user").role === ROLES.CHOFER;
+  const base = esChofer ? sinCobro(s.trip) : s.trip;
+  const trip = { ...base, fields: tpl?.fields ?? [] };
   return ok(c, {
     trip,
     photos,
@@ -182,7 +196,7 @@ trips.post("/", async (c) => {
     field_values: values,
     segments: await conCobro(c.env.DB, parseSegments(b.segments)),
   });
-  return ok(c, await tripsRepo.getTrip(c.env.DB, id), 201);
+  return okViaje(c, await tripsRepo.getTrip(c.env.DB, id));
 });
 
 // POST /api/trips/:id/segments — el chofer suma una carga al viaje en curso.
@@ -209,7 +223,7 @@ trips.post("/:id/segments", async (c) => {
 
   const todos = [...s.trip.segments, ...(await conCobro(c.env.DB, nuevos))];
   await tripsRepo.updateSegments(c.env.DB, s.trip.id, todos);
-  return ok(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
+  return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
 });
 
 // DELETE /api/trips/:id/segments/:idx — quitar una carga cargada por error.
@@ -221,7 +235,7 @@ trips.delete("/:id/segments/:idx", async (c) => {
   if (isNaN(idx) || idx < 0 || idx >= s.trip.segments.length) return fail(c, "Carga inexistente", 404);
   const quedan = s.trip.segments.filter((_, i) => i !== idx);
   await tripsRepo.updateSegments(c.env.DB, s.trip.id, quedan);
-  return ok(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
+  return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
 });
 
 // PUT /api/trips/:id/segments — la oficina corrige las cargas, incluso de un viaje cerrado.
@@ -305,7 +319,7 @@ trips.post("/:id/finish", async (c) => {
   }
 
   await tripsRepo.finishTrip(c.env.DB, s.trip.id, nowIso(), merged, b.notes ?? s.trip.notes ?? null);
-  return ok(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
+  return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
 });
 
 // POST /api/trips/:id/cancel
@@ -314,7 +328,7 @@ trips.post("/:id/cancel", async (c) => {
   if ("error" in s) return fail(c, s.error, s.status);
   const b = (await c.req.json().catch(() => ({}))) as { notes?: string };
   await tripsRepo.cancelTrip(c.env.DB, s.trip.id, b.notes ?? "");
-  return ok(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
+  return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
 });
 
 trips.delete("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {

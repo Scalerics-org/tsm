@@ -402,6 +402,26 @@ export function completarPendientes(reglas: CobroRegla[], segmentos: TripSegment
   return segmentos.map((s) => (s.cobro_manual || s.cobro_tipo ? s : aplicarCobro(reglas, [s])[0]));
 }
 
+/** Carga tal como la ve el chofer: sin nada de facturación. */
+export type TripSegmentChofer = Omit<TripSegment, "cobro_tipo" | "cobro_a" | "cobro_manual">;
+
+/** Viaje tal como se le manda al chofer. */
+export type TripChofer = Omit<Trip, "segments"> & { segments: TripSegmentChofer[] };
+
+/**
+ * Saca la facturación de las cargas antes de mandarle el viaje al chofer.
+ *
+ * La pantalla del chofer no la muestra, pero si el dato viaja igual alcanza con abrir las
+ * herramientas del navegador en el celular para leerlo. Lo que se le prometió al cliente es
+ * que el chofer **no accede** a la facturación, no que no la vea en pantalla.
+ */
+export function sinCobro(trip: Trip): TripChofer {
+  return {
+    ...trip,
+    segments: trip.segments.map(({ cobro_tipo, cobro_a, cobro_manual, ...carga }) => carga),
+  };
+}
+
 /**
  * Cargas que todavía no tienen su foto.
  *
@@ -409,10 +429,10 @@ export function completarPendientes(reglas: CobroRegla[], segmentos: TripSegment
  * una sola no se sabe cuál de las tres cargas quedó documentada. Se cruza por `sid` y no
  * por posición, así borrar una carga no corre las fotos de las demás.
  */
-export function renglonesSinFoto(
-  segments: TripSegment[],
+export function renglonesSinFoto<T extends Pick<TripSegment, "sid">>(
+  segments: T[],
   photos: Pick<TripPhoto, "kind" | "segment_sid">[],
-): TripSegment[] {
+): T[] {
   const conFoto = new Set(
     photos.filter((p) => p.kind === PHOTO_KIND.CARGA && p.segment_sid).map((p) => p.segment_sid),
   );
