@@ -69,7 +69,11 @@ export function StartTripPage() {
   const cargaFields = tpl.fields.filter((f) => f.stage === FIELD_STAGE.CARGA);
   const cu = tpl.campos_ubicacion ?? {};
   // Misma regla que valida el cierre en el backend: la pantalla no exige lo que no se exige.
-  const pideFoto = requiereFotoCarga(tpl);
+  //
+  // En los combinados no se pide al salir: la evidencia va por lugar de carga, y al arrancar
+  // todavía no hay ninguna carga a la que pegarla. Pedirla acá deja una foto suelta que no
+  // cuenta para el cierre, y el chofer termina sacando cuatro para tres paradas.
+  const pideFoto = requiereFotoCarga(tpl) && !tpl.multi_renglon;
 
   /** Valor de una parte según su modo: fijo lo trae la plantilla, libreta lo elige el chofer. */
   const valorDe = (campo: CampoUbicacion | undefined, key: string, fallback: string): string => {
@@ -251,15 +255,16 @@ export function StartTripPage() {
         </div>
       )}
 
-      {/* En los combinados carga en 3 o 4 lugares: una foto por cada uno es documentación
-          excesiva, y el respaldo pasa a ser el N° de remito. Igual se puede sacar. */}
-      <Card className="space-y-3">
-        <Corners />
-        <CameraCapture
-          label={pideFoto ? "Foto de la carga" : "Foto de la carga (opcional)"}
-          onChange={setFile}
-        />
-      </Card>
+      {/* En el combinado no va: cada carga trae la suya al registrarla. */}
+      {!tpl.multi_renglon && (
+        <Card className="space-y-3">
+          <Corners />
+          <CameraCapture
+            label={pideFoto ? "Foto de la carga" : "Foto de la carga (opcional)"}
+            onChange={setFile}
+          />
+        </Card>
+      )}
 
       <ErrorText>{error}</ErrorText>
       <Button variant="success" loading={busy} onClick={confirm} className="w-full py-4 text-lg">
