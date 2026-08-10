@@ -38,9 +38,9 @@ database_id = "768f2a51-6dec-49cd-9f85-718242e17fca"
 # Requiere habilitar R2 en la cuenta de Scalerics y crear el bucket:
 #   npx wrangler r2 bucket create logistica-fotos
 # Una vez creado, descomentar y volver a desplegar.
-# [[r2_buckets]]
-# binding = "FOTOS"
-# bucket_name = "logistica-fotos"
+[[r2_buckets]]
+binding = "FOTOS"
+bucket_name = "logistica-fotos"
 
 # JWT_SECRET se carga como secret:  npx wrangler secret put JWT_SECRET
 [vars]
