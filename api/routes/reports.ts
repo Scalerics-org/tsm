@@ -271,18 +271,22 @@ reports.get("/trips.csv", async (c) => {
 
   const rows: (string | number | null)[][] = [];
   for (const t of trips) {
-    const comunes = [t.id, t.started_at.slice(0, 10), t.provider_name, t.origin, t.destination];
+    const comunes = [t.id, t.started_at.slice(0, 10), t.provider_name];
     const cola = [
       t.weight_tons ?? "", t.kilometros ?? "", flattenFields(t),
       t.driver_name ?? "", t.truck_plate ?? "", t.status, t.started_at, t.finished_at ?? "", t.notes ?? "",
     ];
     if (!t.segments.length) {
-      rows.push([...comunes, t.remite ?? "", t.destinatario ?? "", "", "", "", "", "", ...cola]);
+      rows.push([...comunes, t.origin, t.destination, t.remite ?? "", t.destinatario ?? "", "", "", "", "", "", ...cola]);
       continue;
     }
     for (const s of t.segments) {
       rows.push([
         ...comunes,
+        // En el combinado genérico cada carga tiene su propio tramo; en los demás
+        // hereda el del viaje.
+        s.origen ?? t.origin,
+        s.destino ?? t.destination,
         s.remitente,
         s.clientes.join(" / "),
         s.cantidad ?? "",

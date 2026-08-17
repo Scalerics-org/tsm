@@ -28,6 +28,8 @@ interface Detail {
   viaje_vacio: boolean;
   /** Si el cierre va a exigir la foto de la carga. Lo resuelve el backend con la plantilla. */
   foto_carga_requerida: boolean;
+  /** Combinado genérico: cada carga lleva su ciudad y su destino. */
+  renglon_pide_ubicacion: boolean;
   provider_id: number | null;
 }
 
@@ -121,6 +123,9 @@ export function ChoferTripPage() {
           segments={trip.segments}
           photos={photos}
           pideFoto={data.foto_carga_requerida}
+          pideUbicacion={data.renglon_pide_ubicacion}
+          origenViaje={trip.origin}
+          destinoViaje={trip.destination}
           editable={enCurso}
           onChange={load}
         />

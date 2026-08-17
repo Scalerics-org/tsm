@@ -110,6 +110,27 @@ describe("fuelFeedback (cierre por llenado + mensual)", () => {
     expect(r.month_km).toBe(450);
     expect(r.month_kml).toBeCloseTo(2.87, 2);
   });
+
+  it("cargar sin llenar NO mueve el acumulado del mes", () => {
+    // Es lo que muestra la planilla del cliente: después de echar un poco, el acumulado
+    // queda igual. Esos litros siguen en el tanque — contarlos haría parecer que el
+    // camión rinde peor de lo que rinde.
+    const lleno = { odometer_km: 100450, liters: 157, is_full: true, logged_at: "2026-07-20 08:00:00" };
+    const chorro = { odometer_km: 100450, liters: 200, is_full: false, logged_at: "2026-07-25 08:00:00" };
+    const conLleno = fuelFeedback([base, lleno], lleno);
+    const conChorro = fuelFeedback([base, lleno, chorro], chorro);
+    expect(conChorro.month_kml).toBeCloseTo(conLleno.month_kml!, 5);
+    expect(conChorro.month_kml).toBeCloseTo(2.87, 2);
+  });
+
+  it("los litros del chorro entran recién cuando vuelve a llenar", () => {
+    const lleno = { odometer_km: 100450, liters: 157, is_full: true, logged_at: "2026-07-20 08:00:00" };
+    const chorro = { odometer_km: 100450, liters: 100, is_full: false, logged_at: "2026-07-25 08:00:00" };
+    const cierra = { odometer_km: 100900, liters: 50, is_full: true, logged_at: "2026-07-30 08:00:00" };
+    const r = fuelFeedback([base, lleno, chorro, cierra], cierra);
+    expect(r.month_km).toBe(900); // 100000 → 100900
+    expect(r.month_liters).toBe(307); // 157 + 100 + 50, la base no cuenta
+  });
 });
 
 describe("monthlyConsumption (cierre con el primer llenado del mes siguiente)", () => {

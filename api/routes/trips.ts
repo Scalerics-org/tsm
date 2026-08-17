@@ -54,6 +54,12 @@ function parseSegments(raw: any, usados = new Set<string>()): TripSegmentInput[]
   return raw
     .map((r: any) => ({
       sid: sidDe(r?.sid, usados),
+      // Ciudad de carga y destino propios del renglón: sólo llegan en el combinado
+      // genérico. En los demás quedan null y vale lo del viaje.
+      origen: r?.origen ? String(r.origen).trim() : null,
+      origen_id: r?.origen_id ? Number(r.origen_id) : null,
+      destino: r?.destino ? String(r.destino).trim() : null,
+      destino_id: r?.destino_id ? Number(r.destino_id) : null,
       remitente: String(r?.remitente ?? "").trim(),
       remitente_id: r?.remitente_id ? Number(r.remitente_id) : null,
       clientes: Array.isArray(r?.clientes) ? r.clientes.map((c: any) => String(c).trim()).filter(Boolean) : [],
@@ -142,6 +148,7 @@ trips.get("/:id", async (c) => {
     // exige. Sin R2 las fotos ni se guardan, así que tampoco se piden — si no, el chofer
     // no podría registrar una carga y le quedaría un "falta la foto" que nunca se va.
     foto_carga_requerida: !!c.env.FOTOS && requiereFotoCarga(tpl),
+    renglon_pide_ubicacion: !!tpl?.renglon_pide_ubicacion,
     provider_id: tpl?.provider_id ?? null,
   });
 });

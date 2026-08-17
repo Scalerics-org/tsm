@@ -84,6 +84,10 @@ function parseRenglonesFijos(raw: any): RenglonFijo[] | null {
   if (!Array.isArray(raw) || !raw.length) return null;
   const out = raw
     .map((r: any) => ({
+      origen: r?.origen ? String(r.origen).trim() : null,
+      origen_id: r?.origen_id ? Number(r.origen_id) : null,
+      destino: r?.destino ? String(r.destino).trim() : null,
+      destino_id: r?.destino_id ? Number(r.destino_id) : null,
       remitente: String(r?.remitente ?? "").trim(),
       remitente_id: r?.remitente_id ? Number(r.remitente_id) : null,
       clientes: Array.isArray(r?.clientes) ? r.clientes.map((c: any) => String(c).trim()).filter(Boolean) : [],
@@ -126,6 +130,7 @@ function parse(b: any): repo.TemplateInput | null {
     arrival_photo_label: b.arrival_photo_label ? String(b.arrival_photo_label).trim() : null,
     campos_ubicacion: parseCamposUbicacion(b.campos_ubicacion),
     multi_renglon: !!b.multi_renglon,
+    renglon_pide_ubicacion: !!b.renglon_pide_ubicacion,
     renglones_fijos: parseRenglonesFijos(b.renglones_fijos),
     pide_kilometros: !!b.pide_kilometros,
     viaje_vacio: !!b.viaje_vacio,

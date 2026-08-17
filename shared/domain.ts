@@ -120,6 +120,15 @@ export interface TripTemplate {
   campos_ubicacion: CamposUbicacion | null;
   /** El chofer agrega una carga por cada lugar donde cargó (viajes combinados). */
   multi_renglon: boolean;
+  /**
+   * Cada carga lleva su propia ciudad de carga y su destino, además del lugar y los
+   * clientes. Es lo que necesita el combinado genérico, donde nada viene fijo.
+   *
+   * Se heredan del renglón anterior (o del viaje) y el chofer sólo los cambia en la
+   * línea que sea distinta: cargar en dos ciudades el mismo viaje es la excepción,
+   * no la regla, y no se le puede cobrar a todos el precio de la excepción.
+   */
+  renglon_pide_ubicacion: boolean;
   /** Renglones ya puestos por la oficina (ida y vuelta): el chofer solo completa. */
   renglones_fijos: RenglonFijo[] | null;
   pide_kilometros: boolean;
@@ -222,10 +231,18 @@ export type LibretaEstado = (typeof LIBRETA_ESTADO)[keyof typeof LIBRETA_ESTADO]
 export const COBRO_TIPO = { CLIENTE: "cliente", PROVEEDOR: "proveedor" } as const;
 export type CobroTipo = (typeof COBRO_TIPO)[keyof typeof COBRO_TIPO];
 
+/** Uno de los 19. Lista fija: no se da de alta desde la ruta ni se fusiona. */
+export interface Departamento {
+  id: number;
+  nombre: string;
+}
+
 export interface LibretaEntry {
   id: number;
   tipo: LibretaTipo;
   nombre: string;
+  /** Para poder filtrar los lugares por departamento antes de buscar. */
+  departamento_id?: number | null;
   provider_id: number | null; // null = disponible para todos los clientes
   /** "Varios" y similares: se pueden usar como nombre de plantilla, nunca dentro de un renglón. */
   agrupador: boolean;
@@ -279,6 +296,15 @@ export interface TripSegment {
    * índice, borrar la primera dejaría a todas las fotos apuntando a la carga equivocada.
    */
   sid: string;
+  /**
+   * Ciudad donde cargó. Sólo en los viajes que no tienen origen fijo (el combinado
+   * genérico); en los demás queda null y vale el origen del viaje.
+   */
+  origen: string | null;
+  origen_id: number | null;
+  /** Destino de esta carga. Null = va al destino del viaje. */
+  destino: string | null;
+  destino_id: number | null;
   /** Lugar de carga. Debe ser una entidad real: "Varios" no vale acá. */
   remitente: string;
   remitente_id: number | null;
@@ -297,7 +323,18 @@ export interface TripSegment {
 /** Renglón sin la parte de facturación: es lo que manda el chofer. */
 export type TripSegmentInput = Pick<
   TripSegment,
-  "sid" | "remitente" | "remitente_id" | "clientes" | "cliente_ids" | "cantidad" | "unidad" | "remito"
+  | "sid"
+  | "origen"
+  | "origen_id"
+  | "destino"
+  | "destino_id"
+  | "remitente"
+  | "remitente_id"
+  | "clientes"
+  | "cliente_ids"
+  | "cantidad"
+  | "unidad"
+  | "remito"
 >;
 
 /**
@@ -586,16 +623,29 @@ export function fuelFeedback(logs: FLog[], current: FLog): FuelFeedback {
     }
   }
 
+  // El acumulado del mes va del PRIMER al ÚLTIMO llenado del mes, no hasta la surtida
+  // actual: los litros cargados después del último llenado siguen en el tanque, no se
+  // quemaron. Contarlos ya mismo haría parecer que el camión rinde peor de lo que rinde
+  // —y es lo que muestra la planilla del cliente, donde el acumulado no se mueve hasta
+  // que vuelve a llenar.
+  //
+  // Se recorre por fecha y no por odómetro: una surtida sin llenar no mueve el tacógrafo,
+  // así que puede tener el mismo kilometraje que el llenado anterior.
   const month = current.logged_at.slice(0, 7);
-  const monthLogs = sorted.filter((l) => l.logged_at.slice(0, 7) === month);
-  const firstFull = monthLogs.find((l) => l.is_full);
+  const cronologico = logs
+    .filter((l) => l.logged_at.slice(0, 7) === month)
+    .sort((a, b) => a.logged_at.localeCompare(b.logged_at));
+  const primerLleno = cronologico.findIndex((l) => l.is_full);
+  const ultimoLleno = cronologico.map((l) => l.is_full).lastIndexOf(true);
+
   let month_km = 0;
   let month_liters = 0;
   let month_kml: number | null = null;
-  if (firstFull && firstFull.odometer_km < current.odometer_km) {
-    month_km = current.odometer_km - firstFull.odometer_km;
-    month_liters = monthLogs
-      .filter((l) => l.odometer_km > firstFull.odometer_km && l.odometer_km <= current.odometer_km)
+  if (primerLleno >= 0 && ultimoLleno > primerLleno) {
+    month_km = cronologico[ultimoLleno].odometer_km - cronologico[primerLleno].odometer_km;
+    // El llenado inicial es la línea de base y no cuenta: arranca en el siguiente.
+    month_liters = cronologico
+      .slice(primerLleno + 1, ultimoLleno + 1)
       .reduce((s, l) => s + l.liters, 0);
     month_kml = kmPorLitro(month_km, month_liters);
   }

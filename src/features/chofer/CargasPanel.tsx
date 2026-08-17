@@ -22,6 +22,11 @@ interface Props {
   photos: TripPhoto[];
   /** Si cada carga necesita su foto para poder cerrar el viaje. */
   pideFoto: boolean;
+  /** Combinado genérico: cada carga lleva su ciudad de carga y su destino. */
+  pideUbicacion: boolean;
+  /** Origen y destino del viaje: los renglones los heredan. */
+  origenViaje: string;
+  destinoViaje: string;
   editable: boolean;
   onChange: () => void;
 }
@@ -36,11 +41,17 @@ export function CargasPanel({
   segments,
   photos,
   pideFoto,
+  pideUbicacion,
+  origenViaje,
+  destinoViaje,
   editable,
   onChange,
 }: Props) {
   const [agregando, setAgregando] = useState(false);
   const sinFoto = new Set(renglonesSinFoto(segments, photos).map((s) => s.sid));
+  // La carga nueva hereda de la anterior; si es la primera, del viaje. Cargar en dos
+  // ciudades el mismo viaje es la excepción, así que no se le pregunta a todos.
+  const ultima = segments.length ? segments[segments.length - 1] : null;
 
   return (
     <div>
@@ -67,6 +78,11 @@ export function CargasPanel({
               <div className="font-cond text-lg font-semibold leading-tight text-ink">{s.remitente}</div>
               {s.clientes.length > 0 && (
                 <div className="text-sm text-ink/60">{s.clientes.join(" · ")}</div>
+              )}
+              {pideUbicacion && (s.origen || s.destino) && (
+                <div className="text-xs text-ink/45">
+                  {s.origen ?? origenViaje} → {s.destino ?? destinoViaje}
+                </div>
               )}
               {pideFoto && sinFoto.has(s.sid) && (
                 <div className="text-xs font-semibold text-st-amberTx">Falta la foto</div>
@@ -107,6 +123,9 @@ export function CargasPanel({
             tripId={tripId}
             providerId={providerId}
             pideFoto={pideFoto}
+            pideUbicacion={pideUbicacion}
+            origenHeredado={ultima?.origen ?? origenViaje}
+            destinoHeredado={ultima?.destino ?? destinoViaje}
             onCancel={() => setAgregando(false)}
             onSaved={(seguirCargando) => {
               setAgregando(seguirCargando);
@@ -130,15 +149,25 @@ function NuevaCarga({
   tripId,
   providerId,
   pideFoto,
+  pideUbicacion,
+  origenHeredado,
+  destinoHeredado,
   onCancel,
   onSaved,
 }: {
   tripId: number;
   providerId: number | null;
   pideFoto: boolean;
+  pideUbicacion: boolean;
+  origenHeredado: string;
+  destinoHeredado: string;
   onCancel: () => void;
   onSaved: (seguirCargando: boolean) => void;
 }) {
+  // Vienen heredados y sólo se tocan si esta carga fue de otra ciudad o a otro destino.
+  const [origen, setOrigen] = useState<LibretaEntry | null>(null);
+  const [destino, setDestino] = useState<LibretaEntry | null>(null);
+  const [cambiarUbicacion, setCambiarUbicacion] = useState(false);
   const [lugar, setLugar] = useState<LibretaEntry | null>(null);
   const [clientes, setClientes] = useState<LibretaEntry[]>([]);
   const [opciones, setOpciones] = useState<LibretaEntry[] | null>(null);
@@ -175,6 +204,11 @@ function NuevaCarga({
         segments: [
           {
             sid,
+            // Sólo viajan si el chofer los cambió: null significa "el del viaje".
+            origen: origen?.nombre ?? null,
+            origen_id: origen?.id ?? null,
+            destino: destino?.nombre ?? null,
+            destino_id: destino?.id ?? null,
             remitente: lugar.nombre,
             remitente_id: lugar.id,
             clientes: clientes.map((c) => c.nombre),
@@ -203,6 +237,41 @@ function NuevaCarga({
   return (
     <Card className="mt-2 space-y-4">
       <h3 className="font-cond text-xl font-semibold text-ink">Agregar carga</h3>
+
+      {/* Ciudad y destino vienen heredados. La mayoría de las cargas de un viaje son del
+          mismo tramo, así que se muestran resueltos y sólo se abren si hay que cambiarlos. */}
+      {pideUbicacion &&
+        (cambiarUbicacion ? (
+          <div className="space-y-3 border border-ink/15 bg-bg p-3">
+            <LibretaPicker
+              tipo={LIBRETA_TIPO.LUGAR}
+              label="Ciudad de carga"
+              value={origen}
+              onChange={setOrigen}
+              placeholder={origenHeredado}
+            />
+            <LibretaPicker
+              tipo={LIBRETA_TIPO.LUGAR}
+              label="Destino"
+              value={destino}
+              onChange={setDestino}
+              placeholder={destinoHeredado}
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setCambiarUbicacion(true)}
+            className="flex w-full items-center justify-between border border-ink/15 bg-bg px-3 py-2 text-left"
+          >
+            <span className="min-w-0 truncate text-sm text-ink/70">
+              {origenHeredado || "—"} → {destinoHeredado || "—"}
+            </span>
+            <span className="ml-2 flex-none font-cond text-[12px] font-semibold uppercase tracking-[0.08em] text-brand-700">
+              Cambiar
+            </span>
+          </button>
+        ))}
 
       <LibretaPicker
         tipo={LIBRETA_TIPO.REMITENTE}
