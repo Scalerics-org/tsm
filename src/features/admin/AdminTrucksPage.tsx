@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { TRUCK_STATUS, type Truck, type TruckStatus } from "@shared/domain";
+import { TRUCK_STATUS, fmtConsumo, type Truck, type TruckStatus } from "@shared/domain";
 import { api } from "../../lib/api";
 import { Button, Card, Field, Spinner } from "../../components/ui";
 
@@ -11,7 +11,7 @@ const EMPTY: Omit<Truck, "id"> = {
   type: "",
   capacity_kg: 0,
   odometer_km: 0,
-  avg_consumption_l100: 0,
+  avg_km_litro: 0,
   status: TRUCK_STATUS.DISPONIBLE,
 };
 
@@ -65,7 +65,7 @@ export function AdminTrucksPage() {
               <th className="px-4 py-3">Marca / Modelo</th>
               <th className="px-4 py-3">Tipo</th>
               <th className="px-4 py-3 text-right">Odómetro</th>
-              <th className="px-4 py-3 text-right">L/100km</th>
+              <th className="px-4 py-3 text-right">km/L</th>
               <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3"></th>
             </tr>
@@ -79,7 +79,7 @@ export function AdminTrucksPage() {
                 </td>
                 <td className="px-4 py-3 text-ink/70">{t.type}</td>
                 <td className="px-4 py-3 text-right text-ink/70">{t.odometer_km.toLocaleString("es-UY")} km</td>
-                <td className="px-4 py-3 text-right text-ink/70">{t.avg_consumption_l100}</td>
+                <td className="px-4 py-3 text-right text-ink/70">{fmtConsumo(t.avg_km_litro)}</td>
                 <td className="px-4 py-3 text-ink/70">{STATUS_LABEL[t.status]}</td>
                 <td className="px-4 py-3 text-right">
                   <button className="mr-3 text-brand-700 hover:underline" onClick={() => setEditing(t)}>
@@ -150,8 +150,8 @@ function TruckForm({
         <Field label="Odómetro (km)">
           <input type="number" className="input" value={f.odometer_km} onChange={set("odometer_km", true)} />
         </Field>
-        <Field label="Rendimiento (L/100km)">
-          <input type="number" step="0.1" className="input" value={f.avg_consumption_l100} onChange={set("avg_consumption_l100", true)} />
+        <Field label="Rendimiento esperado (km/L)">
+          <input type="number" step="0.1" className="input" value={f.avg_km_litro} onChange={set("avg_km_litro", true)} />
         </Field>
         <Field label="Estado">
           <select className="input" value={f.status} onChange={set("status")}>

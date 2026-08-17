@@ -14,10 +14,10 @@ export type TruckInput = Omit<Truck, "id">;
 export async function createTruck(db: D1Database, t: TruckInput): Promise<number> {
   const res = await db
     .prepare(
-      `INSERT INTO trucks (plate, brand, model, year, type, capacity_kg, odometer_km, avg_consumption_l100, status)
+      `INSERT INTO trucks (plate, brand, model, year, type, capacity_kg, odometer_km, avg_km_litro, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .bind(t.plate, t.brand, t.model, t.year, t.type, t.capacity_kg, t.odometer_km, t.avg_consumption_l100, t.status)
+    .bind(t.plate, t.brand, t.model, t.year, t.type, t.capacity_kg, t.odometer_km, t.avg_km_litro, t.status)
     .run();
   return res.meta.last_row_id as number;
 }
@@ -25,10 +25,10 @@ export async function createTruck(db: D1Database, t: TruckInput): Promise<number
 export async function updateTruck(db: D1Database, id: number, t: TruckInput): Promise<void> {
   await db
     .prepare(
-      `UPDATE trucks SET plate=?, brand=?, model=?, year=?, type=?, capacity_kg=?, odometer_km=?, avg_consumption_l100=?, status=?
+      `UPDATE trucks SET plate=?, brand=?, model=?, year=?, type=?, capacity_kg=?, odometer_km=?, avg_km_litro=?, status=?
        WHERE id=?`,
     )
-    .bind(t.plate, t.brand, t.model, t.year, t.type, t.capacity_kg, t.odometer_km, t.avg_consumption_l100, t.status, id)
+    .bind(t.plate, t.brand, t.model, t.year, t.type, t.capacity_kg, t.odometer_km, t.avg_km_litro, t.status, id)
     .run();
 }
 

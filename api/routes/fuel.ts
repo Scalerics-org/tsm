@@ -31,17 +31,21 @@ fuel.post("/", async (c) => {
     user.role === ROLES.CHOFER ? user.truck_id : form.get("truck_id") ? Number(form.get("truck_id")) : null;
   if (!truckId) return fail(c, "Falta el camión", 400);
 
-  // Subir la foto del tacógrafo a R2 (si está configurado).
-  let r2Key: string | null = null;
-  const file = form.get("file");
-  if (file && typeof file !== "string" && c.env.FOTOS) {
+  // Dos fotos: el tacógrafo (de donde salen los km) y la boleta de gasoil (de donde
+  // salen los litros). Cada una respalda un número distinto del consumo.
+  const subir = async (campo: string, sufijo: string): Promise<string | null> => {
+    const file = form.get(campo);
+    if (!file || typeof file === "string" || !c.env.FOTOS) return null;
     const f = file as unknown as File;
     const ext = (f.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
-    r2Key = `fuel/${truckId}/${Date.now()}.${ext}`;
-    await c.env.FOTOS.put(r2Key, await f.arrayBuffer(), {
+    const key = `fuel/${truckId}/${sufijo}-${Date.now()}.${ext}`;
+    await c.env.FOTOS.put(key, await f.arrayBuffer(), {
       httpMetadata: { contentType: f.type || "image/jpeg" },
     });
-  }
+    return key;
+  };
+  const r2Key = await subir("file", "tacografo");
+  const r2KeyBoleta = await subir("boleta", "boleta");
 
   const isFull = form.get("is_full") !== "false";
   const id = await repo.createFuelLog(c.env.DB, {
@@ -52,6 +56,7 @@ fuel.post("/", async (c) => {
     liters,
     is_full: isFull,
     r2_key: r2Key,
+    r2_key_boleta: r2KeyBoleta,
   });
 
   // Feedback de consumo (tramo cerrado al llenar + acumulado mensual).
@@ -65,7 +70,7 @@ fuel.post("/", async (c) => {
     })),
     { odometer_km: odometer, liters, is_full: isFull, logged_at: new Date().toISOString().slice(0, 10) },
   );
-  return ok(c, { id, r2_key: r2Key, feedback }, 201);
+  return ok(c, { id, r2_key: r2Key, r2_key_boleta: r2KeyBoleta, feedback }, 201);
 });
 
 export default fuel;

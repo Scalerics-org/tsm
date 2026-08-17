@@ -47,7 +47,7 @@ reports.get("/summary", async (c) => {
       tons: roundTo(tTrips.reduce((s, x) => s + (x.weight_tons ?? 0), 0)),
       km: Math.round(fs.km),
       liters: Math.round(fs.liters),
-      consumption_l100: fs.consumption_l100 != null ? roundTo(fs.consumption_l100) : null,
+      consumption_kml: fs.consumption_kml != null ? roundTo(fs.consumption_kml, 2) : null,
     };
   });
 
@@ -78,7 +78,7 @@ reports.get("/summary", async (c) => {
           month: m.month,
           km: Math.round(m.km),
           liters: Math.round(m.liters),
-          l100: m.l100 != null ? roundTo(m.l100) : null,
+          kml: m.kml != null ? roundTo(m.kml, 2) : null,
           closed: m.closed,
         })),
     }))
@@ -157,7 +157,9 @@ reports.get("/alerts", async (c) => {
     .filter((d) => d.days <= 60)
     .sort((a, b) => a.days - b.days);
 
-  const ANOMALY = 1.15; // 15% por encima del rendimiento esperado
+  // 15% POR DEBAJO del rendimiento esperado. En km/L más es mejor, así que la comparación
+  // va al revés que cuando esto se medía en L/100 km: rendir menos es la señal de problema.
+  const ANOMALY = 0.85;
   const fuelAnomalies = trucks
     .map((t) => {
       const months = monthlyConsumption(
@@ -165,17 +167,18 @@ reports.get("/alerts", async (c) => {
           .filter((f) => f.truck_id === t.id)
           .map((f) => ({ odometer_km: f.odometer_km, liters: f.liters, is_full: !!f.is_full, logged_at: f.logged_at })),
       );
-      const lastClosed = months.find((m) => m.closed && m.l100 != null);
-      if (!lastClosed || lastClosed.l100 == null || t.avg_consumption_l100 <= 0) return null;
-      const over = lastClosed.l100 > t.avg_consumption_l100 * ANOMALY;
-      return over
+      const lastClosed = months.find((m) => m.closed && m.kml != null);
+      if (!lastClosed || lastClosed.kml == null || t.avg_km_litro <= 0) return null;
+      const rindeMenos = lastClosed.kml < t.avg_km_litro * ANOMALY;
+      return rindeMenos
         ? {
             truck_id: t.id,
             plate: t.plate,
             month: lastClosed.month,
-            expected: t.avg_consumption_l100,
-            actual: roundTo(lastClosed.l100),
-            pct: Math.round((lastClosed.l100 / t.avg_consumption_l100 - 1) * 100),
+            expected: t.avg_km_litro,
+            actual: roundTo(lastClosed.kml, 2),
+            // Negativo: cuánto por debajo del esperado quedó.
+            pct: Math.round((lastClosed.kml / t.avg_km_litro - 1) * 100),
           }
         : null;
     })
@@ -199,7 +202,7 @@ reports.get("/truck/:id", async (c) => {
     month: m.month,
     km: Math.round(m.km),
     liters: Math.round(m.liters),
-    l100: m.l100 != null ? roundTo(m.l100) : null,
+    kml: m.kml != null ? roundTo(m.kml, 2) : null,
     closed: m.closed,
   }));
   return ok(c, {

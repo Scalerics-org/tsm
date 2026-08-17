@@ -33,7 +33,7 @@ function parseTruck(b: any): repo.TruckInput | null {
     type: String(b.type ?? ""),
     capacity_kg: Number(b.capacity_kg ?? 0),
     odometer_km: Number(b.odometer_km ?? 0),
-    avg_consumption_l100: Number(b.avg_consumption_l100 ?? 0),
+    avg_km_litro: Number(b.avg_km_litro ?? 0),
     status: STATUSES.includes(b.status) ? b.status : TRUCK_STATUS.DISPONIBLE,
   };
 }

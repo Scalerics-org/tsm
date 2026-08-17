@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { fmtConsumo } from "@shared/domain";
 import { api, downloadFile } from "../../lib/api";
 import { Button, Card, Corners, Spinner, Stat } from "../../components/ui";
 
@@ -7,7 +8,7 @@ interface MonthRow {
   month: string;
   km: number;
   liters: number;
-  l100: number | null;
+  kml: number | null;
   closed: boolean;
 }
 interface Summary {
@@ -20,7 +21,7 @@ interface Summary {
     tons: number;
     km: number;
     liters: number;
-    consumption_l100: number | null;
+    consumption_kml: number | null;
   }[];
   byProvider: { name: string; trips: number; completed: number; tons: number }[];
   monthlyByTruck: { truck_id: number; plate: string; months: MonthRow[] }[];
@@ -97,7 +98,7 @@ export function OpsSummary() {
                     <th className="px-4 py-3 text-right">Viajes</th>
                     <th className="px-4 py-3 text-right">Ton</th>
                     <th className="px-4 py-3 text-right">Km</th>
-                    <th className="px-4 py-3 text-right">L/100km</th>
+                    <th className="px-4 py-3 text-right">km/L</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -114,7 +115,7 @@ export function OpsSummary() {
                       <td className="px-4 py-3 text-right text-ink/70">{t.tons}</td>
                       <td className="px-4 py-3 text-right text-ink/70">{t.km.toLocaleString("es-UY")}</td>
                       <td className="px-4 py-3 text-right font-semibold text-ink">
-                        {t.consumption_l100 != null ? t.consumption_l100 : "—"}
+                        {fmtConsumo(t.consumption_kml)}
                       </td>
                     </tr>
                   ))}
@@ -198,7 +199,7 @@ export function OpsSummary() {
                             </span>
                           </div>
                           <div className="font-cond text-2xl font-semibold text-ink">
-                            {m.l100 != null ? `${m.l100} L/100km` : "—"}
+                            {m.kml != null ? `${fmtConsumo(m.kml)} km/L` : "—"}
                           </div>
                           <div className="text-xs text-ink/55">
                             {m.liters.toLocaleString("es-UY")} L · {m.km.toLocaleString("es-UY")} km

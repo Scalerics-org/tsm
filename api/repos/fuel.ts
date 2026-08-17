@@ -37,16 +37,22 @@ export interface FuelInput {
   odometer_km: number;
   liters: number;
   is_full: boolean;
+  /** Foto del tacógrafo: respalda los km. */
   r2_key: string | null;
+  /** Foto de la boleta de gasoil: respalda los litros. */
+  r2_key_boleta: string | null;
 }
 
 export async function createFuelLog(db: D1Database, f: FuelInput): Promise<number> {
   const res = await db
     .prepare(
-      `INSERT INTO fuel_logs (truck_id, driver_id, trip_id, odometer_km, liters, is_full, r2_key)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO fuel_logs (truck_id, driver_id, trip_id, odometer_km, liters, is_full, r2_key, r2_key_boleta)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .bind(f.truck_id, f.driver_id, f.trip_id, f.odometer_km, f.liters, f.is_full ? 1 : 0, f.r2_key)
+    .bind(
+      f.truck_id, f.driver_id, f.trip_id, f.odometer_km, f.liters,
+      f.is_full ? 1 : 0, f.r2_key, f.r2_key_boleta,
+    )
     .run();
   // Actualizar el odómetro del camión si esta lectura es más nueva/alta.
   await db

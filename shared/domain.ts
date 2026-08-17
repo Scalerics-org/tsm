@@ -82,7 +82,8 @@ export interface Truck {
   type: string;
   capacity_kg: number;
   odometer_km: number;
-  avg_consumption_l100: number;
+  /** Rendimiento esperado en km por litro. Más alto es mejor. */
+  avg_km_litro: number;
   status: TruckStatus;
 }
 
@@ -184,7 +185,10 @@ export interface FuelLog {
   odometer_km: number;
   liters: number;
   is_full: boolean;
+  /** Foto del tacógrafo: respalda los km. */
   r2_key: string | null;
+  /** Foto de la boleta de gasoil: respalda los litros. */
+  r2_key_boleta: string | null;
   logged_at: string;
   // joins
   truck_plate?: string;
@@ -510,20 +514,36 @@ export type ApiResponse<T> = ApiOk<T> | ApiErr;
 
 // ── Cálculos ──
 
-/** Estimación de combustible: km × (L/100km) / 100. */
-export function estimateFuelLiters(km: number, consumptionL100: number): number {
-  if (km <= 0 || consumptionL100 <= 0) return 0;
-  return (km * consumptionL100) / 100;
+/**
+ * Rendimiento en kilómetros por litro, que es como lo mide el cliente.
+ *
+ * Ojo con la dirección: acá **más es mejor** (2,80 rinde más que 2,63). Es al revés que
+ * L/100 km, así que toda comparación de "está consumiendo de más" se invierte.
+ */
+export function kmPorLitro(km: number, litros: number): number | null {
+  if (km <= 0 || litros <= 0) return null;
+  return km / litros;
+}
+
+/** Formato del cliente: dos decimales y coma. 2,63 */
+export function fmtConsumo(kml: number | null): string {
+  return kml == null ? "—" : kml.toFixed(2).replace(".", ",");
+}
+
+/** Estimación de combustible a partir del rendimiento esperado: km ÷ (km por litro). */
+export function estimateFuelLiters(km: number, kmLitro: number): number {
+  if (km <= 0 || kmLitro <= 0) return 0;
+  return km / kmLitro;
 }
 
 export interface FuelFeedback {
   closed: boolean; // ¿cerró el tramo? (el chofer llenó)
   segment_km: number | null;
   segment_liters: number | null;
-  segment_l100: number | null;
+  segment_kml: number | null;
   month_km: number;
   month_liters: number;
-  month_l100: number | null;
+  month_kml: number | null;
 }
 
 interface FLog {
@@ -546,7 +566,7 @@ export function fuelFeedback(logs: FLog[], current: FLog): FuelFeedback {
 
   let segment_km: number | null = null;
   let segment_liters: number | null = null;
-  let segment_l100: number | null = null;
+  let segment_kml: number | null = null;
 
   if (closed) {
     // último llenado completo anterior a la surtida actual
@@ -562,7 +582,7 @@ export function fuelFeedback(logs: FLog[], current: FLog): FuelFeedback {
         .reduce((s, l) => s + l.liters, 0);
       segment_km = km;
       segment_liters = liters;
-      segment_l100 = km > 0 ? (liters / km) * 100 : null;
+      segment_kml = kmPorLitro(km, liters);
     }
   }
 
@@ -571,23 +591,23 @@ export function fuelFeedback(logs: FLog[], current: FLog): FuelFeedback {
   const firstFull = monthLogs.find((l) => l.is_full);
   let month_km = 0;
   let month_liters = 0;
-  let month_l100: number | null = null;
+  let month_kml: number | null = null;
   if (firstFull && firstFull.odometer_km < current.odometer_km) {
     month_km = current.odometer_km - firstFull.odometer_km;
     month_liters = monthLogs
       .filter((l) => l.odometer_km > firstFull.odometer_km && l.odometer_km <= current.odometer_km)
       .reduce((s, l) => s + l.liters, 0);
-    month_l100 = month_km > 0 ? (month_liters / month_km) * 100 : null;
+    month_kml = kmPorLitro(month_km, month_liters);
   }
 
   return {
     closed,
     segment_km,
     segment_liters,
-    segment_l100,
+    segment_kml,
     month_km,
     month_liters,
-    month_l100,
+    month_kml,
   };
 }
 
@@ -595,7 +615,7 @@ export interface MonthlyConsumption {
   month: string; // "YYYY-MM"
   km: number;
   liters: number;
-  l100: number | null;
+  kml: number | null;
   closed: boolean; // cerrado con el primer llenado del mes siguiente
 }
 
@@ -632,7 +652,7 @@ export function monthlyConsumption(logs: FLog[]): MonthlyConsumption[] {
       month: a.logged_at.slice(0, 7),
       km,
       liters,
-      l100: km > 0 ? (liters / km) * 100 : null,
+      kml: kmPorLitro(km, liters),
       closed: !!next,
     });
   }
@@ -643,19 +663,19 @@ export function monthlyConsumption(logs: FLog[]): MonthlyConsumption[] {
  * Consumo de un camión a partir de sus surtidas (modelo llenado a llenado):
  * el primer llenado es la línea de base (tanque lleno) y NO cuenta como consumo;
  * los litros consumidos son los de las cargas siguientes (incluye "chorros").
- * km = odómetro de la última surtida − el de la primera; L/100km = litros/km×100.
+ * km = odómetro de la última surtida − el de la primera; rendimiento = km ÷ litros.
  * Requiere al menos 2 surtidas para dar consumo.
  */
 export function fuelSummary(logs: { odometer_km: number; liters: number }[]): {
   km: number;
   liters: number;
-  consumption_l100: number | null;
+  consumption_kml: number | null;
 } {
-  if (logs.length === 0) return { km: 0, liters: 0, consumption_l100: null };
+  if (logs.length === 0) return { km: 0, liters: 0, consumption_kml: null };
   const sorted = [...logs].sort((a, b) => a.odometer_km - b.odometer_km);
   const km = sorted[sorted.length - 1].odometer_km - sorted[0].odometer_km;
   // Litros consumidos = todo lo cargado después del llenado inicial.
   const liters = sorted.slice(1).reduce((s, l) => s + l.liters, 0);
-  const consumption_l100 = km > 0 && sorted.length > 1 ? (liters / km) * 100 : null;
-  return { km, liters, consumption_l100 };
+  const consumption_kml = sorted.length > 1 ? kmPorLitro(km, liters) : null;
+  return { km, liters, consumption_kml };
 }

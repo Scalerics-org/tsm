@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import type { FuelLog, Trip, Truck } from "@shared/domain";
+import { fmtConsumo, type FuelLog, type Trip, type Truck } from "@shared/domain";
 import { api } from "../../lib/api";
 import { Card, Corners, Spinner, Stat, StatusBadge } from "../../components/ui";
 import { fmtDateTime } from "../../lib/format";
@@ -9,7 +9,7 @@ interface MonthRow {
   month: string;
   km: number;
   liters: number;
-  l100: number | null;
+  kml: number | null;
   closed: boolean;
 }
 interface Ficha {
@@ -46,7 +46,7 @@ export function TruckDetailPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Odómetro" value={`${truck.odometer_km.toLocaleString("es-UY")} km`} />
-        <Stat label="Rendimiento" value={`${truck.avg_consumption_l100} L/100km`} hint="esperado" />
+        <Stat label="Rendimiento" value={`${fmtConsumo(truck.avg_km_litro)} km/L`} hint="esperado" />
         <Stat label="Viajes" value={d.trips.length} accent="blue" />
         <Stat label="Toneladas" value={`${d.tons} t`} accent="green" />
       </div>
@@ -67,7 +67,7 @@ export function TruckDetailPage() {
                   </span>
                 </div>
                 <div className="font-cond text-2xl font-semibold text-ink">
-                  {m.l100 != null ? `${m.l100} L/100km` : "—"}
+                  {m.kml != null ? `${fmtConsumo(m.kml)} km/L` : "—"}
                 </div>
                 <div className="text-xs text-ink/55">
                   {m.liters} L · {m.km} km
