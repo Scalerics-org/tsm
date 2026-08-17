@@ -8,6 +8,7 @@ import {
   FIELD_TYPE,
   CAMPO_MODO,
   LIBRETA_TIPO,
+  TIPO_DEPARTAMENTO,
   UNIDAD,
   type CamposUbicacion,
   type RenglonFijo,
@@ -47,7 +48,10 @@ function slug(s: string): string {
 }
 
 const PARTES = ["origen", "remitente", "destino", "destinatario"] as const;
-const LIBRETA_TIPOS = Object.values(LIBRETA_TIPO) as string[];
+// "departamento" no es un tipo de libreta pero se elige con el mismo selector: en el
+// viaje ocasional la ciudad de carga sale de los 19, no del tipo "lugar" (que son los
+// orígenes de los internacionales).
+const LIBRETA_TIPOS = [...Object.values(LIBRETA_TIPO), TIPO_DEPARTAMENTO] as string[];
 
 /** Normaliza las partes configurables. Devuelve null si no se configuró ninguna (flujo clásico). */
 function parseCamposUbicacion(raw: any): CamposUbicacion | null {

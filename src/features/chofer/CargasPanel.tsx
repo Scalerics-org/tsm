@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   LIBRETA_TIPO,
   PHOTO_KIND,
+  TIPO_DEPARTAMENTO,
   UNIDAD,
   type LibretaEntry,
   type TripPhoto,
@@ -244,14 +245,14 @@ function NuevaCarga({
         (cambiarUbicacion ? (
           <div className="space-y-3 border border-ink/15 bg-bg p-3">
             <LibretaPicker
-              tipo={LIBRETA_TIPO.LUGAR}
+              tipo={TIPO_DEPARTAMENTO}
               label="Ciudad de carga"
               value={origen}
               onChange={setOrigen}
               placeholder={origenHeredado}
             />
             <LibretaPicker
-              tipo={LIBRETA_TIPO.LUGAR}
+              tipo={TIPO_DEPARTAMENTO}
               label="Destino"
               value={destino}
               onChange={setDestino}

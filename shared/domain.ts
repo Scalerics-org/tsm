@@ -222,6 +222,15 @@ export const LIBRETA_TIPO = {
 } as const;
 export type LibretaTipo = (typeof LIBRETA_TIPO)[keyof typeof LIBRETA_TIPO];
 
+/**
+ * Los departamentos no viven en la libreta, pero se eligen con el mismo selector.
+ *
+ * Ojo: el tipo "lugar" de la libreta son los orígenes de los internacionales
+ * (Arg. Rosario, Concordia…). Para un viaje dentro del país hay que pedir esto.
+ */
+export const TIPO_DEPARTAMENTO = "departamento" as const;
+export type PickerTipo = LibretaTipo | typeof TIPO_DEPARTAMENTO;
+
 export const LIBRETA_ESTADO = {
   CONFIRMADO: "confirmado",
   NUEVO: "nuevo", // alta hecha por un chofer, pendiente de revisión en oficina

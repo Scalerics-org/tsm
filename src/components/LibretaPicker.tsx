@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { normalizeNombre, type LibretaEntry, type LibretaTipo } from "@shared/domain";
+import {
+  TIPO_DEPARTAMENTO,
+  normalizeNombre,
+  type LibretaEntry,
+  type PickerTipo,
+} from "@shared/domain";
 import { api, ApiError } from "../lib/api";
 import { Spinner } from "./ui";
 
 interface Props {
-  tipo: LibretaTipo;
+  /** Acepta también "departamento", que no sale de la libreta sino de su propia lista. */
+  tipo: PickerTipo;
   label: string;
   value: LibretaEntry | null;
   onChange: (entry: LibretaEntry | null) => void;
@@ -38,20 +44,23 @@ export function LibretaPicker({
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const qs = useMemo(() => {
+  const esDepartamento = tipo === TIPO_DEPARTAMENTO;
+
+  const url = useMemo(() => {
+    if (esDepartamento) return "/departamentos";
     const p = new URLSearchParams({ tipo });
     if (providerId != null) p.set("provider", String(providerId));
     if (soloSeleccionables) p.set("seleccionables", "1");
-    return p.toString();
-  }, [tipo, providerId, soloSeleccionables]);
+    return `/libreta?${p}`;
+  }, [esDepartamento, tipo, providerId, soloSeleccionables]);
 
   useEffect(() => {
     if (!open || entries) return;
     api
-      .get<LibretaEntry[]>(`/libreta?${qs}`)
+      .get<LibretaEntry[]>(url)
       .then(setEntries)
       .catch(() => setEntries([]));
-  }, [open, entries, qs]);
+  }, [open, entries, url]);
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
@@ -69,7 +78,8 @@ export function LibretaPicker({
     () => (entries ?? []).some((e) => normalizeNombre(e.nombre) === normalizeNombre(query)),
     [entries, query],
   );
-  const puedeAgregar = permiteAlta && query.trim().length >= 2 && !yaExiste;
+  // Los 19 departamentos son una lista cerrada: no se dan de alta desde la ruta.
+  const puedeAgregar = permiteAlta && !esDepartamento && query.trim().length >= 2 && !yaExiste;
 
   function seleccionar(entry: LibretaEntry) {
     onChange(entry);
