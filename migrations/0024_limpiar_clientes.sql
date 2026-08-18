@@ -1,0 +1,13 @@
+-- Deja como clientes sólo los de la planilla del cliente, sacando los que venían del
+-- seed de ejemplo y no son suyos.
+--
+-- NO se borran tres, a propósito:
+--   · Galpón y Varios Clientes tienen reglas de cobro colgando (Armco → Galpón = proveedor,
+--     Armco → Varios Clientes = cliente). La FK es ON DELETE CASCADE: borrarlos se llevaba
+--     puestas dos de las seis reglas, y justo las dos que sostienen el caso de "mismo lugar
+--     de carga, distinto cobro según el destino". Además son los destinatarios del viaje
+--     Solo Armco / Agencia y Armco / Solo Agencia, que todavía no está cargado.
+--   · Barraca Paraná es el lugar de descarga de Minabel en la planilla del internacional.
+--
+-- Los cinco de abajo no están referenciados por ninguna regla ni por ninguna carga.
+DELETE FROM libreta WHERE tipo = 'destinatario' AND nombre IN ('Alcalá', 'Ancap', 'C.A.', 'TGM', 'Tifecom');
