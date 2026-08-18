@@ -36,6 +36,37 @@ export async function createUser(db: D1Database, u: NewUser): Promise<number> {
   return res.meta.last_row_id as number;
 }
 
+export interface UserPatch {
+  email?: string;
+  name?: string;
+  role?: Role;
+  /** Sólo si se está cambiando la clave: sin esto, la anterior queda. */
+  password_hash?: string;
+}
+
+export async function updateUser(db: D1Database, id: number, p: UserPatch): Promise<void> {
+  const sets: string[] = [];
+  const binds: unknown[] = [];
+  if (p.email != null) {
+    sets.push("email = ?");
+    binds.push(p.email.toLowerCase().trim());
+  }
+  if (p.name != null) {
+    sets.push("name = ?");
+    binds.push(p.name);
+  }
+  if (p.role != null) {
+    sets.push("role = ?");
+    binds.push(p.role);
+  }
+  if (p.password_hash != null) {
+    sets.push("password_hash = ?");
+    binds.push(p.password_hash);
+  }
+  if (!sets.length) return;
+  await db.prepare(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`).bind(...binds, id).run();
+}
+
 export async function deleteUser(db: D1Database, id: number): Promise<void> {
   await db.prepare("DELETE FROM users WHERE id = ?").bind(id).run();
 }
