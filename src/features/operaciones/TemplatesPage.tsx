@@ -12,6 +12,12 @@ import { useAuth } from "../../lib/auth";
 import { ROLES } from "@shared/domain";
 import { Button, Card, Field, Spinner } from "../../components/ui";
 
+/** Lo que devuelve /trucks/options: alcanza con la patente para elegir. */
+interface TruckOption {
+  id: number;
+  plate: string;
+}
+
 export function TemplatesPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === ROLES.ADMIN;
@@ -177,7 +183,13 @@ function TemplateForm({
   const [fields, setFields] = useState<TemplateField[]>(
     initial?.fields ?? [{ key: "", label: "", type: FIELD_TYPE.TEXTO, required: false, stage: FIELD_STAGE.CARGA }],
   );
+  const [truckIds, setTruckIds] = useState<number[]>(initial?.truck_ids ?? []);
+  const [trucks, setTrucks] = useState<TruckOption[]>([]);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.get<TruckOption[]>("/trucks/options").then(setTrucks).catch(() => setTrucks([]));
+  }, []);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -193,6 +205,16 @@ function TemplateForm({
       active: f.active,
       dest_options: dests.filter((d) => d.destino.trim()),
       fields: fields.filter((x) => x.label.trim()),
+      truck_ids: truckIds,
+      // Estos no tienen control en pantalla, pero HAY QUE MANDARLOS: el backend lee lo que
+      // llega y lo que falta lo apaga. Sin esta línea, guardar el combinado desde la oficina
+      // lo convertía en un viaje común, y la plantilla del Azul pasaba a verla toda la flota.
+      multi_renglon: initial?.multi_renglon ?? false,
+      renglon_pide_ubicacion: initial?.renglon_pide_ubicacion ?? false,
+      campos_ubicacion: initial?.campos_ubicacion ?? null,
+      renglones_fijos: initial?.renglones_fijos ?? null,
+      pide_kilometros: initial?.pide_kilometros ?? false,
+      viaje_vacio: initial?.viaje_vacio ?? false,
     };
     try {
       if (initial) await api.put(`/templates/${initial.id}`, payload);
@@ -246,6 +268,39 @@ function TemplateForm({
             />
             Exigir foto de la carga para cerrar
           </label>
+        </div>
+
+        {/* Sin ningún camión marcado la ve toda la flota, que es lo que conviene para los
+            viajes de todos los días. Se marcan camiones sólo cuando el viaje es de uno
+            puntual, como el Azul con la UAM. */}
+        <div>
+          <span className="label">¿Qué camiones ven este viaje?</span>
+          <div className="flex flex-wrap gap-2">
+            {trucks.map((t) => {
+              const marcado = truckIds.includes(t.id);
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() =>
+                    setTruckIds((prev) =>
+                      marcado ? prev.filter((id) => id !== t.id) : [...prev, t.id],
+                    )
+                  }
+                  className={`border px-3 py-2 text-sm ${
+                    marcado ? "border-brand bg-brand font-semibold text-bg" : "border-ink/20 bg-bg text-ink/75"
+                  }`}
+                >
+                  {t.plate} {marcado && "✓"}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1 text-xs text-ink/50">
+            {truckIds.length === 0
+              ? "Sin marcar ninguno: lo ven todos los camiones."
+              : `Sólo ${truckIds.length} camión(es) lo van a ver. Al resto no le aparece.`}
+          </p>
         </div>
 
         {/* Destinos + destinatarios */}

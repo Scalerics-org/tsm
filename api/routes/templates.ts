@@ -105,7 +105,11 @@ function parseRenglonesFijos(raw: any): RenglonFijo[] | null {
 }
 
 function parse(b: any): repo.TemplateInput | null {
-  if (!b || !b.provider_id || !b.name || !b.origin) return null;
+  if (!b || !b.provider_id || !b.name) return null;
+  // El origen puede venir vacío si la plantilla lo resuelve con la libreta: en el viaje
+  // ocasional lo elige el chofer. Exigirlo siempre dejaba esa plantilla imposible de guardar.
+  const origenPorLibreta = b.campos_ubicacion?.origen != null;
+  if (!b.origin && !origenPorLibreta) return null;
   const dest_options = Array.isArray(b.dest_options)
     ? b.dest_options
         .map((o: any) => ({ destino: String(o?.destino ?? "").trim(), destinatario: String(o?.destinatario ?? "").trim() }))
@@ -126,7 +130,7 @@ function parse(b: any): repo.TemplateInput | null {
   return {
     provider_id: Number(b.provider_id),
     name: String(b.name),
-    origin: String(b.origin),
+    origin: String(b.origin ?? ""),
     remite: b.remite ? String(b.remite).trim() : null,
     cargo_type: String(b.cargo_type ?? ""),
     dest_options,
