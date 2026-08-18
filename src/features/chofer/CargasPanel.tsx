@@ -11,7 +11,7 @@ import {
   type Unidad,
 } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
-import { Button, Card, ErrorText, Spinner } from "../../components/ui";
+import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
 import { LibretaPicker } from "../../components/LibretaPicker";
 import { CameraCapture } from "../../components/CameraCapture";
 import { compressImage } from "../../lib/image";
@@ -50,9 +50,6 @@ export function CargasPanel({
 }: Props) {
   const [agregando, setAgregando] = useState(false);
   const sinFoto = new Set(renglonesSinFoto(segments, photos).map((s) => s.sid));
-  // La carga nueva hereda de la anterior; si es la primera, del viaje. Cargar en dos
-  // ciudades el mismo viaje es la excepción, así que no se le pregunta a todos.
-  const ultima = segments.length ? segments[segments.length - 1] : null;
 
   return (
     <div>
@@ -125,8 +122,6 @@ export function CargasPanel({
             providerId={providerId}
             pideFoto={pideFoto}
             pideUbicacion={pideUbicacion}
-            origenHeredado={ultima?.origen ?? origenViaje}
-            destinoHeredado={ultima?.destino ?? destinoViaje}
             onCancel={() => setAgregando(false)}
             onSaved={(seguirCargando) => {
               setAgregando(seguirCargando);
@@ -151,8 +146,6 @@ function NuevaCarga({
   providerId,
   pideFoto,
   pideUbicacion,
-  origenHeredado,
-  destinoHeredado,
   onCancel,
   onSaved,
 }: {
@@ -160,15 +153,14 @@ function NuevaCarga({
   providerId: number | null;
   pideFoto: boolean;
   pideUbicacion: boolean;
-  origenHeredado: string;
-  destinoHeredado: string;
   onCancel: () => void;
   onSaved: (seguirCargando: boolean) => void;
 }) {
   // Vienen heredados y sólo se tocan si esta carga fue de otra ciudad o a otro destino.
   const [origen, setOrigen] = useState<LibretaEntry | null>(null);
   const [destino, setDestino] = useState<LibretaEntry | null>(null);
-  const [cambiarUbicacion, setCambiarUbicacion] = useState(false);
+  const [lugarTexto, setLugarTexto] = useState("");
+  const [descargaTexto, setDescargaTexto] = useState("");
   const [lugar, setLugar] = useState<LibretaEntry | null>(null);
   const [clientes, setClientes] = useState<LibretaEntry[]>([]);
   const [opciones, setOpciones] = useState<LibretaEntry[] | null>(null);
@@ -193,7 +185,16 @@ function NuevaCarga({
     );
 
   async function guardar(seguirCargando: boolean) {
-    if (!lugar) return setError("Elegí dónde cargaste.");
+    if (pideUbicacion) {
+      // El ocasional: cada renglón se completa entero, sin heredar nada del anterior.
+      // Es un viaje puntual y cada parada puede ser de otro departamento.
+      if (!origen) return setError("Elegí el departamento donde cargaste.");
+      if (!lugarTexto.trim()) return setError("Escribí el lugar de carga.");
+      if (!destino) return setError("Elegí el departamento de destino.");
+      if (!descargaTexto.trim()) return setError("Escribí dónde descargaste.");
+    } else if (!lugar) {
+      return setError("Elegí dónde cargaste.");
+    }
     if (pideFoto && !foto) return setError("Sacá la foto de esta carga.");
     setError("");
     setBusy(true);
@@ -205,15 +206,16 @@ function NuevaCarga({
         segments: [
           {
             sid,
-            // Sólo viajan si el chofer los cambió: null significa "el del viaje".
+            // En el ocasional el departamento sale de lista y el lugar se escribe: es un
+            // viaje puntual, y agendar nombres que se usan una vez ensucia la libreta.
             origen: origen?.nombre ?? null,
-            origen_id: origen?.id ?? null,
+            origen_id: null,
             destino: destino?.nombre ?? null,
-            destino_id: destino?.id ?? null,
-            remitente: lugar.nombre,
-            remitente_id: lugar.id,
-            clientes: clientes.map((c) => c.nombre),
-            cliente_ids: clientes.map((c) => c.id),
+            destino_id: null,
+            remitente: pideUbicacion ? lugarTexto.trim() : lugar!.nombre,
+            remitente_id: pideUbicacion ? null : lugar!.id,
+            clientes: pideUbicacion ? [descargaTexto.trim()] : clientes.map((c) => c.nombre),
+            cliente_ids: pideUbicacion ? [] : clientes.map((c) => c.id),
             cantidad: cantidad ? Number(cantidad) : null,
             unidad: cantidad ? unidad : null,
           },
@@ -239,51 +241,57 @@ function NuevaCarga({
     <Card className="mt-2 space-y-4">
       <h3 className="font-cond text-xl font-semibold text-ink">Agregar carga</h3>
 
-      {/* Ciudad y destino vienen heredados. La mayoría de las cargas de un viaje son del
-          mismo tramo, así que se muestran resueltos y sólo se abren si hay que cambiarlos. */}
-      {pideUbicacion &&
-        (cambiarUbicacion ? (
-          <div className="space-y-3 border border-ink/15 bg-bg p-3">
-            <LibretaPicker
-              tipo={TIPO_DEPARTAMENTO}
-              label="Ciudad de carga"
-              value={origen}
-              onChange={setOrigen}
-              placeholder={origenHeredado}
+      {/* El ocasional: los cuatro campos, en cada renglón. No se heredan del anterior
+          porque cada parada puede ser de otro departamento — es el viaje que abarca todo
+          lo que no está precargado. El departamento sale de lista; el lugar se escribe,
+          porque son nombres que se usan una vez y no vale la pena agendarlos. */}
+      {pideUbicacion ? (
+        <>
+          <LibretaPicker
+            tipo={TIPO_DEPARTAMENTO}
+            label="1 · Departamento donde cargaste"
+            value={origen}
+            onChange={setOrigen}
+          />
+          <Field label="2 · Lugar de carga">
+            <input
+              className="input"
+              value={lugarTexto}
+              onChange={(e) => setLugarTexto(e.target.value)}
+              placeholder="Ej: Galpón Bella Unión"
+              autoCapitalize="words"
             />
-            <LibretaPicker
-              tipo={TIPO_DEPARTAMENTO}
-              label="Destino"
-              value={destino}
-              onChange={setDestino}
-              placeholder={destinoHeredado}
+          </Field>
+          <LibretaPicker
+            tipo={TIPO_DEPARTAMENTO}
+            label="3 · Departamento de destino"
+            value={destino}
+            onChange={setDestino}
+          />
+          <Field label="4 · Lugar de descarga">
+            <input
+              className="input"
+              value={descargaTexto}
+              onChange={(e) => setDescargaTexto(e.target.value)}
+              placeholder="Ej: UAM, un depósito, una estancia…"
+              autoCapitalize="words"
             />
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setCambiarUbicacion(true)}
-            className="flex w-full items-center justify-between border border-ink/15 bg-bg px-3 py-2 text-left"
-          >
-            <span className="min-w-0 truncate text-sm text-ink/70">
-              {origenHeredado || "—"} → {destinoHeredado || "—"}
-            </span>
-            <span className="ml-2 flex-none font-cond text-[12px] font-semibold uppercase tracking-[0.08em] text-brand-700">
-              Cambiar
-            </span>
-          </button>
-        ))}
+          </Field>
+        </>
+      ) : (
+        <LibretaPicker
+          tipo={LIBRETA_TIPO.REMITENTE}
+          label="¿Dónde cargaste?"
+          value={lugar}
+          onChange={setLugar}
+          providerId={providerId}
+          soloSeleccionables
+        />
+      )}
 
-      <LibretaPicker
-        tipo={LIBRETA_TIPO.REMITENTE}
-        label="¿Dónde cargaste?"
-        value={lugar}
-        onChange={setLugar}
-        providerId={providerId}
-        soloSeleccionables
-      />
-
-      <div>
+      {/* En el ocasional el destinatario ya se escribió arriba: no hay lista curada que
+          ofrecerle, y son clientes que aparecen una vez. */}
+      <div className={pideUbicacion ? "hidden" : undefined}>
         <span className="label">¿Para quién?</span>
         {opciones === null ? (
           <Spinner size={18} />
