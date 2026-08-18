@@ -202,7 +202,14 @@ trips.post("/", async (c) => {
     cargo_type: tpl.cargo_type,
     weight_tons: weight != null && !isNaN(weight) ? weight : null,
     field_values: values,
-    segments: await conCobro(c.env.DB, parseSegments(b.segments)),
+    // Los renglones que la oficina dejó puestos (la ida y la vuelta de Manassi) se crean
+    // junto con el viaje: el chofer no los arma, sólo les completa la cantidad y la foto.
+    // Cada viaje los instancia con su propio sid — si vinieran con uno de la plantilla,
+    // todos los viajes compartirían el mismo y las fotos de uno aparecerían en los demás.
+    segments: await conCobro(
+      c.env.DB,
+      parseSegments(b.segments?.length ? b.segments : (tpl.renglones_fijos ?? [])),
+    ),
   });
   return okViaje(c, await tripsRepo.getTrip(c.env.DB, id));
 });
@@ -231,6 +238,45 @@ trips.post("/:id/segments", async (c) => {
 
   const todos = [...s.trip.segments, ...(await conCobro(c.env.DB, nuevos))];
   await tripsRepo.updateSegments(c.env.DB, s.trip.id, todos);
+  return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
+});
+
+/**
+ * PATCH /api/trips/:id/segments/:sid — el chofer completa la cantidad de una carga.
+ *
+ * Es lo que necesitan los viajes con renglones ya puestos: la oficina dejó armada la ida
+ * y la vuelta, y al chofer sólo le queda decir cuántos pallets y sacar la foto. No puede
+ * tocar el lugar ni los clientes — eso lo definió la oficina y es de donde sale el cobro.
+ */
+trips.patch("/:id/segments/:sid", async (c) => {
+  const s = await scoped(c);
+  if ("error" in s) return fail(c, s.error, s.status);
+  if (s.trip.status !== TRIP_STATUS.EN_CURSO) return fail(c, "El viaje no está en curso", 409);
+
+  const sid = c.req.param("sid");
+  if (!s.trip.segments.some((x) => x.sid === sid)) return fail(c, "Carga inexistente", 404);
+
+  const b = (await c.req.json().catch(() => ({}))) as { cantidad?: unknown; unidad?: unknown; remito?: unknown };
+  const cantidad = b.cantidad != null && b.cantidad !== "" ? Number(b.cantidad) : null;
+  if (cantidad != null && (isNaN(cantidad) || cantidad <= 0)) {
+    return fail(c, "La cantidad tiene que ser mayor a cero", 400);
+  }
+
+  const actualizados = s.trip.segments.map((x) =>
+    x.sid !== sid
+      ? x
+      : {
+          ...x,
+          cantidad,
+          unidad: cantidad != null && (b.unidad === UNIDAD.KILOS || b.unidad === UNIDAD.PALLETS)
+            ? b.unidad
+            : cantidad != null
+              ? x.unidad
+              : null,
+          remito: b.remito ? String(b.remito).trim() : x.remito,
+        },
+  );
+  await tripsRepo.updateSegments(c.env.DB, s.trip.id, actualizados);
   return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
 });
 

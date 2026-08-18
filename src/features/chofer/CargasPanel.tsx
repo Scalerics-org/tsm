@@ -86,13 +86,15 @@ export function CargasPanel({
                 <div className="text-xs font-semibold text-st-amberTx">Falta la foto</div>
               )}
             </div>
-            {s.cantidad != null && (
+            {s.cantidad != null ? (
               <div className="flex-none text-right">
                 <div className="font-cond text-base font-semibold leading-none text-ink">
                   {s.cantidad.toLocaleString("es-UY")}
                 </div>
                 <div className="text-[10px] uppercase tracking-[0.08em] text-ink/45">{s.unidad}</div>
               </div>
+            ) : (
+              editable && <CompletarCantidad tripId={tripId} seg={s} onDone={onChange} />
             )}
             {editable && (
               <button
@@ -369,5 +371,84 @@ function NuevaCarga({
         </div>
       </div>
     </Card>
+  );
+}
+
+/**
+ * Completar la cantidad de una carga que ya venía puesta por la oficina.
+ *
+ * Es lo único que el chofer toca en los viajes de ida y vuelta: el lugar y el cliente los
+ * definió la oficina —de ahí sale el cobro— y a él le queda decir cuántos pallets.
+ */
+function CompletarCantidad({
+  tripId,
+  seg,
+  onDone,
+}: {
+  tripId: number;
+  seg: TripSegment;
+  onDone: () => void;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const [cantidad, setCantidad] = useState("");
+  const [unidad, setUnidad] = useState<Unidad>(seg.unidad ?? UNIDAD.PALLETS);
+  const [busy, setBusy] = useState(false);
+
+  async function guardar() {
+    if (!cantidad) return;
+    setBusy(true);
+    try {
+      await api.patch(`/trips/${tripId}/segments/${seg.sid}`, { cantidad: Number(cantidad), unidad });
+      onDone();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!abierto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        className="flex-none border border-dashed border-brand/50 bg-brand/[.06] px-3 py-2 font-cond text-[12px] font-semibold uppercase tracking-[0.08em] text-brand-700"
+      >
+        Poner cantidad
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-none items-center gap-1">
+      <input
+        className="input h-10 w-20 px-2"
+        type="number"
+        inputMode="decimal"
+        autoFocus
+        value={cantidad}
+        onChange={(e) => setCantidad(e.target.value)}
+      />
+      <div className="flex flex-none flex-col border border-ink/25">
+        {[UNIDAD.PALLETS, UNIDAD.KILOS].map((u) => (
+          <button
+            key={u}
+            type="button"
+            onClick={() => setUnidad(u)}
+            className={`px-2 font-cond text-[11px] font-semibold capitalize ${
+              unidad === u ? "bg-navy text-bg" : "bg-bg text-ink/45"
+            }`}
+          >
+            {u}
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={guardar}
+        disabled={busy || !cantidad}
+        className="h-10 bg-brand px-3 font-cond text-sm font-semibold text-bg disabled:opacity-50"
+      >
+        OK
+      </button>
+    </div>
   );
 }
