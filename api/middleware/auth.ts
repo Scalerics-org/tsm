@@ -1,7 +1,8 @@
 import type { MiddlewareHandler } from "hono";
 import type { Env, Vars } from "../env";
-import type { Role } from "../../shared/domain";
+import { ROLES, type Role } from "../../shared/domain";
 import { verifyToken } from "../lib/crypto";
+import { currentTruckId } from "../repos/drivers";
 import { fail } from "../lib/response";
 
 type Ctx = { Bindings: Env; Variables: Vars };
@@ -13,7 +14,15 @@ export const requireAuth: MiddlewareHandler<Ctx> = async (c, next) => {
   if (!token) return fail(c, "No autenticado", 401);
   const user = await verifyToken(token, c.env.JWT_SECRET);
   if (!user) return fail(c, "Token inválido o expirado", 401);
-  c.set("user", user);
+  // El camión del chofer vive en `drivers`, no en el token: si la oficina lo reasigna, el
+  // token viejo seguiría diciendo el anterior durante una semana. Se relee en cada pedido —
+  // un SELECT, y sólo para choferes. Copia nueva, sin tocar lo que vino firmado.
+  c.set(
+    "user",
+    user.role === ROLES.CHOFER && user.driver_id != null
+      ? { ...user, truck_id: await currentTruckId(c.env.DB, user.driver_id) }
+      : user,
+  );
   await next();
 };
 

@@ -335,6 +335,13 @@ export interface TripSegment {
   cobro_tipo: CobroTipo | null;
   cobro_a: string | null;
   cobro_manual: boolean;
+  /**
+   * Renglón que dejó puesta la oficina en la plantilla. El chofer lo completa, no lo borra.
+   *
+   * Opcional a propósito: los viajes ya guardados no lo tienen y siguen siendo válidos.
+   * No entra en `TripSegmentInput`, así que el chofer no puede mandárselo a sí mismo.
+   */
+  fijo?: boolean;
 }
 
 /** Renglón sin la parte de facturación: es lo que manda el chofer. */

@@ -144,7 +144,12 @@ function parse(b: any): repo.TemplateInput | null {
     // Si no viene, se pide la foto — salvo en los vacíos, que no tienen qué fotografiar.
     foto_carga_requerida:
       b.foto_carga_requerida === undefined ? !b.viaje_vacio : !!b.foto_carga_requerida,
-    truck_ids: Array.isArray(b.truck_ids) ? b.truck_ids.map(Number).filter((n: number) => !isNaN(n)) : [],
+    // Campo ausente = "no toques la asignación". Lista vacía explícita = la ven todos.
+    // Normalizarlo a [] hacía que un update que no mandara el campo abriera la plantilla a
+    // toda la flota, en silencio — justo lo contrario de lo que se guardó.
+    truck_ids: Array.isArray(b.truck_ids)
+      ? b.truck_ids.map(Number).filter((n: number) => !isNaN(n))
+      : null,
     active: b.active === undefined ? true : !!b.active,
   };
 }
@@ -153,7 +158,8 @@ templates.post("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const input = parse(await c.req.json().catch(() => null));
   if (!input) return fail(c, "Faltan campos (proveedor, nombre, origen)", 400);
   const id = await repo.createTemplate(c.env.DB, input);
-  await repo.setTemplateTrucks(c.env.DB, id, input.truck_ids);
+  // Recién creada no tiene ninguna fila, así que null y lista vacía dan lo mismo.
+  await repo.setTemplateTrucks(c.env.DB, id, input.truck_ids ?? []);
   return ok(c, await repo.getTemplate(c.env.DB, id), 201);
 });
 
@@ -162,7 +168,7 @@ templates.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   if (!input) return fail(c, "Faltan campos (proveedor, nombre, origen)", 400);
   const id = Number(c.req.param("id"));
   await repo.updateTemplate(c.env.DB, id, input);
-  await repo.setTemplateTrucks(c.env.DB, id, input.truck_ids);
+  if (input.truck_ids) await repo.setTemplateTrucks(c.env.DB, id, input.truck_ids);
   return ok(c, await repo.getTemplate(c.env.DB, id));
 });
 

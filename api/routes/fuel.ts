@@ -4,16 +4,36 @@ import { ok, fail } from "../lib/response";
 import { requireAuth } from "../middleware/auth";
 import { ROLES, fuelFeedback } from "../../shared/domain";
 import * as repo from "../repos/fuel";
+import * as tripsRepo from "../repos/trips";
 
 const fuel = new Hono<{ Bindings: Env; Variables: Vars }>();
 fuel.use("*", requireAuth);
+
+/**
+ * El camión con el que el chofer está andando, no el que tiene asignado.
+ *
+ * Puede estar manejando otro: lo elige al salir. La surtida tiene que ir a la cadena de
+ * odómetro del camión que de verdad cargó el gasoil — si no, el consumo de los dos camiones
+ * queda mal, el que sumó litros que no gastó y el que perdió los kilómetros.
+ *
+ * Si todavía no arrancó el viaje no hay de dónde sacarlo y se cae al asignado.
+ */
+async function camionDelChofer(c: any, user: { role: string; driver_id: number | null; truck_id: number | null }) {
+  if (user.role !== ROLES.CHOFER || user.driver_id == null) return null;
+  const enViaje = await tripsRepo.activeTripForDriver(c.env.DB, user.driver_id);
+  return enViaje?.truck_id ?? user.truck_id;
+}
 
 // GET /api/fuel?truck=..  — surtidas (chofer ve las de su camión)
 fuel.get("/", async (c) => {
   const user = c.get("user");
   const q = c.req.query();
   const truckId =
-    user.role === ROLES.CHOFER ? (user.truck_id ?? -1) : q.truck ? Number(q.truck) : undefined;
+    user.role === ROLES.CHOFER
+      ? ((await camionDelChofer(c, user)) ?? -1)
+      : q.truck
+        ? Number(q.truck)
+        : undefined;
   return ok(c, await repo.listFuelLogs(c.env.DB, { truckId, from: q.from, to: q.to }));
 });
 
@@ -28,7 +48,11 @@ fuel.post("/", async (c) => {
   if (!odometer || !liters) return fail(c, "Odómetro y litros son obligatorios", 400);
 
   const truckId =
-    user.role === ROLES.CHOFER ? user.truck_id : form.get("truck_id") ? Number(form.get("truck_id")) : null;
+    user.role === ROLES.CHOFER
+      ? await camionDelChofer(c, user)
+      : form.get("truck_id")
+        ? Number(form.get("truck_id"))
+        : null;
   if (!truckId) return fail(c, "Falta el camión", 400);
 
   // Dos fotos: el tacógrafo (de donde salen los km) y la boleta de gasoil (de donde

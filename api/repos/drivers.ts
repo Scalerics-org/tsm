@@ -19,6 +19,21 @@ export interface DriverRowWithPin extends Driver {
 }
 
 /** Busca al chofer por la patente de su camión habitual (para login). */
+/**
+ * El camión que la oficina tiene asignado al chofer, ahora.
+ *
+ * El token lo lleva adentro y dura una semana: si la oficina lo reasigna, todo lo que se
+ * apoye en ese dato —qué viajes ve, a qué camión se le carga la surtida— seguiría hablando
+ * del camión anterior hasta que el chofer vuelva a entrar.
+ */
+export async function currentTruckId(db: D1Database, driverId: number): Promise<number | null> {
+  const r = await db
+    .prepare("SELECT default_truck_id FROM drivers WHERE id = ? AND status = 'activo'")
+    .bind(driverId)
+    .first<{ default_truck_id: number | null }>();
+  return r?.default_truck_id ?? null;
+}
+
 export async function findDriverByPlate(
   db: D1Database,
   plate: string,

@@ -99,7 +99,8 @@ export interface TemplateInput {
   pide_kilometros: boolean;
   viaje_vacio: boolean;
   foto_carga_requerida: boolean;
-  truck_ids: number[];
+  /** Camiones que ven la plantilla. `null` = el pedido no trajo el campo: no tocar. */
+  truck_ids: number[] | null;
   active: boolean;
 }
 

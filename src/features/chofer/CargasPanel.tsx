@@ -96,7 +96,9 @@ export function CargasPanel({
             ) : (
               editable && <CompletarCantidad tripId={tripId} seg={s} onDone={onChange} />
             )}
-            {editable && (
+            {/* Los renglones que dejó puesta la oficina no se ofrecen para borrar: el backend
+                los rechaza igual, y un botón que siempre falla es peor que no tenerlo. */}
+            {editable && !s.fijo && (
               <button
                 type="button"
                 onClick={async () => {

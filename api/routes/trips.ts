@@ -196,6 +196,20 @@ trips.post("/", async (c) => {
     return fail(c, "Ese viaje no es de tu camión", 403);
   }
 
+  // Los fijos se instancian SIEMPRE, no solo cuando el pedido no trae renglones: si no,
+  // alcanzaba con crear el viaje mandando `segments` propios para que la ida y la vuelta de
+  // la oficina no existieran nunca.
+  const fijos = (await conCobro(c.env.DB, parseSegments(tpl.renglones_fijos ?? []))).map((x) => ({
+    ...x,
+    fijo: true,
+  }));
+  // Un viaje de un solo tramo no lleva renglones del chofer: cada renglón es una unidad
+  // facturable, y ahí no hay ninguna que armar. La oficina sí puede, por PUT /:id/segments.
+  const extra =
+    user.role === ROLES.CHOFER && !tpl.multi_renglon
+      ? []
+      : await conCobro(c.env.DB, parseSegments(b.segments, new Set(fijos.map((x) => x.sid))));
+
   const id = await tripsRepo.startTrip(c.env.DB, {
     template_id: tpl.id,
     provider_name: tpl.provider_name ?? "",
@@ -214,10 +228,7 @@ trips.post("/", async (c) => {
     // junto con el viaje: el chofer no los arma, sólo les completa la cantidad y la foto.
     // Cada viaje los instancia con su propio sid — si vinieran con uno de la plantilla,
     // todos los viajes compartirían el mismo y las fotos de uno aparecerían en los demás.
-    segments: await conCobro(
-      c.env.DB,
-      parseSegments(b.segments?.length ? b.segments : (tpl.renglones_fijos ?? [])),
-    ),
+    segments: [...fijos, ...extra],
   });
   return okViaje(c, await tripsRepo.getTrip(c.env.DB, id));
 });
@@ -227,6 +238,16 @@ trips.post("/:id/segments", async (c) => {
   const s = await scoped(c);
   if ("error" in s) return fail(c, s.error, s.status);
   if (s.trip.status !== TRIP_STATUS.EN_CURSO) return fail(c, "El viaje no está en curso", 409);
+
+  // Esconder el panel de cargas no alcanza: el id del viaje viaja en el pedido y se puede
+  // mandar igual. Si la plantilla es de un solo tramo el chofer no arma renglones.
+  // La oficina pasa: corrige por PUT /:id/segments.
+  const tplSeg = s.trip.template_id
+    ? await templatesRepo.getTemplate(c.env.DB, s.trip.template_id)
+    : null;
+  if (c.get("user").role === ROLES.CHOFER && tplSeg && !tplSeg.multi_renglon) {
+    return fail(c, "Este viaje no lleva cargas por renglón", 403);
+  }
 
   const b = (await c.req.json().catch(() => ({}))) as { segments?: unknown };
   // Los sid ya usados entran al set para que una carga nueva no pise el de otra —
@@ -295,6 +316,12 @@ trips.delete("/:id/segments/:idx", async (c) => {
   if (s.trip.status !== TRIP_STATUS.EN_CURSO) return fail(c, "El viaje no está en curso", 409);
   const idx = Number(c.req.param("idx"));
   if (isNaN(idx) || idx < 0 || idx >= s.trip.segments.length) return fail(c, "Carga inexistente", 404);
+  // La ida y la vuelta las dejó puestas la oficina, y de ahí sale el cobro: el chofer les
+  // completa la cantidad y la foto, no las saca. Es la misma razón por la que el PATCH no lo
+  // deja tocar el lugar ni los clientes. La oficina corrige por PUT /:id/segments.
+  if (c.get("user").role === ROLES.CHOFER && s.trip.segments[idx].fijo) {
+    return fail(c, "Ese renglón lo puso la oficina: no se puede quitar.", 403);
+  }
   const quedan = s.trip.segments.filter((_, i) => i !== idx);
   await tripsRepo.updateSegments(c.env.DB, s.trip.id, quedan);
   return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
