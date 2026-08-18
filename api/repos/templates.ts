@@ -113,6 +113,7 @@ function bindArgs(t: TemplateInput) {
     JSON.stringify(t.dest_options ?? []),
     JSON.stringify(t.fields ?? []),
     t.arrival_photo_label || null,
+    t.carga_photo_label || null,
     t.campos_ubicacion ? JSON.stringify(t.campos_ubicacion) : null,
     t.multi_renglon ? 1 : 0,
     t.renglon_pide_ubicacion ? 1 : 0,

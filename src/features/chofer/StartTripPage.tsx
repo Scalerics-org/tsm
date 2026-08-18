@@ -4,6 +4,7 @@ import {
   CAMPO_MODO,
   FIELD_STAGE,
   PHOTO_KIND,
+  plantillaHabilitada,
   requiereFotoCarga,
   type CampoUbicacion,
   type LibretaEntry,
@@ -171,6 +172,12 @@ export function StartTripPage() {
           </select>
           <p className="mt-1 text-xs text-ink/50">Cambialo solo si hoy manejás otro camión.</p>
         </Field>
+        {/* La lista de viajes se arma con el camión asignado, pero acá lo puede cambiar. Si
+            el que eligió no hace este viaje conviene decírselo ahora y no después de llenar
+            todo: el alta lo va a rechazar igual. */}
+        {truckId && !plantillaHabilitada(tpl, Number(truckId)) && (
+          <ErrorText>Este viaje no lo hace ese camión. Elegí otro camión o volvé atrás.</ErrorText>
+        )}
         {/* Partes que la plantilla resuelve con la libreta. Las fijas ya vienen resueltas. */}
         {cu.origen?.modo === CAMPO_MODO.LIBRETA && (
           <LibretaPicker
@@ -315,7 +322,13 @@ export function StartTripPage() {
       )}
 
       <ErrorText>{error}</ErrorText>
-      <Button variant="success" loading={busy} onClick={confirm} className="w-full py-4 text-lg">
+      <Button
+        variant="success"
+        loading={busy}
+        disabled={!!truckId && !plantillaHabilitada(tpl, Number(truckId))}
+        onClick={confirm}
+        className="w-full py-4 text-lg"
+      >
         Confirmar salida →
       </Button>
     </div>

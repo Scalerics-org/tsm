@@ -7,10 +7,10 @@ import {
   type TemplateField,
   type TripTemplate,
 } from "@shared/domain";
-import { api } from "../../lib/api";
+import { api, ApiError } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { ROLES } from "@shared/domain";
-import { Button, Card, Field, Spinner } from "../../components/ui";
+import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
 
 /** Lo que devuelve /trucks/options: alcanza con la patente para elegir. */
 interface TruckOption {
@@ -186,6 +186,7 @@ function TemplateForm({
   const [truckIds, setTruckIds] = useState<number[]>(initial?.truck_ids ?? []);
   const [trucks, setTrucks] = useState<TruckOption[]>([]);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api.get<TruckOption[]>("/trucks/options").then(setTrucks).catch(() => setTrucks([]));
@@ -215,11 +216,17 @@ function TemplateForm({
       renglones_fijos: initial?.renglones_fijos ?? null,
       pide_kilometros: initial?.pide_kilometros ?? false,
       viaje_vacio: initial?.viaje_vacio ?? false,
+      carga_photo_label: initial?.carga_photo_label ?? null,
     };
     try {
       if (initial) await api.put(`/templates/${initial.id}`, payload);
       else await api.post("/templates", payload);
       onSaved();
+    } catch (e) {
+      // Sin este catch el error se perdía: la oficina apretaba Guardar, no pasaba nada y
+      // tampoco aparecía un mensaje. Un guardado que falla en silencio es peor que uno que
+      // falla: el que lo usa se va convencido de que quedó.
+      setError(e instanceof ApiError ? e.message : "No se pudo guardar el viaje.");
     } finally {
       setBusy(false);
     }
@@ -368,6 +375,8 @@ function TemplateForm({
             "Peso" marca el campo de toneladas para los reportes. "En descarga" = se pide al registrar la llegada.
           </p>
         </div>
+
+        <ErrorText>{error}</ErrorText>
 
         <div className="flex gap-2">
           <Button type="submit" loading={busy}>
