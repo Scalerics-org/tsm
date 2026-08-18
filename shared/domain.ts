@@ -746,3 +746,24 @@ export function fuelSummary(logs: { odometer_km: number; liters: number }[]): {
   const consumption_kml = sorted.length > 1 ? kmPorLitro(km, liters) : null;
   return { km, liters, consumption_kml };
 }
+
+/**
+ * Si un camión puede hacer este viaje.
+ *
+ * "Hay camiones que directamente no hacen algunas cosas": una tolva no hace el reparto del
+ * frigorífico. La oficina le asigna camiones a la plantilla y el resto deja de verla.
+ *
+ * Sin asignación la ven todos, y ése es el fallo seguro: si la asignación se pierde el viaje
+ * sigue disponible para todos. Al revés —lista vacía significando "no la ve nadie"— un borrado
+ * accidental de `template_trucks` dejaría a la flota entera sin poder cargar viajes.
+ *
+ * Un chofer sin camión asignado sólo ve las plantillas libres: no podemos adivinar en cuál
+ * anda, y ofrecerle un viaje que su camión no hace es justo lo que el cliente quiere evitar.
+ */
+export function plantillaHabilitada(
+  tpl: Pick<TripTemplate, "truck_ids">,
+  truckId: number | null | undefined,
+): boolean {
+  if (!tpl.truck_ids.length) return true;
+  return truckId != null && tpl.truck_ids.includes(truckId);
+}

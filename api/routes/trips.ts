@@ -4,6 +4,7 @@ import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
 import {
   ROLES,
+  plantillaHabilitada,
   TRIP_STATUS,
   PHOTO_KIND,
   UNIDAD,
@@ -187,6 +188,13 @@ trips.post("/", async (c) => {
 
   const truckId = b.truck_id ? Number(b.truck_id) : user.truck_id;
   if (!truckId) return fail(c, "No tenés un camión asignado", 400);
+
+  // Esconder la plantilla de la lista no alcanza: el id viaja en el pedido y se puede mandar
+  // igual. Sin este control la restricción por camión es decorativa.
+  // La oficina pasa: es quien define la asignación, y puede necesitar una excepción puntual.
+  if (user.role === ROLES.CHOFER && !plantillaHabilitada(tpl, truckId)) {
+    return fail(c, "Ese viaje no es de tu camión", 403);
+  }
 
   const id = await tripsRepo.startTrip(c.env.DB, {
     template_id: tpl.id,

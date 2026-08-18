@@ -9,6 +9,7 @@ import {
   CAMPO_MODO,
   LIBRETA_TIPO,
   TIPO_DEPARTAMENTO,
+  plantillaHabilitada,
   UNIDAD,
   type CamposUbicacion,
   type RenglonFijo,
@@ -30,10 +31,7 @@ templates.get("/", async (c) => {
   // El camión puede venir por query (el chofer eligió otro al iniciar el viaje).
   const q = c.req.query("truck");
   const truckId = q ? Number(q) : user.truck_id;
-  return ok(
-    c,
-    todas.filter((t) => !t.truck_ids.length || (truckId != null && t.truck_ids.includes(truckId))),
-  );
+  return ok(c, todas.filter((t) => plantillaHabilitada(t, truckId)));
 });
 
 function slug(s: string): string {
