@@ -140,6 +140,7 @@ trips.get("/:id", async (c) => {
     trip,
     photos,
     arrival_photo_label: tpl?.arrival_photo_label ?? null,
+    carga_photo_label: tpl?.carga_photo_label ?? null,
     // Lo que la pantalla del chofer necesita saber de la plantilla.
     multi_renglon: !!tpl?.multi_renglon,
     pide_kilometros: !!tpl?.pide_kilometros,

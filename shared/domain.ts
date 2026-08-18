@@ -116,6 +116,8 @@ export interface TripTemplate {
   dest_options: DestOption[]; // destino + destinatario que puede elegir el chofer
   fields: TemplateField[]; // campos configurables (carga/descarga)
   arrival_photo_label: string | null; // etiqueta de la foto de descarga (ej. "Hoja rosada firmada")
+  /** Etiqueta de la foto de carga (ej. "Hoja MIC"). null = "Foto de la carga". */
+  carga_photo_label: string | null;
   /** Partes que se resuelven con la libreta. Ausente = flujo clásico con dest_options. */
   campos_ubicacion: CamposUbicacion | null;
   /** El chofer agrega una carga por cada lugar donde cargó (viajes combinados). */
@@ -265,6 +267,12 @@ export const CAMPO_MODO = {
   FIJO: "fijo",
   /** El chofer elige de la libreta curada (y puede dar de alta si `permite_alta`). */
   LIBRETA: "libreta",
+  /**
+   * El chofer lo escribe. Es el "completar" de la planilla del cliente: lugares que
+   * cambian en cada viaje y no vale la pena agendar, como el galpón puntual donde
+   * cargó en Rosario o dónde descargó en Durazno.
+   */
+  TEXTO: "texto",
 } as const;
 export type CampoModo = (typeof CAMPO_MODO)[keyof typeof CAMPO_MODO];
 

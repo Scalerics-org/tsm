@@ -41,6 +41,8 @@ export function StartTripPage() {
   const [values, setValues] = useState<Record<string, string>>({});
   const [file, setFile] = useState<File | null>(null);
   const [libreta, setLibreta] = useState<Record<string, LibretaEntry | null>>({});
+  // Lo que el chofer escribe en los campos "completar" de la plantilla.
+  const [textos, setTextos] = useState<Record<string, string>>({});
   const [trucks, setTrucks] = useState<TruckOption[]>([]);
   const [truckId, setTruckId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -75,10 +77,14 @@ export function StartTripPage() {
   // cuenta para el cierre, y el chofer termina sacando cuatro para tres paradas.
   const pideFoto = requiereFotoCarga(tpl) && !tpl.multi_renglon;
 
-  /** Valor de una parte según su modo: fijo lo trae la plantilla, libreta lo elige el chofer. */
+  /**
+   * Valor de una parte según su modo: fijo lo trae la plantilla, libreta lo elige el
+   * chofer de una lista, y texto lo escribe (el "completar" de la planilla del cliente).
+   */
   const valorDe = (campo: CampoUbicacion | undefined, key: string, fallback: string): string => {
     if (!campo) return fallback;
     if (campo.modo === CAMPO_MODO.FIJO) return campo.valor ?? fallback;
+    if (campo.modo === CAMPO_MODO.TEXTO) return (textos[key] ?? "").trim();
     return libreta[key]?.nombre ?? "";
   };
 
@@ -102,11 +108,12 @@ export function StartTripPage() {
 
   async function confirm() {
     setError("");
-    if (cu.origen?.modo === CAMPO_MODO.LIBRETA && cu.origen.requerido !== false && !origenFinal) {
+    // Los de texto se validan igual que los de lista: si son obligatorios, no pasan vacios.
+    if (cu.origen && cu.origen.modo !== CAMPO_MODO.FIJO && cu.origen.requerido !== false && !origenFinal) {
       return setError("Elegí el origen.");
     }
-    if (cu.remitente?.modo === CAMPO_MODO.LIBRETA && cu.remitente.requerido !== false && !remitenteFinal) {
-      return setError("Elegí el remitente.");
+    if (cu.remitente && cu.remitente.modo !== CAMPO_MODO.FIJO && cu.remitente.requerido !== false && !remitenteFinal) {
+      return setError(`Falta: ${cu.remitente.label ?? "el lugar de carga"}.`);
     }
     if (usaLibretaDestino) {
       if (!destinoFinal) return setError("Elegí el destino.");
@@ -149,7 +156,7 @@ export function StartTripPage() {
       <div>
         <div className="kicker">{tpl.provider_name}</div>
         <h1 className="text-3xl text-ink">{tpl.name}</h1>
-        <p className="text-sm text-ink/60">Salida desde {tpl.origin}</p>
+        {tpl.origin && <p className="text-sm text-ink/60">Salida desde {tpl.origin}</p>}
       </div>
 
       <Card className="space-y-4">
@@ -175,6 +182,27 @@ export function StartTripPage() {
             permiteAlta={cu.origen.permite_alta !== false}
           />
         )}
+        {/* Los "completar" de la planilla: lugares puntuales que cambian cada viaje. */}
+        {cu.origen?.modo === CAMPO_MODO.TEXTO && (
+          <Field label={cu.origen.label ?? "Origen"}>
+            <input
+              className="input"
+              value={textos.origen ?? ""}
+              onChange={(e) => setTextos((p) => ({ ...p, origen: e.target.value }))}
+              autoCapitalize="words"
+            />
+          </Field>
+        )}
+        {cu.remitente?.modo === CAMPO_MODO.TEXTO && (
+          <Field label={cu.remitente.label ?? "Lugar de carga"}>
+            <input
+              className="input"
+              value={textos.remitente ?? ""}
+              onChange={(e) => setTextos((p) => ({ ...p, remitente: e.target.value }))}
+              autoCapitalize="words"
+            />
+          </Field>
+        )}
         {cu.remitente?.modo === CAMPO_MODO.LIBRETA && (
           <LibretaPicker
             tipo={cu.remitente.libreta_tipo ?? "remitente"}
@@ -198,6 +226,26 @@ export function StartTripPage() {
                 providerId={tpl.provider_id}
                 permiteAlta={cu.destino.permite_alta !== false}
               />
+            )}
+            {cu.destino?.modo === CAMPO_MODO.TEXTO && (
+              <Field label={cu.destino.label ?? "Destino"}>
+                <input
+                  className="input"
+                  value={textos.destino ?? ""}
+                  onChange={(e) => setTextos((p) => ({ ...p, destino: e.target.value }))}
+                  autoCapitalize="words"
+                />
+              </Field>
+            )}
+            {cu.destinatario?.modo === CAMPO_MODO.TEXTO && (
+              <Field label={cu.destinatario.label ?? "Lugar de descarga"}>
+                <input
+                  className="input"
+                  value={textos.destinatario ?? ""}
+                  onChange={(e) => setTextos((p) => ({ ...p, destinatario: e.target.value }))}
+                  autoCapitalize="words"
+                />
+              </Field>
             )}
             {cu.destinatario?.modo === CAMPO_MODO.LIBRETA && (
               <LibretaPicker
@@ -260,7 +308,7 @@ export function StartTripPage() {
         <Card className="space-y-3">
           <Corners />
           <CameraCapture
-            label={pideFoto ? "Foto de la carga" : "Foto de la carga (opcional)"}
+            label={(tpl.carga_photo_label ?? "Foto de la carga") + (pideFoto ? "" : " (opcional)")}
             onChange={setFile}
           />
         </Card>

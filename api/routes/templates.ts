@@ -136,6 +136,7 @@ function parse(b: any): repo.TemplateInput | null {
     dest_options,
     fields,
     arrival_photo_label: b.arrival_photo_label ? String(b.arrival_photo_label).trim() : null,
+    carga_photo_label: b.carga_photo_label ? String(b.carga_photo_label).trim() : null,
     campos_ubicacion: parseCamposUbicacion(b.campos_ubicacion),
     multi_renglon: !!b.multi_renglon,
     renglon_pide_ubicacion: !!b.renglon_pide_ubicacion,

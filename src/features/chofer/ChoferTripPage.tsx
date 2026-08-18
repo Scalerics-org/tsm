@@ -24,6 +24,8 @@ interface Detail {
   photos: TripPhoto[];
   arrival_photo_label: string | null;
   multi_renglon: boolean;
+  /** Nombre del papel que hay que fotografiar al cargar (ej. "Hoja MIC"). */
+  carga_photo_label: string | null;
   pide_kilometros: boolean;
   viaje_vacio: boolean;
   /** Si el cierre va a exigir la foto de la carga. Lo resuelve el backend con la plantilla. */
