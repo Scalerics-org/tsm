@@ -335,12 +335,19 @@ trips.put("/:id/segments", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
   const segs = parseSegments(b.segments);
   const conReglas = await conCobro(c.env.DB, segs);
 
+  // `fijo` no viaja en lo que manda el cliente (no está en TripSegmentInput), así que sin
+  // esto una corrección de oficina le sacaba la marca a la ida y la vuelta de Manassi y el
+  // chofer pasaba a poder borrarlas. Se recupera por sid, que es lo único estable: el orden
+  // de los renglones lo decide quien corrige.
+  const eranFijos = new Set(trip.segments.filter((x) => x.fijo).map((x) => x.sid));
+
   // La oficina puede fijar el cobro a mano; eso no lo pisa la regla después.
   const raw = Array.isArray(b.segments) ? (b.segments as any[]) : [];
   const finales = conReglas.map((seg, i) => {
+    const conFijo = eranFijos.has(seg.sid) ? { ...seg, fijo: true } : seg;
     const m = raw[i];
-    if (!m?.cobro_manual) return seg;
-    return { ...seg, cobro_tipo: m.cobro_tipo ?? null, cobro_a: m.cobro_a ?? null, cobro_manual: true };
+    if (!m?.cobro_manual) return conFijo;
+    return { ...conFijo, cobro_tipo: m.cobro_tipo ?? null, cobro_a: m.cobro_a ?? null, cobro_manual: true };
   });
 
   await tripsRepo.updateSegments(c.env.DB, trip.id, finales, {
