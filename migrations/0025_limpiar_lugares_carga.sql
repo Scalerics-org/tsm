@@ -1,0 +1,13 @@
+-- Deja como lugares de carga sólo los que aparecen en las planillas del cliente.
+--
+-- Se van cuatro que venían del seed de demostración:
+--   · Agronorte — es una barraca que RECIBE, no un lugar de carga. En sus palabras:
+--     "Agronorte es la barraca más grande de Bella Unión, y 12 de los lugares de carga
+--     son para esa barraca". Sigue existiendo como cliente, que es su rol real.
+--   · Proveedores — nombre genérico del ejemplo, no es un lugar real.
+--   · Casarone y Saman — son cliente y remite de sus propias plantillas, donde van como
+--     texto fijo. Como lugar de carga elegible no los usa nadie.
+--
+-- Esto se lleva puestas dos reglas de cobro por CASCADE, y está bien: las seis reglas que
+-- hay son del seed de demostración, ninguna es suya. Las reales todavía no las pasó.
+DELETE FROM libreta WHERE tipo = 'remitente' AND nombre IN ('Agronorte', 'Proveedores', 'Casarone', 'Saman');
