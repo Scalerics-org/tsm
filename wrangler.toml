@@ -42,6 +42,12 @@ database_id = "768f2a51-6dec-49cd-9f85-718242e17fca"
 binding = "FOTOS"
 bucket_name = "logistica-fotos"
 
+# El puerto tiene que coincidir con el proxy de vite.config.ts. Sin este bloque wrangler
+# levanta en el 8787, el proxy apunta al 8788, y `npm run dev` queda sin API — con pinta de
+# bug de la app en vez de un desajuste de configuración.
+[dev]
+port = 8788
+
 # JWT_SECRET se carga como secret:  npx wrangler secret put JWT_SECRET
 [vars]
 NOMINATIM_UA = "tsm-scalerics/1.0 (contacto@scalerics.com)"

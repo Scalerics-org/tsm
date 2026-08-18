@@ -19,10 +19,4 @@ export function fmtDate(iso: string | null): string {
   return d.toLocaleDateString("es-UY", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-export function fmtKm(km: number): string {
-  return `${km.toLocaleString("es-UY", { maximumFractionDigits: 1 })} km`;
-}
 
-export function fmtLiters(l: number): string {
-  return `${l.toLocaleString("es-UY", { maximumFractionDigits: 1 })} L`;
-}

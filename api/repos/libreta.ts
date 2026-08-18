@@ -140,8 +140,26 @@ export async function deleteEntry(db: D1Database, id: number): Promise<void> {
   await db.prepare("DELETE FROM libreta WHERE id = ?").bind(id).run();
 }
 
-export async function bumpUso(db: D1Database, id: number): Promise<void> {
-  await db.prepare("UPDATE libreta SET usos = usos + 1 WHERE id = ?").bind(id).run();
+/** Suma un uso a cada nombre de libreta que aparece en un renglón. Los repetidos, una vez. */
+export async function bumpUsos(db: D1Database, ids: (number | null | undefined)[]): Promise<void> {
+  const unicos = [...new Set(ids.filter((x): x is number => typeof x === "number"))];
+  if (!unicos.length) return;
+  await db.batch(unicos.map((id) => db.prepare("UPDATE libreta SET usos = usos + 1 WHERE id = ?").bind(id)));
+}
+
+/**
+ * Reglas de cobro que dependen de esta entrada.
+ *
+ * `cobro_reglas` apunta a `libreta` con ON DELETE CASCADE, así que borrar un nombre se lleva
+ * sus reglas sin decir nada. La pantalla ya tenía el aviso escrito, pero colgaba de `usos`,
+ * que nunca subía: siempre decía 0 y nunca frenaba a nadie.
+ */
+export async function reglasQueDependen(db: D1Database, id: number): Promise<number> {
+  const r = await db
+    .prepare("SELECT COUNT(*) AS n FROM cobro_reglas WHERE remitente_id = ? OR destinatario_id = ?")
+    .bind(id, id)
+    .first<{ n: number }>();
+  return r?.n ?? 0;
 }
 
 /**

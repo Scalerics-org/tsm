@@ -6,12 +6,13 @@ import {
   ROLES,
   plantillaHabilitada,
   TRIP_STATUS,
-  PHOTO_KIND,
   UNIDAD,
   aplicarCobro,
-  renglonesSinFoto,
-  sinCobro,
+  fotosFaltantes,
+  parseRenglon,
   requiereFotoCarga,
+  sinCobro,
+  sirveComoLugarDeCarga,
   type Trip,
   type TripSegmentInput,
   type TripTemplate,
@@ -37,7 +38,6 @@ async function scoped(c: any): Promise<Scope> {
   return { trip };
 }
 
-/** Normaliza los renglones que manda el chofer. Un renglón sin lugar de carga no sirve. */
 /**
  * Id de la carga. Se respeta el que manda el cliente —así la foto que subió recién sigue
  * apuntando a su carga, y editar desde oficina no deja fotos huérfanas— pero se garantiza
@@ -50,25 +50,14 @@ function sidDe(raw: unknown, usados: Set<string>): string {
   return sid;
 }
 
+// El mapeo de los once campos vive en domain.ts, compartido con la ruta de plantillas.
+// Acá sólo se le agrega el sid y se descarta el renglón sin lugar de carga.
+// (Ciudad y destino propios del renglón sólo llegan en el combinado genérico; en los demás
+//  quedan null y vale lo del viaje.)
 function parseSegments(raw: any, usados = new Set<string>()): TripSegmentInput[] {
   if (!Array.isArray(raw)) return [];
   return raw
-    .map((r: any) => ({
-      sid: sidDe(r?.sid, usados),
-      // Ciudad de carga y destino propios del renglón: sólo llegan en el combinado
-      // genérico. En los demás quedan null y vale lo del viaje.
-      origen: r?.origen ? String(r.origen).trim() : null,
-      origen_id: r?.origen_id ? Number(r.origen_id) : null,
-      destino: r?.destino ? String(r.destino).trim() : null,
-      destino_id: r?.destino_id ? Number(r.destino_id) : null,
-      remitente: String(r?.remitente ?? "").trim(),
-      remitente_id: r?.remitente_id ? Number(r.remitente_id) : null,
-      clientes: Array.isArray(r?.clientes) ? r.clientes.map((c: any) => String(c).trim()).filter(Boolean) : [],
-      cliente_ids: Array.isArray(r?.cliente_ids) ? r.cliente_ids.map(Number).filter((n: number) => !isNaN(n)) : [],
-      cantidad: r?.cantidad != null && r.cantidad !== "" ? Number(r.cantidad) : null,
-      unidad: r?.unidad === UNIDAD.KILOS || r?.unidad === UNIDAD.PALLETS ? r.unidad : null,
-      remito: r?.remito ? String(r.remito).trim() : null,
-    }))
+    .map((r: any) => ({ sid: sidDe(r?.sid, usados), ...parseRenglon(r) }))
     .filter((r) => r.remitente);
 }
 
@@ -84,8 +73,31 @@ function okViaje(c: any, trip: Trip | null) {
 /** Completa la facturación de cada carga con las reglas. El chofer nunca manda esto. */
 async function conCobro(db: D1Database, segs: TripSegmentInput[]) {
   if (!segs.length) return [];
+  // Cada renglón que se guarda cuenta como un uso de los nombres que eligió. De ese contador
+  // cuelgan el orden de la libreta (los más usados arriba, que es lo que hace que el chofer
+  // los encuentre) y el aviso de la oficina antes de borrar. Estaba escrito y sin llamar:
+  // los 42 nombres decían 0 usos.
+  await libretaRepo.bumpUsos(db, segs.flatMap((s) => [s.remitente_id, ...s.cliente_ids]));
   return aplicarCobro(await libretaRepo.listReglas(db), segs);
 }
+
+/**
+ * El primer renglón cuyo lugar de carga es un agrupador, o null si están todos bien.
+ *
+ * Los tres caminos que guardan renglones tienen que aplicar la misma regla. Antes vivía
+ * inline en uno solo, y por eso la oficina podía grabar "Varios" como lugar de carga.
+ */
+async function primerAgrupador(db: D1Database, segs: TripSegmentInput[]): Promise<string | null> {
+  for (const seg of segs) {
+    if (seg.remitente_id == null) continue;
+    const entrada = await libretaRepo.getEntry(db, seg.remitente_id);
+    if (!sirveComoLugarDeCarga(entrada)) return entrada?.nombre ?? seg.remitente;
+  }
+  return null;
+}
+
+const mensajeAgrupador = (nombre: string) =>
+  `"${nombre}" no sirve como lugar de carga: elegí dónde cargaste.`;
 
 // Valida los campos requeridos de una etapa (carga/descarga) contra los valores enviados.
 function missingField(tpl: TripTemplate, stage: string, values: Record<string, string>): string | null {
@@ -205,10 +217,15 @@ trips.post("/", async (c) => {
   }));
   // Un viaje de un solo tramo no lleva renglones del chofer: cada renglón es una unidad
   // facturable, y ahí no hay ninguna que armar. La oficina sí puede, por PUT /:id/segments.
-  const extra =
+  const propios =
     user.role === ROLES.CHOFER && !tpl.multi_renglon
       ? []
-      : await conCobro(c.env.DB, parseSegments(b.segments, new Set(fijos.map((x) => x.sid))));
+      : parseSegments(b.segments, new Set(fijos.map((x) => x.sid)));
+
+  const agrupadorAlta = await primerAgrupador(c.env.DB, propios);
+  if (agrupadorAlta) return fail(c, mensajeAgrupador(agrupadorAlta), 400);
+
+  const extra = await conCobro(c.env.DB, propios);
 
   const id = await tripsRepo.startTrip(c.env.DB, {
     template_id: tpl.id,
@@ -255,15 +272,8 @@ trips.post("/:id/segments", async (c) => {
   const nuevos = parseSegments(b.segments, new Set(s.trip.segments.map((x) => x.sid)));
   if (!nuevos.length) return fail(c, "Falta el lugar de carga", 400);
 
-  // Los agrupadores ("Varios") no valen como lugar de carga: es justo el dato
-  // que no se puede perder para poder facturar.
-  for (const seg of nuevos) {
-    if (seg.remitente_id == null) continue;
-    const entrada = await libretaRepo.getEntry(c.env.DB, seg.remitente_id);
-    if (entrada?.agrupador) {
-      return fail(c, `"${entrada.nombre}" no sirve como lugar de carga: elegí dónde cargaste.`, 400);
-    }
-  }
+  const agrupador = await primerAgrupador(c.env.DB, nuevos);
+  if (agrupador) return fail(c, mensajeAgrupador(agrupador), 400);
 
   const todos = [...s.trip.segments, ...(await conCobro(c.env.DB, nuevos))];
   await tripsRepo.updateSegments(c.env.DB, s.trip.id, todos);
@@ -309,20 +319,28 @@ trips.patch("/:id/segments/:sid", async (c) => {
   return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
 });
 
-// DELETE /api/trips/:id/segments/:idx — quitar una carga cargada por error.
-trips.delete("/:id/segments/:idx", async (c) => {
+// DELETE /api/trips/:id/segments/:sid — quitar una carga cargada por error.
+trips.delete("/:id/segments/:sid", async (c) => {
   const s = await scoped(c);
   if ("error" in s) return fail(c, s.error, s.status);
   if (s.trip.status !== TRIP_STATUS.EN_CURSO) return fail(c, "El viaje no está en curso", 409);
-  const idx = Number(c.req.param("idx"));
-  if (isNaN(idx) || idx < 0 || idx >= s.trip.segments.length) return fail(c, "Carga inexistente", 404);
+  // Se identifica por `sid` y no por posición. Con el índice, un segundo toque sobre la misma
+  // fila (señal mala, la pantalla no se había refrescado) borraba la carga SIGUIENTE: el
+  // backend ya había sacado la primera y la posición pasaba a apuntar a otra. Probado, y era
+  // una carga facturable perdida sin rastro. `sid` es lo único estable — el resto del renglón
+  // (la cantidad, la foto, la corrección de oficina) ya se direccionaba así.
+  const sid = c.req.param("sid");
+  const objetivo = s.trip.segments.find((x) => x.sid === sid);
+  if (!objetivo) return fail(c, "Esa carga ya no está en el viaje", 404);
+
   // La ida y la vuelta las dejó puestas la oficina, y de ahí sale el cobro: el chofer les
   // completa la cantidad y la foto, no las saca. Es la misma razón por la que el PATCH no lo
   // deja tocar el lugar ni los clientes. La oficina corrige por PUT /:id/segments.
-  if (c.get("user").role === ROLES.CHOFER && s.trip.segments[idx].fijo) {
+  if (c.get("user").role === ROLES.CHOFER && objetivo.fijo) {
     return fail(c, "Ese renglón lo puso la oficina: no se puede quitar.", 403);
   }
-  const quedan = s.trip.segments.filter((_, i) => i !== idx);
+
+  const quedan = s.trip.segments.filter((x) => x.sid !== sid);
   await tripsRepo.updateSegments(c.env.DB, s.trip.id, quedan);
   return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
 });
@@ -333,6 +351,12 @@ trips.put("/:id/segments", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
   if (!trip) return fail(c, "Viaje no encontrado", 404);
   const b = (await c.req.json().catch(() => ({}))) as { segments?: unknown };
   const segs = parseSegments(b.segments);
+
+  // La misma regla que ya frena al chofer: "Varios" no vale como lugar de carga. Faltaba
+  // acá, así que la oficina podía dejarlo grabado — y ése es el dato que no se puede perder.
+  const agrupador = await primerAgrupador(c.env.DB, segs);
+  if (agrupador) return fail(c, mensajeAgrupador(agrupador), 400);
+
   const conReglas = await conCobro(c.env.DB, segs);
 
   // `fijo` no viaja en lo que manda el cliente (no está en TripSegmentInput), así que sin
@@ -342,11 +366,21 @@ trips.put("/:id/segments", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
   const eranFijos = new Set(trip.segments.filter((x) => x.fijo).map((x) => x.sid));
 
   // La oficina puede fijar el cobro a mano; eso no lo pisa la regla después.
-  const raw = Array.isArray(b.segments) ? (b.segments as any[]) : [];
-  const finales = conReglas.map((seg, i) => {
+  //
+  // Se empareja por `sid` y no por posición: `parseSegments` descarta los renglones sin lugar
+  // de carga, así que una fila vacía en el medio corría el índice y el cobro escrito a mano
+  // aterrizaba en OTRO renglón, o se perdía. Verificado antes de arreglarlo.
+  const manuales = new Map<string, any>();
+  if (Array.isArray(b.segments)) {
+    for (const m of b.segments as any[]) {
+      if (m?.cobro_manual && m?.sid) manuales.set(String(m.sid), m);
+    }
+  }
+
+  const finales = conReglas.map((seg) => {
     const conFijo = eranFijos.has(seg.sid) ? { ...seg, fijo: true } : seg;
-    const m = raw[i];
-    if (!m?.cobro_manual) return conFijo;
+    const m = manuales.get(seg.sid);
+    if (!m) return conFijo;
     return { ...conFijo, cobro_tipo: m.cobro_tipo ?? null, cobro_a: m.cobro_a ?? null, cobro_manual: true };
   });
 
@@ -393,22 +427,7 @@ trips.post("/:id/finish", async (c) => {
   // nunca podría cerrarse. Al habilitarlo, la regla empieza a aplicar sola.
   if (c.env.FOTOS) {
     const fotos = await photosRepo.listPhotos(c.env.DB, s.trip.id);
-    const faltantes: string[] = [];
-    if (requiereFotoCarga(tpl)) {
-      if (tpl?.multi_renglon) {
-        // En los combinados la evidencia es una foto por lugar de carga: con una sola
-        // no se sabe cuál de las tres cargas quedó documentada.
-        const sinFoto = renglonesSinFoto(s.trip.segments, fotos);
-        if (sinFoto.length) {
-          faltantes.push(`la foto de: ${sinFoto.map((x) => x.remitente).join(", ")}`);
-        }
-      } else if (!fotos.some((f) => f.kind === PHOTO_KIND.CARGA)) {
-        faltantes.push("la foto de la carga");
-      }
-    }
-    if (tpl?.arrival_photo_label && !fotos.some((f) => f.kind === PHOTO_KIND.DESCARGA)) {
-      faltantes.push(`la foto: ${tpl.arrival_photo_label}`);
-    }
+    const faltantes = fotosFaltantes(tpl, s.trip.segments, fotos);
     if (faltantes.length) {
       return fail(c, `El viaje queda pendiente hasta que cargues ${faltantes.join(" y ")}.`, 409);
     }

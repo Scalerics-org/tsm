@@ -101,7 +101,22 @@ libreta.post("/:id/merge", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
 });
 
 libreta.delete("/:id", requireRole(ROLES.ADMIN), async (c) => {
-  await repo.deleteEntry(c.env.DB, Number(c.req.param("id")));
+  const id = Number(c.req.param("id"));
+
+  // Borrar un nombre se lleva sus reglas de cobro en cascada, y hasta ahora lo hacía en
+  // silencio: el aviso de la pantalla colgaba de `usos`, que nunca subía. Ya pasó una vez y
+  // se perdieron las reglas. Si hay reglas apuntando acá, no se borra — se fusiona, que es
+  // lo que las reapunta en vez de tirarlas.
+  const reglas = await repo.reglasQueDependen(c.env.DB, id);
+  if (reglas) {
+    return fail(
+      c,
+      `No se puede borrar: hay ${reglas} regla${reglas === 1 ? "" : "s"} de cobro que ${reglas === 1 ? "usa" : "usan"} este nombre. Fusionalo con el correcto para no perderlas.`,
+      409,
+    );
+  }
+
+  await repo.deleteEntry(c.env.DB, id);
   return ok(c, { deleted: true });
 });
 

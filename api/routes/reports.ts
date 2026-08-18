@@ -11,6 +11,7 @@ import {
   type Trip,
 } from "../../shared/domain";
 import { listTrips } from "../repos/trips";
+import { CSV_HEADER, filasDeViaje } from "../lib/export-viajes";
 import { listFuelLogs } from "../repos/fuel";
 import { listTrucks, getTruck } from "../repos/trucks";
 import { listDrivers, getDriver } from "../repos/drivers";
@@ -263,42 +264,8 @@ function flattenFields(t: Trip): string {
 reports.get("/trips.csv", async (c) => {
   const q = c.req.query();
   const trips = await listTrips(c.env.DB, { from: q.from, to: q.to, provider: q.provider || undefined });
-  const header = [
-    "ID viaje", "Fecha", "Cliente", "Origen", "Destino", "Lugar de carga", "Clientes de la carga",
-    "Cantidad", "Unidad", "N° remito", "Se cobra a", "Tipo", "Toneladas", "Km", "Campos",
-    "Chofer", "Camión", "Estado", "Inicio", "Fin", "Observaciones",
-  ];
-
-  const rows: (string | number | null)[][] = [];
-  for (const t of trips) {
-    const comunes = [t.id, t.started_at.slice(0, 10), t.provider_name];
-    const cola = [
-      t.weight_tons ?? "", t.kilometros ?? "", flattenFields(t),
-      t.driver_name ?? "", t.truck_plate ?? "", t.status, t.started_at, t.finished_at ?? "", t.notes ?? "",
-    ];
-    if (!t.segments.length) {
-      rows.push([...comunes, t.origin, t.destination, t.remite ?? "", t.destinatario ?? "", "", "", "", "", "", ...cola]);
-      continue;
-    }
-    for (const s of t.segments) {
-      rows.push([
-        ...comunes,
-        // En el combinado genérico cada carga tiene su propio tramo; en los demás
-        // hereda el del viaje.
-        s.origen ?? t.origin,
-        s.destino ?? t.destination,
-        s.remitente,
-        s.clientes.join(" / "),
-        s.cantidad ?? "",
-        s.unidad ?? "",
-        s.remito ?? "",
-        s.cobro_a ?? "",
-        s.cobro_tipo ?? "",
-        ...cola,
-      ]);
-    }
-  }
-  return csvResponse(q.provider ? `viajes-${q.provider}.csv` : "viajes.csv", [header, ...rows]);
+  const rows = trips.flatMap((t) => filasDeViaje(t, flattenFields(t)));
+  return csvResponse(q.provider ? `viajes-${q.provider}.csv` : "viajes.csv", [CSV_HEADER, ...rows]);
 });
 
 // Cargas sin regla de facturación: el único trabajo manual que queda, y es una vez

@@ -36,5 +36,3 @@ app.onError((err, c) => {
   console.error("API error:", err);
   return fail(c, "Error interno del servidor", 500);
 });
-
-export type AppType = typeof app;

@@ -545,6 +545,88 @@ export function requiereFotoCarga(
   return !tpl.viaje_vacio && tpl.foto_carga_requerida;
 }
 
+/**
+ * Qué evidencia le falta a un viaje para poder cerrarse. Vacío = puede cerrar.
+ *
+ * Estaba escrita adentro del handler de cierre, y de las tres piezas sólo dos vivían acá.
+ * Por eso nadie notó que a los renglones que pone la oficina se les exige una foto que la
+ * pantalla del chofer no ofrecía sacar: los viajes de Manassi y la UAM no se podían cerrar.
+ * Con la decisión completa en un solo lugar, eso se ve en un test.
+ *
+ * Devuelve las descripciones en el orden en que el chofer las va a resolver: primero la
+ * carga, después la llegada.
+ */
+export function fotosFaltantes(
+  tpl: Pick<
+    TripTemplate,
+    "viaje_vacio" | "foto_carga_requerida" | "multi_renglon" | "arrival_photo_label"
+  > | null,
+  segments: Pick<TripSegment, "sid" | "remitente">[],
+  photos: Pick<TripPhoto, "kind" | "segment_sid">[],
+): string[] {
+  const faltan: string[] = [];
+
+  if (requiereFotoCarga(tpl)) {
+    if (tpl?.multi_renglon) {
+      // En los combinados la evidencia es una foto por lugar de carga: con una sola no se
+      // sabe cuál de las tres cargas quedó documentada.
+      const sinFoto = renglonesSinFoto(segments, photos);
+      if (sinFoto.length) faltan.push(`la foto de: ${sinFoto.map((x) => x.remitente).join(", ")}`);
+    } else if (!photos.some((f) => f.kind === PHOTO_KIND.CARGA)) {
+      faltan.push("la foto de la carga");
+    }
+  }
+
+  if (tpl?.arrival_photo_label && !photos.some((f) => f.kind === PHOTO_KIND.DESCARGA)) {
+    faltan.push(`la foto: ${tpl.arrival_photo_label}`);
+  }
+
+  return faltan;
+}
+
+/**
+ * Si una entrada de la libreta sirve como lugar de carga.
+ *
+ * "Varios" y los demás agrupadores no valen: es justo el dato que el cliente no puede
+ * perder. La regla estaba inline en el handler por el que entra el chofer, así que se
+ * olvidó en los otros dos caminos que guardan renglones — y la oficina podía dejar
+ * "Varios" grabado como lugar de carga.
+ *
+ * Una entrada que no está en la libreta (`null`) pasa: es un nombre escrito a mano, y ahí
+ * el chofer ya dijo dónde cargó.
+ */
+export function sirveComoLugarDeCarga(entrada: Pick<LibretaEntry, "agrupador"> | null): boolean {
+  return !entrada?.agrupador;
+}
+
+/**
+ * Normaliza un renglón que llega en un pedido, sin el `sid`.
+ *
+ * Estaba copiado en dos rutas —`parseSegments` en trips.ts y `parseRenglonesFijos` en
+ * templates.ts— mapeando los mismos once campos del mismo JSON al mismo tipo. Ya habían
+ * divergido: una descartaba el renglón sin lugar de carga y la otra lo aceptaba si tenía
+ * clientes. Cada llamador decide qué descarta; el mapeo es uno solo.
+ */
+export function parseRenglon(raw: unknown): Omit<TripSegmentInput, "sid"> {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const texto = (v: unknown) => (v ? String(v).trim() : null);
+  const numero = (v: unknown) => (v ? Number(v) : null);
+
+  return {
+    origen: texto(r.origen),
+    origen_id: numero(r.origen_id),
+    destino: texto(r.destino),
+    destino_id: numero(r.destino_id),
+    remitente: String(r.remitente ?? "").trim(),
+    remitente_id: numero(r.remitente_id),
+    clientes: Array.isArray(r.clientes) ? r.clientes.map((c) => String(c).trim()).filter(Boolean) : [],
+    cliente_ids: Array.isArray(r.cliente_ids) ? r.cliente_ids.map(Number).filter((n) => !isNaN(n)) : [],
+    cantidad: r.cantidad != null && r.cantidad !== "" ? Number(r.cantidad) : null,
+    unidad: r.unidad === UNIDAD.KILOS || r.unidad === UNIDAD.PALLETS ? (r.unidad as Unidad) : null,
+    remito: texto(r.remito),
+  };
+}
+
 /** Marcas de acento que NFD deja sueltas (U+0300–U+036F). Se arma por código para no meter
  *  caracteres combinantes literales en el fuente, que se corrompen fácil al editar. */
 const COMBINING_MARKS = new RegExp("[\\u0300-\\u036f]", "g");

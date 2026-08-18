@@ -82,7 +82,10 @@ export function CargasPanel({
                   {s.origen ?? origenViaje} → {s.destino ?? destinoViaje}
                 </div>
               )}
-              {pideFoto && sinFoto.has(s.sid) && (
+              {pideFoto && sinFoto.has(s.sid) && editable && (
+                <FotoDeCarga tripId={tripId} seg={s} onDone={onChange} />
+              )}
+              {pideFoto && sinFoto.has(s.sid) && !editable && (
                 <div className="text-xs font-semibold text-st-amberTx">Falta la foto</div>
               )}
             </div>
@@ -99,18 +102,7 @@ export function CargasPanel({
             {/* Los renglones que dejó puesta la oficina no se ofrecen para borrar: el backend
                 los rechaza igual, y un botón que siempre falla es peor que no tenerlo. */}
             {editable && !s.fijo && (
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!confirm(`¿Quitar la carga de ${s.remitente}?`)) return;
-                  await api.del(`/trips/${tripId}/segments/${i}`);
-                  onChange();
-                }}
-                className="flex-none text-lg leading-none text-ink/30 hover:text-st-redTx"
-                aria-label={`Quitar la carga de ${s.remitente}`}
-              >
-                ×
-              </button>
+              <QuitarCarga tripId={tripId} seg={s} onDone={onChange} />
             )}
           </div>
         ))}
@@ -141,6 +133,112 @@ export function CargasPanel({
             <span className="text-lg leading-none">+</span> Agregar carga
           </button>
         ))}
+    </div>
+  );
+}
+
+/**
+ * La foto de una carga que YA está en la lista.
+ *
+ * Hasta ahora la cámara sólo existía dentro del alta: una carga sin foto no tenía cómo
+ * conseguirla. Los renglones que deja puestos la oficina (la ida y la vuelta de Manassi, las
+ * opciones de la UAM) nacen sin foto, el cierre la exige por renglón, y el chofer quedaba con
+ * el viaje trabado y sin salida — la única era borrar el renglón y volver a escribirlo, que
+ * pierde los id de libreta con los que se factura.
+ */
+function FotoDeCarga({
+  tripId,
+  seg,
+  onDone,
+}: {
+  tripId: number;
+  seg: TripSegment;
+  onDone: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function subir(file: File | null) {
+    if (!file || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", await compressImage(file));
+      fd.append("trip_id", String(tripId));
+      fd.append("kind", PHOTO_KIND.CARGA);
+      fd.append("segment_sid", seg.sid);
+      await api.upload("/photos", fd);
+      onDone();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudo subir la foto");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-1.5">
+      <div className="mb-1 text-xs font-semibold text-st-amberTx">Falta la foto</div>
+      {busy ? (
+        <div className="flex items-center gap-2 text-xs text-ink/60">
+          <Spinner size={14} /> Subiendo…
+        </div>
+      ) : (
+        <CameraCapture label={`Foto de ${seg.remitente}`} onChange={subir} />
+      )}
+      <ErrorText>{error}</ErrorText>
+    </div>
+  );
+}
+
+/**
+ * Quitar una carga cargada por error.
+ *
+ * Se identifica por `sid` y no por la posición en la lista: con el índice, un segundo toque
+ * sobre la misma fila —normal con señal mala, cuando la pantalla todavía no se refrescó—
+ * borraba la carga SIGUIENTE. El botón además se traba mientras el pedido está en vuelo y
+ * muestra el error si falla; antes no hacía ninguna de las dos cosas y el fallo era mudo.
+ */
+function QuitarCarga({
+  tripId,
+  seg,
+  onDone,
+}: {
+  tripId: number;
+  seg: TripSegment;
+  onDone: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function quitar() {
+    if (busy) return;
+    if (!confirm(`¿Quitar la carga de ${seg.remitente}?`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.del(`/trips/${tripId}/segments/${encodeURIComponent(seg.sid)}`);
+      onDone();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudo quitar la carga");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex-none">
+      {/* Área táctil de 44px: es la pantalla que se usa parado y con guantes, y esto borra. */}
+      <button
+        type="button"
+        onClick={quitar}
+        disabled={busy}
+        className="grid h-11 w-11 place-items-center text-lg leading-none text-ink/30 hover:text-st-redTx disabled:opacity-40"
+        aria-label={`Quitar la carga de ${seg.remitente}`}
+      >
+        {busy ? <Spinner size={14} /> : "×"}
+      </button>
+      <ErrorText>{error}</ErrorText>
     </div>
   );
 }

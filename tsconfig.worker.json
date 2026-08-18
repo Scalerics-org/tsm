@@ -11,6 +11,8 @@
     ],
     "skipLibCheck": true,
     "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noEmit": true,
     "resolveJsonModule": true,
     "isolatedModules": true,

@@ -9,8 +9,8 @@ import {
   CAMPO_MODO,
   LIBRETA_TIPO,
   TIPO_DEPARTAMENTO,
+  parseRenglon,
   plantillaHabilitada,
-  UNIDAD,
   type CamposUbicacion,
   type RenglonFijo,
 } from "../../shared/domain";
@@ -81,24 +81,16 @@ function parseCamposUbicacion(raw: any): CamposUbicacion | null {
   return Object.keys(out).length ? out : null;
 }
 
-/** Renglones que la oficina deja precargados (ida y vuelta). */
+/**
+ * Renglones que la oficina deja precargados (ida y vuelta).
+ *
+ * El mapeo lo hace `parseRenglon`, compartido con la ruta de viajes. Acá el filtro es más
+ * flojo a propósito: una plantilla puede dejar puesto sólo el destinatario y que el chofer
+ * complete el resto.
+ */
 function parseRenglonesFijos(raw: any): RenglonFijo[] | null {
   if (!Array.isArray(raw) || !raw.length) return null;
-  const out = raw
-    .map((r: any) => ({
-      origen: r?.origen ? String(r.origen).trim() : null,
-      origen_id: r?.origen_id ? Number(r.origen_id) : null,
-      destino: r?.destino ? String(r.destino).trim() : null,
-      destino_id: r?.destino_id ? Number(r.destino_id) : null,
-      remitente: String(r?.remitente ?? "").trim(),
-      remitente_id: r?.remitente_id ? Number(r.remitente_id) : null,
-      clientes: Array.isArray(r?.clientes) ? r.clientes.map((c: any) => String(c).trim()).filter(Boolean) : [],
-      cliente_ids: Array.isArray(r?.cliente_ids) ? r.cliente_ids.map(Number).filter((n: number) => !isNaN(n)) : [],
-      cantidad: r?.cantidad != null && r.cantidad !== "" ? Number(r.cantidad) : null,
-      unidad: r?.unidad === UNIDAD.KILOS || r?.unidad === UNIDAD.PALLETS ? r.unidad : null,
-      remito: r?.remito ? String(r.remito).trim() : null,
-    }))
-    .filter((r: RenglonFijo) => r.remitente || r.clientes.length);
+  const out = raw.map(parseRenglon).filter((r) => r.remitente || r.clientes.length);
   return out.length ? out : null;
 }
 

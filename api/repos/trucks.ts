@@ -32,13 +32,7 @@ export async function updateTruck(db: D1Database, id: number, t: TruckInput): Pr
     .run();
 }
 
-export async function setTruckStatus(db: D1Database, id: number, status: Truck["status"]): Promise<void> {
-  await db.prepare("UPDATE trucks SET status=? WHERE id=?").bind(status, id).run();
-}
 
-export async function addOdometer(db: D1Database, id: number, km: number): Promise<void> {
-  await db.prepare("UPDATE trucks SET odometer_km = odometer_km + ? WHERE id=?").bind(km, id).run();
-}
 
 export async function deleteTruck(db: D1Database, id: number): Promise<void> {
   await db.prepare("DELETE FROM trucks WHERE id = ?").bind(id).run();
