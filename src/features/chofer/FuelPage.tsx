@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { fmtConsumo, type FuelFeedback, type FuelLog } from "@shared/domain";
+import { fmtConsumo, kmPorLitro, type FuelFeedback, type FuelLog } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { Button, Card, Corners, ErrorText, Field, Spinner } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
 import { compressImage } from "../../lib/image";
 
+/**
+ * Registrar surtida.
+ *
+ * El orden de los pasos no es estético: es lo que hace que las fotos lleguen. El chofer
+ * quiere ver su consumo, así que el consumo aparece DESPUÉS de subir el tacógrafo. Antes
+ * pasaba que surtían, arrancaban, y la foto llegaba 100 km más tarde — o no llegaba.
+ */
 export function FuelPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -20,21 +27,36 @@ export function FuelPage() {
   const [result, setResult] = useState<FuelFeedback | null>(null);
 
   // El km inicial no se pide: es el final de la surtida anterior de este camión.
-  const [kmInicial, setKmInicial] = useState<number | null>(null);
+  const [kmInicialPrevio, setKmInicialPrevio] = useState<number | null>(null);
+  const [primeraDelCamion, setPrimeraDelCamion] = useState(false);
+  const [kmInicialManual, setKmInicialManual] = useState("");
   useEffect(() => {
-    if (user?.truck_id == null) return setKmInicial(0);
+    if (user?.truck_id == null) return setKmInicialPrevio(0);
     api
       .get<FuelLog[]>(`/fuel?truck=${user.truck_id}`)
-      .then((logs) => setKmInicial(logs.reduce((max, l) => Math.max(max, l.odometer_km), 0)))
-      .catch(() => setKmInicial(0));
+      .then((logs) => {
+        setPrimeraDelCamion(logs.length === 0);
+        setKmInicialPrevio(logs.reduce((max, l) => Math.max(max, l.odometer_km), 0));
+      })
+      .catch(() => setKmInicialPrevio(0));
   }, [user?.truck_id]);
 
-  const recorridos = kmInicial != null && kmFinal ? Number(kmFinal) - kmInicial : null;
+  const kmInicial = primeraDelCamion ? Number(kmInicialManual || 0) : (kmInicialPrevio ?? 0);
+  const recorridos =
+    kmInicialPrevio != null && kmFinal && kmInicial > 0 ? Number(kmFinal) - kmInicial : null;
+
+  // Cada foto abre el paso siguiente. Sin la del tacógrafo no se ven ni los litros.
+  const tacografoListo = isFull === false || fotoTacografo != null;
+  const consumoDelDia =
+    isFull && fotoTacografo && recorridos && recorridos > 0 && liters
+      ? kmPorLitro(recorridos, Number(liters))
+      : null;
 
   async function confirm() {
     setError("");
     if (isFull === null) return setError("Indicá si llenaste o no.");
     if (isFull) {
+      if (primeraDelCamion && !kmInicialManual) return setError("Poné el km inicial del tacógrafo.");
       if (!kmFinal) return setError("Cargá el km final del tacógrafo.");
       if (recorridos != null && recorridos <= 0) {
         return setError(`El km final tiene que ser mayor al inicial (${kmInicial?.toLocaleString("es-UY")}).`);
@@ -42,12 +64,13 @@ export function FuelPage() {
       if (!fotoTacografo) return setError("Sacá la foto del tacógrafo.");
     }
     if (!liters) return setError("Cargá los litros surtidos.");
+    if (!fotoBoleta) return setError("Sacá la foto de la boleta de gasoil.");
 
     setBusy(true);
     try {
       const fd = new FormData();
       if (fotoTacografo) fd.append("file", await compressImage(fotoTacografo));
-      if (fotoBoleta) fd.append("boleta", await compressImage(fotoBoleta));
+      fd.append("boleta", await compressImage(fotoBoleta));
       // Sin llenar no se pide el tacógrafo: se guarda el mismo km, y esos litros
       // recién se reparten cuando llene y se cierre el tramo.
       fd.append("odometer_km", isFull ? kmFinal : String(kmInicial ?? 0));
@@ -63,7 +86,7 @@ export function FuelPage() {
   }
 
   if (result) return <ResultView r={result} onDone={() => navigate("/")} />;
-  if (kmInicial === null) return <Spinner size={28} />;
+  if (kmInicialPrevio === null) return <Spinner size={28} />;
 
   return (
     <div className="space-y-5">
@@ -100,17 +123,35 @@ export function FuelPage() {
           </div>
         </div>
 
-        {/* Sólo cuando llena: el tramo se mide de llenado a llenado. */}
         {isFull === true && (
           <>
             <div>
               <span className="label">2 · Km del tacógrafo</span>
-              <div className="mb-2 flex items-center justify-between border border-ink/15 bg-surface px-3 py-2">
-                <span className="text-sm text-ink/60">Inicial (de la surtida anterior)</span>
-                <span className="font-cond text-lg font-semibold text-ink">
-                  {kmInicial.toLocaleString("es-UY")}
-                </span>
-              </div>
+              {/* En la primera surtida del camión no hay anterior de dónde sacarlo, así que
+                  se escribe. Después queda fijo: es el final de la surtida previa, y dejarlo
+                  editable sería dejar que se corrija el número que cierra el tramo. */}
+              {primeraDelCamion ? (
+                <div className="mb-2">
+                  <input
+                    className="input"
+                    type="number"
+                    inputMode="decimal"
+                    value={kmInicialManual}
+                    onChange={(e) => setKmInicialManual(e.target.value)}
+                    placeholder="Km inicial del tacógrafo"
+                  />
+                  <p className="mt-1 text-xs text-ink/50">
+                    Es la primera surtida de este camión: poné el kilometraje de arranque.
+                  </p>
+                </div>
+              ) : (
+                <div className="mb-2 flex items-center justify-between border border-ink/15 bg-surface px-3 py-2">
+                  <span className="text-sm text-ink/60">Inicial (de la surtida anterior)</span>
+                  <span className="font-cond text-lg font-semibold text-ink">
+                    {kmInicial.toLocaleString("es-UY")}
+                  </span>
+                </div>
+              )}
               <input
                 className="input"
                 type="number"
@@ -142,18 +183,41 @@ export function FuelPage() {
           </p>
         )}
 
-        <Field label="4 · Litros surtidos">
-          <input
-            className="input"
-            type="number"
-            inputMode="decimal"
-            value={liters}
-            onChange={(e) => setLiters(e.target.value)}
-            placeholder="Ej: 474,7"
-          />
-        </Field>
+        {/* Los litros se habilitan con la foto del tacógrafo. Si el consumo se pudiera ver
+            antes, la foto dejaría de llegar. */}
+        {!tacografoListo ? (
+          <p className="border border-dashed border-ink/25 bg-bg px-3 py-4 text-center text-sm text-ink/55">
+            Sacá la foto del tacógrafo para seguir.
+          </p>
+        ) : (
+          <Field label="4 · Litros surtidos">
+            <input
+              className="input"
+              type="number"
+              inputMode="decimal"
+              value={liters}
+              onChange={(e) => setLiters(e.target.value)}
+              placeholder="Ej: 474,7"
+            />
+          </Field>
+        )}
 
-        <CameraCapture label="Foto de la boleta de gasoil" onChange={setFotoBoleta} />
+        {/* La recompensa: su consumo, apenas subió la foto y puso los litros. */}
+        {consumoDelDia != null && (
+          <div className="border-l-4 border-l-st-greenDot bg-st-greenBg px-3 py-3">
+            <div className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-st-greenTx">
+              Tu consumo en este viaje
+            </div>
+            <div className="mt-1 font-cond text-4xl font-semibold text-ink">
+              {fmtConsumo(consumoDelDia)}
+            </div>
+            <div className="text-xs text-ink/55">km por litro</div>
+          </div>
+        )}
+
+        {tacografoListo && liters !== "" && (
+          <CameraCapture label="Foto de la boleta de gasoil" onChange={setFotoBoleta} />
+        )}
       </Card>
 
       <ErrorText>{error}</ErrorText>
@@ -177,7 +241,6 @@ function ResultView({ r, onDone }: { r: FuelFeedback; onDone: () => void }) {
         <div className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-st-greenTx">
           Esta surtida
         </div>
-        {/* Sin llenar no hay tramo cerrado: se muestra 0,00, como en su planilla. */}
         <div className="mt-1 font-cond text-5xl font-semibold text-ink">
           {r.closed && r.segment_kml != null ? fmtConsumo(r.segment_kml) : "0,00"}
         </div>

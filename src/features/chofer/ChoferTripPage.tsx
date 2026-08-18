@@ -290,12 +290,12 @@ function ArrivalForm({
         label={photoLabel ? `Foto: ${photoLabel}` : "Foto de descarga (opcional)"}
         onChange={setDescarga}
       />
-      <Field label="Observaciones (opcional)">
+      <Field label="Agregar comentario (opcional)">
         <textarea
           className="input min-h-[70px]"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Dejá cualquier comentario, como lo hacés por mensaje."
+          placeholder="Si pasó algo — pallets rotos, demoras, lo que sea — contámelo acá."
         />
       </Field>
       <ErrorText>{error}</ErrorText>
