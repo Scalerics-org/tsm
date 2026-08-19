@@ -4,6 +4,7 @@ import type { Trip, TripTemplate } from "@shared/domain";
 import { api } from "../../lib/api";
 import { Corners, Spinner, StatusBadge } from "../../components/ui";
 import { estimateTravel, fmtDuration } from "../../lib/eta";
+import { InstalarApp } from "../../components/InstalarApp";
 
 interface Cliente {
   provider_id: number;
@@ -39,6 +40,7 @@ export function ChoferHome() {
 
   return (
     <div className="space-y-5">
+      <InstalarApp />
       {active && (
         <Link to={`/viaje/${active.id}`} className="panel block border-l-4 border-l-st-blueDot p-4">
           <Corners />

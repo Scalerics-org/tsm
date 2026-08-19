@@ -1,0 +1,22 @@
+{
+  "name": "TSM · Transporte Santa María",
+  "short_name": "TSM",
+  "description": "Registro de viajes y combustible.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f2f2f3",
+  "theme_color": "#1d2d3d",
+  "lang": "es-UY",
+  "dir": "ltr",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Registrar surtida", "short_name": "Surtida", "url": "/surtida" }
+  ]
+}
