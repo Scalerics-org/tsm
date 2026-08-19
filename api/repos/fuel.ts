@@ -30,12 +30,20 @@ export async function listFuelLogs(
   return results ?? [];
 }
 
+export async function getFuelLog(db: D1Database, id: number): Promise<FuelLog | null> {
+  return (await db.prepare(`${SELECT} WHERE f.id = ?`).bind(id).first<FuelLog>()) ?? null;
+}
+
 export interface FuelInput {
   truck_id: number;
   driver_id: number | null;
   trip_id: number | null;
   odometer_km: number;
+  /** Total. Es de acá que sale todo el cálculo de consumo. */
   liters: number;
+  /** Desglose por tanque. Null cuando no se sabe (surtidas viejas) o se cargó uno solo. */
+  liters_tanque1: number | null;
+  liters_tanque2: number | null;
   is_full: boolean;
   /** Foto del tacógrafo: respalda los km. */
   r2_key: string | null;
@@ -46,18 +54,81 @@ export interface FuelInput {
 export async function createFuelLog(db: D1Database, f: FuelInput): Promise<number> {
   const res = await db
     .prepare(
-      `INSERT INTO fuel_logs (truck_id, driver_id, trip_id, odometer_km, liters, is_full, r2_key, r2_key_boleta)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO fuel_logs (truck_id, driver_id, trip_id, odometer_km, liters, liters_tanque1, liters_tanque2, is_full, r2_key, r2_key_boleta)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       f.truck_id, f.driver_id, f.trip_id, f.odometer_km, f.liters,
+      f.liters_tanque1, f.liters_tanque2,
       f.is_full ? 1 : 0, f.r2_key, f.r2_key_boleta,
     )
     .run();
-  // Actualizar el odómetro del camión si esta lectura es más nueva/alta.
+  // Al registrar, el odómetro sólo sube: una surtida nueva no puede saber más que el resto.
   await db
     .prepare("UPDATE trucks SET odometer_km = MAX(odometer_km, ?) WHERE id = ?")
     .bind(f.odometer_km, f.truck_id)
     .run();
   return res.meta.last_row_id as number;
+}
+
+/** Lo que la oficina puede corregir de una surtida. Las fotos no se tocan: son la evidencia. */
+export interface FuelPatch {
+  odometer_km: number;
+  liters: number;
+  liters_tanque1: number | null;
+  liters_tanque2: number | null;
+  is_full: boolean;
+}
+
+export async function updateFuelLog(
+  db: D1Database,
+  id: number,
+  p: FuelPatch,
+  editor: { userId: number; when: string },
+): Promise<void> {
+  const previa = await getFuelLog(db, id);
+  await db
+    .prepare(
+      `UPDATE fuel_logs
+       SET odometer_km = ?, liters = ?, liters_tanque1 = ?, liters_tanque2 = ?, is_full = ?,
+           edited_by = ?, edited_at = ?
+       WHERE id = ?`,
+    )
+    .bind(
+      p.odometer_km, p.liters, p.liters_tanque1, p.liters_tanque2, p.is_full ? 1 : 0,
+      editor.userId, editor.when, id,
+    )
+    .run();
+  if (previa) await recalcularOdometro(db, previa.truck_id, previa.odometer_km);
+}
+
+export async function deleteFuelLog(db: D1Database, id: number): Promise<number | null> {
+  const previa = await getFuelLog(db, id);
+  if (!previa) return null;
+  await db.prepare("DELETE FROM fuel_logs WHERE id = ?").bind(id).run();
+  await recalcularOdometro(db, previa.truck_id, previa.odometer_km);
+  return previa.truck_id;
+}
+
+/**
+ * Recalcula el odómetro del camión después de corregir o borrar una surtida.
+ *
+ * Sólo interviene si el odómetro del camión ERA el de esa surtida — es decir, si esa lectura
+ * es la que lo dejó donde está. Así, corregir un 990.000 tipeado de más lo baja de verdad
+ * (que es para lo que el cliente pidió poder corregir), pero un odómetro cargado a mano por
+ * la oficina, o puesto por otra surtida más alta, no se toca.
+ *
+ * Sin esa condición esto era destructivo: en producción, GTP 4382 tiene el odómetro en
+ * 354.537 y su surtida más alta es de 98.700 —una que quedó del sembrado de demo—, así que
+ * un recálculo a ciegas le borraba 255.837 km.
+ */
+async function recalcularOdometro(db: D1Database, truckId: number, odometroPrevio: number): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE trucks
+       SET odometer_km = COALESCE((SELECT MAX(odometer_km) FROM fuel_logs WHERE truck_id = ?), odometer_km)
+       WHERE id = ? AND odometer_km = ?`,
+    )
+    .bind(truckId, truckId, odometroPrevio)
+    .run();
 }

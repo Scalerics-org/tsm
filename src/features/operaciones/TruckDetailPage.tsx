@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { fmtConsumo, type FuelLog, type Trip, type Truck } from "@shared/domain";
 import { api } from "../../lib/api";
 import { Card, Corners, Spinner, Stat, StatusBadge } from "../../components/ui";
+import { SurtidaRow } from "./SurtidaRow";
 import { fmtDateTime } from "../../lib/format";
 
 interface MonthRow {
@@ -24,9 +25,13 @@ export function TruckDetailPage() {
   const { id } = useParams();
   const [d, setD] = useState<Ficha | null>(null);
 
-  useEffect(() => {
+  // Se recarga entera al corregir o borrar una surtida: el consumo y el odómetro del camión
+  // se recalculan del lado del servidor, así que refrescar sólo la fila mostraría números
+  // viejos justo en la pantalla donde se fue a arreglar un número.
+  const load = () => {
     api.get<Ficha>(`/reports/truck/${id}`).then(setD).catch(() => setD(null));
-  }, [id]);
+  };
+  useEffect(load, [id]);
 
   if (!d) return <Spinner size={28} />;
   const { truck } = d;
@@ -116,16 +121,12 @@ export function TruckDetailPage() {
               <th className="px-4 py-2 text-right">Odómetro</th>
               <th className="px-4 py-2 text-right">Litros</th>
               <th className="px-4 py-2">Llenó</th>
+              <th className="px-4 py-2" />
             </tr>
           </thead>
           <tbody>
             {d.fuel.map((f) => (
-              <tr key={f.id} className="border-b border-ink/10">
-                <td className="px-4 py-2 text-ink/70">{fmtDateTime(f.logged_at)}</td>
-                <td className="px-4 py-2 text-right text-ink/70">{f.odometer_km.toLocaleString("es-UY")}</td>
-                <td className="px-4 py-2 text-right text-ink/70">{f.liters}</td>
-                <td className="px-4 py-2 text-ink/70">{f.is_full ? "Sí" : "Chorro"}</td>
-              </tr>
+              <SurtidaRow key={f.id} f={f} onChanged={load} />
             ))}
             {d.fuel.length === 0 && (
               <tr>

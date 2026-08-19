@@ -47,6 +47,13 @@ export function OpsTripsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl text-ink">Viajes</h1>
+        <div className="flex items-center gap-2">
+        <Link
+          to="/panel/viajes/nuevo"
+          className="btn btn-primary"
+        >
+          + Cargar viaje
+        </Link>
         <Button
           variant="secondary"
           onClick={() =>
@@ -55,6 +62,7 @@ export function OpsTripsPage() {
         >
           ⬇ Exportar Excel
         </Button>
+        </div>
       </div>
 
       <Card className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">

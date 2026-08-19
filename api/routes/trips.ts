@@ -170,23 +170,33 @@ trips.get("/:id", async (c) => {
 // POST /api/trips — el chofer inicia un viaje desde una plantilla
 trips.post("/", async (c) => {
   const user = c.get("user");
-  if (user.role !== ROLES.CHOFER || user.driver_id == null) {
+  const esChoferQueSale = user.role === ROLES.CHOFER && user.driver_id != null;
+  const esOficina = user.role === ROLES.ENCARGADO || user.role === ROLES.ADMIN;
+  if (!esChoferQueSale && !esOficina) {
     return fail(c, "Solo un chofer puede iniciar un viaje", 403);
-  }
-
-  // Un viaje a la vez: hasta no cerrar el actual no se puede abrir otro. Evita que se
-  // acumulen viajes abiertos sin evidencia y que la oficina no sepa cuál está en curso.
-  const abierto = await tripsRepo.activeTripForDriver(c.env.DB, user.driver_id);
-  if (abierto) {
-    return fail(
-      c,
-      `Todavía tenés un viaje sin cerrar: ${abierto.origin} → ${abierto.destination}. Registrá la llegada antes de empezar otro.`,
-      409,
-    );
   }
 
   const b = await c.req.json<any>().catch(() => null);
   if (!b || !b.template_id || !b.destino) return fail(c, "Elegí el viaje y el destino", 400);
+
+  // La oficina puede cargar un viaje a mano, para corregir uno que el chofer no registró.
+  // Como no lo está manejando ella, tiene que decir de quién es; el chofer siempre es él.
+  const driverId = esChoferQueSale ? user.driver_id : b.driver_id ? Number(b.driver_id) : null;
+  if (driverId == null) return fail(c, "Elegí de qué chofer es el viaje", 400);
+
+  // Un viaje a la vez: hasta no cerrar el actual no se puede abrir otro. Evita que se
+  // acumulen viajes abiertos sin evidencia y que la oficina no sepa cuál está en curso.
+  // No aplica a la oficina: está cargando un viaje que YA pasó, no abriendo uno.
+  if (esChoferQueSale) {
+    const abierto = await tripsRepo.activeTripForDriver(c.env.DB, driverId);
+    if (abierto) {
+      return fail(
+        c,
+        `Todavía tenés un viaje sin cerrar: ${abierto.origin} → ${abierto.destination}. Registrá la llegada antes de empezar otro.`,
+        409,
+      );
+    }
+  }
 
   const tpl = await templatesRepo.getTemplate(c.env.DB, Number(b.template_id));
   if (!tpl || !tpl.active) return fail(c, "Plantilla de viaje no disponible", 404);
@@ -236,7 +246,7 @@ trips.post("/", async (c) => {
     remite: b.remitente ? String(b.remitente).trim() : tpl.remite,
     destination: String(b.destino),
     destinatario: b.destinatario ? String(b.destinatario) : null,
-    driver_id: user.driver_id,
+    driver_id: driverId,
     truck_id: truckId,
     cargo_type: tpl.cargo_type,
     weight_tons: weight != null && !isNaN(weight) ? weight : null,
@@ -246,7 +256,19 @@ trips.post("/", async (c) => {
     // Cada viaje los instancia con su propio sid — si vinieran con uno de la plantilla,
     // todos los viajes compartirían el mismo y las fotos de uno aparecerían en los demás.
     segments: [...fijos, ...extra],
-  });
+    kilometros: b.kilometros != null && b.kilometros !== "" ? Number(b.kilometros) : null,
+  },
+  // Si lo carga la oficina es porque el viaje ya se hizo y no quedó registrado: nace cerrado,
+  // con la fecha que indique. Por eso tampoco se le exigen las fotos — no hubo app en el
+  // momento, que es justamente el motivo por el que se está cargando a mano.
+  esOficina
+    ? {
+        userId: user.id,
+        when: nowIso(),
+        startedAt: b.fecha ? `${String(b.fecha).slice(0, 10)} 00:00:00` : nowIso(),
+      }
+    : undefined,
+  );
   return okViaje(c, await tripsRepo.getTrip(c.env.DB, id));
 });
 

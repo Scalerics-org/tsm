@@ -154,16 +154,29 @@ export interface StartTripInput {
   kilometros?: number | null;
 }
 
-export async function startTrip(db: D1Database, t: StartTripInput): Promise<number> {
+export async function startTrip(
+  db: D1Database,
+  t: StartTripInput,
+  /**
+   * Un viaje que la oficina carga a mano ya pasó: nace COMPLETADO, con su fecha y con quién
+   * lo cargó. El del chofer sigue naciendo EN_CURSO, que es lo que lo pone en su pantalla.
+   */
+  cargadoPorOficina?: { userId: number; when: string; startedAt: string },
+): Promise<number> {
   const res = await db
     .prepare(
-      `INSERT INTO trips (template_id, provider_name, origin, remite, destination, destinatario, driver_id, truck_id, cargo_type, kilos, field_values, segments, kilometros, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'EN_CURSO')`,
+      `INSERT INTO trips (template_id, provider_name, origin, remite, destination, destinatario, driver_id, truck_id, cargo_type, kilos, field_values, segments, kilometros, status, started_at, finished_at, edited_by, edited_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?)`,
     )
     .bind(
       t.template_id, t.provider_name, t.origin, t.remite, t.destination, t.destinatario, t.driver_id, t.truck_id,
       t.cargo_type, t.weight_tons, JSON.stringify(t.field_values ?? {}),
       t.segments?.length ? JSON.stringify(t.segments) : null, t.kilometros ?? null,
+      cargadoPorOficina ? "COMPLETADO" : "EN_CURSO",
+      cargadoPorOficina?.startedAt ?? null,
+      cargadoPorOficina?.when ?? null,
+      cargadoPorOficina?.userId ?? null,
+      cargadoPorOficina?.when ?? null,
     )
     .run();
   return res.meta.last_row_id as number;

@@ -194,13 +194,20 @@ export interface FuelLog {
   driver_id: number | null;
   trip_id: number | null;
   odometer_km: number;
+  /** Total surtido. De acá sale todo el cálculo de consumo. */
   liters: number;
+  /** Desglose por tanque. Null en las surtidas viejas y cuando se cargó uno solo. */
+  liters_tanque1?: number | null;
+  liters_tanque2?: number | null;
   is_full: boolean;
   /** Foto del tacógrafo: respalda los km. */
   r2_key: string | null;
   /** Foto de la boleta de gasoil: respalda los litros. */
   r2_key_boleta: string | null;
   logged_at: string;
+  /** Corrección desde oficina: quién y cuándo. */
+  edited_by?: number | null;
+  edited_at?: string | null;
   // joins
   truck_plate?: string;
   driver_name?: string;
@@ -597,6 +604,25 @@ export function fotosFaltantes(
  */
 export function sirveComoLugarDeCarga(entrada: Pick<LibretaEntry, "agrupador"> | null): boolean {
   return !entrada?.agrupador;
+}
+
+/**
+ * Litros totales de una surtida, a partir de los dos tanques.
+ *
+ * Los camiones cargan en dos tanques y el chofer los anota por separado, pero el total NO se
+ * tipea: se suma. Un total escrito a mano que no coincida con la suma deja el consumo
+ * mintiendo, y no habría forma de saber cuál de los tres números está bien.
+ *
+ * Devuelve null si no se cargó ninguno, para poder distinguir "no puso nada" de "puso 0".
+ */
+export function litrosTotales(
+  tanque1: number | null | undefined,
+  tanque2: number | null | undefined,
+): number | null {
+  const uno = Number.isFinite(tanque1) ? (tanque1 as number) : null;
+  const dos = Number.isFinite(tanque2) ? (tanque2 as number) : null;
+  if (uno == null && dos == null) return null;
+  return (uno ?? 0) + (dos ?? 0);
 }
 
 /**

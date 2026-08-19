@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   TRIP_STATUS,
   type TemplateField,
@@ -18,8 +18,10 @@ interface Detail {
 
 export function OpsTripDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState<Detail | null>(null);
   const [error, setError] = useState("");
+  const [borrando, setBorrando] = useState(false);
 
   const load = useCallback(() => {
     api
@@ -36,8 +38,38 @@ export function OpsTripDetailPage() {
 
   async function cancel() {
     if (!confirm("¿Cancelar este viaje?")) return;
-    await api.post(`/trips/${trip.id}/cancel`, {});
-    load();
+    try {
+      await api.post(`/trips/${trip.id}/cancel`, {});
+      load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudo cancelar el viaje");
+    }
+  }
+
+  /**
+   * Borrar el viaje entero. "Borrar viajes o agregar viajes desde oficina, para posibles
+   * correcciones."
+   *
+   * La confirmación dice cuántas cargas se lleva porque cada una es una unidad facturable:
+   * un "¿Seguro?" pelado no deja ver que se están tirando tres renglones cobrables. Cancelar
+   * sigue siendo la opción blanda — el viaje queda, marcado, y no desaparece del historial.
+   */
+  async function eliminar() {
+    const cargas = trip.segments.length;
+    const detalle = cargas
+      ? `Se van a borrar también sus ${cargas} carga${cargas === 1 ? "" : "s"}, que ya no van a aparecer en el Excel de facturación.`
+      : "El viaje no tiene cargas registradas.";
+    if (!confirm(`¿Borrar el viaje ${trip.origin} → ${trip.destination} del ${fmtDateTime(trip.started_at)}?\n\n${detalle}\n\nEsto no se puede deshacer. Si solo querés dejarlo sin efecto, usá Cancelar.`)) {
+      return;
+    }
+    setBorrando(true);
+    try {
+      await api.del(`/trips/${trip.id}`);
+      navigate("/panel/viajes");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudo borrar el viaje");
+      setBorrando(false);
+    }
   }
 
   return (
@@ -60,10 +92,13 @@ export function OpsTripDetailPage() {
         <div className="flex items-center gap-2">
           <StatusBadge status={trip.status} />
           {trip.status === TRIP_STATUS.EN_CURSO && (
-            <Button variant="danger" onClick={cancel}>
+            <Button variant="ghost" onClick={cancel}>
               Cancelar
             </Button>
           )}
+          <Button variant="danger" onClick={eliminar} loading={borrando}>
+            Borrar
+          </Button>
         </div>
       </div>
 

@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { fmtConsumo, kmPorLitro, type FuelFeedback, type FuelLog } from "@shared/domain";
+import {
+  fmtConsumo,
+  fuelFeedback,
+  kmPorLitro,
+  litrosTotales,
+  type FuelFeedback,
+  type FuelLog,
+} from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { Button, Card, Corners, ErrorText, Field, Spinner } from "../../components/ui";
@@ -19,7 +26,9 @@ export function FuelPage() {
   const { user } = useAuth();
   const [isFull, setIsFull] = useState<boolean | null>(null);
   const [kmFinal, setKmFinal] = useState("");
-  const [liters, setLiters] = useState("");
+  // Los dos tanques del camión. El total sale de sumarlos, no se tipea.
+  const [tanque1, setTanque1] = useState("");
+  const [tanque2, setTanque2] = useState("");
   const [fotoTacografo, setFotoTacografo] = useState<File | null>(null);
   const [fotoBoleta, setFotoBoleta] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -28,6 +37,7 @@ export function FuelPage() {
 
   // El km inicial no se pide: es el final de la surtida anterior de este camión.
   const [kmInicialPrevio, setKmInicialPrevio] = useState<number | null>(null);
+  const [logsPrevios, setLogsPrevios] = useState<FuelLog[]>([]);
   const [primeraDelCamion, setPrimeraDelCamion] = useState(false);
   const [kmInicialManual, setKmInicialManual] = useState("");
   useEffect(() => {
@@ -35,6 +45,7 @@ export function FuelPage() {
     api
       .get<FuelLog[]>(`/fuel?truck=${user.truck_id}`)
       .then((logs) => {
+        setLogsPrevios(logs);
         setPrimeraDelCamion(logs.length === 0);
         setKmInicialPrevio(logs.reduce((max, l) => Math.max(max, l.odometer_km), 0));
       })
@@ -47,9 +58,41 @@ export function FuelPage() {
 
   // Cada foto abre el paso siguiente. Sin la del tacógrafo no se ven ni los litros.
   const tacografoListo = isFull === false || fotoTacografo != null;
+  const litros = litrosTotales(
+    tanque1 === "" ? null : Number(tanque1),
+    tanque2 === "" ? null : Number(tanque2),
+  );
   const consumoDelDia =
-    isFull && fotoTacografo && recorridos && recorridos > 0 && liters
-      ? kmPorLitro(recorridos, Number(liters))
+    isFull && fotoTacografo && recorridos && recorridos > 0 && litros
+      ? kmPorLitro(recorridos, litros)
+      : null;
+
+  /**
+   * El acumulado del mes, como premio por subir la boleta.
+   *
+   * Es la segunda mitad de la misma idea que el consumo del día: cada foto abre algo que al
+   * chofer le interesa ver. Sin esto, el acumulado recién aparecía después de guardar, así
+   * que la boleta no tenía ninguna recompensa atada y era la que más se salteaba.
+   *
+   * Se calcula acá con los mismos datos que usa el servidor, así que es lo que va a quedar
+   * guardado — no una estimación distinta.
+   */
+  const acumuladoPrevio =
+    fotoBoleta && litros && kmInicialPrevio != null
+      ? fuelFeedback(
+          logsPrevios.map((l) => ({
+            odometer_km: l.odometer_km,
+            liters: l.liters,
+            is_full: !!l.is_full,
+            logged_at: l.logged_at,
+          })),
+          {
+            odometer_km: isFull ? Number(kmFinal) : kmInicial,
+            liters: litros,
+            is_full: !!isFull,
+            logged_at: new Date().toISOString().slice(0, 10),
+          },
+        ).month_kml
       : null;
 
   async function confirm() {
@@ -63,7 +106,7 @@ export function FuelPage() {
       }
       if (!fotoTacografo) return setError("Sacá la foto del tacógrafo.");
     }
-    if (!liters) return setError("Cargá los litros surtidos.");
+    if (!litros) return setError("Cargá los litros de al menos un tanque.");
     if (!fotoBoleta) return setError("Sacá la foto de la boleta de gasoil.");
 
     setBusy(true);
@@ -74,7 +117,9 @@ export function FuelPage() {
       // Sin llenar no se pide el tacógrafo: se guarda el mismo km, y esos litros
       // recién se reparten cuando llene y se cierre el tramo.
       fd.append("odometer_km", isFull ? kmFinal : String(kmInicial ?? 0));
-      fd.append("liters", liters);
+      fd.append("liters", String(litros));
+      if (tanque1 !== "") fd.append("liters_tanque1", tanque1);
+      if (tanque2 !== "") fd.append("liters_tanque2", tanque2);
       fd.append("is_full", String(isFull));
       const res = await api.upload<{ feedback: FuelFeedback }>("/fuel", fd);
       setResult(res.feedback);
@@ -190,16 +235,44 @@ export function FuelPage() {
             Sacá la foto del tacógrafo para seguir.
           </p>
         ) : (
-          <Field label="4 · Litros surtidos">
-            <input
-              className="input"
-              type="number"
-              inputMode="decimal"
-              value={liters}
-              onChange={(e) => setLiters(e.target.value)}
-              placeholder="Ej: 474,7"
-            />
-          </Field>
+          <div>
+            <span className="label">4 · Litros surtidos</span>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Tanque 1">
+                <input
+                  className="input"
+                  type="number"
+                  inputMode="decimal"
+                  value={tanque1}
+                  onChange={(e) => setTanque1(e.target.value)}
+                  placeholder="Ej: 280"
+                />
+              </Field>
+              <Field label="Tanque 2">
+                <input
+                  className="input"
+                  type="number"
+                  inputMode="decimal"
+                  value={tanque2}
+                  onChange={(e) => setTanque2(e.target.value)}
+                  placeholder="Ej: 194,7"
+                />
+              </Field>
+            </div>
+            {/* El total no se escribe: se suma. Si se pudiera tipear y no coincidiera con los
+                dos tanques, el consumo saldría de un número que nadie sabe cuál es. */}
+            <div className="mt-2 flex items-baseline justify-between border-t border-ink/15 pt-2">
+              <span className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-ink/55">
+                Litros totales
+              </span>
+              <span className="font-cond text-2xl font-semibold text-ink">
+                {litros != null ? litros.toLocaleString("es-UY") : "—"}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-ink/50">
+              Si cargaste en un solo tanque, dejá el otro vacío.
+            </p>
+          </div>
         )}
 
         {/* La recompensa: su consumo, apenas subió la foto y puso los litros. */}
@@ -215,8 +288,22 @@ export function FuelPage() {
           </div>
         )}
 
-        {tacografoListo && liters !== "" && (
+        {tacografoListo && litros != null && (
           <CameraCapture label="Foto de la boleta de gasoil" onChange={setFotoBoleta} />
+        )}
+
+        {/* La segunda recompensa: el acumulado del mes, apenas sube la boleta. Cada foto
+            abre algo que al chofer le interesa ver — es lo que hace que las fotos lleguen. */}
+        {acumuladoPrevio != null && (
+          <div className="border-l-4 border-l-brand bg-brand/[.06] px-3 py-3">
+            <div className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-brand-700">
+              Cómo venís este mes
+            </div>
+            <div className="mt-1 font-cond text-4xl font-semibold text-ink">
+              {fmtConsumo(acumuladoPrevio)}
+            </div>
+            <div className="text-xs text-ink/55">km por litro acumulado</div>
+          </div>
         )}
       </Card>
 

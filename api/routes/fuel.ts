@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
-import { requireAuth } from "../middleware/auth";
-import { ROLES, fuelFeedback } from "../../shared/domain";
+import { requireAuth, requireRole } from "../middleware/auth";
+import { ROLES, fuelFeedback, litrosTotales } from "../../shared/domain";
 import * as repo from "../repos/fuel";
 import * as tripsRepo from "../repos/trips";
 
@@ -44,7 +44,12 @@ fuel.post("/", async (c) => {
   if (!form) return fail(c, "Se esperaba multipart/form-data", 400);
 
   const odometer = Number(form.get("odometer_km"));
-  const liters = Number(form.get("liters"));
+  // Los dos tanques llegan por separado y el total se suma acá. La pantalla vieja mandaba
+  // sólo `liters`, así que se acepta igual: el desglose queda en null.
+  const t1 = numeroOpcional(form.get("liters_tanque1"));
+  const t2 = numeroOpcional(form.get("liters_tanque2"));
+  const porTanque = litrosTotales(t1, t2);
+  const liters = porTanque ?? Number(form.get("liters"));
   if (!odometer || !liters) return fail(c, "Odómetro y litros son obligatorios", 400);
 
   const truckId =
@@ -78,6 +83,8 @@ fuel.post("/", async (c) => {
     trip_id: form.get("trip_id") ? Number(form.get("trip_id")) : null,
     odometer_km: odometer,
     liters,
+    liters_tanque1: t1,
+    liters_tanque2: t2,
     is_full: isFull,
     r2_key: r2Key,
     r2_key_boleta: r2KeyBoleta,
@@ -95,6 +102,62 @@ fuel.post("/", async (c) => {
     { odometer_km: odometer, liters, is_full: isFull, logged_at: new Date().toISOString().slice(0, 10) },
   );
   return ok(c, { id, r2_key: r2Key, r2_key_boleta: r2KeyBoleta, feedback }, 201);
+});
+
+/** Un campo numérico que puede no venir. `null` = no lo mandaron; distinto de un 0 escrito. */
+function numeroOpcional(v: unknown): number | null {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * PUT /api/fuel/:id — la oficina corrige una surtida.
+ *
+ * "Al igual gas oil desde oficina, corregir litros y km." Es lo que pidió el cliente para
+ * arreglar un tipeo del surtidor. Las fotos NO se tocan: son la evidencia de lo que pasó, y
+ * si se pudieran cambiar dejarían de servir para eso.
+ *
+ * Corregir los km de una surtida vieja recalcula el consumo de ese mes y de todos los
+ * siguientes, porque la cadena de odómetro es acumulativa. Por eso queda quién lo hizo.
+ */
+fuel.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+  const id = Number(c.req.param("id"));
+  const previa = await repo.getFuelLog(c.env.DB, id);
+  if (!previa) return fail(c, "Surtida no encontrada", 404);
+
+  const b = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!b) return fail(c, "Faltan datos", 400);
+
+  const odometer = Number(b.odometer_km);
+  if (!Number.isFinite(odometer) || odometer <= 0) return fail(c, "El odómetro tiene que ser un número mayor que cero", 400);
+
+  const t1 = numeroOpcional(b.liters_tanque1);
+  const t2 = numeroOpcional(b.liters_tanque2);
+  const porTanque = litrosTotales(t1, t2);
+  const liters = porTanque ?? Number(b.liters);
+  if (!Number.isFinite(liters) || liters <= 0) return fail(c, "Los litros tienen que ser un número mayor que cero", 400);
+
+  await repo.updateFuelLog(
+    c.env.DB,
+    id,
+    {
+      odometer_km: odometer,
+      liters,
+      liters_tanque1: t1,
+      liters_tanque2: t2,
+      is_full: b.is_full === undefined ? !!previa.is_full : !!b.is_full,
+    },
+    { userId: c.get("user").id, when: new Date().toISOString().replace("T", " ").slice(0, 19) },
+  );
+  return ok(c, await repo.getFuelLog(c.env.DB, id));
+});
+
+// DELETE /api/fuel/:id — sacar una surtida cargada por error.
+fuel.delete("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+  const truckId = await repo.deleteFuelLog(c.env.DB, Number(c.req.param("id")));
+  if (truckId == null) return fail(c, "Surtida no encontrada", 404);
+  return ok(c, { deleted: true });
 });
 
 export default fuel;
