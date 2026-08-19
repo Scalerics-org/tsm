@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import { InstalarApp } from "./InstalarApp";
 import { ROLES } from "@shared/domain";
 
 export function TruckMark({ size = 20, stroke = "#f2f2f3" }: { size?: number; stroke?: string }) {
@@ -71,7 +72,10 @@ function ChoferShell({ children }: { children: ReactNode }) {
           <span className="block text-[11px] text-brand-400">Salir</span>
         </button>
       </header>
-      <main className="flex-1 px-4 py-5 pb-24">{children}</main>
+      <main className="flex-1 px-4 py-5 pb-24">
+        <InstalarApp />
+        {children}
+      </main>
       <nav className="fixed inset-x-0 bottom-0 z-[500] mx-auto grid max-w-md grid-cols-2 border-t border-ink/15 bg-surface">
         <BottomLink to="/" label="Viajes" icon="🚚" />
         <BottomLink to="/surtida" label="Surtida" icon="⛽" />
@@ -164,7 +168,10 @@ function DesktopShell({ items, children }: { items: NavItem[]; children: ReactNo
             </NavLink>
           ))}
         </nav>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-6">{children}</main>
+        <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-6">
+          <InstalarApp />
+          {children}
+        </main>
       </div>
     </div>
   );
