@@ -52,4 +52,4 @@ port = 8788
 [vars]
 NOMINATIM_UA = "tsm-scalerics/1.0 (contacto@scalerics.com)"
 VAPID_SUBJECT = "mailto:contacto@scalerics.com"
-VAPID_PUBLIC = ""
+VAPID_PUBLIC = "BFwyzlZmW7CwululHYcCeGU_WHUpUvHhnzFpSMAS9iWFNoDB6Fu7GuHuxojUiMsukJyWcNw-lvS6m1XW8q1mCUc"

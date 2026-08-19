@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { AvisosCard } from "./AvisosCard";
 import { Link } from "react-router-dom";
 import { fmtConsumo } from "@shared/domain";
 import { api, downloadFile } from "../../lib/api";
@@ -52,6 +53,7 @@ export function OpsSummary() {
 
   return (
     <div className="space-y-6">
+      <AvisosCard />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="kicker">Panel</div>

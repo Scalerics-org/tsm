@@ -882,3 +882,62 @@ export function plantillaHabilitada(
   if (!tpl.truck_ids.length) return true;
   return truckId != null && tpl.truck_ids.includes(truckId);
 }
+
+/** Lo que se le manda al celular cuando se cierra un viaje. */
+export interface AvisoViaje {
+  title: string;
+  body: string;
+  url: string;
+  tag: string;
+}
+
+/**
+ * El aviso de viaje cerrado.
+ *
+ * "Que al finalizar un viaje le mande un aviso con toda la info: qué viaje fue, quién lo
+ * hizo, etc." Va a la pantalla bloqueada del celular, así que el orden importa: primero lo
+ * que identifica el viaje, después el detalle. Lo que no entra se lee abriendo la app.
+ *
+ * Los campos propios de cada cliente salen de la plantilla —Casarone muestra remito y
+ * toneladas, Cañuelas la hoja de ruta— así que el texto no tiene nada fijo por cliente.
+ *
+ * `tag` lleva el id del viaje: si llegan dos avisos juntos no se pisan entre ellos.
+ */
+export function avisoViajeCerrado(
+  trip: Pick<
+    Trip,
+    | "id" | "provider_name" | "origin" | "destination" | "destinatario"
+    | "driver_name" | "truck_plate" | "field_values" | "segments" | "notes"
+  >,
+  campos: Pick<TemplateField, "key" | "label">[],
+): AvisoViaje {
+  const lineas: string[] = [];
+
+  const quien = [trip.driver_name, trip.truck_plate].filter(Boolean).join(" · ");
+  if (quien) lineas.push(quien);
+
+  // Sólo los campos que el chofer completó: una etiqueta con "—" al lado es ruido en una
+  // notificación, donde el espacio se cuenta.
+  const datos = campos
+    .map((c) => ({ label: c.label, valor: (trip.field_values ?? {})[c.key] }))
+    .filter((d) => d.valor != null && String(d.valor).trim() !== "")
+    .map((d) => `${d.label}: ${d.valor}`);
+  if (datos.length) lineas.push(datos.join(" · "));
+
+  // En un combinado, cada carga es una unidad facturable: por eso van todas y no un total.
+  for (const s of trip.segments) {
+    const cantidad = s.cantidad != null ? ` ${s.cantidad}${s.unidad ? ` ${s.unidad}` : ""}` : "";
+    const clientes = s.clientes.length ? ` → ${s.clientes.join(" / ")}` : "";
+    lineas.push(`${s.remitente}${cantidad}${clientes}`);
+  }
+
+  if (trip.notes?.trim()) lineas.push(`"${trip.notes.trim()}"`);
+
+  const destino = trip.destinatario ? `${trip.destination} (${trip.destinatario})` : trip.destination;
+  return {
+    title: `Viaje cerrado · ${trip.provider_name}`,
+    body: [`${trip.origin} → ${destino}`, ...lineas].join("\n"),
+    url: `/panel/viajes/${trip.id}`,
+    tag: `viaje-${trip.id}`,
+  };
+}

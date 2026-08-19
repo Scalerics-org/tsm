@@ -8,6 +8,7 @@ import {
   TRIP_STATUS,
   UNIDAD,
   aplicarCobro,
+  avisoViajeCerrado,
   fotosFaltantes,
   parseRenglon,
   requiereFotoCarga,
@@ -21,6 +22,8 @@ import * as tripsRepo from "../repos/trips";
 import * as templatesRepo from "../repos/templates";
 import * as photosRepo from "../repos/photos";
 import * as libretaRepo from "../repos/libreta";
+import * as pushRepo from "../repos/push";
+import { enviarPush } from "../lib/webpush";
 
 const trips = new Hono<{ Bindings: Env; Variables: Vars }>();
 trips.use("*", requireAuth);
@@ -456,8 +459,48 @@ trips.post("/:id/finish", async (c) => {
   }
 
   await tripsRepo.finishTrip(c.env.DB, s.trip.id, nowIso(), merged, b.notes ?? s.trip.notes ?? null);
-  return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
+  const cerrado = await tripsRepo.getTrip(c.env.DB, s.trip.id);
+
+  // El aviso a la oficina va DESPUÉS de cerrar y sin esperarlo: si el servidor de push está
+  // caído o el celular no existe más, el chofer igual terminó su viaje. Con waitUntil el
+  // Worker no corta la tarea al responder, así que el chofer no espera por esto.
+  if (cerrado) {
+    c.executionCtx.waitUntil(
+      avisarViajeCerrado(c.env, cerrado, tpl?.fields ?? []).catch(() => {}),
+    );
+  }
+
+  return okViaje(c, cerrado);
 });
+
+/**
+ * Aviso de viaje cerrado a los celulares de la oficina.
+ *
+ * "Al finalizar el viaje, notificar el celular." Va a todos los que hayan activado los
+ * avisos, no a un número fijo: hoy es Rodrigo, mañana puede sumarse Diego o Rosario sin
+ * tocar nada.
+ *
+ * No lanza excepciones ni le importa fallar: cerrar el viaje ya pasó.
+ */
+async function avisarViajeCerrado(env: Env, trip: Trip, campos: TripTemplate["fields"]): Promise<void> {
+  const { VAPID_PUBLIC: publica, VAPID_PRIVATE: privada, VAPID_SUBJECT: subject } = env;
+  if (!publica || !privada) return;
+
+  const suscripciones = await pushRepo.suscripcionesDeOficina(env.DB);
+  if (!suscripciones.length) return;
+
+  const aviso = avisoViajeCerrado(trip, campos);
+  const vapid = { publica, privada, subject: subject || "mailto:contacto@scalerics.com" };
+
+  const resultados = await Promise.all(suscripciones.map((s) => enviarPush(s, aviso, vapid)));
+  // Las que el servidor de push da por muertas se sacan: si no, cada viaje que se cierre
+  // vuelve a intentar contra un celular que ya no está.
+  await Promise.all(
+    resultados.map((r, i) =>
+      r.vencida ? pushRepo.borrarSuscripcion(env.DB, suscripciones[i].endpoint) : null,
+    ),
+  );
+}
 
 // POST /api/trips/:id/cancel
 trips.post("/:id/cancel", async (c) => {
