@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
 import { requireAuth } from "../middleware/auth";
-import { ROLES, PHOTO_KIND, type PhotoKind } from "../../shared/domain";
+import { ROLES, PHOTO_KIND, TRIP_STATUS, type PhotoKind } from "../../shared/domain";
 import * as tripsRepo from "../repos/trips";
 import * as photosRepo from "../repos/photos";
 
@@ -55,6 +55,39 @@ photos.post("/", async (c) => {
     segment_sid: segmentSid,
   });
   return ok(c, { id, r2_key: key }, 201);
+});
+
+/**
+ * DELETE /api/photos/:id — sacar una foto que salió mal.
+ *
+ * "Cuando pide foto tiene que tener la opción de agregar más de una. También eliminar y
+ * sacar de nuevo la misma foto." Una foto movida o del papel equivocado no servía de nada y
+ * no había forma de reemplazarla: la pantalla escondía la cámara apenas había una.
+ *
+ * El chofer sólo puede sacar las de SU viaje y mientras está en curso: una vez cerrado, la
+ * evidencia ya se usó para dar el viaje por bueno. Después corrige la oficina.
+ *
+ * Se borra también el archivo de R2, no sólo el registro: si no, quedan pagando espacio
+ * fotos que nadie puede ver.
+ */
+photos.delete("/:id", async (c) => {
+  const user = c.get("user");
+  const foto = await photosRepo.getPhoto(c.env.DB, Number(c.req.param("id")));
+  if (!foto) return fail(c, "Esa foto ya no está", 404);
+
+  const trip = await tripsRepo.getTrip(c.env.DB, foto.trip_id);
+  if (!trip) return fail(c, "Viaje no encontrado", 404);
+
+  if (user.role === ROLES.CHOFER) {
+    if (trip.driver_id !== user.driver_id) return fail(c, "No podés borrar fotos de este viaje", 403);
+    if (trip.status !== TRIP_STATUS.EN_CURSO) {
+      return fail(c, "El viaje ya está cerrado: pedile a la oficina que la saque", 409);
+    }
+  }
+
+  await photosRepo.deletePhoto(c.env.DB, foto.id);
+  if (c.env.FOTOS) await c.env.FOTOS.delete(foto.r2_key).catch(() => {});
+  return ok(c, { deleted: true });
 });
 
 // GET /api/photos/<key...> — sirve la imagen desde R2 (requiere auth)

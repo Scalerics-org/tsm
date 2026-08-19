@@ -82,8 +82,8 @@ export function CargasPanel({
                   {s.origen ?? origenViaje} → {s.destino ?? destinoViaje}
                 </div>
               )}
-              {pideFoto && sinFoto.has(s.sid) && editable && (
-                <FotoDeCarga tripId={tripId} seg={s} onDone={onChange} />
+              {pideFoto && editable && (
+                <FotoDeCarga tripId={tripId} seg={s} onDone={onChange} falta={sinFoto.has(s.sid)} />
               )}
               {pideFoto && sinFoto.has(s.sid) && !editable && (
                 <div className="text-xs font-semibold text-st-amberTx">Falta la foto</div>
@@ -150,10 +150,13 @@ function FotoDeCarga({
   tripId,
   seg,
   onDone,
+  falta,
 }: {
   tripId: number;
   seg: TripSegment;
   onDone: () => void;
+  /** Si todavía no tiene ninguna. Con foto, la cámara sigue estando para sumar otra. */
+  falta: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -179,7 +182,11 @@ function FotoDeCarga({
 
   return (
     <div className="mt-1.5">
-      <div className="mb-1 text-xs font-semibold text-st-amberTx">Falta la foto</div>
+      {falta ? (
+        <div className="mb-1 text-xs font-semibold text-st-amberTx">Falta la foto</div>
+      ) : (
+        <div className="mb-1 text-xs text-ink/50">Podés sumar otra foto de esta carga</div>
+      )}
       {busy ? (
         <div className="flex items-center gap-2 text-xs text-ink/60">
           <Spinner size={14} /> Subiendo…

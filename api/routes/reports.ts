@@ -12,6 +12,8 @@ import {
 } from "../../shared/domain";
 import { listTrips } from "../repos/trips";
 import { CSV_HEADER, filasDeViaje } from "../lib/export-viajes";
+import { resumenCliente } from "../lib/resumen-cliente";
+import { listTemplates } from "../repos/templates";
 import { listFuelLogs } from "../repos/fuel";
 import { listTrucks, getTruck } from "../repos/trucks";
 import { listDrivers, getDriver } from "../repos/drivers";
@@ -320,6 +322,39 @@ reports.get("/fuel.csv", async (c) => {
     cons.has(f.id) ? roundTo(cons.get(f.id)!) : "", f.logged_at,
   ]);
   return csvResponse("surtidas.csv", [header, ...rows]);
+});
+
+/**
+ * GET /api/reports/cliente?provider=X&from=&to=&porDestino=1
+ *
+ * El resumen que la oficina usa para facturarle a un cliente. Las columnas salen de los
+ * campos que ese cliente pide en sus plantillas, así que no hay una pantalla por cliente:
+ * Casarone muestra remito y toneladas, TYCSUR el MIC, Cañuelas la hoja de ruta.
+ */
+reports.get("/cliente", async (c) => {
+  const q = c.req.query();
+  const provider = q.provider?.trim();
+  if (!provider) return fail(c, "Elegí el cliente", 400);
+
+  const [trips, templates] = await Promise.all([
+    listTrips(c.env.DB, { provider, from: q.from, to: q.to }),
+    listTemplates(c.env.DB),
+  ]);
+
+  // Los cancelados no se facturan: mostrarlos en el resumen de cobro sería sumar plata que
+  // no se va a cobrar.
+  const facturables = trips.filter((t) => t.status !== TRIP_STATUS.CANCELADO);
+
+  return ok(c, {
+    provider,
+    desde: q.from ?? null,
+    hasta: q.to ?? null,
+    ...resumenCliente(
+      facturables,
+      templates.filter((t) => t.provider_name === provider),
+      { porDestino: q.porDestino === "1" },
+    ),
+  });
 });
 
 export default reports;

@@ -136,12 +136,15 @@ export function ChoferTripPage() {
       {/* Si la foto de la carga no llegó a subirse (mala señal en el muelle), el viaje no
           puede cerrarse. Se puede sacar de nuevo desde acá para no quedar trabado.
           En los combinados la foto va por carga, así que la pide CargasPanel. */}
-      {enCurso &&
-        !multi_renglon &&
-        data.foto_carga_requerida &&
-        !photos.some((p) => p.kind === PHOTO_KIND.CARGA) && (
-          <MissingCargoPhoto tripId={trip.id} onDone={load} />
-        )}
+      {/* La cámara sigue disponible aunque ya haya una foto: una movida o del papel
+          equivocado no sirve de nada, y antes no se podía ni sumar otra ni rehacerla. */}
+      {enCurso && !multi_renglon && data.foto_carga_requerida && (
+        <MissingCargoPhoto
+          tripId={trip.id}
+          onDone={load}
+          yaTiene={photos.some((p) => p.kind === PHOTO_KIND.CARGA)}
+        />
+      )}
 
       {trip.status === TRIP_STATUS.EN_CURSO && (
         <ArrivalForm
@@ -153,7 +156,7 @@ export function ChoferTripPage() {
         />
       )}
 
-      {photos.length > 0 && <Gallery photos={photos} />}
+      {photos.length > 0 && <Gallery photos={photos} editable={enCurso} onChanged={load} />}
 
       {trip.status === TRIP_STATUS.EN_CURSO && (
         <button
@@ -183,7 +186,16 @@ function Info({ label, value }: { label: string; value: string }) {
 }
 
 /** Reintento de la foto de la carga cuando no quedó guardada al iniciar el viaje. */
-function MissingCargoPhoto({ tripId, onDone }: { tripId: number; onDone: () => void }) {
+function MissingCargoPhoto({
+  tripId,
+  onDone,
+  yaTiene,
+}: {
+  tripId: number;
+  onDone: () => void;
+  /** Si ya hay al menos una foto de carga: cambia el tono, de "falta" a "podés sumar otra". */
+  yaTiene: boolean;
+}) {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -203,11 +215,15 @@ function MissingCargoPhoto({ tripId, onDone }: { tripId: number; onDone: () => v
   }
 
   return (
-    <Card accent="amber" className="space-y-3">
+    <Card accent={yaTiene ? undefined : "amber"} className="space-y-3">
       <div>
-        <h2 className="text-lg font-semibold text-ink">Falta la foto de la carga</h2>
+        <h2 className="text-lg font-semibold text-ink">
+          {yaTiene ? "Agregar otra foto de la carga" : "Falta la foto de la carga"}
+        </h2>
         <p className="text-sm text-ink/60">
-          No llegó a guardarse cuando saliste. Sacala de nuevo para poder cerrar el viaje.
+          {yaTiene
+            ? "Podés sumar las que necesites. Si alguna salió mal, borrala abajo y sacá otra."
+            : "No llegó a guardarse cuando saliste. Sacala de nuevo para poder cerrar el viaje."}
         </p>
       </div>
       <CameraCapture label="Foto de la carga" onChange={setFile} />
@@ -308,18 +324,76 @@ function ArrivalForm({
   );
 }
 
-function Gallery({ photos }: { photos: TripPhoto[] }) {
+function Gallery({
+  photos,
+  editable,
+  onChanged,
+}: {
+  photos: TripPhoto[];
+  editable: boolean;
+  onChanged: () => void;
+}) {
   return (
     <div>
       <h3 className="mb-2 font-semibold text-ink">Fotos</h3>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {photos.map((p) => (
-          <div key={p.id}>
-            <PhotoImage r2Key={p.r2_key} alt={PHOTO_KIND_LABEL[p.kind as PhotoKind]} className="h-32 w-full" />
-            <div className="mt-1 text-xs text-ink/60">{PHOTO_KIND_LABEL[p.kind as PhotoKind]}</div>
-          </div>
+          <FotoDelViaje key={p.id} p={p} editable={editable} onChanged={onChanged} />
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Una foto del viaje. Se puede sacar mientras el viaje siga en curso. */
+function FotoDelViaje({
+  p,
+  editable,
+  onChanged,
+}: {
+  p: TripPhoto;
+  editable: boolean;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const etiqueta = PHOTO_KIND_LABEL[p.kind as PhotoKind];
+
+  async function borrar() {
+    if (busy) return;
+    // Si era la única foto de la carga, el viaje vuelve a quedar sin poder cerrarse.
+    // Decirlo acá evita que lo descubra recién al intentar registrar la llegada.
+    if (!confirm(`¿Borrar esta foto (${etiqueta})?
+
+Vas a poder sacar otra en su lugar.`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.del(`/photos/${p.id}`);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudo borrar");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <PhotoImage r2Key={p.r2_key} alt={etiqueta} className="h-32 w-full" />
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <span className="text-xs text-ink/60">{etiqueta}</span>
+        {editable && (
+          <button
+            type="button"
+            onClick={borrar}
+            disabled={busy}
+            className="text-xs text-st-redTx hover:underline disabled:opacity-40"
+          >
+            {busy ? "…" : "Borrar"}
+          </button>
+        )}
+      </div>
+      <ErrorText>{error}</ErrorText>
     </div>
   );
 }

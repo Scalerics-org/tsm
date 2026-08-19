@@ -69,3 +69,16 @@ export async function insertPhoto(
     .run();
   return res.meta.last_row_id as number;
 }
+
+export async function getPhoto(db: D1Database, id: number): Promise<TripPhoto | null> {
+  return (
+    (await db
+      .prepare("SELECT id, trip_id, r2_key, kind, taken_at, segment_sid FROM trip_photos WHERE id = ?")
+      .bind(id)
+      .first<TripPhoto>()) ?? null
+  );
+}
+
+export async function deletePhoto(db: D1Database, id: number): Promise<void> {
+  await db.prepare("DELETE FROM trip_photos WHERE id = ?").bind(id).run();
+}
