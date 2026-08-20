@@ -996,3 +996,117 @@ export function avisoViajeCerrado(
     tag: `viaje-${trip.id}`,
   };
 }
+
+// ── Auditoría de kilómetros (las 12 fotos del tacógrafo) ──
+
+/** Lectura mensual del tacógrafo de un camión. Una por camión y por mes. */
+export interface LecturaOdometro {
+  id: number;
+  truck_id: number;
+  /** Mes que cierra la lectura, "YYYY-MM". */
+  periodo: string;
+  kilometraje: number;
+  /** Foto del tacógrafo. Puede faltar: R2 puede no estar bindeado. */
+  r2_key: string | null;
+  driver_id: number | null;
+  /** Día real en que se sacó la foto: se le pide el 1 y la trae el 4. */
+  tomada_at: string;
+  edited_by?: number | null;
+  edited_at?: string | null;
+  // joins
+  truck_plate?: string;
+  driver_name?: string;
+}
+
+/** Un viaje del período visto por la auditoría: sólo sus km y si fue vacío. */
+export interface ViajeAuditado {
+  kilometros: number | null;
+  vacio: boolean;
+}
+
+export interface AuditoriaKm {
+  periodo: string;
+  /** Km entre las dos lecturas. `null` = falta alguna y no hay contra qué comparar. */
+  km_periodo: number | null;
+  km_cargados: number;
+  km_vacios: number;
+  /** `null` si no hay `km_periodo`. Negativo también es una señal, ver abajo. */
+  km_sin_justificar: number | null;
+  viajes_cargados: number;
+  viajes_vacios: number;
+  /** Viajes del mes sin kilómetros: la explicación más probable de un descuadre grande. */
+  viajes_sin_km: number;
+  /** Ventana real comparada (días de las dos fotos), no el mes calendario. */
+  desde: string | null;
+  hasta: string | null;
+}
+
+/**
+ * El mes anterior a un "YYYY-MM".
+ *
+ * Está acá y no inline en la consulta porque enero tiene que ir a diciembre del año pasado,
+ * y ése es justo el mes en que la auditoría se estrena delante del cliente.
+ */
+export function periodoAnterior(periodo: string): string {
+  const [anio, mes] = periodo.split("-").map(Number);
+  if (!Number.isFinite(anio) || !Number.isFinite(mes)) return periodo;
+  return mes > 1 ? `${anio}-${String(mes - 1).padStart(2, "0")}` : `${anio - 1}-12`;
+}
+
+/**
+ * La auditoría del mes de un camión: lo que el tacógrafo dice contra lo que se cargó.
+ *
+ * "El primero de enero tengo una foto, el 31 de enero tengo la otra, sé que en enero el
+ * camión recorrió X kilómetros... hizo tantos viajes cargados... la diferencia son los
+ * kilómetros vacíos." Es la pieza que le permite dejar de perseguir fotos por WhatsApp.
+ *
+ * Sin lectura previa (el primer mes) NO se inventa un cero: no hay contra qué comparar, y un
+ * cero haría aparecer todos los kilómetros del mes como sin justificar el día que se estrena
+ * el sistema — que es el peor día para que parezca roto. Queda en `null` y la pantalla dice
+ * que falta la lectura anterior.
+ *
+ * Una diferencia NEGATIVA no es un error de cuentas: significa que los viajes suman más
+ * kilómetros que los que marca el tacógrafo, y eso también hay que mirarlo (km inflados en un
+ * viaje, o un kilometraje mal tipeado). Por eso se devuelve tal cual y no se recorta a cero.
+ */
+export function auditoriaKilometros(
+  periodo: string,
+  lectura: Pick<LecturaOdometro, "kilometraje" | "tomada_at"> | null,
+  previa: Pick<LecturaOdometro, "kilometraje" | "tomada_at"> | null,
+  viajes: ViajeAuditado[],
+): AuditoriaKm {
+  const cargados = viajes.filter((v) => !v.vacio);
+  const vacios = viajes.filter((v) => v.vacio);
+
+  const km_cargados = sumaKm(cargados);
+  const km_vacios = sumaKm(vacios);
+  const km_periodo =
+    lectura && previa ? redondearKm(lectura.kilometraje - previa.kilometraje) : null;
+
+  return {
+    periodo,
+    km_periodo,
+    km_cargados,
+    km_vacios,
+    km_sin_justificar:
+      km_periodo == null ? null : redondearKm(km_periodo - km_cargados - km_vacios),
+    viajes_cargados: cargados.length,
+    viajes_vacios: vacios.length,
+    viajes_sin_km: viajes.filter((v) => !Number.isFinite(v.kilometros as number)).length,
+    desde: previa?.tomada_at ?? null,
+    hasta: lectura?.tomada_at ?? null,
+  };
+}
+
+/** Un viaje sin kilómetros suma 0 y se cuenta aparte: no se le inventa un recorrido. */
+function sumaKm(viajes: ViajeAuditado[]): number {
+  return redondearKm(
+    viajes.reduce((s, v) => s + (Number.isFinite(v.kilometros as number) ? (v.kilometros as number) : 0), 0),
+  );
+}
+
+/** El tacógrafo marca enteros y los km de un viaje pueden traer coma: un residuo de punto
+ *  flotante mostrado como "-0,0000001 km sin justificar" asusta y no significa nada. */
+function redondearKm(n: number): number {
+  return Math.round(n * 10) / 10;
+}
