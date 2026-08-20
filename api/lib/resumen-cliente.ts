@@ -1,4 +1,5 @@
-import type { Trip, TripTemplate } from "../../shared/domain";
+import { TRIP_STATUS, type Trip, type TripTemplate } from "../../shared/domain";
+import type { TripFacturacion } from "../repos/trips";
 
 /**
  * El resumen de un cliente: lo que la oficina mira para facturarle.
@@ -20,6 +21,13 @@ export interface ColumnaResumen {
   totaliza: boolean;
 }
 
+/**
+ * El viaje como lo mira el resumen. `Partial` porque el número de factura sólo lo trae
+ * `listTripsFacturables`: un viaje leído sin la marca es un viaje sin facturar, que es
+ * exactamente lo que era antes de que existiera la factura.
+ */
+export type ViajeDelResumen = Trip & Partial<TripFacturacion>;
+
 export interface FilaResumen {
   trip_id: number;
   fecha: string;
@@ -33,6 +41,8 @@ export interface FilaResumen {
   valores: Record<string, string>;
   /** Cargas del viaje, para los combinados. Vacío en los de un solo tramo. */
   cargas: { remitente: string; clientes: string; cantidad: number | null; unidad: string | null; remito: string | null }[];
+  /** El número de la factura en la que ya salió. `null` = todavía está para facturar. */
+  factura_numero: string | null;
 }
 
 export interface GrupoResumen {
@@ -67,7 +77,30 @@ export function columnasDe(templates: TripTemplate[]): ColumnaResumen[] {
   return [...vistas.values()];
 }
 
-function fila(t: Trip): FilaResumen {
+/**
+ * Qué viajes entran en el resumen para facturar.
+ *
+ * Dos cosas quedan afuera, por motivos distintos:
+ *
+ * - Los CANCELADO, porque mostrarlos en el resumen de cobro sería sumar plata que no se va a
+ *   cobrar. (Esto ya era así antes de que existiera la factura.)
+ * - Los que ya tienen número de factura: "al mes que viene, yo ya sé que todo lo que está con
+ *   el número de factura, esos viajes quedan afuera". Si volvieran a aparecer, el riesgo no es
+ *   estético: los vuelve a puntear y los factura dos veces.
+ *
+ * Con `incluirFacturados` vuelven a la lista, que es el único modo de ir a buscar el viaje que
+ * marcó por error para sacarle la factura.
+ */
+export function viajesAFacturar<T extends ViajeDelResumen>(
+  trips: T[],
+  opts: { incluirFacturados?: boolean } = {},
+): T[] {
+  return trips.filter(
+    (t) => t.status !== TRIP_STATUS.CANCELADO && (opts.incluirFacturados || !t.factura_numero),
+  );
+}
+
+function fila(t: ViajeDelResumen): FilaResumen {
   return {
     trip_id: t.id,
     fecha: t.started_at.slice(0, 10),
@@ -85,6 +118,7 @@ function fila(t: Trip): FilaResumen {
       unidad: s.unidad,
       remito: s.remito,
     })),
+    factura_numero: t.factura_numero ?? null,
   };
 }
 
@@ -105,14 +139,28 @@ function totalizar(filas: FilaResumen[], columnas: ColumnaResumen[]): Record<str
 /**
  * Arma el resumen. Con `porDestino`, un grupo por destino — que es lo que pidió para
  * Cañuelas, donde lo que importa es cuánto fue a cada lado.
+ *
+ * Los totales salen de lo que quedó adentro: lo ya facturado no vuelve a sumar, porque el
+ * total es lo que le va a facturar ahora.
  */
 export function resumenCliente(
-  trips: Trip[],
+  trips: ViajeDelResumen[],
   templates: TripTemplate[],
-  opts: { porDestino?: boolean } = {},
-): { columnas: ColumnaResumen[]; grupos: GrupoResumen[]; viajes: number; totales: Record<string, number> } {
+  opts: { porDestino?: boolean; incluirFacturados?: boolean } = {},
+): {
+  columnas: ColumnaResumen[];
+  grupos: GrupoResumen[];
+  viajes: number;
+  totales: Record<string, number>;
+  /** Cuántos quedaron escondidos por estar facturados, para poder ofrecer verlos. */
+  facturados: number;
+} {
   const columnas = columnasDe(templates);
-  const filas = trips.map(fila);
+  const aFacturar = viajesAFacturar(trips, opts);
+  // Los escondidos son los que quedaron afuera SÓLO por tener factura: los CANCELADO no
+  // cuentan, esos nunca estuvieron en el resumen y ofrecer verlos no tendría sentido.
+  const facturados = viajesAFacturar(trips, { incluirFacturados: true }).length - aFacturar.length;
+  const filas = aFacturar.map(fila);
 
   const grupos: GrupoResumen[] = [];
   if (opts.porDestino) {
@@ -130,5 +178,5 @@ export function resumenCliente(
     grupos.push({ titulo: "", filas, viajes: filas.length, totales: totalizar(filas, columnas) });
   }
 
-  return { columnas, grupos, viajes: filas.length, totales: totalizar(filas, columnas) };
+  return { columnas, grupos, viajes: filas.length, totales: totalizar(filas, columnas), facturados };
 }

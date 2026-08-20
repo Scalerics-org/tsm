@@ -28,15 +28,36 @@ interface TripRow {
   kilometros: number | null;
   edited_by: number | null;
   edited_at: string | null;
+  factura_numero: string | null;
+  facturado_at: string | null;
+  facturado_by: number | null;
   driver_name?: string;
   truck_plate?: string;
 }
+
+/**
+ * La marca de facturación del viaje (migración 0032).
+ *
+ * Va aparte de `Trip` A PROPÓSITO: `Trip` es lo que viaja al celular del chofer, y el chofer
+ * no ve nada de facturación. Por eso `listTrips` sigue devolviendo `Trip` pelado y el número
+ * de factura sólo sale por `listTripsFacturables`, que usan las rutas de oficina. Así el
+ * invariante no depende de acordarse de borrar un campo en cada ruta.
+ */
+export interface TripFacturacion {
+  /** El número que él copia de su sistema de DGI. `null` = todavía no se facturó. */
+  factura_numero: string | null;
+  facturado_at: string | null;
+  facturado_by: number | null;
+}
+
+export type TripFacturable = Trip & TripFacturacion;
 
 const SELECT = `
   SELECT t.id, t.template_id, t.provider_name, t.origin, t.remite, t.destination, t.destinatario,
          t.driver_id, t.truck_id, t.cargo_type, t.kilos, t.field_values, t.status,
          t.started_at, t.finished_at, t.notes, t.created_at,
          t.segments, t.kilometros, t.edited_by, t.edited_at,
+         t.factura_numero, t.facturado_at, t.facturado_by,
          d.name AS driver_name, tr.plate AS truck_plate
   FROM trips t
   JOIN drivers d ON d.id = t.driver_id
@@ -100,7 +121,8 @@ export interface TripFilters {
   to?: string;
 }
 
-export async function listTrips(db: D1Database, f: TripFilters): Promise<Trip[]> {
+/** El WHERE de los filtros, compartido por las dos lecturas de la lista. */
+function filtrar(f: TripFilters): { sql: string; binds: unknown[] } {
   const where: string[] = [];
   const binds: unknown[] = [];
   const scope = f.onlyDriverId ?? f.driverId;
@@ -128,9 +150,31 @@ export async function listTrips(db: D1Database, f: TripFilters): Promise<Trip[]>
     where.push("substr(t.started_at,1,10) <= ?");
     binds.push(f.to);
   }
-  const sql = SELECT + (where.length ? ` WHERE ${where.join(" AND ")}` : "") + " ORDER BY t.started_at DESC";
+  return {
+    sql: SELECT + (where.length ? ` WHERE ${where.join(" AND ")}` : "") + " ORDER BY t.started_at DESC",
+    binds,
+  };
+}
+
+export async function listTrips(db: D1Database, f: TripFilters): Promise<Trip[]> {
+  const { sql, binds } = filtrar(f);
   const { results } = await db.prepare(sql).bind(...binds).all<TripRow>();
   return (results ?? []).map(toTrip);
+}
+
+/**
+ * Lo mismo, pero con la marca de facturación colgada. Sólo para oficina: es el número de
+ * factura, y eso no baja al celular del chofer.
+ */
+export async function listTripsFacturables(db: D1Database, f: TripFilters): Promise<TripFacturable[]> {
+  const { sql, binds } = filtrar(f);
+  const { results } = await db.prepare(sql).bind(...binds).all<TripRow>();
+  return (results ?? []).map((r) => ({
+    ...toTrip(r),
+    factura_numero: r.factura_numero,
+    facturado_at: r.facturado_at,
+    facturado_by: r.facturado_by,
+  }));
 }
 
 export async function getTrip(db: D1Database, id: number): Promise<Trip | null> {
@@ -247,6 +291,69 @@ export async function setKilometros(db: D1Database, id: number, km: number | nul
 
 export async function cancelTrip(db: D1Database, id: number, notes: string): Promise<void> {
   await db.prepare("UPDATE trips SET status='CANCELADO', notes=? WHERE id=?").bind(notes, id).run();
+}
+
+/**
+ * D1 no acepta más de 100 parámetros por consulta, y un corte de un mes de los cuatro camiones
+ * los pasa tranquilo. Se marca de a tandas, todas en el mismo `batch` (una sola transacción):
+ * o quedan facturados todos los que punteó o no queda facturado ninguno.
+ */
+const TANDA = 40;
+
+function enTandas(ids: number[]): number[][] {
+  const out: number[][] = [];
+  for (let i = 0; i < ids.length; i += TANDA) out.push(ids.slice(i, i + TANDA));
+  return out;
+}
+
+function cambios(res: D1Result[]): number {
+  return res.reduce((s, r) => s + (r.meta?.changes ?? 0), 0);
+}
+
+/**
+ * Le pone el número de factura a los viajes que él punteó.
+ *
+ * El número NO se genera acá: sale de su sistema de facturación electrónica de DGI y él lo
+ * copia. Lo único que hace esto es dejar registrado cuál es, para que esos viajes no vuelvan
+ * a aparecer en el próximo resumen.
+ *
+ * Los que ya tenían factura NO se pisan: si se equivocó, primero desmarca. Pisar en silencio
+ * el número de una factura ya emitida deja dos facturas distintas cobrando el mismo viaje y
+ * nadie se entera. Los CANCELADO tampoco se facturan.
+ *
+ * Devuelve cuántos se marcaron de verdad, para poder avisarle de los que quedaron afuera.
+ */
+export async function marcarFacturados(
+  db: D1Database,
+  ids: number[],
+  numero: string,
+  quien: { userId: number; when: string },
+): Promise<number> {
+  if (!ids.length) return 0;
+  const stmts = enTandas(ids).map((tanda) =>
+    db
+      .prepare(
+        `UPDATE trips SET factura_numero=?, facturado_at=?, facturado_by=?
+          WHERE id IN (${tanda.map(() => "?").join(",")})
+            AND factura_numero IS NULL AND status <> 'CANCELADO'`,
+      )
+      .bind(numero, quien.when, quien.userId, ...tanda),
+  );
+  return cambios(await db.batch(stmts));
+}
+
+/** Saca la marca: "se va a equivocar alguna vez" y el viaje tiene que poder volver al resumen. */
+export async function desmarcarFacturados(db: D1Database, ids: number[]): Promise<number> {
+  if (!ids.length) return 0;
+  const stmts = enTandas(ids).map((tanda) =>
+    db
+      .prepare(
+        `UPDATE trips SET factura_numero=NULL, facturado_at=NULL, facturado_by=NULL
+          WHERE id IN (${tanda.map(() => "?").join(",")}) AND factura_numero IS NOT NULL`,
+      )
+      .bind(...tanda),
+  );
+  return cambios(await db.batch(stmts));
 }
 
 export async function activeTripForDriver(db: D1Database, driverId: number): Promise<Trip | null> {

@@ -60,6 +60,11 @@ const VIAJE = {
   kilometros: null,
   edited_by: null,
   edited_at: null,
+  // El número de factura también es facturación: sale de DGI y el chofer no tiene por qué
+  // saber si el viaje que hizo ya se cobró ni con qué papel.
+  factura_numero: "FACTURA SECRETA",
+  facturado_at: "2026-08-19 10:00:00",
+  facturado_by: 2,
   driver_name: "Carlos Méndez",
   truck_plate: "STZ 4821",
 };
@@ -116,6 +121,8 @@ describe("el chofer no recibe facturación por ninguna ruta", () => {
       expect(texto).not.toContain("cobro_a");
       expect(texto).not.toContain("cobro_tipo");
       expect(texto).not.toContain("cobro_manual");
+      expect(texto).not.toContain("FACTURA SECRETA");
+      expect(texto).not.toContain("factura_numero");
     });
   }
 
