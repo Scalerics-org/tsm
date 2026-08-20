@@ -67,6 +67,16 @@ function parseCamposUbicacion(raw: any): CamposUbicacion | null {
         permite_alta: c.permite_alta === undefined ? true : !!c.permite_alta,
         requerido: c.requerido === undefined ? true : !!c.requerido,
       };
+    } else if (c.modo === CAMPO_MODO.TEXTO) {
+      // El "completar" de la planilla: el galpón puntual donde cargó, que cambia cada viaje.
+      // Faltaba acá, y esta función es la que decide qué se guarda: cada vez que la oficina
+      // abría y guardaba un internacional, el lugar de carga y el de descarga desaparecían
+      // de la plantilla sin que nadie lo viera.
+      out[parte] = {
+        modo: CAMPO_MODO.TEXTO,
+        label: c.label ? String(c.label).trim() : undefined,
+        requerido: c.requerido === undefined ? true : !!c.requerido,
+      };
     } else if (c.modo === CAMPO_MODO.FIJO) {
       const valor = String(c.valor ?? "").trim();
       if (!valor) continue; // un campo fijo sin valor no aporta nada

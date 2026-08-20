@@ -1,8 +1,15 @@
 import { useEffect, useState } from "react";
 import {
+  CAMPO_MODO,
   FIELD_STAGE,
   FIELD_TYPE,
+  LIBRETA_TIPO,
+  TIPO_DEPARTAMENTO,
+  type CampoModo,
+  type CampoUbicacion,
+  type CamposUbicacion,
   type DestOption,
+  type PickerTipo,
   type Provider,
   type TemplateField,
   type TripTemplate,
@@ -16,6 +23,27 @@ import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
 interface TruckOption {
   id: number;
   plate: string;
+}
+
+/** Las listas de las que puede elegir el chofer, como se las nombra en la oficina. */
+const LISTAS: Record<PickerTipo, string> = {
+  [TIPO_DEPARTAMENTO]: "Los 19 departamentos",
+  [LIBRETA_TIPO.LUGAR]: "Lugares de la libreta",
+  [LIBRETA_TIPO.REMITENTE]: "Remitentes de la libreta",
+  [LIBRETA_TIPO.DESTINATARIO]: "Destinatarios de la libreta",
+};
+
+/**
+ * Cómo se resuelve una punta del viaje, en una línea.
+ *
+ * Rodrigo terminó con dos plantillas iguales llamadas RECORRIDO VACIO y no había forma de
+ * distinguirlas desde la lista: las dos decían " → ". Lo que está configurado tiene que verse.
+ */
+function punta(campo: CampoUbicacion | undefined, clasico: string): string {
+  if (!campo) return clasico || "—";
+  if (campo.modo === CAMPO_MODO.FIJO) return campo.valor || clasico || "—";
+  if (campo.modo === CAMPO_MODO.TEXTO) return "lo escribe el chofer";
+  return `lo elige el chofer · ${LISTAS[(campo.libreta_tipo ?? LIBRETA_TIPO.LUGAR) as PickerTipo]}`;
 }
 
 export function TemplatesPage() {
@@ -135,11 +163,17 @@ export function TemplatesPage() {
                 </div>
                 <div className="font-cond text-xl font-semibold text-ink">{t.name}</div>
                 <div className="mt-1 text-sm text-ink/60">
-                  {t.origin} → {[...new Set(t.dest_options.map((o) => o.destino))].join(" · ")}
+                  {punta(t.campos_ubicacion?.origen, t.origin)} →{" "}
+                  {punta(
+                    t.campos_ubicacion?.destino,
+                    [...new Set(t.dest_options.map((o) => o.destino))].join(" · "),
+                  )}
                 </div>
                 <div className="mt-1 text-xs text-ink/50">
                   {t.dest_options.length} destino(s) · {t.fields.length} campo(s)
                   {t.arrival_photo_label ? ` · foto: ${t.arrival_photo_label}` : ""}
+                  {t.viaje_vacio ? " · sin carga" : ""}
+                  {t.pide_kilometros ? " · pide kilómetros" : ""}
                 </div>
               </div>
               <div className="flex shrink-0 gap-3 text-sm">
@@ -177,8 +211,12 @@ function TemplateForm({
     cargo_type: initial?.cargo_type ?? "",
     arrival_photo_label: initial?.arrival_photo_label ?? "",
     foto_carga_requerida: initial?.foto_carga_requerida ?? true,
+    pide_kilometros: initial?.pide_kilometros ?? false,
+    viaje_vacio: initial?.viaje_vacio ?? false,
     active: initial?.active ?? true,
   });
+  const [origen, setOrigen] = useState(aFormulario(initial?.campos_ubicacion?.origen));
+  const [destino, setDestino] = useState(aFormulario(initial?.campos_ubicacion?.destino));
   const [dests, setDests] = useState<DestOption[]>(initial?.dest_options ?? [{ destino: "", destinatario: "" }]);
   const [fields, setFields] = useState<TemplateField[]>(
     initial?.fields ?? [{ key: "", label: "", type: FIELD_TYPE.TEXTO, required: false, stage: FIELD_STAGE.CARGA }],
@@ -207,15 +245,15 @@ function TemplateForm({
       dest_options: dests.filter((d) => d.destino.trim()),
       fields: fields.filter((x) => x.label.trim()),
       truck_ids: truckIds,
+      pide_kilometros: f.pide_kilometros,
+      viaje_vacio: f.viaje_vacio,
+      campos_ubicacion: armarCampos(initial?.campos_ubicacion ?? null, origen, destino),
       // Estos no tienen control en pantalla, pero HAY QUE MANDARLOS: el backend lee lo que
       // llega y lo que falta lo apaga. Sin esta línea, guardar el combinado desde la oficina
       // lo convertía en un viaje común, y la plantilla del Azul pasaba a verla toda la flota.
       multi_renglon: initial?.multi_renglon ?? false,
       renglon_pide_ubicacion: initial?.renglon_pide_ubicacion ?? false,
-      campos_ubicacion: initial?.campos_ubicacion ?? null,
       renglones_fijos: initial?.renglones_fijos ?? null,
-      pide_kilometros: initial?.pide_kilometros ?? false,
-      viaje_vacio: initial?.viaje_vacio ?? false,
       carga_photo_label: initial?.carga_photo_label ?? null,
     };
     try {
@@ -249,7 +287,18 @@ function TemplateForm({
             <input className="input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required placeholder="Carga Casarone" />
           </Field>
           <Field label="Origen">
-            <input className="input" value={f.origin} onChange={(e) => setF({ ...f, origin: e.target.value })} required />
+            {/* Deja de ser obligatorio cuando el origen lo resuelve la configuración de abajo:
+                en el viaje que va surgiendo, de dónde sale lo elige el chofer. Exigirlo acá
+                dejaba esa plantilla imposible de guardar y no se entendía por qué. */}
+            <input
+              className="input"
+              value={f.origin}
+              onChange={(e) => setF({ ...f, origin: e.target.value })}
+              required={!origen.modo}
+            />
+            {!!origen.modo && (
+              <p className="mt-1 text-xs text-ink/50">Lo resuelve “De dónde sale”: podés dejarlo vacío.</p>
+            )}
           </Field>
           <Field label="Remite (opcional)">
             <input className="input" value={f.remite} onChange={(e) => setF({ ...f, remite: e.target.value })} placeholder="Ej: Saman" />
@@ -260,21 +309,38 @@ function TemplateForm({
           <Field label="Foto que se pide al descargar (opcional)">
             <input className="input" value={f.arrival_photo_label} onChange={(e) => setF({ ...f, arrival_photo_label: e.target.value })} placeholder="Hoja rosada firmada" />
           </Field>
-          <label className="flex items-end gap-2 pb-2 text-sm text-ink">
-            <input type="checkbox" className="h-4 w-4 accent-brand" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} />
-            Activa (visible para choferes)
-          </label>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Casilla
+            titulo="Activa (visible para choferes)"
+            ayuda="Destildala y deja de aparecer en el celular, pero no se borra."
+            checked={f.active}
+            onChange={(v) => setF({ ...f, active: v })}
+          />
           {/* En los combinados carga en varios lugares: pedir foto por cada uno es documentación
               excesiva y el respaldo pasa a ser el N° de remito del renglón. */}
-          <label className="flex items-end gap-2 pb-2 text-sm text-ink">
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-brand"
-              checked={f.foto_carga_requerida}
-              onChange={(e) => setF({ ...f, foto_carga_requerida: e.target.checked })}
-            />
-            Exigir foto de la carga para cerrar
-          </label>
+          <Casilla
+            titulo="Exigir foto de la carga para cerrar"
+            ayuda="Sin la foto el viaje queda abierto. En los combinados se pide una por cada lugar de carga."
+            checked={f.foto_carga_requerida}
+            onChange={(v) => setF({ ...f, foto_carga_requerida: v })}
+          />
+          <Casilla
+            titulo="Pedir kilómetros al cerrar"
+            ayuda="El chofer anota cuántos kilómetros hizo. Sin eso no puede cerrar el viaje."
+            checked={f.pide_kilometros}
+            onChange={(v) => setF({ ...f, pide_kilometros: v })}
+          />
+          {/* "El viaje vacío": el camión que vuelve sin carga. Ojo que vacío acá significa que
+              NO LLEVA NADA — si lleva envases de vuelta, no va marcado: es una carga y hay que
+              registrarla. */}
+          <Casilla
+            titulo="Viaje sin carga (vuelta vacía)"
+            ayuda="No se piden cargas ni foto de la carga. Si el camión lleva algo de vuelta, no lo marques."
+            checked={f.viaje_vacio}
+            onChange={(v) => setF({ ...f, viaje_vacio: v })}
+          />
         </div>
 
         {/* Sin ningún camión marcado la ve toda la flota, que es lo que conviene para los
@@ -310,26 +376,83 @@ function TemplateForm({
           </p>
         </div>
 
-        {/* Destinos + destinatarios */}
+        {/* "Me ato un poco, estaba medio fijo ese formato... no supe mucho como hacerlo."
+            Hasta acá el origen y el destino sólo se podían configurar por migración, y la
+            oficina, sin manera de pedir el origen por departamento, terminó escribiendo los
+            19 departamentos a mano en la lista de destinos. */}
         <div>
           <div className="mb-2 font-cond text-[13px] font-semibold uppercase tracking-[0.1em] text-ink/60">
-            Destinos que puede elegir el chofer
+            De dónde sale y a dónde va
           </div>
-          <div className="space-y-2">
-            {dests.map((d, i) => (
-              <div key={i} className="flex gap-2">
-                <input className="input" placeholder="Destino (ej. Salto)" value={d.destino} onChange={(e) => setDests(dests.map((x, j) => (j === i ? { ...x, destino: e.target.value } : x)))} />
-                <input className="input" placeholder="Destinatario (ej. Roig)" value={d.destinatario} onChange={(e) => setDests(dests.map((x, j) => (j === i ? { ...x, destinatario: e.target.value } : x)))} />
-                <button type="button" onClick={() => setDests(dests.filter((_, j) => j !== i))} className="px-2 text-st-redTx">
-                  ✕
-                </button>
-              </div>
-            ))}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <ParteUbicacion
+              titulo="De dónde sale"
+              clasico="Siempre el Origen de arriba"
+              campo={origen}
+              onChange={setOrigen}
+            />
+            <ParteUbicacion
+              titulo="A dónde va"
+              clasico="Los destinos de la lista de abajo"
+              campo={destino}
+              onChange={setDestino}
+            />
           </div>
-          <button type="button" onClick={() => setDests([...dests, { destino: "", destinatario: "" }])} className="mt-2 text-sm text-brand-700 hover:underline">
-            + Agregar destino
-          </button>
         </div>
+
+        {/* Destinos + destinatarios. Con el destino configurado arriba, el chofer nunca ve
+            esta lista: la pantalla del viaje usa una cosa o la otra. Lo cargado no se borra,
+            sigue viajando en el payload por si se vuelve atrás. */}
+        {destino.modo ? (
+          <div className="text-xs text-ink/50">
+            El destino ya lo resuelve “A dónde va”: no hace falta cargar los destinos uno por uno.
+            {/* Los que ya estaban quedan guardados y el chofer no los ve, pero no se borran
+                solos: acá nadie tira configuración sin que se la pidan. El botón está porque
+                si no, sacar los 19 departamentos escritos a mano volvía a depender de nosotros. */}
+            {dests.some((d) => d.destino.trim()) && (
+              <>
+                {" "}
+                Quedan {dests.filter((d) => d.destino.trim()).length} guardado(s) sin usar.{" "}
+                <button
+                  type="button"
+                  onClick={() => setDests([])}
+                  className="text-brand-700 hover:underline"
+                >
+                  Quitarlos
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
+          <div>
+            <div className="mb-2 font-cond text-[13px] font-semibold uppercase tracking-[0.1em] text-ink/60">
+              Destinos que puede elegir el chofer
+            </div>
+            <div className="space-y-2">
+              {dests.map((d, i) => (
+                <div key={i} className="flex gap-2">
+                  <input className="input" placeholder="Destino (ej. Salto)" value={d.destino} onChange={(e) => setDests(dests.map((x, j) => (j === i ? { ...x, destino: e.target.value } : x)))} />
+                  <input className="input" placeholder="Destinatario (ej. Roig)" value={d.destinatario} onChange={(e) => setDests(dests.map((x, j) => (j === i ? { ...x, destinatario: e.target.value } : x)))} />
+                  <button type="button" onClick={() => setDests(dests.filter((_, j) => j !== i))} className="px-2 text-st-redTx">
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => setDests([...dests, { destino: "", destinatario: "" }])} className="mt-2 text-sm text-brand-700 hover:underline">
+              + Agregar destino
+            </button>
+            {/* Una plantilla sin destinos y sin “A dónde va” se guarda igual, pero el chofer
+                abre el viaje, no tiene nada para elegir y no puede salir. Que se vea acá y no
+                en el muelle. */}
+            {!dests.some((d) => d.destino.trim()) && (
+              <p className="mt-1 text-xs text-st-amberTx">
+                Sin destinos, el chofer no va a tener a dónde elegir. Poné al menos uno, o
+                configurá “A dónde va” acá arriba.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Campos configurables */}
         <div>
@@ -388,5 +511,186 @@ function TemplateForm({
         </div>
       </form>
     </Card>
+  );
+}
+
+// ── Origen y destino configurables desde la oficina ──
+
+/**
+ * Igual que CamposUbicacion, pero admitiendo "departamento" como lista.
+ *
+ * El backend ya lo acepta y es lo que usan el combinado genérico y los internacionales; el
+ * chofer lo elige con el mismo selector. El tipo compartido todavía nombra sólo la libreta.
+ */
+type CampoSalida = Omit<CampoUbicacion, "libreta_tipo"> & { libreta_tipo?: PickerTipo };
+
+/** Lo que edita la pantalla. Aplanado: un solo select decide qué se muestra abajo. */
+interface CampoForm {
+  modo: "" | CampoModo;
+  valor: string;
+  label: string;
+  libreta_tipo: PickerTipo;
+  permite_alta: boolean;
+  /** Sin control en pantalla: viaja como vino para no apagar lo que dejó una migración. */
+  requerido?: boolean;
+}
+
+function aFormulario(c: CampoUbicacion | undefined): CampoForm {
+  return {
+    modo: c?.modo ?? "",
+    valor: c?.valor ?? "",
+    label: c?.label ?? "",
+    // Por departamento arranca: es justo lo que se pidió y no había forma de configurar.
+    libreta_tipo: (c?.libreta_tipo as PickerTipo) ?? TIPO_DEPARTAMENTO,
+    permite_alta: c?.permite_alta !== false,
+    requerido: c?.requerido,
+  };
+}
+
+function aCampo(cf: CampoForm): CampoSalida | null {
+  if (!cf.modo) return null;
+  const base = {
+    ...(cf.label.trim() ? { label: cf.label.trim() } : {}),
+    ...(cf.requerido === undefined ? {} : { requerido: cf.requerido }),
+  };
+  if (cf.modo === CAMPO_MODO.FIJO) {
+    // Un fijo sin texto no configura nada; el backend lo descarta igual.
+    return cf.valor.trim() ? { ...base, modo: CAMPO_MODO.FIJO, valor: cf.valor.trim() } : null;
+  }
+  if (cf.modo === CAMPO_MODO.LIBRETA) {
+    return {
+      ...base,
+      modo: CAMPO_MODO.LIBRETA,
+      libreta_tipo: cf.libreta_tipo,
+      permite_alta: cf.permite_alta,
+    };
+  }
+  return { ...base, modo: CAMPO_MODO.TEXTO };
+}
+
+/**
+ * Arma campos_ubicacion para el payload.
+ *
+ * El remitente y el destinatario NO tienen control en esta pantalla, así que se copian tal
+ * como estaban: el backend guarda lo que llega y borra lo que falta, y sin esto abrir un
+ * internacional y apretar Guardar se llevaba puesto el lugar de carga y el de descarga.
+ */
+function armarCampos(
+  previo: CamposUbicacion | null,
+  origen: CampoForm,
+  destino: CampoForm,
+): Record<string, CampoSalida> | null {
+  const o = aCampo(origen);
+  const d = aCampo(destino);
+  const out: Record<string, CampoSalida> = {
+    ...(previo?.remitente ? { remitente: previo.remitente } : {}),
+    ...(previo?.destinatario ? { destinatario: previo.destinatario } : {}),
+    ...(o ? { origen: o } : {}),
+    ...(d ? { destino: d } : {}),
+  };
+  return Object.keys(out).length ? out : null;
+}
+
+/** Casilla con la línea que explica qué hace: el que la marca tiene que saber qué prendió. */
+function Casilla({
+  titulo,
+  ayuda,
+  checked,
+  onChange,
+}: {
+  titulo: string;
+  ayuda: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex gap-2 text-sm text-ink">
+      <input
+        type="checkbox"
+        className="mt-1 h-4 w-4 flex-none accent-brand"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span>
+        {titulo}
+        <span className="mt-0.5 block text-xs text-ink/50">{ayuda}</span>
+      </span>
+    </label>
+  );
+}
+
+/** Una punta del viaje: fija, elegida de una lista, o escrita por el chofer. */
+function ParteUbicacion({
+  titulo,
+  clasico,
+  campo,
+  onChange,
+}: {
+  titulo: string;
+  clasico: string;
+  campo: CampoForm;
+  onChange: (c: CampoForm) => void;
+}) {
+  const set = (cambio: Partial<CampoForm>) => onChange({ ...campo, ...cambio });
+  const esLibreta = campo.modo === CAMPO_MODO.LIBRETA;
+  return (
+    <div className="border border-ink/10 p-3">
+      <span className="label">{titulo}</span>
+      <select
+        className="input"
+        value={campo.modo}
+        onChange={(e) => set({ modo: e.target.value as CampoForm["modo"] })}
+      >
+        <option value="">{clasico}</option>
+        <option value={CAMPO_MODO.FIJO}>Siempre el mismo (lo pone la oficina)</option>
+        <option value={CAMPO_MODO.LIBRETA}>Lo elige el chofer de una lista</option>
+        <option value={CAMPO_MODO.TEXTO}>Lo escribe el chofer</option>
+      </select>
+
+      {campo.modo === CAMPO_MODO.FIJO && (
+        <input
+          className="input mt-2"
+          placeholder="Ej: Bella Unión"
+          value={campo.valor}
+          onChange={(e) => set({ valor: e.target.value })}
+        />
+      )}
+
+      {esLibreta && (
+        <select
+          className="input mt-2"
+          value={campo.libreta_tipo}
+          onChange={(e) => set({ libreta_tipo: e.target.value as PickerTipo })}
+        >
+          {Object.entries(LISTAS).map(([tipo, texto]) => (
+            <option key={tipo} value={tipo}>
+              {texto}
+            </option>
+          ))}
+        </select>
+      )}
+
+      {!!campo.modo && campo.modo !== CAMPO_MODO.FIJO && (
+        <input
+          className="input mt-2"
+          placeholder="Cómo se lo pide al chofer (ej. Departamento de carga)"
+          value={campo.label}
+          onChange={(e) => set({ label: e.target.value })}
+        />
+      )}
+
+      {/* Los 19 son lista cerrada: ahí el alta no existe y marcarlo no cambia nada. */}
+      {esLibreta && campo.libreta_tipo !== TIPO_DEPARTAMENTO && (
+        <label className="mt-2 flex gap-2 text-xs text-ink">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 flex-none accent-brand"
+            checked={campo.permite_alta}
+            onChange={(e) => set({ permite_alta: e.target.checked })}
+          />
+          El chofer puede agregar uno nuevo si no está en la lista
+        </label>
+      )}
+    </div>
   );
 }
