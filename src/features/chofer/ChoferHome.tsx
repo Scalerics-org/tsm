@@ -4,6 +4,7 @@ import type { Trip, TripTemplate } from "@shared/domain";
 import { api } from "../../lib/api";
 import { Corners, Spinner, StatusBadge } from "../../components/ui";
 import { estimateTravel, fmtDuration } from "../../lib/eta";
+import { AvisoLecturaMensual, type Pendiente } from "./LecturaMensual";
 
 interface Cliente {
   provider_id: number;
@@ -14,10 +15,14 @@ interface Cliente {
 export function ChoferHome() {
   const [active, setActive] = useState<Trip | null>(null);
   const [templates, setTemplates] = useState<TripTemplate[] | null>(null);
+  const [lectura, setLectura] = useState<Pendiente | null>(null);
 
   useEffect(() => {
     api.get<Trip | null>("/trips/active").then(setActive).catch(() => setActive(null));
     api.get<TripTemplate[]>("/templates").then(setTemplates).catch(() => setTemplates([]));
+    // Si esto falla no se bloquea a nadie: el backend igual lo va a frenar al salir, y dejar
+    // al chofer sin poder cargar un viaje por un pedido que no respondió sería peor.
+    api.get<Pendiente>("/lecturas/pendiente").then(setLectura).catch(() => setLectura(null));
   }, []);
 
   // Un card por cliente (proveedor).
@@ -37,8 +42,15 @@ export function ChoferHome() {
 
   if (!templates) return <Spinner size={28} />;
 
+  const falta = !!lectura?.falta;
+
   return (
     <div className="space-y-5">
+      <AvisoLecturaMensual
+        pendiente={lectura}
+        onGuardada={() => setLectura((p) => (p ? { ...p, falta: false } : p))}
+      />
+
       {active && (
         <Link to={`/viaje/${active.id}`} className="panel block border-l-4 border-l-st-blueDot p-4">
           <Corners />
@@ -69,11 +81,24 @@ export function ChoferHome() {
       )}
 
       <div>
-        <div className="kicker">{active ? "Viaje sin cerrar" : "Elegí el cliente"}</div>
+        <div className="kicker">
+          {falta ? "Antes de salir" : active ? "Viaje sin cerrar" : "Elegí el cliente"}
+        </div>
         <h1 className="text-3xl text-ink">Clientes</h1>
       </div>
 
-      {active ? (
+      {falta ? (
+        /* El bloqueo que pidió el cliente. Va DESPUÉS del card del viaje en curso, que sigue
+           arriba y se puede abrir y cerrar: lo único que se traba es empezar otro. */
+        <div className="panel border-l-4 border-l-st-amberDot p-4">
+          <Corners />
+          <p className="text-sm text-ink/75">
+            Para empezar un viaje nuevo falta la foto del tacógrafo de este mes. Cargala acá
+            arriba y seguís normal.
+            {active ? " El viaje que tenés en curso lo podés cerrar igual." : ""}
+          </p>
+        </div>
+      ) : active ? (
         /* Un viaje a la vez: hasta registrar la llegada no se ofrece empezar otro. */
         <div className="panel border-l-4 border-l-st-amberDot p-4">
           <Corners />

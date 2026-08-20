@@ -1110,3 +1110,107 @@ function sumaKm(viajes: ViajeAuditado[]): number {
 function redondearKm(n: number): number {
   return Math.round(n * 10) / 10;
 }
+
+/** A partir de cuántos kilómetros sin justificar la auditoría lo marca en Control.
+ *
+ *  "Si un camión se pasa de 100-200 km, que le avise a Rodrigo en Control." Es el punto
+ *  medio de lo que pidió, y está acá arriba —y no enterrado en la cuenta— porque es un
+ *  número de criterio: cuando el cliente vea unos meses reales va a querer moverlo. */
+export const KM_SIN_JUSTIFICAR_ALERTA = 150;
+
+export interface SenalKm {
+  /** `revisar` = pasó el umbral. `sin_datos` = falta una lectura y no hay contra qué comparar. */
+  nivel: "ok" | "revisar" | "sin_datos";
+  /** Qué mirar, en una línea. `null` cuando está todo en orden. */
+  motivo: string | null;
+}
+
+/**
+ * La señal que ve la oficina en Control para el mes de un camión.
+ *
+ * Separa "está mal" de "no se sabe": un camión sin la foto del mes NO es un camión con
+ * kilómetros de más, y pintarlos iguales haría que el aviso pierda sentido justo cuando
+ * empiece a haber muchos.
+ *
+ * El descuadre se mira en valor absoluto. Negativo significa que los viajes suman más de lo
+ * que marca el tacógrafo —km inflados o un kilometraje mal tipeado— y eso también hay que
+ * mirarlo; se dice distinto porque se busca distinto.
+ */
+export function senalKilometros(a: AuditoriaKm, umbral = KM_SIN_JUSTIFICAR_ALERTA): SenalKm {
+  if (a.km_sin_justificar == null) {
+    const cual = a.hasta == null ? "de este mes" : "del mes pasado";
+    return { nivel: "sin_datos", motivo: `Falta la lectura del tacógrafo ${cual}` };
+  }
+
+  const km = a.km_sin_justificar;
+  if (Math.abs(km) < umbral) return { nivel: "ok", motivo: null };
+
+  const cuantos = Math.abs(Math.round(km)).toLocaleString("es-UY");
+  if (km < 0) {
+    return { nivel: "revisar", motivo: `Los viajes suman ${cuantos} km más de los que marca el tacógrafo` };
+  }
+  // Un viaje sin kilómetros es la explicación más probable de un descuadre para arriba, y es
+  // la que se arregla sola: alcanza con completarlos.
+  const porque = a.viajes_sin_km
+    ? ` · ${a.viajes_sin_km} ${a.viajes_sin_km === 1 ? "viaje" : "viajes"} sin km`
+    : "";
+  return { nivel: "revisar", motivo: `${cuantos} km sin justificar${porque}` };
+}
+
+// ── El bloqueo del 1 de cada mes ──
+
+export const MENSAJE_LECTURA_PENDIENTE =
+  "Antes de salir, sacá la foto del tacógrafo con los kilómetros del mes. Es una sola vez por mes.";
+
+/**
+ * Si al chofer le falta la lectura del mes y por eso no puede empezar un viaje.
+ *
+ * "Por ahora vamos a bloquearla, total es solo una foto al tacógrafo, no es complicado."
+ *
+ * Bloquea SALIR, nunca LLEGAR: "si un chofer justo está en ruta cuando cambia el día, que le
+ * permita terminar el viaje y después que le pida la foto". Por eso se llama al abrir un
+ * viaje y no al cerrarlo — el que arrancó el 31 se cierra el 1 sin que le pidan nada.
+ *
+ * Sin camión no hay tacógrafo que fotografiar: no se bloquea a nadie por un dato que no
+ * puede conseguir.
+ */
+export function bloqueaSalidaPorLectura(
+  truckId: number | null | undefined,
+  tieneLectura: boolean,
+): boolean {
+  return truckId != null && !tieneLectura;
+}
+
+/**
+ * El aviso de surtida al celular de la oficina.
+ *
+ * Mismo canal que el viaje cerrado y por el mismo motivo: es un hecho que pasa en la ruta y
+ * que la oficina hoy se entera cuando abre la app. El gasoil es el gasto grande del camión,
+ * así que lo primero que se lee es cuántos litros y en qué camión.
+ *
+ * El desglose por tanque va sólo si vino: en las surtidas viejas —y cuando cargaron uno
+ * solo— no existe, y "(0 + 0)" al lado de los litros es mentira, no dato faltante.
+ */
+export function avisoSurtida(
+  log: Pick<FuelLog, "id" | "truck_id" | "odometer_km" | "liters" | "liters_tanque1" | "liters_tanque2" | "is_full">,
+  quien: { driver_name?: string | null; truck_plate?: string | null },
+  consumo?: Pick<FuelFeedback, "segment_kml"> | null,
+): AvisoViaje {
+  const litros = redondearKm(log.liters).toLocaleString("es-UY");
+  const desglose =
+    log.liters_tanque1 != null || log.liters_tanque2 != null
+      ? ` (T1 ${log.liters_tanque1 ?? 0} + T2 ${log.liters_tanque2 ?? 0})`
+      : "";
+
+  const lineas = [`${litros} L${desglose}${log.is_full ? "" : " · chorro"}`];
+  lineas.push(`Tacógrafo: ${Math.round(log.odometer_km).toLocaleString("es-UY")} km`);
+  if (consumo?.segment_kml != null) lineas.push(`Rindió ${consumo.segment_kml} km/L`);
+  if (quien.driver_name) lineas.push(quien.driver_name);
+
+  return {
+    title: `Surtida · ${quien.truck_plate ?? "camión"}`,
+    body: lineas.join("\n"),
+    url: `/panel/camion/${log.truck_id}`,
+    tag: `surtida-${log.id}`,
+  };
+}

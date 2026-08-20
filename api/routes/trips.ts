@@ -3,7 +3,9 @@ import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
 import {
+  MENSAJE_LECTURA_PENDIENTE,
   ROLES,
+  bloqueaSalidaPorLectura,
   plantillaHabilitada,
   TRIP_STATUS,
   UNIDAD,
@@ -18,12 +20,14 @@ import {
   type TripSegmentInput,
   type TripTemplate,
 } from "../../shared/domain";
+import { kmEstimados } from "../../shared/distancias";
 import * as tripsRepo from "../repos/trips";
 import * as templatesRepo from "../repos/templates";
 import * as photosRepo from "../repos/photos";
 import * as libretaRepo from "../repos/libreta";
-import * as pushRepo from "../repos/push";
-import { enviarPush } from "../lib/webpush";
+import * as lecturasRepo from "../repos/lecturas";
+import { periodoDeHoy } from "../lib/periodo";
+import { notificarOficina } from "../lib/avisos";
 
 const trips = new Hono<{ Bindings: Env; Variables: Vars }>();
 trips.use("*", requireAuth);
@@ -201,6 +205,24 @@ trips.post("/", async (c) => {
     }
   }
 
+  const truckId = b.truck_id ? Number(b.truck_id) : user.truck_id;
+  if (!truckId) return fail(c, "No tenés un camión asignado", 400);
+
+  // La foto del tacógrafo del mes, antes de salir.
+  //
+  // "Por ahora vamos a bloquearla, total es solo una foto al tacógrafo, no es complicado."
+  // Bloquea EMPEZAR, no cerrar: el que arrancó el 31 termina su viaje el 1 sin que le pidan
+  // nada —"si un chofer justo está en ruta cuando cambia el día, que le permita terminar el
+  // viaje"— justamente porque este control está acá y no en el cierre.
+  //
+  // La oficina pasa: está cargando un viaje que ya pasó, no saliendo a la ruta.
+  if (esChoferQueSale) {
+    const lectura = await lecturasRepo.getLectura(c.env.DB, truckId, periodoDeHoy());
+    if (bloqueaSalidaPorLectura(truckId, lectura != null)) {
+      return fail(c, MENSAJE_LECTURA_PENDIENTE, 409);
+    }
+  }
+
   const tpl = await templatesRepo.getTemplate(c.env.DB, Number(b.template_id));
   if (!tpl || !tpl.active) return fail(c, "Plantilla de viaje no disponible", 404);
 
@@ -210,9 +232,6 @@ trips.post("/", async (c) => {
 
   const weightField = tpl.fields.find((f) => f.is_weight);
   const weight = weightField && values[weightField.key] ? Number(values[weightField.key]) : null;
-
-  const truckId = b.truck_id ? Number(b.truck_id) : user.truck_id;
-  if (!truckId) return fail(c, "No tenés un camión asignado", 400);
 
   // Esconder la plantilla de la lista no alcanza: el id viaja en el pedido y se puede mandar
   // igual. Sin este control la restricción por camión es decorativa.
@@ -445,6 +464,18 @@ trips.post("/:id/finish", async (c) => {
   }
   if (b.kilometros != null) {
     await tripsRepo.setKilometros(c.env.DB, s.trip.id, Number(b.kilometros));
+  } else if (s.trip.kilometros == null) {
+    // Si nadie los puso, los estima la app con el origen y el destino.
+    //
+    // Es lo que hace posible el control de fin de mes sin pedirle un dato más al chofer:
+    // "el vacío, si bien está buenazo, lo veo muy llenador para ellos" — y los kilómetros
+    // la app ya los sabe. Es un aproximado y así se usa: sirve para detectar que faltan
+    // 3.000 km en el mes, no para facturar por kilómetro.
+    //
+    // Si no reconoce alguna de las dos puntas queda en null, que es lo honesto: mejor un
+    // hueco visible que un número inventado que después nadie sabe de dónde salió.
+    const estimado = kmEstimados(s.trip.origin, s.trip.destination);
+    if (estimado != null) await tripsRepo.setKilometros(c.env.DB, s.trip.id, estimado);
   }
 
   // Un viaje no se cierra sin su evidencia: queda pendiente hasta que estén las fotos.
@@ -476,30 +507,11 @@ trips.post("/:id/finish", async (c) => {
 /**
  * Aviso de viaje cerrado a los celulares de la oficina.
  *
- * "Al finalizar el viaje, notificar el celular." Va a todos los que hayan activado los
- * avisos, no a un número fijo: hoy es Rodrigo, mañana puede sumarse Diego o Rosario sin
- * tocar nada.
- *
- * No lanza excepciones ni le importa fallar: cerrar el viaje ya pasó.
+ * "Al finalizar el viaje, notificar el celular." El reparto —a quiénes, con qué claves y qué
+ * hacer con las suscripciones muertas— vive en lib/avisos: acá sólo se arma el texto.
  */
 async function avisarViajeCerrado(env: Env, trip: Trip, campos: TripTemplate["fields"]): Promise<void> {
-  const { VAPID_PUBLIC: publica, VAPID_PRIVATE: privada, VAPID_SUBJECT: subject } = env;
-  if (!publica || !privada) return;
-
-  const suscripciones = await pushRepo.suscripcionesDeOficina(env.DB);
-  if (!suscripciones.length) return;
-
-  const aviso = avisoViajeCerrado(trip, campos);
-  const vapid = { publica, privada, subject: subject || "mailto:contacto@scalerics.com" };
-
-  const resultados = await Promise.all(suscripciones.map((s) => enviarPush(s, aviso, vapid)));
-  // Las que el servidor de push da por muertas se sacan: si no, cada viaje que se cierre
-  // vuelve a intentar contra un celular que ya no está.
-  await Promise.all(
-    resultados.map((r, i) =>
-      r.vencida ? pushRepo.borrarSuscripcion(env.DB, suscripciones[i].endpoint) : null,
-    ),
-  );
+  await notificarOficina(env, avisoViajeCerrado(trip, campos));
 }
 
 // POST /api/trips/:id/cancel

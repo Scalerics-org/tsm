@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { ROLES, fuelFeedback, kmInicialTacografo, litrosTotales } from "../../shared/domain";
+import { ROLES, avisoSurtida, fuelFeedback, kmInicialTacografo, litrosTotales } from "../../shared/domain";
+import { notificarOficina } from "../lib/avisos";
 import * as repo from "../repos/fuel";
 import * as tripsRepo from "../repos/trips";
 
@@ -122,6 +123,21 @@ fuel.post("/", async (c) => {
     })),
     { odometer_km: odometer, liters, is_full: isFull, logged_at: new Date().toISOString().slice(0, 10) },
   );
+
+  // Aviso al celular de la oficina, igual que con el viaje cerrado. El gasoil es el gasto
+  // grande del camión y hoy se enteran cuando abren la app.
+  // `waitUntil` y no `await`: la surtida ya está guardada y el chofer está parado en el
+  // surtidor esperando la respuesta; que el push tarde o falle no es asunto suyo.
+  const guardada = logs.find((l) => l.id === id);
+  if (guardada) {
+    c.executionCtx.waitUntil(
+      notificarOficina(
+        c.env,
+        avisoSurtida(guardada, { driver_name: guardada.driver_name, truck_plate: guardada.truck_plate }, feedback),
+      ).catch(() => {}),
+    );
+  }
+
   return ok(c, { id, r2_key: r2Key, r2_key_boleta: r2KeyBoleta, feedback }, 201);
 });
 

@@ -5,11 +5,14 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import {
   ROLES,
   TRIP_STATUS,
+  KM_SIN_JUSTIFICAR_ALERTA,
   auditoriaKilometros,
   periodoAnterior,
+  senalKilometros,
   type AuthUser,
   type ViajeAuditado,
 } from "../../shared/domain";
+import { periodoDeHoy } from "../lib/periodo";
 import * as repo from "../repos/lecturas";
 import { activeTripForDriver, listTrips } from "../repos/trips";
 import { listTrucks, getTruck } from "../repos/trucks";
@@ -24,17 +27,6 @@ import { listTemplates } from "../repos/templates";
  */
 const lecturas = new Hono<{ Bindings: Env; Variables: Vars }>();
 lecturas.use("*", requireAuth);
-
-/**
- * El mes en curso, en hora uruguaya.
- *
- * No es `toISOString()` como en el resto: acá el borde del mes ES el evento. A las 22:00 del
- * 31 en Montevideo ya son las 01:00 del 1 en UTC, y con UTC le pediríamos al chofer la
- * lectura del mes que viene mientras todavía está terminando éste.
- */
-function periodoDeHoy(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Montevideo" }).slice(0, 7);
-}
 
 /**
  * El camión con el que el chofer está andando, no el que tiene asignado.
@@ -197,14 +189,20 @@ lecturas.get("/auditoria", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
           kilometros: t.kilometros,
           vacio: t.template_id != null && plantillasVacias.has(t.template_id),
         }));
+      const auditoria = auditoriaKilometros(mes, lectura, previa, suyos);
       return {
         truck_id: camion.id,
         plate: camion.plate,
         lectura,
         lectura_previa: previa,
-        auditoria: auditoriaKilometros(mes, lectura, previa, suyos),
+        auditoria,
+        // "Si un camión se pasa de 100-200 km, que le avise a Rodrigo en Control." La
+        // pantalla no vuelve a decidir cuándo algo amerita mirarse: se lo decimos acá, con
+        // el mismo criterio para todos.
+        senal: senalKilometros(auditoria),
       };
     }),
+    umbral_km: KM_SIN_JUSTIFICAR_ALERTA,
   });
 });
 

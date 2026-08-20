@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { api, ApiError } from "../../lib/api";
 import { Button, Corners, ErrorText } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
 import { compressImage } from "../../lib/image";
 
-interface Pendiente {
+export interface Pendiente {
   periodo: string; // "YYYY-MM"
   truck_id: number | null;
   truck_plate: string | null;
@@ -24,35 +24,32 @@ function nombreDelMes(periodo: string): string {
 }
 
 /**
- * El aviso de la lectura mensual del tacógrafo, arriba de todo en la pantalla del chofer.
+ * El pedido de la lectura mensual del tacógrafo, arriba de todo en la pantalla del chofer.
  *
  * "Se me ocurrió que el día 1 o 31 exigirle una foto del tacógrafo, o sea son 12 fotos al
  * año." Es con lo que la oficina verifica que no se le comió ningún viaje a nadie.
  *
- * NO BLOQUEA LA APP, y es a propósito. El cliente pidió trabarla hasta que llegue la foto,
- * pero un chofer que el día 1 está en ruta y no puede entrar tampoco puede registrar el
- * viaje que está haciendo — y ahí se pierde justo el dato que esto viene a proteger. Se
- * insiste fuerte: ocupa el lugar más visible, tiene la cámara adentro y no se puede cerrar.
- * Pero abajo del aviso la app sigue entera.
+ * BLOQUEA EMPEZAR UN VIAJE, no la app: "por ahora vamos a bloquearla, total es solo una foto
+ * al tacógrafo, no es complicado". El viaje que ya está en curso se puede cerrar igual —"si
+ * un chofer justo está en ruta cuando cambia el día, que le permita terminar el viaje y
+ * después que le pida la foto"—, así no se pierde justo el dato que esto viene a proteger.
+ * Quien decide eso es `ChoferHome`, que es el que sabe si hay un viaje abierto; acá sólo se
+ * pide la foto.
  *
- * Devuelve `null` cuando no hay nada que pedir, así se puede montar sin condiciones arriba
- * de `ChoferHome`.
+ * Devuelve `null` cuando no hay nada que pedir, así se monta sin condiciones.
  */
-export function AvisoLecturaMensual() {
-  const [pendiente, setPendiente] = useState<Pendiente | null>(null);
+export function AvisoLecturaMensual({
+  pendiente,
+  onGuardada,
+}: {
+  pendiente: Pendiente | null;
+  onGuardada: () => void;
+}) {
   const [km, setKm] = useState("");
   const [foto, setFoto] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [listo, setListo] = useState(false);
-
-  useEffect(() => {
-    api
-      .get<Pendiente>("/lecturas/pendiente")
-      .then(setPendiente)
-      // Que falle el aviso no puede dejar al chofer sin poder cargar viajes.
-      .catch(() => setPendiente(null));
-  }, []);
 
   async function guardar() {
     setError("");
@@ -71,6 +68,8 @@ export function AvisoLecturaMensual() {
       if (foto) fd.append("file", await compressImage(foto));
       await api.upload("/lecturas", fd);
       setListo(true);
+      // Recién ahora se le habilita salir: el aviso y el bloqueo miran el mismo dato.
+      onGuardada();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "No se pudo guardar la lectura");
     } finally {

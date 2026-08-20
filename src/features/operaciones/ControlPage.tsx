@@ -76,14 +76,48 @@ const Row = ({ to, left, right }: { to?: string; left: React.ReactNode; right: R
   );
 };
 
+/**
+ * El seguimiento de kilómetros del mes, camión por camión.
+ *
+ * "Se puede hacer que en Control haya un seguimiento de esos km? Onda si un camión se pasa de
+ * 100-200 km, que le avise a Rodrigo en Control." La cuenta y el umbral están en el backend
+ * (`senalKilometros`): acá sólo se muestra lo que hay que mirar.
+ */
+interface AuditoriaCamion {
+  truck_id: number;
+  plate: string;
+  auditoria: {
+    km_periodo: number | null;
+    km_cargados: number;
+    km_vacios: number;
+    km_sin_justificar: number | null;
+  };
+  senal: { nivel: "ok" | "revisar" | "sin_datos"; motivo: string | null };
+}
+
+interface AuditoriaMes {
+  mes: string;
+  camiones: AuditoriaCamion[];
+  umbral_km: number;
+}
+
+const km = (n: number | null) =>
+  n == null ? "—" : `${Math.round(n).toLocaleString("es-UY")} km`;
+
 export function ControlPage() {
   const [a, setA] = useState<Alerts | null>(null);
+  const [audit, setAudit] = useState<AuditoriaMes | null>(null);
 
   useEffect(() => {
     api.get<Alerts>("/reports/alerts").then(setA).catch(() => setA(null));
+    // Si falla, la sección queda vacía: no puede voltear el resto de Control.
+    api.get<AuditoriaMes>("/lecturas/auditoria").then(setAudit).catch(() => setAudit(null));
   }, []);
 
   if (!a) return <Spinner size={28} />;
+
+  const descuadrados = (audit?.camiones ?? []).filter((c) => c.senal.nivel === "revisar");
+  const sinLectura = (audit?.camiones ?? []).filter((c) => c.senal.nivel === "sin_datos");
 
   return (
     <div className="space-y-4">
@@ -151,6 +185,51 @@ export function ControlPage() {
                   {d.days < 0 ? `vencida (${fmtDate(d.license_expiry)})` : `${d.days} días`}
                 </span>
               }
+            />
+          ))}
+        </Section>
+
+        <Section
+          title={`Kilómetros sin justificar${audit ? ` · ${audit.mes}` : ""}`}
+          count={descuadrados.length}
+          accent="red"
+          empty={
+            audit
+              ? `Ningún camión se pasa de ${audit.umbral_km} km entre el tacógrafo y sus viajes.`
+              : "Sin lecturas del tacógrafo todavía."
+          }
+        >
+          {descuadrados.map((c) => (
+            <Row
+              key={c.truck_id}
+              to={`/panel/camion/${c.truck_id}`}
+              left={
+                <>
+                  {c.plate}
+                  <span className="text-ink/50">
+                    {" "}
+                    · tacógrafo {km(c.auditoria.km_periodo)} · viajes{" "}
+                    {km(c.auditoria.km_cargados + c.auditoria.km_vacios)}
+                  </span>
+                </>
+              }
+              right={<span className="text-st-redTx">{c.senal.motivo}</span>}
+            />
+          ))}
+        </Section>
+
+        <Section
+          title="Falta la foto del tacógrafo"
+          count={sinLectura.length}
+          accent="amber"
+          empty="Todos los camiones tienen la lectura del mes y la del mes pasado."
+        >
+          {sinLectura.map((c) => (
+            <Row
+              key={c.truck_id}
+              to={`/panel/camion/${c.truck_id}`}
+              left={c.plate}
+              right={c.senal.motivo}
             />
           ))}
         </Section>

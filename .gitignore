@@ -10,3 +10,6 @@ coverage/
 
 # TS build artifacts
 *.tsbuildinfo
+
+# Worktrees temporales de los agentes
+.claude/worktrees/
