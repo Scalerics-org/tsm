@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { ROLES, fuelFeedback, litrosTotales } from "../../shared/domain";
+import { ROLES, fuelFeedback, kmInicialTacografo, litrosTotales } from "../../shared/domain";
 import * as repo from "../repos/fuel";
 import * as tripsRepo from "../repos/trips";
 
@@ -35,6 +35,27 @@ fuel.get("/", async (c) => {
         ? Number(q.truck)
         : undefined;
   return ok(c, await repo.listFuelLogs(c.env.DB, { truckId, from: q.from, to: q.to }));
+});
+
+/**
+ * GET /api/fuel/inicial — con qué km arranca el tacógrafo en la pantalla de surtida.
+ *
+ * Se resuelve acá y no en la pantalla porque el odómetro del camión vive en `trucks` y el
+ * chofer no puede leer esa tabla. Además el camión sale del viaje en curso, igual que en el
+ * resto de la ruta: la surtida tiene que ir a la cadena del camión que de verdad cargó.
+ */
+fuel.get("/inicial", async (c) => {
+  const user = c.get("user");
+  const truckId =
+    user.role === ROLES.CHOFER
+      ? await camionDelChofer(c, user)
+      : c.req.query("truck")
+        ? Number(c.req.query("truck"))
+        : null;
+  if (!truckId) return ok(c, kmInicialTacografo([], 0));
+
+  const logs = await repo.listFuelLogs(c.env.DB, { truckId });
+  return ok(c, kmInicialTacografo(logs, await repo.truckOdometer(c.env.DB, truckId)));
 });
 
 // POST /api/fuel — registrar una surtida (multipart con foto del tacógrafo)

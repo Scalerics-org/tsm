@@ -705,6 +705,61 @@ export function estimateFuelLiters(km: number, kmLitro: number): number {
   return km / kmLitro;
 }
 
+/** De dónde salió el km con el que arranca la pantalla de surtida. */
+export type OrigenKmInicial = "surtida" | "oficina" | "sin-dato";
+
+export interface KmInicial {
+  km: number;
+  origen: OrigenKmInicial;
+  /** Fecha de la surtida de donde salió ("YYYY-MM-DD"). Null si no vino de una surtida. */
+  fecha: string | null;
+}
+
+/**
+ * El km de arranque del tacógrafo al registrar una surtida.
+ *
+ * Sale de la ÚLTIMA surtida POR FECHA, no de la más alta. Un odómetro real sólo sube, así que
+ * casi siempre son el mismo número — pero cuando entra una lectura mal tipeada, el máximo se
+ * queda pegado para siempre y corregirla desde la oficina no cambia nada. Yendo por fecha, la
+ * corrección manda, que es para lo que el cliente pidió poder corregir.
+ *
+ * Si el camión no tiene ninguna surtida, arranca del odómetro que la oficina le cargó al
+ * camión: "los kilómetros del odómetro no me los actualiza con lo que yo actualizo en la base
+ * del camión... no pude porque no me actualizaban los tacógrafos". Antes eso arrancaba en cero
+ * y el chofer tenía que tipearlo, aunque la oficina ya lo hubiera cargado.
+ */
+export function kmInicialTacografo(
+  logs: { odometer_km: number; logged_at: string; id?: number }[],
+  odometroCamion: number,
+): KmInicial {
+  // Empate de fecha (dos surtidas el mismo día): manda la última cargada.
+  const porFecha = [...logs].sort(
+    (a, b) => a.logged_at.localeCompare(b.logged_at) || (a.id ?? 0) - (b.id ?? 0),
+  );
+  const ultima = porFecha[porFecha.length - 1];
+  if (ultima) {
+    return { km: ultima.odometer_km, origen: "surtida", fecha: ultima.logged_at.slice(0, 10) };
+  }
+  if (odometroCamion > 0) return { km: odometroCamion, origen: "oficina", fecha: null };
+  return { km: 0, origen: "sin-dato", fecha: null };
+}
+
+/**
+ * De dónde salió ese número, en criollo.
+ *
+ * El chofer mira el km inicial parado en el surtidor y tiene que saber a quién preguntarle
+ * cuando no le cuadra: si viene de una surtida, la fecha se lo dice; si lo puso la oficina,
+ * pregunta ahí. Sin esto el número aparece solo y no hay a quién reclamarle.
+ */
+export function textoKmInicial(k: KmInicial): string {
+  if (k.origen === "surtida" && k.fecha) {
+    const [, mes, dia] = k.fecha.split("-");
+    return `De la surtida del ${Number(dia)}/${Number(mes)}`;
+  }
+  if (k.origen === "oficina") return "Cargado por la oficina";
+  return "Sin dato previo";
+}
+
 export interface FuelFeedback {
   closed: boolean; // ¿cerró el tramo? (el chofer llenó)
   segment_km: number | null;

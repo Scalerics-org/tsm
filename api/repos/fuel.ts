@@ -34,6 +34,20 @@ export async function getFuelLog(db: D1Database, id: number): Promise<FuelLog | 
   return (await db.prepare(`${SELECT} WHERE f.id = ?`).bind(id).first<FuelLog>()) ?? null;
 }
 
+/**
+ * El odómetro que la oficina le cargó al camión.
+ *
+ * Es la línea de base de un camión que todavía no surtió con la app. Se lee sólo esa columna
+ * y no el camión entero: esto lo consume la pantalla del chofer.
+ */
+export async function truckOdometer(db: D1Database, truckId: number): Promise<number> {
+  const row = await db
+    .prepare("SELECT odometer_km FROM trucks WHERE id = ?")
+    .bind(truckId)
+    .first<{ odometer_km: number }>();
+  return row?.odometer_km ?? 0;
+}
+
 export interface FuelInput {
   truck_id: number;
   driver_id: number | null;

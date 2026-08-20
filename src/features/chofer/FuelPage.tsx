@@ -5,14 +5,19 @@ import {
   fuelFeedback,
   kmPorLitro,
   litrosTotales,
+  textoKmInicial,
   type FuelFeedback,
   type FuelLog,
+  type KmInicial,
 } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { Button, Card, Corners, ErrorText, Field, Spinner } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
 import { compressImage } from "../../lib/image";
+
+/** Cuando no hay de dónde sacar el km de arranque, lo tipea el chofer. */
+const SIN_DATO: KmInicial = { km: 0, origen: "sin-dato", fecha: null };
 
 /**
  * Registrar surtida.
@@ -35,26 +40,28 @@ export function FuelPage() {
   const [error, setError] = useState("");
   const [result, setResult] = useState<FuelFeedback | null>(null);
 
-  // El km inicial no se pide: es el final de la surtida anterior de este camión.
-  const [kmInicialPrevio, setKmInicialPrevio] = useState<number | null>(null);
+  // El km inicial no se pide: lo resuelve el servidor —última surtida de este camión, o el
+  // odómetro que le cargó la oficina— y viene con de dónde salió, para poder mostrarlo.
+  const [inicial, setInicial] = useState<KmInicial | null>(null);
   const [logsPrevios, setLogsPrevios] = useState<FuelLog[]>([]);
-  const [primeraDelCamion, setPrimeraDelCamion] = useState(false);
   const [kmInicialManual, setKmInicialManual] = useState("");
   useEffect(() => {
-    if (user?.truck_id == null) return setKmInicialPrevio(0);
-    api
-      .get<FuelLog[]>(`/fuel?truck=${user.truck_id}`)
-      .then((logs) => {
+    if (user?.truck_id == null) return setInicial(SIN_DATO);
+    Promise.all([
+      api.get<FuelLog[]>(`/fuel?truck=${user.truck_id}`),
+      api.get<KmInicial>("/fuel/inicial"),
+    ])
+      .then(([logs, ini]) => {
         setLogsPrevios(logs);
-        setPrimeraDelCamion(logs.length === 0);
-        setKmInicialPrevio(logs.reduce((max, l) => Math.max(max, l.odometer_km), 0));
+        setInicial(ini);
       })
-      .catch(() => setKmInicialPrevio(0));
+      .catch(() => setInicial(SIN_DATO));
   }, [user?.truck_id]);
 
-  const kmInicial = primeraDelCamion ? Number(kmInicialManual || 0) : (kmInicialPrevio ?? 0);
-  const recorridos =
-    kmInicialPrevio != null && kmFinal && kmInicial > 0 ? Number(kmFinal) - kmInicial : null;
+  // Sólo se tipea cuando no hay de dónde sacarlo: ni surtidas ni odómetro en la ficha.
+  const seTipea = inicial?.origen === "sin-dato";
+  const kmInicial = seTipea ? Number(kmInicialManual || 0) : (inicial?.km ?? 0);
+  const recorridos = inicial != null && kmFinal && kmInicial > 0 ? Number(kmFinal) - kmInicial : null;
 
   // Cada foto abre el paso siguiente. Sin la del tacógrafo no se ven ni los litros.
   const tacografoListo = isFull === false || fotoTacografo != null;
@@ -78,7 +85,7 @@ export function FuelPage() {
    * guardado — no una estimación distinta.
    */
   const acumuladoPrevio =
-    fotoBoleta && litros && kmInicialPrevio != null
+    fotoBoleta && litros && inicial != null
       ? fuelFeedback(
           logsPrevios.map((l) => ({
             odometer_km: l.odometer_km,
@@ -99,12 +106,15 @@ export function FuelPage() {
     setError("");
     if (isFull === null) return setError("Indicá si llenaste o no.");
     if (isFull) {
-      if (primeraDelCamion && !kmInicialManual) return setError("Poné el km inicial del tacógrafo.");
+      if (seTipea && !kmInicialManual) return setError("Poné el km inicial del tacógrafo.");
       if (!kmFinal) return setError("Cargá el km final del tacógrafo.");
       if (recorridos != null && recorridos <= 0) {
-        return setError(`El km final tiene que ser mayor al inicial (${kmInicial?.toLocaleString("es-UY")}).`);
+        return setError(`El km final tiene que ser mayor al inicial (${kmInicial.toLocaleString("es-UY")}).`);
       }
       if (!fotoTacografo) return setError("Sacá la foto del tacógrafo.");
+    } else if (kmInicial <= 0) {
+      // El chorro guarda el mismo km del arranque, así que sin arranque no hay qué guardar.
+      return setError("Este camión todavía no tiene kilometraje cargado. Pedile a la oficina que lo cargue.");
     }
     if (!litros) return setError("Cargá los litros de al menos un tanque.");
     if (!fotoBoleta) return setError("Sacá la foto de la boleta de gasoil.");
@@ -116,7 +126,7 @@ export function FuelPage() {
       fd.append("boleta", await compressImage(fotoBoleta));
       // Sin llenar no se pide el tacógrafo: se guarda el mismo km, y esos litros
       // recién se reparten cuando llene y se cierre el tramo.
-      fd.append("odometer_km", isFull ? kmFinal : String(kmInicial ?? 0));
+      fd.append("odometer_km", isFull ? kmFinal : String(kmInicial));
       fd.append("liters", String(litros));
       if (tanque1 !== "") fd.append("liters_tanque1", tanque1);
       if (tanque2 !== "") fd.append("liters_tanque2", tanque2);
@@ -131,7 +141,7 @@ export function FuelPage() {
   }
 
   if (result) return <ResultView r={result} onDone={() => navigate("/")} />;
-  if (kmInicialPrevio === null) return <Spinner size={28} />;
+  if (inicial === null) return <Spinner size={28} />;
 
   return (
     <div className="space-y-5">
@@ -172,10 +182,11 @@ export function FuelPage() {
           <>
             <div>
               <span className="label">2 · Km del tacógrafo</span>
-              {/* En la primera surtida del camión no hay anterior de dónde sacarlo, así que
-                  se escribe. Después queda fijo: es el final de la surtida previa, y dejarlo
-                  editable sería dejar que se corrija el número que cierra el tramo. */}
-              {primeraDelCamion ? (
+              {/* Si no hay ni surtidas ni odómetro en la ficha del camión, se escribe. Cuando
+                  hay, queda fijo: dejarlo editable sería dejar que se corrija el número que
+                  cierra el tramo. Al lado va de dónde salió —"de la surtida del 3/8", "cargado
+                  por la oficina"— así el chofer sabe a quién preguntarle si no le cuadra. */}
+              {seTipea ? (
                 <div className="mb-2">
                   <input
                     className="input"
@@ -186,12 +197,12 @@ export function FuelPage() {
                     placeholder="Km inicial del tacógrafo"
                   />
                   <p className="mt-1 text-xs text-ink/50">
-                    Es la primera surtida de este camión: poné el kilometraje de arranque.
+                    Este camión no tiene kilometraje cargado: poné el de arranque.
                   </p>
                 </div>
               ) : (
                 <div className="mb-2 flex items-center justify-between border border-ink/15 bg-surface px-3 py-2">
-                  <span className="text-sm text-ink/60">Inicial (de la surtida anterior)</span>
+                  <span className="text-sm text-ink/60">{textoKmInicial(inicial)}</span>
                   <span className="font-cond text-lg font-semibold text-ink">
                     {kmInicial.toLocaleString("es-UY")}
                   </span>
@@ -222,10 +233,18 @@ export function FuelPage() {
         )}
 
         {isFull === false && (
-          <p className="border-l-4 border-l-st-blueDot bg-surface px-3 py-2 text-sm text-ink/70">
+          <div className="border-l-4 border-l-st-blueDot bg-surface px-3 py-2 text-sm text-ink/70">
             Sin tacógrafo: el consumo de esta surtida queda en 0,00 y se calcula recién cuando
             llenes el tanque.
-          </p>
+            {/* El chorro se guarda con el km de arranque, así que también acá tiene que verse
+                cuál es y de dónde salió. */}
+            {kmInicial > 0 && (
+              <div className="mt-1 text-xs text-ink/55">
+                Se guarda con {kmInicial.toLocaleString("es-UY")} km ·{" "}
+                {textoKmInicial(inicial).toLowerCase()}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Los litros se habilitan con la foto del tacógrafo. Si el consumo se pudiera ver
