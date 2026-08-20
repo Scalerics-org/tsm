@@ -14,6 +14,8 @@ import drivers from "./routes/drivers";
 import trucks from "./routes/trucks";
 import users from "./routes/users";
 import reports from "./routes/reports";
+import lecturas from "./routes/lecturas";
+import facturacion from "./routes/facturacion";
 
 export const app = new Hono<{ Bindings: Env; Variables: Vars }>().basePath("/api");
 
@@ -32,6 +34,8 @@ app.route("/drivers", drivers);
 app.route("/trucks", trucks);
 app.route("/users", users);
 app.route("/reports", reports);
+app.route("/lecturas", lecturas);
+app.route("/facturacion", facturacion);
 
 app.notFound((c) => fail(c, "Recurso no encontrado", 404));
 app.onError((err, c) => {

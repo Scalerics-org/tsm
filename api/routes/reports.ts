@@ -10,7 +10,7 @@ import {
   type PendienteCobro,
   type Trip,
 } from "../../shared/domain";
-import { listTrips } from "../repos/trips";
+import { listTrips, listTripsFacturables } from "../repos/trips";
 import { CSV_HEADER, filasDeViaje } from "../lib/export-viajes";
 import { resumenCliente } from "../lib/resumen-cliente";
 import { listTemplates } from "../repos/templates";
@@ -336,24 +336,22 @@ reports.get("/cliente", async (c) => {
   const provider = q.provider?.trim();
   if (!provider) return fail(c, "Elegí el cliente", 400);
 
+  // Se leen con la marca de factura, no con listTrips a secas: es lo que permite que un
+  // viaje ya facturado no vuelva a aparecer en el próximo corte. "Al mes que viene, yo ya sé
+  // que todo lo que está con el número de factura, esos viajes quedan afuera."
   const [trips, templates] = await Promise.all([
-    listTrips(c.env.DB, { provider, from: q.from, to: q.to }),
+    listTripsFacturables(c.env.DB, { provider, from: q.from, to: q.to }),
     listTemplates(c.env.DB),
   ]);
-
-  // Los cancelados no se facturan: mostrarlos en el resumen de cobro sería sumar plata que
-  // no se va a cobrar.
-  const facturables = trips.filter((t) => t.status !== TRIP_STATUS.CANCELADO);
 
   return ok(c, {
     provider,
     desde: q.from ?? null,
     hasta: q.to ?? null,
-    ...resumenCliente(
-      facturables,
-      templates.filter((t) => t.provider_name === provider),
-      { porDestino: q.porDestino === "1" },
-    ),
+    ...resumenCliente(trips, templates.filter((t) => t.provider_name === provider), {
+      porDestino: q.porDestino === "1",
+      incluirFacturados: q.incluirFacturados === "1",
+    }),
   });
 });
 
