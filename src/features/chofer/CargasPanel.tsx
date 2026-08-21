@@ -413,7 +413,12 @@ function NuevaCarga({
               tipo={TIPO_DEPARTAMENTO}
               label="¿En qué departamento cargaste?"
               value={origen}
-              onChange={setOrigen}
+              onChange={(d) => {
+                setOrigen(d);
+                // El lugar elegido puede no ser de este departamento: se limpia en vez de
+                // dejar una carga que diga "Artigas" con un galpón de Montevideo.
+                setLugar(null);
+              }}
             />
           )}
           <LibretaPicker
@@ -423,6 +428,7 @@ function NuevaCarga({
             onChange={setLugar}
             providerId={providerId}
             soloSeleccionables
+            departamentoId={pideDepartamento ? (origen?.id ?? null) : null}
           />
         </>
       )}

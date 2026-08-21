@@ -21,7 +21,7 @@ const isTipo = (v: unknown): v is LibretaTipo => typeof v === "string" && TIPOS.
 const isCobroTipo = (v: unknown): v is CobroTipo =>
   v === COBRO_TIPO.CLIENTE || v === COBRO_TIPO.PROVEEDOR;
 
-// GET /api/libreta?tipo=&provider=&seleccionables=1&estado=
+// GET /api/libreta?tipo=&provider=&seleccionables=1&estado=&departamento=
 // El chofer la usa para el selector; la oficina para el ABM.
 libreta.get("/", async (c) => {
   const q = c.req.query();
@@ -32,6 +32,7 @@ libreta.get("/", async (c) => {
       tipo: isTipo(q.tipo) ? q.tipo : undefined,
       providerId: q.provider ? Number(q.provider) : undefined,
       soloSeleccionables: q.seleccionables === "1",
+      departamentoId: q.departamento ? Number(q.departamento) : undefined,
       estado: q.estado === LIBRETA_ESTADO.NUEVO ? LIBRETA_ESTADO.NUEVO : undefined,
     }),
   );
@@ -46,6 +47,7 @@ libreta.post("/", async (c) => {
     nombre?: string;
     provider_id?: number | null;
     agrupador?: boolean;
+    departamento_id?: number | null;
   };
   if (!isTipo(b.tipo)) return fail(c, "Tipo de entrada inválido", 400);
   if (!b.nombre?.trim()) return fail(c, "El nombre es obligatorio", 400);
@@ -57,6 +59,7 @@ libreta.post("/", async (c) => {
     provider_id: b.provider_id ?? null,
     // Solo la oficina puede marcar un agrupador ("Varios"): no es algo que el chofer decida.
     agrupador: esChofer ? false : !!b.agrupador,
+    departamento_id: b.departamento_id != null ? Number(b.departamento_id) : null,
     estado: esChofer ? LIBRETA_ESTADO.NUEVO : LIBRETA_ESTADO.CONFIRMADO,
     created_by: user.driver_id,
   });

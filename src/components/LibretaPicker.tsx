@@ -19,6 +19,11 @@ interface Props {
   soloSeleccionables?: boolean;
   /** Permite dar de alta desde la ruta si el nombre no está en la libreta. */
   permiteAlta?: boolean;
+  /**
+   * Departamento ya elegido. Deja en la lista los lugares de ese departamento y los que
+   * todavía no tienen ninguno, y el que se dé de alta nace con él.
+   */
+  departamentoId?: number | null;
   placeholder?: string;
 }
 
@@ -35,6 +40,7 @@ export function LibretaPicker({
   providerId,
   soloSeleccionables = false,
   permiteAlta = true,
+  departamentoId = null,
   placeholder = "Buscar o escribir…",
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -51,8 +57,16 @@ export function LibretaPicker({
     const p = new URLSearchParams({ tipo });
     if (providerId != null) p.set("provider", String(providerId));
     if (soloSeleccionables) p.set("seleccionables", "1");
+    if (departamentoId != null) p.set("departamento", String(departamentoId));
     return `/libreta?${p}`;
-  }, [esDepartamento, tipo, providerId, soloSeleccionables]);
+  }, [esDepartamento, tipo, providerId, soloSeleccionables, departamentoId]);
+
+  // Si cambia el departamento, la lista que había ya no sirve: se descarta para que el
+  // próximo abrir vuelva a pedirla. Sin esto, elegir Artigas después de Montevideo seguía
+  // mostrando los de Montevideo.
+  useEffect(() => {
+    setEntries(null);
+  }, [url]);
 
   useEffect(() => {
     if (!open || entries) return;
@@ -96,6 +110,7 @@ export function LibretaPicker({
         tipo,
         nombre: query.trim(),
         provider_id: providerId ?? null,
+        departamento_id: departamentoId,
       });
       setEntries((prev) => {
         const rest = (prev ?? []).filter((e) => e.id !== nueva.id);
@@ -142,7 +157,11 @@ export function LibretaPicker({
               </div>
             ) : filtradas.length === 0 && !puedeAgregar ? (
               <p className="px-3 py-4 text-sm text-ink/50">
-                {query ? "No hay coincidencias." : "La libreta está vacía."}
+                {query
+                  ? "No hay coincidencias."
+                  : permiteAlta
+                    ? "No hay lugares cargados todavía. Escribí el nombre acá arriba y lo agrego."
+                    : "La libreta está vacía."}
               </p>
             ) : (
               filtradas.map((e) => (

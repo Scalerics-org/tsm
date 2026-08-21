@@ -36,6 +36,8 @@ export interface LibretaFilters {
   providerId?: number;
   /** Excluye agrupadores ("Varios"): se usa al listar opciones de un renglón. */
   soloSeleccionables?: boolean;
+  /** Deja los lugares de ese departamento y los que todavía no tienen ninguno. */
+  departamentoId?: number;
   estado?: LibretaEstado;
 }
 
@@ -50,6 +52,17 @@ export async function listLibreta(db: D1Database, f: LibretaFilters = {}): Promi
   if (f.providerId != null) {
     where.push("(provider_id = ? OR provider_id IS NULL)");
     binds.push(f.providerId);
+  }
+  // Filtro por departamento, con los SIN CLASIFICAR incluidos a propósito.
+  //
+  // "Cuando pones agregar carga tiene que aparecer los departamentos y dónde cargó." Sin
+  // esto, el chofer que carga en Artigas veía igual los 17 proveedores de Montevideo.
+  //
+  // El `IS NULL` es la red: los lugares que todavía no tienen departamento siguen
+  // apareciendo, así el selector no le queda vacío a nadie mientras el dato se completa.
+  if (f.departamentoId != null) {
+    where.push("(departamento_id = ? OR departamento_id IS NULL)");
+    binds.push(f.departamentoId);
   }
   if (f.soloSeleccionables) where.push("agrupador = 0");
   if (f.estado) {
@@ -94,6 +107,8 @@ export interface LibretaInput {
   agrupador: boolean;
   estado: LibretaEstado;
   created_by: number | null;
+  /** Departamento del lugar, si quien lo da de alta ya lo sabe. */
+  departamento_id?: number | null;
 }
 
 /** Alta idempotente: si ya existe una equivalente, la devuelve en vez de duplicar. */
@@ -103,10 +118,16 @@ export async function createEntry(db: D1Database, e: LibretaInput): Promise<Libr
 
   const res = await db
     .prepare(
-      `INSERT INTO libreta (tipo, nombre, provider_id, agrupador, estado, created_by)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO libreta (tipo, nombre, provider_id, agrupador, estado, created_by, departamento_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     )
-    .bind(e.tipo, e.nombre.trim(), e.provider_id, e.agrupador ? 1 : 0, e.estado, e.created_by)
+    .bind(
+      e.tipo, e.nombre.trim(), e.provider_id, e.agrupador ? 1 : 0, e.estado, e.created_by,
+      // El lugar nuevo nace con el departamento que el chofer ya había elegido: si lo agrega
+      // parado en Artigas, es de Artigas. Sin esto el nombre que él escribe entra sin
+      // clasificar y le vuelve a aparecer a todos.
+      e.departamento_id ?? null,
+    )
     .run();
   return (await getEntry(db, res.meta.last_row_id as number))!;
 }
@@ -207,4 +228,35 @@ export async function upsertRegla(db: D1Database, r: ReglaInput): Promise<void> 
 
 export async function deleteRegla(db: D1Database, id: number): Promise<void> {
   await db.prepare("DELETE FROM cobro_reglas WHERE id = ?").bind(id).run();
+}
+
+/**
+ * Anota de qué departamento es un lugar de carga, la primera vez que alguien lo dice.
+ *
+ * El chofer elige "Artigas" y después "TIMBER": con eso ya sabemos que TIMBER es de Artigas,
+ * sin que nadie tenga que cargar una tabla. Así el selector se va afinando solo con el uso.
+ *
+ * Sólo escribe si está en NULL: lo que ya dijo la oficina no se pisa con lo que tocó un
+ * chofer. Y si el nombre del departamento no existe, no hace nada — mejor sin dato que con
+ * uno inventado.
+ */
+export async function aprenderDepartamento(
+  db: D1Database,
+  pares: { entryId: number; departamento: string }[],
+): Promise<void> {
+  const utiles = pares.filter((p) => p.entryId != null && p.departamento?.trim());
+  if (!utiles.length) return;
+  await db.batch(
+    utiles.map((p) =>
+      db
+        .prepare(
+          `UPDATE libreta
+              SET departamento_id = (SELECT id FROM departamentos WHERE nombre = ?)
+            WHERE id = ?
+              AND departamento_id IS NULL
+              AND EXISTS (SELECT 1 FROM departamentos WHERE nombre = ?)`,
+        )
+        .bind(p.departamento.trim(), p.entryId, p.departamento.trim()),
+    ),
+  );
 }

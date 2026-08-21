@@ -87,6 +87,15 @@ async function conCobro(db: D1Database, segs: TripSegmentInput[]) {
   // los encuentre) y el aviso de la oficina antes de borrar. Estaba escrito y sin llamar:
   // los 42 nombres decían 0 usos.
   await libretaRepo.bumpUsos(db, segs.flatMap((s) => [s.remitente_id, ...s.cliente_ids]));
+  // Y de paso se aprende de qué departamento es cada lugar de carga: el chofer eligió
+  // "Artigas" y después "TIMBER", así que TIMBER es de Artigas. Con eso el selector se afina
+  // solo y deja de mostrarle los de Montevideo a alguien que está cargando en el norte.
+  await libretaRepo.aprenderDepartamento(
+    db,
+    segs
+      .filter((s) => s.remitente_id != null && s.origen)
+      .map((s) => ({ entryId: s.remitente_id as number, departamento: s.origen as string })),
+  );
   return aplicarCobro(await libretaRepo.listReglas(db), segs);
 }
 
