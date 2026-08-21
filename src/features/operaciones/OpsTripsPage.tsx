@@ -10,8 +10,8 @@ import {
   type Truck,
 } from "@shared/domain";
 import { api, downloadFile } from "../../lib/api";
-import { Button, Card, Empty, Spinner, StatusBadge } from "../../components/ui";
-import { fmtDateTime } from "../../lib/format";
+import { Button, Card, Empty, Spinner } from "../../components/ui";
+import { FilaViaje } from "./FilaViaje";
 
 export function OpsTripsPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -19,6 +19,9 @@ export function OpsTripsPage() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [trips, setTrips] = useState<Trip[] | null>(null);
   const [f, setF] = useState({ provider: "", driver: "", truck: "", status: "", from: "", to: "" });
+  // Se incrementa cuando una fila cambia algo, para volver a pedir la lista: corregir una
+  // fecha puede sacar al viaje del filtro que está puesto, y dejarlo ahí sería mentira.
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     api.get<Driver[]>("/drivers").then(setDrivers).catch(() => {});
@@ -41,7 +44,7 @@ export function OpsTripsPage() {
   useEffect(() => {
     setTrips(null);
     api.get<Trip[]>(`/trips${query}`).then(setTrips).catch(() => setTrips([]));
-  }, [query]);
+  }, [query, version]);
 
   return (
     <div className="space-y-4">
@@ -117,27 +120,12 @@ export function OpsTripsPage() {
                 <th className="px-4 py-3 text-right">Ton</th>
                 <th className="px-4 py-3">Salida</th>
                 <th className="px-4 py-3">Estado</th>
+                <th className="px-4 py-3 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {trips.map((t) => (
-                <tr key={t.id} className="border-b border-ink/10 hover:bg-surface">
-                  <td className="px-4 py-3">
-                    <Link to={`/panel/viajes/${t.id}`} className="font-medium text-ink hover:text-brand-700">
-                      {t.origin} → {t.destination}
-                    </Link>
-                    <div className="text-xs text-ink/50">{t.provider_name}</div>
-                  </td>
-                  <td className="px-4 py-3 text-ink/70">{t.driver_name}</td>
-                  <td className="px-4 py-3 text-ink/70">{t.truck_plate}</td>
-                  <td className="px-4 py-3 text-right text-ink/70">
-                    {t.weight_tons != null ? `${t.weight_tons} t` : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-ink/60">{fmtDateTime(t.started_at)}</td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={t.status} />
-                  </td>
-                </tr>
+                <FilaViaje key={t.id} t={t} onCambio={() => setVersion((v) => v + 1)} />
               ))}
             </tbody>
           </table>
