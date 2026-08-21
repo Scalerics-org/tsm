@@ -53,7 +53,7 @@ fuel.get("/inicial", async (c) => {
       : c.req.query("truck")
         ? Number(c.req.query("truck"))
         : null;
-  if (!truckId) return ok(c, kmInicialTacografo([], 0));
+  if (!truckId) return ok(c, kmInicialTacografo([], { km: 0, at: null }));
 
   const logs = await repo.listFuelLogs(c.env.DB, { truckId });
   return ok(c, kmInicialTacografo(logs, await repo.truckOdometer(c.env.DB, truckId)));

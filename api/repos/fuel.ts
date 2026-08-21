@@ -1,4 +1,4 @@
-import type { FuelLog } from "../../shared/domain";
+import type { FuelLog, OdometroCamion } from "../../shared/domain";
 
 const SELECT = `
   SELECT f.*, tr.plate AS truck_plate, d.name AS driver_name
@@ -35,17 +35,18 @@ export async function getFuelLog(db: D1Database, id: number): Promise<FuelLog | 
 }
 
 /**
- * El odómetro que la oficina le cargó al camión.
+ * El odómetro que la oficina le cargó al camión, con la fecha en que lo tocó.
  *
- * Es la línea de base de un camión que todavía no surtió con la app. Se lee sólo esa columna
- * y no el camión entero: esto lo consume la pantalla del chofer.
+ * La fecha es la mitad del dato: sin ella no se puede saber si la corrección de la oficina es
+ * posterior a la última surtida, que es lo que decide qué ve el chofer. Se leen sólo esas dos
+ * columnas y no el camión entero: esto lo consume la pantalla del chofer.
  */
-export async function truckOdometer(db: D1Database, truckId: number): Promise<number> {
+export async function truckOdometer(db: D1Database, truckId: number): Promise<OdometroCamion> {
   const row = await db
-    .prepare("SELECT odometer_km FROM trucks WHERE id = ?")
+    .prepare("SELECT odometer_km, odometer_at FROM trucks WHERE id = ?")
     .bind(truckId)
-    .first<{ odometer_km: number }>();
-  return row?.odometer_km ?? 0;
+    .first<{ odometer_km: number; odometer_at: string | null }>();
+  return { km: row?.odometer_km ?? 0, at: row?.odometer_at ?? null };
 }
 
 export interface FuelInput {
@@ -77,10 +78,17 @@ export async function createFuelLog(db: D1Database, f: FuelInput): Promise<numbe
       f.is_full ? 1 : 0, f.r2_key, f.r2_key_boleta,
     )
     .run();
-  // Al registrar, el odómetro sólo sube: una surtida nueva no puede saber más que el resto.
+  // Al registrar, el odómetro sólo sube: una surtida nueva no puede saber menos que el resto.
+  // Y si lo sube, el número deja de ser lo que dijo la oficina: se le borra la fecha, para que
+  // `kmInicialTacografo` no trate una lectura del surtidor como una corrección de escritorio.
   await db
-    .prepare("UPDATE trucks SET odometer_km = MAX(odometer_km, ?) WHERE id = ?")
-    .bind(f.odometer_km, f.truck_id)
+    .prepare(
+      `UPDATE trucks
+          SET odometer_at = CASE WHEN ? > odometer_km THEN NULL ELSE odometer_at END,
+              odometer_km = MAX(odometer_km, ?)
+        WHERE id = ?`,
+    )
+    .bind(f.odometer_km, f.odometer_km, f.truck_id)
     .run();
   return res.meta.last_row_id as number;
 }
@@ -140,7 +148,8 @@ async function recalcularOdometro(db: D1Database, truckId: number, odometroPrevi
   await db
     .prepare(
       `UPDATE trucks
-       SET odometer_km = COALESCE((SELECT MAX(odometer_km) FROM fuel_logs WHERE truck_id = ?), odometer_km)
+       SET odometer_km = COALESCE((SELECT MAX(odometer_km) FROM fuel_logs WHERE truck_id = ?), odometer_km),
+           odometer_at = NULL
        WHERE id = ? AND odometer_km = ?`,
     )
     .bind(truckId, truckId, odometroPrevio)

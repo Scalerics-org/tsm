@@ -85,6 +85,11 @@ export interface Truck {
   /** Rendimiento esperado en km por litro. Más alto es mejor. */
   avg_km_litro: number;
   status: TruckStatus;
+  /**
+   * Cuándo la oficina editó el odómetro. La pone el repo, no el formulario: es lo que le
+   * permite a una corrección ganarle a una surtida vieja (ver `kmInicialTacografo`).
+   */
+  odometer_at?: string | null;
 }
 
 export interface Driver {
@@ -715,32 +720,57 @@ export interface KmInicial {
   fecha: string | null;
 }
 
+/** El odómetro que la oficina le tiene cargado al camión, con la fecha en que lo tocó. */
+export interface OdometroCamion {
+  km: number;
+  /**
+   * Cuándo lo editó la oficina, "YYYY-MM-DD HH:MM:SS". `null` = nunca lo tocó, o el número
+   * que hay lo dejó una surtida y por lo tanto no es una afirmación de la oficina.
+   */
+  at: string | null;
+}
+
 /**
  * El km de arranque del tacógrafo al registrar una surtida.
  *
- * Sale de la ÚLTIMA surtida POR FECHA, no de la más alta. Un odómetro real sólo sube, así que
- * casi siempre son el mismo número — pero cuando entra una lectura mal tipeada, el máximo se
- * queda pegado para siempre y corregirla desde la oficina no cambia nada. Yendo por fecha, la
- * corrección manda, que es para lo que el cliente pidió poder corregir.
+ * GANA EL DATO MÁS NUEVO: la última surtida o la edición de la oficina, la que sea posterior.
  *
- * Si el camión no tiene ninguna surtida, arranca del odómetro que la oficina le cargó al
- * camión: "los kilómetros del odómetro no me los actualiza con lo que yo actualizo en la base
- * del camión... no pude porque no me actualizaban los tacógrafos". Antes eso arrancaba en cero
- * y el chofer tenía que tipearlo, aunque la oficina ya lo hubiera cargado.
+ * No gana "el más alto", y es el punto: "edité el odómetro del camión 4384 y cuando fui a
+ * registrar una surtida no se actualizó el tacógrafo". La oficina había puesto 390.000 y la
+ * pantalla seguía mostrando los 395.705 de la surtida del 18. Corregir para ABAJO es
+ * exactamente lo que la oficina necesita poder hacer —una lectura tipeada de más queda
+ * pegada si no— y con el máximo no se puede.
+ *
+ * Entre surtidas también manda la fecha y no el valor, por lo mismo.
+ *
+ * Empate exacto de fecha: manda la oficina. Si tocó el odómetro en el mismo segundo en que
+ * entró una surtida, lo que está haciendo es corregir lo que acaba de ver.
+ *
+ * Un odómetro en 0 no es una afirmación, es un camión que nadie cargó todavía: no compite.
  */
 export function kmInicialTacografo(
   logs: { odometer_km: number; logged_at: string; id?: number }[],
-  odometroCamion: number,
+  odometro: OdometroCamion,
 ): KmInicial {
   // Empate de fecha (dos surtidas el mismo día): manda la última cargada.
   const porFecha = [...logs].sort(
     (a, b) => a.logged_at.localeCompare(b.logged_at) || (a.id ?? 0) - (b.id ?? 0),
   );
   const ultima = porFecha[porFecha.length - 1];
+  const deOficina = odometro.km > 0 ? odometro : null;
+
+  // Las dos fechas salen de `datetime('now')` de SQLite, así que comparar los textos alcanza.
+  // Una surtida vieja con fecha sin hora ("2026-08-18") queda antes que cualquier hora de ese
+  // día, que es lo que corresponde: de esa lectura no sabemos a qué hora fue.
+  const oficinaManda =
+    deOficina != null && (ultima == null || (deOficina.at != null && deOficina.at >= ultima.logged_at));
+
+  if (oficinaManda) {
+    return { km: deOficina!.km, origen: "oficina", fecha: deOficina!.at?.slice(0, 10) ?? null };
+  }
   if (ultima) {
     return { km: ultima.odometer_km, origen: "surtida", fecha: ultima.logged_at.slice(0, 10) };
   }
-  if (odometroCamion > 0) return { km: odometroCamion, origen: "oficina", fecha: null };
   return { km: 0, origen: "sin-dato", fecha: null };
 }
 
@@ -756,7 +786,11 @@ export function textoKmInicial(k: KmInicial): string {
     const [, mes, dia] = k.fecha.split("-");
     return `De la surtida del ${Number(dia)}/${Number(mes)}`;
   }
-  if (k.origen === "oficina") return "Cargado por la oficina";
+  if (k.origen === "oficina") {
+    if (!k.fecha) return "Cargado por la oficina";
+    const [, mes, dia] = k.fecha.split("-");
+    return `Cargado por la oficina el ${Number(dia)}/${Number(mes)}`;
+  }
   return "Sin dato previo";
 }
 
