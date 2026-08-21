@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { ROLES, avisoSurtida, fuelFeedback, kmInicialTacografo, litrosTotales } from "../../shared/domain";
+import { ROLES, avisoSurtida, esFechaValida, fuelFeedback, kmInicialTacografo, litrosTotales } from "../../shared/domain";
 import { notificarOficina } from "../lib/avisos";
 import * as repo from "../repos/fuel";
 import * as tripsRepo from "../repos/trips";
@@ -99,6 +99,16 @@ fuel.post("/", async (c) => {
   const r2KeyBoleta = await subir("boleta", "boleta");
 
   const isFull = form.get("is_full") !== "false";
+
+  // La fecha sólo la puede poner la oficina, y sólo cuando está cargando una surtida
+  // atrasada. El chofer surte y registra en el momento: si pudiera elegir el día, el
+  // consumo del mes pasaría a depender de lo que tipeó parado en el surtidor.
+  const fechaPedida = String(form.get("fecha") ?? "");
+  const esOficina = user.role === ROLES.ENCARGADO || user.role === ROLES.ADMIN;
+  if (fechaPedida && (!esOficina || !esFechaValida(fechaPedida))) {
+    return fail(c, esOficina ? "La fecha va como 2026-08-21" : "No podés elegir la fecha de la surtida", 400);
+  }
+
   const id = await repo.createFuelLog(c.env.DB, {
     truck_id: truckId,
     driver_id: user.driver_id,
@@ -110,6 +120,7 @@ fuel.post("/", async (c) => {
     is_full: isFull,
     r2_key: r2Key,
     r2_key_boleta: r2KeyBoleta,
+    fecha: fechaPedida || null,
   });
 
   // Feedback de consumo (tramo cerrado al llenar + acumulado mensual).
@@ -175,6 +186,12 @@ fuel.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const liters = porTanque ?? Number(b.liters);
   if (!Number.isFinite(liters) || liters <= 0) return fail(c, "Los litros tienen que ser un número mayor que cero", 400);
 
+  // "Lo mismo de las fechas en el gas oil": la surtida que se cargó con la fecha equivocada
+  // se corrige acá. Mover el día cambia el orden de la cadena de consumo, que desde el
+  // arreglo del odómetro se recorre por fecha y no por kilometraje.
+  const fecha = b.fecha === undefined || b.fecha === null || b.fecha === "" ? null : String(b.fecha);
+  if (fecha !== null && !esFechaValida(fecha)) return fail(c, "La fecha va como 2026-08-21", 400);
+
   await repo.updateFuelLog(
     c.env.DB,
     id,
@@ -184,6 +201,7 @@ fuel.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
       liters_tanque1: t1,
       liters_tanque2: t2,
       is_full: b.is_full === undefined ? !!previa.is_full : !!b.is_full,
+      fecha: fecha ?? null,
     },
     { userId: c.get("user").id, when: new Date().toISOString().replace("T", " ").slice(0, 19) },
   );

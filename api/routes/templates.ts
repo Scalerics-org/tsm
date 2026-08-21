@@ -140,6 +140,7 @@ function parse(b: any): repo.TemplateInput | null {
     campos_ubicacion: parseCamposUbicacion(b.campos_ubicacion),
     multi_renglon: !!b.multi_renglon,
     renglon_pide_ubicacion: !!b.renglon_pide_ubicacion,
+    renglon_pide_departamento: !!b.renglon_pide_departamento,
     renglones_fijos: parseRenglonesFijos(b.renglones_fijos),
     pide_kilometros: !!b.pide_kilometros,
     viaje_vacio: !!b.viaje_vacio,

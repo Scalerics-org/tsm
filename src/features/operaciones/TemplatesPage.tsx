@@ -213,6 +213,7 @@ function TemplateForm({
     foto_carga_requerida: initial?.foto_carga_requerida ?? true,
     pide_kilometros: initial?.pide_kilometros ?? false,
     viaje_vacio: initial?.viaje_vacio ?? false,
+    renglon_pide_departamento: initial?.renglon_pide_departamento ?? false,
     active: initial?.active ?? true,
   });
   const [origen, setOrigen] = useState(aFormulario(initial?.campos_ubicacion?.origen));
@@ -247,6 +248,7 @@ function TemplateForm({
       truck_ids: truckIds,
       pide_kilometros: f.pide_kilometros,
       viaje_vacio: f.viaje_vacio,
+      renglon_pide_departamento: f.renglon_pide_departamento,
       campos_ubicacion: armarCampos(initial?.campos_ubicacion ?? null, origen, destino),
       // Estos no tienen control en pantalla, pero HAY QUE MANDARLOS: el backend lee lo que
       // llega y lo que falta lo apaga. Sin esta línea, guardar el combinado desde la oficina
@@ -341,6 +343,16 @@ function TemplateForm({
             checked={f.viaje_vacio}
             onChange={(v) => setF({ ...f, viaje_vacio: v })}
           />
+          {/* Sólo tiene sentido donde el viaje lleva varias cargas: si el viaje es de una sola,
+              el departamento ya es el del viaje y preguntarlo es una pregunta de más. */}
+          {(initial?.multi_renglon ?? false) && (
+            <Casilla
+              titulo="Preguntar el departamento en cada carga"
+              ayuda="Para los viajes con origen fijo donde las cargas igual salen de varios lados, como el combinado. La lista de lugares no cambia."
+              checked={f.renglon_pide_departamento}
+              onChange={(v) => setF({ ...f, renglon_pide_departamento: v })}
+            />
+          )}
         </div>
 
         {/* Sin ningún camión marcado la ve toda la flota, que es lo que conviene para los

@@ -64,18 +64,23 @@ export interface FuelInput {
   r2_key: string | null;
   /** Foto de la boleta de gasoil: respalda los litros. */
   r2_key_boleta: string | null;
+  /** Día de la surtida, "YYYY-MM-DD". Sólo lo manda la oficina cuando carga una atrasada. */
+  fecha?: string | null;
 }
 
 export async function createFuelLog(db: D1Database, f: FuelInput): Promise<number> {
   const res = await db
     .prepare(
-      `INSERT INTO fuel_logs (truck_id, driver_id, trip_id, odometer_km, liters, liters_tanque1, liters_tanque2, is_full, r2_key, r2_key_boleta)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO fuel_logs (truck_id, driver_id, trip_id, odometer_km, liters, liters_tanque1, liters_tanque2, is_full, r2_key, r2_key_boleta, logged_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`,
     )
     .bind(
       f.truck_id, f.driver_id, f.trip_id, f.odometer_km, f.liters,
       f.liters_tanque1, f.liters_tanque2,
       f.is_full ? 1 : 0, f.r2_key, f.r2_key_boleta,
+      // Del día que indique la oficina, a las 12 del mediodía: sin hora, una surtida vieja
+      // quedaría a las 00:00 y se ordenaría antes que todo lo de ese día.
+      f.fecha ? `${f.fecha} 12:00:00` : null,
     )
     .run();
   // Al registrar, el odómetro sólo sube: una surtida nueva no puede saber menos que el resto.
@@ -100,6 +105,13 @@ export interface FuelPatch {
   liters_tanque1: number | null;
   liters_tanque2: number | null;
   is_full: boolean;
+  /**
+   * Día de la surtida, "YYYY-MM-DD". `null` = no la tocan y queda la que tenía.
+   *
+   * La hora se conserva: nadie corrige la hora de una surtida, y perderla dejaría dos
+   * surtidas del mismo día sin forma de saber cuál fue primero.
+   */
+  fecha?: string | null;
 }
 
 export async function updateFuelLog(
@@ -113,11 +125,13 @@ export async function updateFuelLog(
     .prepare(
       `UPDATE fuel_logs
        SET odometer_km = ?, liters = ?, liters_tanque1 = ?, liters_tanque2 = ?, is_full = ?,
+           logged_at = CASE WHEN ? IS NULL THEN logged_at ELSE ? || substr(logged_at, 11) END,
            edited_by = ?, edited_at = ?
        WHERE id = ?`,
     )
     .bind(
       p.odometer_km, p.liters, p.liters_tanque1, p.liters_tanque2, p.is_full ? 1 : 0,
+      p.fecha ?? null, p.fecha ?? null,
       editor.userId, editor.when, id,
     )
     .run();
@@ -143,15 +157,22 @@ export async function deleteFuelLog(db: D1Database, id: number): Promise<number 
  * Sin esa condición esto era destructivo: en producción, GTP 4382 tiene el odómetro en
  * 354.537 y su surtida más alta es de 98.700 —una que quedó del sembrado de demo—, así que
  * un recálculo a ciegas le borraba 255.837 km.
+ *
+ * La marca de "lo puso la oficina" se borra SÓLO si el número cambia. La guarda de arriba es
+ * por valor y no por procedencia: si la oficina tipeó justo el km que ya tenía una surtida,
+ * corregirle los LITROS a esa surtida entraba igual acá y le borraba la fecha, y el chofer
+ * volvía a ver la surtida en vez de la corrección.
  */
 async function recalcularOdometro(db: D1Database, truckId: number, odometroPrevio: number): Promise<void> {
   await db
     .prepare(
       `UPDATE trucks
-       SET odometer_km = COALESCE((SELECT MAX(odometer_km) FROM fuel_logs WHERE truck_id = ?), odometer_km),
-           odometer_at = NULL
-       WHERE id = ? AND odometer_km = ?`,
+          SET odometer_at = CASE
+                WHEN COALESCE((SELECT MAX(odometer_km) FROM fuel_logs WHERE truck_id = ?), odometer_km) = odometer_km
+                THEN odometer_at ELSE NULL END,
+              odometer_km = COALESCE((SELECT MAX(odometer_km) FROM fuel_logs WHERE truck_id = ?), odometer_km)
+        WHERE id = ? AND odometer_km = ?`,
     )
-    .bind(truckId, truckId, odometroPrevio)
+    .bind(truckId, truckId, truckId, odometroPrevio)
     .run();
 }

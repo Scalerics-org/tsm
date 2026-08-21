@@ -218,8 +218,11 @@ export async function startTrip(
       t.segments?.length ? JSON.stringify(t.segments) : null, t.kilometros ?? null,
       cargadoPorOficina ? "COMPLETADO" : "EN_CURSO",
       cargadoPorOficina?.startedAt ?? null,
-      cargadoPorOficina?.when ?? null,
+      // La LLEGADA es la del viaje, no la de hoy. Con `when` acá, un viaje de mayo cargado en
+      // agosto quedaba "salió en mayo, llegó en agosto" en la ficha y en el Excel.
+      cargadoPorOficina?.startedAt ?? cargadoPorOficina?.when ?? null,
       cargadoPorOficina?.userId ?? null,
+      // `edited_at` sí es hoy: es cuándo la oficina lo cargó, no cuándo pasó el viaje.
       cargadoPorOficina?.when ?? null,
     )
     .run();
@@ -283,6 +286,44 @@ export async function completarCobrosPendientes(
     destrabadas += resueltas;
   }
   return destrabadas;
+}
+
+/** El viaje con su marca de facturación. Lo que hace falta para saber si se puede tocar. */
+export async function getTripFacturable(db: D1Database, id: number): Promise<TripFacturable | null> {
+  const r = await db.prepare(`${SELECT} WHERE t.id = ?`).bind(id).first<TripRow>();
+  if (!r) return null;
+  return { ...toTrip(r), factura_numero: r.factura_numero, facturado_at: r.facturado_at, facturado_by: r.facturado_by };
+}
+
+export async function deleteTrip(db: D1Database, id: number): Promise<void> {
+  await db.prepare("DELETE FROM trips WHERE id = ?").bind(id).run();
+}
+
+/**
+ * Corre el viaje entero la cantidad de días que haga falta.
+ *
+ * Salida y llegada se mueven juntas y conservan la hora: un viaje que duró dos días sigue
+ * durando dos días después de corregirle la fecha. Queda el rastro de quién lo movió, igual
+ * que en los renglones: mover un viaje de mes cambia la auditoría de kilómetros de DOS meses
+ * a la vez, y alguien va a preguntar por qué.
+ */
+export async function correrFecha(
+  db: D1Database,
+  id: number,
+  dias: number,
+  editor: { userId: number; when: string },
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE trips
+          SET started_at  = datetime(started_at, ? || ' days'),
+              finished_at = CASE WHEN finished_at IS NULL THEN NULL
+                                 ELSE datetime(finished_at, ? || ' days') END,
+              edited_by = ?, edited_at = ?
+        WHERE id = ?`,
+    )
+    .bind(dias, dias, editor.userId, editor.when, id)
+    .run();
 }
 
 export async function setKilometros(db: D1Database, id: number, km: number | null): Promise<void> {

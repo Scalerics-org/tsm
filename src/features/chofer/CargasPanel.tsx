@@ -25,6 +25,7 @@ interface Props {
   pideFoto: boolean;
   /** Combinado genérico: cada carga lleva su ciudad de carga y su destino. */
   pideUbicacion: boolean;
+  pideDepartamento: boolean;
   /** Origen y destino del viaje: los renglones los heredan. */
   origenViaje: string;
   destinoViaje: string;
@@ -43,6 +44,7 @@ export function CargasPanel({
   photos,
   pideFoto,
   pideUbicacion,
+  pideDepartamento,
   origenViaje,
   destinoViaje,
   editable,
@@ -77,7 +79,10 @@ export function CargasPanel({
               {s.clientes.length > 0 && (
                 <div className="text-sm text-ink/60">{s.clientes.join(" · ")}</div>
               )}
-              {pideUbicacion && (s.origen || s.destino) && (
+              {/* Sin la condición de modo: en el combinado el chofer tiene que poder VER que
+                  la carga quedó en Bella Unión, que es de lo que se enteró tarde. Las cargas
+                  viejas tienen origen y destino en null y siguen mostrando los del viaje. */}
+              {(s.origen || s.destino) && (
                 <div className="text-xs text-ink/45">
                   {s.origen ?? origenViaje} → {s.destino ?? destinoViaje}
                 </div>
@@ -118,6 +123,7 @@ export function CargasPanel({
             providerId={providerId}
             pideFoto={pideFoto}
             pideUbicacion={pideUbicacion}
+            pideDepartamento={pideDepartamento}
             onCancel={() => setAgregando(false)}
             onSaved={(seguirCargando) => {
               setAgregando(seguirCargando);
@@ -255,6 +261,7 @@ function NuevaCarga({
   providerId,
   pideFoto,
   pideUbicacion,
+  pideDepartamento,
   onCancel,
   onSaved,
 }: {
@@ -262,6 +269,11 @@ function NuevaCarga({
   providerId: number | null;
   pideFoto: boolean;
   pideUbicacion: boolean;
+  /**
+   * Pide el departamento de la carga SIN pasar al modo texto libre: el lugar se sigue
+   * eligiendo de la lista curada y el renglón conserva los ids que usan las reglas de cobro.
+   */
+  pideDepartamento: boolean;
   onCancel: () => void;
   onSaved: (seguirCargando: boolean) => void;
 }) {
@@ -301,8 +313,9 @@ function NuevaCarga({
       if (!lugarTexto.trim()) return setError("Escribí el lugar de carga.");
       if (!destino) return setError("Elegí el departamento de destino.");
       if (!descargaTexto.trim()) return setError("Escribí dónde descargaste.");
-    } else if (!lugar) {
-      return setError("Elegí dónde cargaste.");
+    } else {
+      if (pideDepartamento && !origen) return setError("Elegí el departamento donde cargaste.");
+      if (!lugar) return setError("Elegí dónde cargaste.");
     }
     if (pideFoto && !foto) return setError("Sacá la foto de esta carga.");
     setError("");
@@ -317,6 +330,8 @@ function NuevaCarga({
             sid,
             // En el ocasional el departamento sale de lista y el lugar se escribe: es un
             // viaje puntual, y agendar nombres que se usan una vez ensucia la libreta.
+            // El departamento va en los dos modos. En el combinado, sin esto la carga heredaba
+            // el origen fijo del viaje ("Mdeo") y el lugar real de carga se perdía.
             origen: origen?.nombre ?? null,
             origen_id: null,
             destino: destino?.nombre ?? null,
@@ -388,14 +403,28 @@ function NuevaCarga({
           </Field>
         </>
       ) : (
-        <LibretaPicker
-          tipo={LIBRETA_TIPO.REMITENTE}
-          label="¿Dónde cargaste?"
-          value={lugar}
-          onChange={setLugar}
-          providerId={providerId}
-          soloSeleccionables
-        />
+        <>
+          {/* "Cuando pones agregar carga tiene que aparecer los departamentos y dónde carga."
+              Va ANTES del lugar: primero la zona, después el galpón. La lista de lugares no se
+              filtra por el departamento —los lugares de la libreta todavía no lo tienen
+              cargado—, así que el departamento queda anotado al lado y no achica la lista. */}
+          {pideDepartamento && (
+            <LibretaPicker
+              tipo={TIPO_DEPARTAMENTO}
+              label="¿En qué departamento cargaste?"
+              value={origen}
+              onChange={setOrigen}
+            />
+          )}
+          <LibretaPicker
+            tipo={LIBRETA_TIPO.REMITENTE}
+            label="¿Dónde cargaste?"
+            value={lugar}
+            onChange={setLugar}
+            providerId={providerId}
+            soloSeleccionables
+          />
+        </>
       )}
 
       {/* En el ocasional el destinatario ya se escribió arriba: no hay lista curada que

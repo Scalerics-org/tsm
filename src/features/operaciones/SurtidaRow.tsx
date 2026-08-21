@@ -11,6 +11,10 @@ import { fmtDateTime } from "../../lib/format";
  * congelada: si el chofer tipeaba 990.000 en vez de 99.000 en el surtidor, ese número
  * arruinaba el km/L de ese mes para siempre y no había forma de arreglarlo.
  *
+ * La FECHA también se corrige ("lo mismo de las fechas en el gas oil"): una surtida cargada
+ * al otro día cae en el mes que no es, y el acumulado del mes sale de ahí. Se edita el día;
+ * la hora se conserva, que es lo que ordena dos surtidas del mismo día.
+ *
  * Las fotos no se editan: son la evidencia de lo que pasó.
  */
 export function SurtidaRow({ f, onChanged }: { f: FuelLog; onChanged: () => void }) {
@@ -18,6 +22,7 @@ export function SurtidaRow({ f, onChanged }: { f: FuelLog; onChanged: () => void
   const [km, setKm] = useState(String(f.odometer_km));
   const [t1, setT1] = useState(f.liters_tanque1 == null ? "" : String(f.liters_tanque1));
   const [t2, setT2] = useState(f.liters_tanque2 == null ? "" : String(f.liters_tanque2));
+  const [fecha, setFecha] = useState(f.logged_at.slice(0, 10));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,6 +43,7 @@ export function SurtidaRow({ f, onChanged }: { f: FuelLog; onChanged: () => void
         liters: total,
         liters_tanque1: sinDesglose ? null : t1 === "" ? null : Number(t1),
         liters_tanque2: sinDesglose ? null : t2 === "" ? null : Number(t2),
+        fecha,
       });
       setEditando(false);
       onChanged();
@@ -107,7 +113,16 @@ export function SurtidaRow({ f, onChanged }: { f: FuelLog; onChanged: () => void
 
   return (
     <tr className="border-b border-ink/10 bg-surface">
-      <td className="px-4 py-2 text-ink/70">{fmtDateTime(f.logged_at)}</td>
+      <td className="px-4 py-2">
+        <input
+          className="input w-36"
+          type="date"
+          value={fecha}
+          onChange={(e) => setFecha(e.target.value)}
+          aria-label="Fecha de la surtida"
+        />
+        <div className="mt-1 text-[11px] text-ink/45">{fmtDateTime(f.logged_at)}</div>
+      </td>
       <td className="px-4 py-2 text-right">
         <input
           className="input w-28 text-right"
@@ -165,7 +180,7 @@ export function SurtidaRow({ f, onChanged }: { f: FuelLog; onChanged: () => void
         {/* La cadena de odómetro es acumulativa: tocar los km de una surtida vieja mueve el
             consumo de ese mes y de todos los siguientes. Mejor decirlo que sorprender. */}
         <p className="mt-1 text-right text-[11px] text-ink/55">
-          Cambiar los km recalcula el consumo de este mes y los siguientes.
+          Cambiar los km o la fecha recalcula el consumo de este mes y los siguientes.
         </p>
         <ErrorText>{error}</ErrorText>
       </td>

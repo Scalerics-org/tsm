@@ -6,6 +6,8 @@ import {
   MENSAJE_LECTURA_PENDIENTE,
   ROLES,
   bloqueaSalidaPorLectura,
+  corrimientoEnDias,
+  esFechaValida,
   plantillaHabilitada,
   TRIP_STATUS,
   UNIDAD,
@@ -170,6 +172,7 @@ trips.get("/:id", async (c) => {
     // no podría registrar una carga y le quedaría un "falta la foto" que nunca se va.
     foto_carga_requerida: !!c.env.FOTOS && requiereFotoCarga(tpl),
     renglon_pide_ubicacion: !!tpl?.renglon_pide_ubicacion,
+    renglon_pide_departamento: !!tpl?.renglon_pide_departamento,
     provider_id: tpl?.provider_id ?? null,
   });
 });
@@ -523,9 +526,74 @@ trips.post("/:id/cancel", async (c) => {
   return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
 });
 
+/**
+ * PATCH /api/trips/:id/fecha — la oficina corrige la fecha de un viaje ya cargado.
+ *
+ * "Pidió que pueda cambiar la fecha porque si quiere ingresar un viaje pasado, no puede." Al
+ * CREARLO ya se podía elegir la fecha; lo que faltaba era corregirla después, que es el caso
+ * real: el viaje se carga rápido y la fecha se mira al otro día.
+ *
+ * Un viaje ya facturado NO se mueve: cambiarlo de mes lo saca del resumen del período que
+ * cubre una factura que ya se emitió, y el número de factura se quedaría donde estaba.
+ */
+trips.patch("/:id/fecha", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+  const trip = await tripsRepo.getTripFacturable(c.env.DB, Number(c.req.param("id")));
+  if (!trip) return fail(c, "Viaje no encontrado", 404);
+  if (trip.factura_numero) {
+    return fail(
+      c,
+      `Ese viaje ya está en la factura ${trip.factura_numero}. Desmarcalo desde Facturación y después cambiale la fecha.`,
+      409,
+    );
+  }
+
+  const b = (await c.req.json().catch(() => null)) as { fecha?: unknown } | null;
+  if (!esFechaValida(b?.fecha)) return fail(c, "La fecha va como 2026-08-21", 400);
+
+  const dias = corrimientoEnDias(trip.started_at, b!.fecha as string);
+  if (dias !== 0) {
+    await tripsRepo.correrFecha(c.env.DB, trip.id, dias, { userId: c.get("user").id, when: nowIso() });
+  }
+  return okViaje(c, await tripsRepo.getTrip(c.env.DB, trip.id));
+});
+
+/**
+ * DELETE /api/trips/:id — la oficina borra un viaje cargado por error.
+ *
+ * "Rodrigo también quiere poder borrar viajes." Cancelar sigue siendo la opción blanda —el
+ * viaje queda marcado y sale de la auditoría y de la facturación igual—; esto es para el que
+ * nunca tendría que haber existido.
+ *
+ * Dos frenos que antes no había: un viaje que ya está en una factura no se borra (el número
+ * quedó emitido y nadie sabría después qué cubría), y las fotos se borran también del bucket
+ * —la fila se iba sola por CASCADE, pero el archivo quedaba pagando espacio para siempre.
+ */
 trips.delete("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
-  await c.env.DB.prepare("DELETE FROM trips WHERE id = ?").bind(Number(c.req.param("id"))).run();
-  return ok(c, { deleted: true });
+  const trip = await tripsRepo.getTripFacturable(c.env.DB, Number(c.req.param("id")));
+  if (!trip) return fail(c, "Viaje no encontrado", 404);
+  if (trip.factura_numero) {
+    return fail(
+      c,
+      `Ese viaje ya está en la factura ${trip.factura_numero}. Si de verdad hay que sacarlo, desmarcalo desde Facturación primero.`,
+      409,
+    );
+  }
+
+  // Las claves se leen ANTES: después del DELETE la fila ya no está y no habría contra qué
+  // borrar en R2.
+  const fotos = await photosRepo.listPhotos(c.env.DB, trip.id);
+  await tripsRepo.deleteTrip(c.env.DB, trip.id);
+
+  const bucket = c.env.FOTOS;
+  if (bucket) {
+    const claves = fotos.map((f) => f.r2_key).filter((k): k is string => !!k);
+    // El viaje ya se borró: que la limpieza del bucket tarde o falle no puede hacer fallar
+    // la respuesta ni dejar a la oficina sin saber si borró o no.
+    c.executionCtx.waitUntil(
+      Promise.all(claves.map((k) => bucket.delete(k).catch(() => {}))).then(() => {}),
+    );
+  }
+  return ok(c, { deleted: true, fotos: fotos.length });
 });
 
 export default trips;

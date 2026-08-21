@@ -136,6 +136,14 @@ export interface TripTemplate {
    * no la regla, y no se le puede cobrar a todos el precio de la excepción.
    */
   renglon_pide_ubicacion: boolean;
+  /**
+   * El renglón pide el departamento donde cargó, SIN pasar al modo texto libre: el lugar se
+   * sigue eligiendo de la lista curada y el renglón conserva los ids que usan las reglas de
+   * cobro. Es para los viajes con origen fijo donde las cargas igual salen de varios lados
+   * —el combinado Mdeo → Bella Unión— y por eso cada carga heredaba un origen que el chofer
+   * nunca eligió.
+   */
+  renglon_pide_departamento: boolean;
   /** Renglones ya puestos por la oficina (ida y vuelta): el chofer solo completa. */
   renglones_fijos: RenglonFijo[] | null;
   pide_kilometros: boolean;
@@ -819,7 +827,14 @@ interface FLog {
  * `logs` debe incluir la surtida recién registrada (`current`).
  */
 export function fuelFeedback(logs: FLog[], current: FLog): FuelFeedback {
-  const sorted = [...logs].sort((a, b) => a.odometer_km - b.odometer_km);
+  // CRONOLÓGICO, no por odómetro. El odómetro dejó de ser monótono desde que la oficina puede
+  // corregirlo para abajo: un chorro guarda el km de arranque tal cual, así que puede quedar
+  // POR DEBAJO de un llenado anterior. Ordenando por km, esos litros quedaban fuera del tramo
+  // y el camión parecía rendir mejor de lo que rinde. El tiempo sí es monótono.
+  // (El acumulado del mes, más abajo, ya se recorría así por el mismo motivo.)
+  const enOrden = [...logs].sort(
+    (a, b) => a.logged_at.localeCompare(b.logged_at) || a.odometer_km - b.odometer_km,
+  );
   const closed = current.is_full;
 
   let segment_km: number | null = null;
@@ -827,17 +842,17 @@ export function fuelFeedback(logs: FLog[], current: FLog): FuelFeedback {
   let segment_kml: number | null = null;
 
   if (closed) {
-    // último llenado completo anterior a la surtida actual
-    let prev: FLog | null = null;
-    for (const l of sorted) {
-      if (l.odometer_km >= current.odometer_km) break;
-      if (l.is_full) prev = l;
-    }
+    // `logs` incluye la surtida actual, así que el último llenado de la cronología ES ella:
+    // el tramo va del llenado anterior a ése. Se toma de `enOrden` y no de `current` para que
+    // los dos extremos salgan de la misma lista.
+    const hasta = enOrden.map((l) => l.is_full).lastIndexOf(true);
+    const llenos = enOrden.slice(0, hasta).map((l) => l.is_full).lastIndexOf(true);
+    const prev = llenos >= 0 ? enOrden[llenos] : null;
     if (prev) {
-      const km = current.odometer_km - prev.odometer_km;
-      const liters = sorted
-        .filter((l) => l.odometer_km > prev!.odometer_km && l.odometer_km <= current.odometer_km)
-        .reduce((s, l) => s + l.liters, 0);
+      const km = enOrden[hasta].odometer_km - prev.odometer_km;
+      // El llenado de apertura es la línea de base y no cuenta: los litros arrancan en el
+      // siguiente. Mismo criterio que el acumulado del mes.
+      const liters = enOrden.slice(llenos + 1, hasta + 1).reduce((s, l) => s + l.liters, 0);
       segment_km = km;
       segment_liters = liters;
       segment_kml = kmPorLitro(km, liters);
@@ -1247,4 +1262,29 @@ export function avisoSurtida(
     url: `/panel/camion/${log.truck_id}`,
     tag: `surtida-${log.id}`,
   };
+}
+
+/**
+ * Cuántos días hay que correr un viaje para que caiga en la fecha pedida.
+ *
+ * "Pidió que pueda cambiar la fecha porque si quiere ingresar un viaje pasado, no puede."
+ * Se corre el viaje ENTERO —salida y llegada— la misma cantidad de días, en vez de plantarle
+ * la fecha nueva a cada extremo: un viaje que salió un día y llegó al otro tiene que seguir
+ * durando lo mismo después de corregirle la fecha.
+ *
+ * Devuelve 0 si alguna de las dos fechas no se entiende: correr por un NaN dejaría el viaje
+ * sin fecha, que es peor que no corregirlo.
+ */
+export function corrimientoEnDias(desde: string, hasta: string): number {
+  const a = Date.parse(`${desde.slice(0, 10)}T00:00:00Z`);
+  const b = Date.parse(`${hasta.slice(0, 10)}T00:00:00Z`);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
+  return Math.round((b - a) / 86_400_000);
+}
+
+/** Una fecha "YYYY-MM-DD" bien formada. Lo que llega del formulario no se cree sin mirar. */
+export function esFechaValida(v: unknown): v is string {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const t = Date.parse(`${v}T00:00:00Z`);
+  return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === v;
 }

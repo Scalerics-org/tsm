@@ -77,3 +77,39 @@ describe("el acumulado del mes no se mueve con un chorro", () => {
     expect(fuelFeedback(logs, logs[0]).month_kml).toBeNull();
   });
 });
+
+/**
+ * Desde que la oficina puede corregir el odómetro para abajo, el km de una surtida ya no sube
+ * siempre. Un chorro guarda el km de arranque tal cual, así que puede quedar POR DEBAJO de un
+ * llenado anterior — y la cadena del tramo, si se ordena por odómetro, se saltea esos litros.
+ *
+ * El tiempo sí es monótono. Por eso el tramo se recorre por fecha, igual que el acumulado
+ * del mes, que ya se hacía así.
+ */
+describe("un chorro por debajo de un llenado anterior no se pierde", () => {
+  it("sus litros entran igual en el tramo", () => {
+    const logs = [
+      log("2026-08-01", 390_000, 400, true), // línea de base
+      log("2026-08-10", 395_705, 400, true), // llenado: cierra un tramo
+      // La oficina bajó el odómetro a 390.000 y el chorro guardó ese número.
+      log("2026-08-12", 390_000, 100, false),
+      log("2026-08-20", 396_500, 200, true),
+    ];
+    const r = fuelFeedback(logs, logs[3]);
+    expect(r.segment_km).toBe(795); // 396.500 - 395.705
+    // Los 100 del chorro + los 200 del llenado. Por odómetro daban 200 y el camión parecía
+    // rendir 3,98 km/L en vez de 2,65.
+    expect(r.segment_liters).toBe(300);
+    expect(r.segment_kml).toBeCloseTo(2.65, 2);
+  });
+
+  it("y el tramo se mide contra el llenado anterior POR FECHA, no contra el de km más alto", () => {
+    const logs = [
+      log("2026-08-01", 396_000, 400, true), // un km tipeado de más, ya corregido en el camión
+      log("2026-08-10", 390_000, 400, true),
+      log("2026-08-20", 391_000, 250, true),
+    ];
+    const r = fuelFeedback(logs, logs[2]);
+    expect(r.segment_km).toBe(1000); // 391.000 - 390.000, el llenado del 10
+  });
+});

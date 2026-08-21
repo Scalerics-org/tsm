@@ -22,6 +22,7 @@ export function OpsTripDetailPage() {
   const [data, setData] = useState<Detail | null>(null);
   const [error, setError] = useState("");
   const [borrando, setBorrando] = useState(false);
+  const [guardandoFecha, setGuardandoFecha] = useState(false);
 
   const load = useCallback(() => {
     api
@@ -57,9 +58,17 @@ export function OpsTripDetailPage() {
   async function eliminar() {
     const cargas = trip.segments.length;
     const detalle = cargas
-      ? `Se van a borrar también sus ${cargas} carga${cargas === 1 ? "" : "s"}, que ya no van a aparecer en el Excel de facturación.`
+      ? `Se van a borrar también sus ${cargas} carga${cargas === 1 ? "" : "s"} y sus fotos, que ya no van a aparecer en el Excel de facturación.`
       : "El viaje no tiene cargas registradas.";
-    if (!confirm(`¿Borrar el viaje ${trip.origin} → ${trip.destination} del ${fmtDateTime(trip.started_at)}?\n\n${detalle}\n\nEsto no se puede deshacer. Si solo querés dejarlo sin efecto, usá Cancelar.`)) {
+    // Un viaje en curso lo tiene abierto un chofer en el celular. Si se borra, lo que venía
+    // cargando se pierde y la app le va a fallar contra un viaje que ya no existe.
+    const enCurso =
+      trip.status === TRIP_STATUS.EN_CURSO
+        ? `
+
+OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abierto y va a perder lo que esté cargando.`
+        : "";
+    if (!confirm(`¿Borrar el viaje ${trip.origin} → ${trip.destination} del ${fmtDateTime(trip.started_at)}?\n\n${detalle}${enCurso}\n\nEsto no se puede deshacer. Si solo querés dejarlo sin efecto, usá Cancelar.`)) {
       return;
     }
     setBorrando(true);
@@ -69,6 +78,25 @@ export function OpsTripDetailPage() {
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "No se pudo borrar el viaje");
       setBorrando(false);
+    }
+  }
+
+  /**
+   * Corregir la fecha del viaje. "Si quiere ingresar un viaje pasado, no puede ahora."
+   *
+   * Se manda sólo el día: el viaje se corre entero, salida y llegada juntas, así uno que
+   * duró dos días sigue durando dos días. Esa cuenta la hace el backend.
+   */
+  async function cambiarFecha(fecha: string) {
+    setError("");
+    setGuardandoFecha(true);
+    try {
+      await api.patch(`/trips/${trip.id}/fecha`, { fecha });
+      load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudo cambiar la fecha");
+    } finally {
+      setGuardandoFecha(false);
     }
   }
 
@@ -112,7 +140,11 @@ export function OpsTripDetailPage() {
             .map((f) => (
               <Info key={f.key} label={f.label} value={trip.field_values[f.key] || "—"} />
             ))}
-          <Info label="Salida" value={fmtDateTime(trip.started_at)} />
+          <FechaDelViaje
+            valor={trip.started_at}
+            guardando={guardandoFecha}
+            onCambiar={cambiarFecha}
+          />
           <Info label="Llegada" value={trip.finished_at ? fmtDateTime(trip.finished_at) : "—"} />
         </div>
         {trip.notes && (
@@ -123,6 +155,41 @@ export function OpsTripDetailPage() {
       </Card>
 
       <CargasDelViaje segments={trip.segments} photos={photos} />
+    </div>
+  );
+}
+
+/**
+ * La fecha del viaje, editable en el lugar donde ya se leía.
+ *
+ * Es un input de fecha y no un formulario aparte a propósito: la oficina llega acá a mirar el
+ * viaje y corrige la fecha donde la ve mal, sin buscar un botón de "editar". La hora no se
+ * toca —nadie la corrige— y por eso abajo se muestra completa, para que se note que el viaje
+ * se corre entero y no se le planta el día a las 00:00.
+ */
+function FechaDelViaje({
+  valor,
+  guardando,
+  onCambiar,
+}: {
+  valor: string;
+  guardando: boolean;
+  onCambiar: (fecha: string) => void;
+}) {
+  const dia = valor.slice(0, 10);
+  return (
+    <div>
+      <div className="font-cond text-[11px] font-semibold uppercase tracking-[0.1em] text-ink/50">
+        Salida
+      </div>
+      <input
+        type="date"
+        className="input mt-0.5 py-1 text-sm"
+        value={dia}
+        disabled={guardando}
+        onChange={(e) => e.target.value && e.target.value !== dia && onCambiar(e.target.value)}
+      />
+      <div className="mt-0.5 text-xs text-ink/45">{fmtDateTime(valor)}</div>
     </div>
   );
 }

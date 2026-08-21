@@ -32,6 +32,7 @@ interface Detail {
   foto_carga_requerida: boolean;
   /** Combinado genérico: cada carga lleva su ciudad y su destino. */
   renglon_pide_ubicacion: boolean;
+  renglon_pide_departamento: boolean;
   provider_id: number | null;
 }
 
@@ -126,6 +127,7 @@ export function ChoferTripPage() {
           photos={photos}
           pideFoto={data.foto_carga_requerida}
           pideUbicacion={data.renglon_pide_ubicacion}
+          pideDepartamento={data.renglon_pide_departamento}
           origenViaje={trip.origin}
           destinoViaje={trip.destination}
           editable={enCurso}

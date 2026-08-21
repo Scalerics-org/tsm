@@ -63,9 +63,18 @@ export async function createLectura(db: D1Database, l: LecturaInput): Promise<nu
     .run();
   // El odómetro del camión sólo sube, igual que al registrar una surtida: una lectura nueva
   // no puede saber menos que lo que ya quedó anotado por otro lado.
+  //
+  // Y si lo sube, se borra la marca de "lo puso la oficina": el número pasó a ser el de la
+  // foto del tacógrafo, y dejar la fecha vieja hacía que la pantalla del chofer dijera
+  // "cargado por la oficina el 21/8" mostrando el kilometraje de una foto de setiembre.
   await db
-    .prepare("UPDATE trucks SET odometer_km = MAX(odometer_km, ?) WHERE id = ?")
-    .bind(l.kilometraje, l.truck_id)
+    .prepare(
+      `UPDATE trucks
+          SET odometer_at = CASE WHEN ? > odometer_km THEN NULL ELSE odometer_at END,
+              odometer_km = MAX(odometer_km, ?)
+        WHERE id = ?`,
+    )
+    .bind(l.kilometraje, l.kilometraje, l.truck_id)
     .run();
   return res.meta.last_row_id as number;
 }
