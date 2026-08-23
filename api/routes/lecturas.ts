@@ -14,7 +14,8 @@ import {
 } from "../../shared/domain";
 import { periodoDeHoy } from "../lib/periodo";
 import * as repo from "../repos/lecturas";
-import { activeTripForDriver, listTrips } from "../repos/trips";
+import { listTrips } from "../repos/trips";
+import { currentTruckId } from "../repos/drivers";
 import { listTrucks, getTruck } from "../repos/trucks";
 import { listTemplates } from "../repos/templates";
 
@@ -29,15 +30,20 @@ const lecturas = new Hono<{ Bindings: Env; Variables: Vars }>();
 lecturas.use("*", requireAuth);
 
 /**
- * El camión con el que el chofer está andando, no el que tiene asignado.
+ * El camión que el chofer tiene ASIGNADO, no el que está manejando hoy.
  *
- * Misma regla que en la surtida (`routes/fuel.ts`): la foto es del tacógrafo que tiene
- * adelante. Si la lectura fuera al camión asignado, el mes de los dos camiones queda mal.
+ * "Tiene que pedir la foto del camión que tiene asignado." Es distinto de la surtida
+ * (`routes/fuel.ts`), y a propósito: el gasoil va al camión que de verdad lo cargó, pero la
+ * lectura del mes es de la máquina, y cada máquina la trae su chofer. Si fuera la del camión
+ * que agarró ese día, el que se cambia de camión un martes deja sin lectura al suyo y le pisa
+ * el mes a otro.
+ *
+ * Sale de la base y no del token: el token dura una semana, así que un chofer reasignado
+ * seguiría trayendo la foto del camión anterior hasta que volviera a entrar.
  */
 async function camionDelChofer(db: D1Database, user: AuthUser): Promise<number | null> {
   if (user.role !== ROLES.CHOFER || user.driver_id == null) return null;
-  const enViaje = await activeTripForDriver(db, user.driver_id);
-  return enViaje?.truck_id ?? user.truck_id;
+  return (await currentTruckId(db, user.driver_id)) ?? user.truck_id;
 }
 
 function esPeriodo(v: string): boolean {

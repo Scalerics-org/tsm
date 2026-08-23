@@ -28,6 +28,7 @@ import * as templatesRepo from "../repos/templates";
 import * as photosRepo from "../repos/photos";
 import * as libretaRepo from "../repos/libreta";
 import * as lecturasRepo from "../repos/lecturas";
+import * as driversRepo from "../repos/drivers";
 import { periodoDeHoy } from "../lib/periodo";
 import { notificarOficina } from "../lib/avisos";
 
@@ -229,8 +230,12 @@ trips.post("/", async (c) => {
   //
   // La oficina pasa: está cargando un viaje que ya pasó, no saliendo a la ruta.
   if (esChoferQueSale) {
-    const lectura = await lecturasRepo.getLectura(c.env.DB, truckId, periodoDeHoy());
-    if (bloqueaSalidaPorLectura(truckId, lectura != null)) {
+    // El camión ASIGNADO, que es el mismo del que la pantalla le pide la foto. Si acá se
+    // mirara el que sale manejando hoy, el que agarra otro camión quedaría trabado por una
+    // lectura que la app nunca le va a pedir, y no tendría forma de destrabarse.
+    const suyo = (await driversRepo.currentTruckId(c.env.DB, driverId)) ?? truckId;
+    const lectura = await lecturasRepo.getLectura(c.env.DB, suyo, periodoDeHoy());
+    if (bloqueaSalidaPorLectura(suyo, lectura != null)) {
       return fail(c, MENSAJE_LECTURA_PENDIENTE, 409);
     }
   }
