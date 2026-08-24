@@ -233,8 +233,12 @@ trips.post("/", async (c) => {
     // El camión ASIGNADO, que es el mismo del que la pantalla le pide la foto. Si acá se
     // mirara el que sale manejando hoy, el que agarra otro camión quedaría trabado por una
     // lectura que la app nunca le va a pedir, y no tendría forma de destrabarse.
-    const suyo = (await driversRepo.currentTruckId(c.env.DB, driverId)) ?? truckId;
-    const lectura = await lecturasRepo.getLectura(c.env.DB, suyo, periodoDeHoy());
+    // Sin `?? truckId`: si el chofer se quedó sin camión asignado, la pantalla de inicio no
+    // le ofrece cargar ninguna foto —para ella no tiene camión— y bloquearlo por el que
+    // agarró hoy lo dejaba sin ninguna acción posible en la app, esperando un llamado a la
+    // oficina. `bloqueaSalidaPorLectura` con null no bloquea, y es a propósito.
+    const suyo = await driversRepo.currentTruckId(c.env.DB, driverId);
+    const lectura = suyo == null ? null : await lecturasRepo.getLectura(c.env.DB, suyo, periodoDeHoy());
     if (bloqueaSalidaPorLectura(suyo, lectura != null)) {
       return fail(c, MENSAJE_LECTURA_PENDIENTE, 409);
     }

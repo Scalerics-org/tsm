@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fuelFeedback } from "@shared/domain";
+import { fuelFeedback, monthlyConsumption } from "@shared/domain";
 
 /**
  * "Si cuando ellos no llenen, me gustaría que le muestre el acumulado del mes igual al
@@ -111,5 +111,44 @@ describe("un chorro por debajo de un llenado anterior no se pierde", () => {
     ];
     const r = fuelFeedback(logs, logs[2]);
     expect(r.segment_km).toBe(1000); // 391.000 - 390.000, el llenado del 10
+  });
+});
+
+/**
+ * El acumulado que ve la OFICINA tiene que dar lo mismo que el que ve el chofer. Cuando el
+ * tramo pasó a recorrerse por fecha y esto se quedó ordenando por kilometraje, los dos
+ * números se separaron: la oficina veía un rendimiento mejor del real justo en el gasto más
+ * grande del camión.
+ */
+describe("el consumo mensual de la oficina", () => {
+  it("cuenta los litros del chorro, igual que la pantalla del chofer", () => {
+    const logs = [
+      log("2026-08-01", 390_000, 400, true),
+      log("2026-08-10", 395_705, 400, true),
+      log("2026-08-12", 390_000, 100, false), // chorro con el odómetro ya corregido para abajo
+      log("2026-08-20", 396_500, 200, true),
+    ];
+    const mes = monthlyConsumption(logs).find((m) => m.month === "2026-08");
+    const chofer = fuelFeedback(logs, logs[3]);
+    expect(mes?.liters).toBe(chofer.segment_liters! + 400);
+    expect(mes?.km).toBe(6_500); // 396.500 - 390.000
+  });
+
+  it("no cruza los meses cuando la oficina corrigió el odómetro para abajo", () => {
+    const logs = [
+      log("2026-08-01", 395_000, 400, true),
+      log("2026-08-20", 396_000, 300, true),
+      // En setiembre la oficina bajó el odómetro y el chofer arranca de ahí.
+      log("2026-09-02", 390_000, 400, true),
+      log("2026-09-20", 391_500, 300, true),
+    ];
+    // Viene el más reciente primero, que es como lo muestra la ficha del camión.
+    const meses = monthlyConsumption(logs);
+    expect(meses.map((m) => m.month)).toEqual(["2026-09", "2026-08"]);
+    expect(meses[1].km).toBe(1_000); // agosto cierra con su propia última surtida
+    expect(meses[1].closed).toBe(false); // y queda abierto: el odómetro saltó en el medio
+    expect(meses[0].km).toBe(1_500);
+    // Y sobre todo: ningún mes en negativo.
+    expect(meses.every((m) => m.km >= 0)).toBe(true);
   });
 });

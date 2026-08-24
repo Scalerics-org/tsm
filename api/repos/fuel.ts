@@ -158,21 +158,19 @@ export async function deleteFuelLog(db: D1Database, id: number): Promise<number 
  * 354.537 y su surtida más alta es de 98.700 —una que quedó del sembrado de demo—, así que
  * un recálculo a ciegas le borraba 255.837 km.
  *
- * La marca de "lo puso la oficina" se borra SÓLO si el número cambia. La guarda de arriba es
- * por valor y no por procedencia: si la oficina tipeó justo el km que ya tenía una surtida,
- * corregirle los LITROS a esa surtida entraba igual acá y le borraba la fecha, y el chofer
- * volvía a ver la surtida en vez de la corrección.
+ * Y NO SE TOCA NADA SI EL ODÓMETRO LO PUSO LA OFICINA (`odometer_at`). La guarda por valor
+ * no alcanzaba: la oficina baja el odómetro a 390.000, el chofer echa un chorro —que guarda
+ * ese mismo número—, y cuando después alguien corrige o borra ese chorro, esta consulta
+ * matcheaba y devolvía el camión a la surtida vieja. La corrección de la oficina se
+ * deshacía sola, que es exactamente el bug que vino a arreglar.
  */
 async function recalcularOdometro(db: D1Database, truckId: number, odometroPrevio: number): Promise<void> {
   await db
     .prepare(
       `UPDATE trucks
-          SET odometer_at = CASE
-                WHEN COALESCE((SELECT MAX(odometer_km) FROM fuel_logs WHERE truck_id = ?), odometer_km) = odometer_km
-                THEN odometer_at ELSE NULL END,
-              odometer_km = COALESCE((SELECT MAX(odometer_km) FROM fuel_logs WHERE truck_id = ?), odometer_km)
-        WHERE id = ? AND odometer_km = ?`,
+          SET odometer_km = COALESCE((SELECT MAX(odometer_km) FROM fuel_logs WHERE truck_id = ?), odometer_km)
+        WHERE id = ? AND odometer_km = ? AND odometer_at IS NULL`,
     )
-    .bind(truckId, truckId, truckId, odometroPrevio)
+    .bind(truckId, truckId, odometroPrevio)
     .run();
 }

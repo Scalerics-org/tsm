@@ -17,11 +17,17 @@ import { fmtDateTime } from "../../lib/format";
  */
 export function FilaViaje({ t, onCambio }: { t: Trip; onCambio: () => void }) {
   const [editandoFecha, setEditandoFecha] = useState(false);
+  // Lo que se está tipeando, separado de lo que está guardado.
+  const [borrador, setBorrador] = useState(t.started_at.slice(0, 10));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   async function cambiarFecha(fecha: string) {
-    if (!fecha || fecha === t.started_at.slice(0, 10)) return setEditandoFecha(false);
+    // Una fecha a medio tipear llega como "" o como un año de dos dígitos: no se manda.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || fecha === t.started_at.slice(0, 10)) {
+      setBorrador(t.started_at.slice(0, 10));
+      return setEditandoFecha(false);
+    }
     setError("");
     setBusy(true);
     try {
@@ -88,15 +94,26 @@ export function FilaViaje({ t, onCambio }: { t: Trip; onCambio: () => void }) {
       </td>
       <td className="px-4 py-3 text-ink/60">
         {editandoFecha ? (
+          /* NO se guarda en cada `onChange`. Un input de fecha dispara un cambio por cada
+             tramo que se completa: tipeando el día, el navegador ya entrega fechas enteras
+             pero equivocadas —incluso del año 0002— y cada una salía como un PATCH. El viaje
+             quedaba con una fecha que nadie eligió, la casilla se cerraba sola y el resto de
+             lo que estaba tecleando se perdía. Se guarda al salir del campo o con Enter. */
           <input
             type="date"
             className="input w-36 py-1 text-sm"
-            defaultValue={t.started_at.slice(0, 10)}
+            value={borrador}
             autoFocus
             disabled={busy}
-            onChange={(e) => cambiarFecha(e.target.value)}
-            onBlur={() => setEditandoFecha(false)}
-            onKeyDown={(e) => e.key === "Escape" && setEditandoFecha(false)}
+            onChange={(e) => setBorrador(e.target.value)}
+            onBlur={() => cambiarFecha(borrador)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+              if (e.key === "Escape") {
+                setBorrador(t.started_at.slice(0, 10));
+                setEditandoFecha(false);
+              }
+            }}
           />
         ) : (
           <button

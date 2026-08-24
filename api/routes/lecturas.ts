@@ -104,8 +104,13 @@ lecturas.post("/", async (c) => {
         : null;
   if (!truckId) return fail(c, "Falta el camión", 400);
 
+  // El mes lo elige SÓLO la oficina, para cargar una lectura atrasada. Si el chofer pudiera
+  // mandarlo, podría anotar la foto de hoy contra cualquier mes —incluido uno ya auditado— y
+  // la resta de ese mes pasaría a depender de un campo del formulario.
   const pedido = String(form.get("periodo") ?? "");
-  const periodo = esPeriodo(pedido) ? pedido : periodoDeHoy();
+  const puedeElegirMes = user.role === ROLES.ENCARGADO || user.role === ROLES.ADMIN;
+  if (pedido && !puedeElegirMes) return fail(c, "No podés elegir el mes de la lectura", 403);
+  const periodo = puedeElegirMes && esPeriodo(pedido) ? pedido : periodoDeHoy();
   const kilometraje = Number(form.get("kilometraje"));
   if (!Number.isFinite(kilometraje) || kilometraje <= 0) {
     return fail(c, "Poné el kilometraje que marca el tacógrafo", 400);

@@ -912,34 +912,58 @@ export interface MonthlyConsumption {
  * "abierto" (closed=false) hasta que haya un llenado el mes que viene.
  */
 export function monthlyConsumption(logs: FLog[]): MonthlyConsumption[] {
-  const sorted = [...logs].sort((a, b) => a.odometer_km - b.odometer_km);
-  if (sorted.length === 0) return [];
+  // CRONOLÓGICO, por el mismo motivo que `fuelFeedback`: desde que la oficina puede corregir
+  // el odómetro para abajo, ordenar por kilometraje mezcla los meses —agosto se comía los km
+  // de setiembre— y deja fuera del recuento los litros de un chorro que quedó por debajo.
+  // Éste es el número que mira la oficina; el otro es el que ve el chofer. Tienen que dar
+  // igual o no se le puede reclamar a nadie.
+  const enOrden = [...logs].sort(
+    (a, b) => a.logged_at.localeCompare(b.logged_at) || a.odometer_km - b.odometer_km,
+  );
+  if (enOrden.length === 0) return [];
 
-  // Ancla de cada mes = primer llenado completo del mes (menor odómetro).
-  const anchorByMonth = new Map<string, FLog>();
-  for (const l of sorted) {
-    if (!l.is_full) continue;
+  // Ancla de cada mes = PRIMER llenado completo del mes, en el tiempo.
+  const anchorByMonth = new Map<string, number>();
+  enOrden.forEach((l, i) => {
+    if (!l.is_full) return;
     const m = l.logged_at.slice(0, 7);
-    if (!anchorByMonth.has(m)) anchorByMonth.set(m, l);
-  }
-  const anchors = [...anchorByMonth.values()].sort((a, b) => a.odometer_km - b.odometer_km);
-  const lastOdo = sorted[sorted.length - 1].odometer_km;
+    if (!anchorByMonth.has(m)) anchorByMonth.set(m, i);
+  });
+  const anclas = [...anchorByMonth.values()].sort((a, b) => a - b);
 
   const out: MonthlyConsumption[] = [];
-  for (let i = 0; i < anchors.length; i++) {
-    const a = anchors[i];
-    const next = anchors[i + 1] ?? null;
-    const endOdo = next ? next.odometer_km : lastOdo;
-    const km = endOdo - a.odometer_km;
-    const liters = sorted
-      .filter((l) => l.odometer_km > a.odometer_km && l.odometer_km <= endOdo)
-      .reduce((s, l) => s + l.liters, 0);
+  for (let i = 0; i < anclas.length; i++) {
+    const desde = anclas[i];
+    const siguiente = anclas[i + 1] ?? null;
+    // El mes cierra con el primer llenado del mes que viene; el mes en curso, con la última
+    // surtida que haya.
+    let hasta = siguiente ?? enOrden.length - 1;
+    let cerrado = siguiente != null;
+
+    // SALVO que el odómetro haya dado un salto para atrás en el medio: eso pasa cuando la
+    // oficina lo corrige entre un mes y el otro, y ahí los dos extremos no están en la misma
+    // escala. Restarlos daba un mes en NEGATIVO. Se cierra el mes con su propia última
+    // surtida y se deja marcado como abierto: es lo que de verdad sabemos.
+    if (enOrden[hasta].odometer_km < enOrden[desde].odometer_km) {
+      const mes = enOrden[desde].logged_at.slice(0, 7);
+      let ultimo = desde;
+      for (let j = desde; j < enOrden.length; j++) {
+        if (enOrden[j].logged_at.slice(0, 7) === mes) ultimo = j;
+      }
+      hasta = ultimo;
+      cerrado = false;
+    }
+
+    const km = enOrden[hasta].odometer_km - enOrden[desde].odometer_km;
+    // El llenado de apertura es la línea de base y no cuenta: los litros arrancan en el
+    // siguiente. Mismo criterio que el tramo.
+    const liters = enOrden.slice(desde + 1, hasta + 1).reduce((s, l) => s + l.liters, 0);
     out.push({
-      month: a.logged_at.slice(0, 7),
+      month: enOrden[desde].logged_at.slice(0, 7),
       km,
       liters,
       kml: kmPorLitro(km, liters),
-      closed: !!next,
+      closed: cerrado,
     });
   }
   return out.reverse(); // más reciente primero

@@ -177,6 +177,16 @@ function FechaDelViaje({
   onCambiar: (fecha: string) => void;
 }) {
   const dia = valor.slice(0, 10);
+  const [borrador, setBorrador] = useState(dia);
+  useEffect(() => setBorrador(dia), [dia]);
+
+  // Igual que en la lista: un input de fecha entrega fechas enteras y equivocadas mientras
+  // se tipea, así que se guarda al salir del campo, no en cada tecla.
+  function guardar() {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(borrador) || borrador === dia) return setBorrador(dia);
+    onCambiar(borrador);
+  }
+
   return (
     <div>
       <div className="font-cond text-[11px] font-semibold uppercase tracking-[0.1em] text-ink/50">
@@ -185,9 +195,14 @@ function FechaDelViaje({
       <input
         type="date"
         className="input mt-0.5 py-1 text-sm"
-        value={dia}
+        value={borrador}
         disabled={guardando}
-        onChange={(e) => e.target.value && e.target.value !== dia && onCambiar(e.target.value)}
+        onChange={(e) => setBorrador(e.target.value)}
+        onBlur={guardar}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") setBorrador(dia);
+        }}
       />
       <div className="mt-0.5 text-xs text-ink/45">{fmtDateTime(valor)}</div>
     </div>
