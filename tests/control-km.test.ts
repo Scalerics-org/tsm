@@ -147,3 +147,74 @@ describe("avisoSurtida", () => {
     expect(uno.tag).not.toBe(dos.tag);
   });
 });
+
+/**
+ * La alerta iba a marcar TODOS los camiones el primer mes que corriera.
+ *
+ * La cuenta comparaba dos cosas que no son comparables: los kilómetros entre las dos fotos
+ * del tacógrafo —sacadas cualquier día— contra los viajes del MES CALENDARIO. Como las fotos
+ * nunca se sacan el 1° a las 00:00 (la línea base sembrada es del 20 de agosto), siempre
+ * sobran o faltan días. Para un camión de ruta son miles de kilómetros contra un umbral de
+ * 150: la pantalla que el cliente pidió para estar tranquilo iba a estar en rojo siempre.
+ *
+ * Y el otro lado del mismo problema: un viaje sin kilómetros cargados sumaba 0, así que
+ * cuanto más viajes se registraban, peor pintaba el camión.
+ */
+describe("la ventana que se compara", () => {
+  const viajeEn = (dia: string, km: number | null, estimado = false) => ({
+    kilometros: km,
+    vacio: false,
+    estimado,
+  });
+
+  it("sólo cuenta los viajes que caen entre las dos fotos", () => {
+    const a = auditoriaKilometros(
+      "2026-08",
+      lectura(105_000, "2026-08-20 10:00:00"),
+      lectura(100_000, "2026-07-18 09:00:00"),
+      // Quien llama ya filtró por la ventana: la cuenta sólo tiene que respetarla.
+      [viajeEn("2026-07-20", 2_000), viajeEn("2026-08-15", 3_000)],
+    );
+    expect(a.km_periodo).toBe(5_000);
+    expect(a.km_cargados).toBe(5_000);
+    expect(a.km_sin_justificar).toBe(0);
+    expect(a.desde).toBe("2026-07-18 09:00:00");
+    expect(a.hasta).toBe("2026-08-20 10:00:00");
+  });
+
+  it("un viaje con kilómetros estimados cuenta igual, pero se dice", () => {
+    const a = auditoriaKilometros(
+      "2026-08",
+      lectura(105_000, "2026-08-20"),
+      lectura(100_000, "2026-07-18"),
+      [viajeEn("2026-08-01", 2_000), viajeEn("2026-08-10", 3_000, true)],
+    );
+    expect(a.km_cargados).toBe(5_000);
+    expect(a.viajes_estimados).toBe(1);
+    expect(a.viajes_sin_km).toBe(0);
+    expect(senalKilometros(a).nivel).toBe("ok");
+  });
+
+  it("el que no se pudo estimar sigue contándose aparte y no se inventa", () => {
+    const a = auditoriaKilometros(
+      "2026-08",
+      lectura(105_000, "2026-08-20"),
+      lectura(100_000, "2026-07-18"),
+      [viajeEn("2026-08-01", 2_000), viajeEn("2026-08-10", null)],
+    );
+    expect(a.km_cargados).toBe(2_000);
+    expect(a.viajes_sin_km).toBe(1);
+    expect(a.viajes_estimados).toBe(0);
+  });
+
+  it("cuando hay estimados, la señal lo aclara para que nadie lea el número como exacto", () => {
+    const a = auditoriaKilometros(
+      "2026-08",
+      lectura(110_000, "2026-08-20"),
+      lectura(100_000, "2026-07-18"),
+      [viajeEn("2026-08-01", 2_000, true)],
+    );
+    expect(senalKilometros(a).nivel).toBe("revisar");
+    expect(senalKilometros(a).motivo).toContain("estimado");
+  });
+});

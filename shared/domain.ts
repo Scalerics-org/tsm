@@ -1095,6 +1095,12 @@ export interface LecturaOdometro {
 export interface ViajeAuditado {
   kilometros: number | null;
   vacio: boolean;
+  /**
+   * Los kilómetros no los puso nadie: los calculó la app con el origen y el destino. Cuentan
+   * igual —si no, cada viaje sin km aparecía como kilómetros sin justificar y la alerta
+   * marcaba todo— pero se avisa, para que el número no se lea como exacto.
+   */
+  estimado?: boolean;
 }
 
 export interface AuditoriaKm {
@@ -1107,8 +1113,10 @@ export interface AuditoriaKm {
   km_sin_justificar: number | null;
   viajes_cargados: number;
   viajes_vacios: number;
-  /** Viajes del mes sin kilómetros: la explicación más probable de un descuadre grande. */
+  /** Viajes sin kilómetros NI forma de estimarlos: no se les inventa un recorrido. */
   viajes_sin_km: number;
+  /** Viajes cuyos kilómetros los calculó la app. Cuentan, pero el total es aproximado. */
+  viajes_estimados: number;
   /** Ventana real comparada (días de las dos fotos), no el mes calendario. */
   desde: string | null;
   hasta: string | null;
@@ -1166,6 +1174,7 @@ export function auditoriaKilometros(
     viajes_cargados: cargados.length,
     viajes_vacios: vacios.length,
     viajes_sin_km: viajes.filter((v) => !Number.isFinite(v.kilometros as number)).length,
+    viajes_estimados: viajes.filter((v) => v.estimado && Number.isFinite(v.kilometros as number)).length,
     desde: previa?.tomada_at ?? null,
     hasta: lectura?.tomada_at ?? null,
   };
@@ -1223,10 +1232,18 @@ export function senalKilometros(a: AuditoriaKm, umbral = KM_SIN_JUSTIFICAR_ALERT
     return { nivel: "revisar", motivo: `Los viajes suman ${cuantos} km más de los que marca el tacógrafo` };
   }
   // Un viaje sin kilómetros es la explicación más probable de un descuadre para arriba, y es
-  // la que se arregla sola: alcanza con completarlos.
-  const porque = a.viajes_sin_km
-    ? ` · ${a.viajes_sin_km} ${a.viajes_sin_km === 1 ? "viaje" : "viajes"} sin km`
-    : "";
+  // la que se arregla sola: alcanza con completarlos. Y si hay estimados, se dice: el total
+  // es aproximado y nadie tiene que salir a buscar una diferencia que puede ser del cálculo.
+  const partes: string[] = [];
+  if (a.viajes_sin_km) {
+    partes.push(`${a.viajes_sin_km} ${a.viajes_sin_km === 1 ? "viaje" : "viajes"} sin km`);
+  }
+  if (a.viajes_estimados) {
+    partes.push(
+      `${a.viajes_estimados} con km estimado${a.viajes_estimados === 1 ? "" : "s"} por la app`,
+    );
+  }
+  const porque = partes.length ? ` · ${partes.join(" · ")}` : "";
   return { nivel: "revisar", motivo: `${cuantos} km sin justificar${porque}` };
 }
 

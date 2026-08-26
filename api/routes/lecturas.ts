@@ -12,6 +12,7 @@ import {
   type AuthUser,
   type ViajeAuditado,
 } from "../../shared/domain";
+import { kmEstimados } from "../../shared/distancias";
 import { periodoDeHoy } from "../lib/periodo";
 import * as repo from "../repos/lecturas";
 import { listTrips } from "../repos/trips";
@@ -125,7 +126,11 @@ lecturas.post("/", async (c) => {
   const previa = await repo.getLectura(c.env.DB, truckId, periodoAnterior(periodo));
   if (previa && kilometraje < previa.kilometraje) {
     const antes = Math.round(previa.kilometraje).toLocaleString("es-UY");
-    return fail(c, `El tacógrafo no puede marcar menos que el mes pasado (${antes} km). Mirá bien el número.`, 400);
+    return fail(
+      c,
+      `El tacógrafo no puede marcar menos que el mes pasado (${antes} km). Mirá bien el número, y si está bien avisá a la oficina: el del mes pasado puede estar mal cargado.`,
+      400,
+    );
   }
 
   // La foto es la evidencia, pero sólo se puede exigir si hay dónde guardarla: R2 puede no
@@ -158,6 +163,18 @@ lecturas.post("/", async (c) => {
 });
 
 /**
+ * GET /api/lecturas?truck=1 — las lecturas de un camión, para la ficha.
+ *
+ * Es lo que le faltaba a la oficina para poder corregir un kilometraje mal tipeado. Hasta
+ * ahora `PUT /:id` existía y no lo llamaba ninguna pantalla: el chofer recibía "avisá a la
+ * oficina" y la oficina no tenía dónde hacerlo.
+ */
+lecturas.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+  const truck = c.req.query("truck");
+  return ok(c, await repo.listLecturas(c.env.DB, { truckId: truck ? Number(truck) : undefined }));
+});
+
+/**
  * GET /api/lecturas/auditoria?mes=YYYY-MM — la auditoría de kilómetros de todos los camiones.
  *
  * Es lo que el cliente mira para dejar de perseguir fotos por WhatsApp: cuánto recorrió el
@@ -179,8 +196,11 @@ lecturas.get("/auditoria", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
     listTrucks(c.env.DB),
     repo.listLecturas(c.env.DB, { periodo: mes }),
     repo.listLecturas(c.env.DB, { periodo: previo }),
-    // `-31` como tope alcanza: la comparación es de texto y "2026-03-01" ya es mayor.
-    listTrips(c.env.DB, { from: `${mes}-01`, to: `${mes}-31` }),
+    // Se piden DOS meses de viajes, no uno. La ventana que se compara no es el mes
+    // calendario sino la que va de una foto del tacógrafo a la otra, y esas fotos se sacan
+    // cuando el camión para: la del mes pasado puede ser del 18 y la de éste del 4. Se
+    // recorta por camión más abajo, que cada uno tiene su propia ventana.
+    listTrips(c.env.DB, { from: `${previo}-01`, to: `${mes}-31` }),
     listTemplates(c.env.DB),
   ]);
 
@@ -194,12 +214,31 @@ lecturas.get("/auditoria", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
     camiones: camiones.map((camion) => {
       const lectura = delMes.find((l) => l.truck_id === camion.id) ?? null;
       const previa = delPrevio.find((l) => l.truck_id === camion.id) ?? null;
+      // LA VENTANA REAL: de una foto a la otra. Comparar los km entre dos fotos contra los
+      // viajes del mes calendario era comparar cosas distintas — las fotos nunca se sacan el
+      // 1° a las 00:00, así que siempre sobraban o faltaban días, y para un camión de ruta
+      // eso son miles de kilómetros contra un umbral de 150. La alerta habría marcado a
+      // todos los camiones todos los meses hasta que nadie la mirara.
+      //
+      // Sin las dos fotos no hay ventana que recortar y tampoco hay con qué comparar: la
+      // auditoría va a devolver "falta la lectura", así que alcanza con el mes calendario
+      // para mostrar cuántos viajes hubo.
+      const desde = previa?.tomada_at ?? `${mes}-01`;
+      const hasta = lectura?.tomada_at ?? `${mes}-31 23:59:59`;
       const suyos: ViajeAuditado[] = delPeriodo
-        .filter((t) => t.truck_id === camion.id)
-        .map((t) => ({
-          kilometros: t.kilometros,
-          vacio: t.template_id != null && plantillasVacias.has(t.template_id),
-        }));
+        .filter((t) => t.truck_id === camion.id && t.started_at >= desde && t.started_at <= hasta)
+        .map((t) => {
+          // Los km que nadie cargó los estima la app con el origen y el destino, igual que al
+          // cerrar el viaje. Contarlos como 0 hacía que cada viaje registrado empeorara el
+          // número del camión: cuanto mejor se usaba la app, peor pintaba.
+          const propios = Number.isFinite(t.kilometros as number) ? (t.kilometros as number) : null;
+          const estimados = propios == null ? kmEstimados(t.origin, t.destination) : null;
+          return {
+            kilometros: propios ?? estimados,
+            estimado: propios == null && estimados != null,
+            vacio: t.template_id != null && plantillasVacias.has(t.template_id),
+          };
+        });
       const auditoria = auditoriaKilometros(mes, lectura, previa, suyos);
       return {
         truck_id: camion.id,

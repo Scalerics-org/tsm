@@ -4,6 +4,7 @@ import { fmtConsumo, type FuelLog, type Trip, type Truck } from "@shared/domain"
 import { api } from "../../lib/api";
 import { Card, Corners, Spinner, Stat, StatusBadge } from "../../components/ui";
 import { SurtidaRow } from "./SurtidaRow";
+import { LecturasDelCamion } from "./LecturasDelCamion";
 import { fmtDateTime } from "../../lib/format";
 
 interface MonthRow {
@@ -136,6 +137,8 @@ export function TruckDetailPage() {
           </tbody>
         </table>
       </Card>
+
+      <LecturasDelCamion truckId={Number(id)} />
     </div>
   );
 }
