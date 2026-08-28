@@ -106,10 +106,14 @@ function parseRenglonesFijos(raw: any): RenglonFijo[] | null {
 
 function parse(b: any): repo.TemplateInput | null {
   if (!b || !b.provider_id || !b.name) return null;
-  // El origen puede venir vacío si la plantilla lo resuelve con la libreta: en el viaje
-  // ocasional lo elige el chofer. Exigirlo siempre dejaba esa plantilla imposible de guardar.
+  // El origen puede venir vacío en dos casos, y en los dos exigirlo dejaba la plantilla
+  // imposible de guardar:
+  //   1. Lo resuelve la libreta — en el viaje ocasional lo elige el chofer al arrancar.
+  //   2. Lo arman las cargas — el combinado genérico, donde cada carga trae su propio
+  //      recorrido y el del viaje sale de la primera y la última.
   const origenPorLibreta = b.campos_ubicacion?.origen != null;
-  if (!b.origin && !origenPorLibreta) return null;
+  const origenPorCargas = !!b.multi_renglon && !!b.renglon_pide_ubicacion;
+  if (!b.origin && !origenPorLibreta && !origenPorCargas) return null;
   const dest_options = Array.isArray(b.dest_options)
     ? b.dest_options
         .map((o: any) => ({ destino: String(o?.destino ?? "").trim(), destinatario: String(o?.destinatario ?? "").trim() }))

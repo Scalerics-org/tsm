@@ -152,3 +152,62 @@ describe("el consumo mensual de la oficina", () => {
     expect(meses.every((m) => m.km >= 0)).toBe(true);
   });
 });
+
+/**
+ * "No me está tirando el acumulado." — el cliente, cargando sus surtidas reales.
+ *
+ * Números exactos de producción, GTP 4325: en agosto conviven seis surtidas de prueba que van
+ * de 393.051 a 397.000 km con las ocho REALES que él cargó después, de 140.076 a 147.200. El
+ * odómetro salta 250.000 km para atrás en el medio del mes.
+ *
+ * El mes se medía del primero al último y daba -245.851 km. Con kilómetros negativos no hay
+ * rendimiento que calcular, así que el acumulado le salía vacío — y en la pantalla de oficina
+ * el camión mostraba "-250.214 km".
+ *
+ * Ya estaba cubierto el salto ENTRE meses. Éste es adentro del mismo mes.
+ */
+describe("cuando el odómetro salta para atrás en el medio del mes", () => {
+  const reales = [
+    log("2026-08-27 20:21:15", 140_076, 359.95, true),
+    log("2026-08-27 20:23:38", 141_066, 350.8, true),
+    log("2026-08-27 20:25:19", 141_741, 253.57, true),
+    log("2026-08-27 20:30:06", 142_837, 409.35, true),
+    log("2026-08-27 20:33:49", 143_504, 221.15, true),
+    log("2026-08-27 20:34:53", 144_244, 278.3, true),
+    log("2026-08-27 20:35:53", 145_645, 532.65, true),
+    log("2026-08-27 20:37:09", 147_200, 530.72, true),
+  ];
+  const conDemo = [
+    log("2026-08-01 08:00:00", 393_051, 400, true),
+    log("2026-08-17 18:15:19", 394_251, 400, true),
+    log("2026-08-17 18:16:36", 394_251, 200, false),
+    log("2026-08-18 18:55:47", 395_020, 252, true),
+    log("2026-08-18 21:51:39", 396_000, 350, true),
+    log("2026-08-18 22:23:38", 397_000, 350, true),
+    ...reales,
+  ];
+
+  it("el mes nunca da kilómetros negativos", () => {
+    const mes = monthlyConsumption(conDemo).find((m) => m.month === "2026-08");
+    expect(mes!.km).toBeGreaterThan(0);
+  });
+
+  it("cuenta desde el salto, que es la única cadena que cierra", () => {
+    const mes = monthlyConsumption(conDemo).find((m) => m.month === "2026-08");
+    expect(mes!.km).toBe(7_124); // 147.200 - 140.076
+    expect(mes!.kml).toBeCloseTo(2.76, 2);
+  });
+
+  it("da lo mismo que si las de prueba no estuvieran", () => {
+    const conDemoMes = monthlyConsumption(conDemo).find((m) => m.month === "2026-08");
+    const limpioMes = monthlyConsumption(reales).find((m) => m.month === "2026-08");
+    expect(conDemoMes!.km).toBe(limpioMes!.km);
+    expect(conDemoMes!.liters).toBe(limpioMes!.liters);
+  });
+
+  it("al chofer parado en el surtidor le sale un acumulado, no un guión", () => {
+    const r = fuelFeedback(conDemo, conDemo[conDemo.length - 1]);
+    expect(r.month_kml).not.toBeNull();
+    expect(r.month_km).toBeGreaterThan(0);
+  });
+});

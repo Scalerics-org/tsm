@@ -89,6 +89,15 @@ export function StartTripPage() {
     return libreta[key]?.nombre ?? "";
   };
 
+  /**
+   * El recorrido lo arman las cargas: cada una trae su propio departamento de salida y de
+   * destino, así que no se le pregunta al chofer antes de arrancar. Preguntarlo era pedirle
+   * dos veces el mismo dato —con tres cargas eran catorce pasos y dos repetidos— y encima
+   * ambiguo: si carga en Artigas y en Salto y descarga todo en Montevideo, no hay un solo
+   * "origen del viaje". El backend lo arma con la primera y la última carga.
+   */
+  const recorridoPorCarga = !!tpl.multi_renglon && !!tpl.renglon_pide_ubicacion;
+
   // El destino sale de la libreta solo si la plantilla lo configuró; si no, del par clásico.
   const usaLibretaDestino = !!(cu.destino || cu.destinatario);
   const opt = optIdx !== "" ? tpl.dest_options[Number(optIdx)] : null;
@@ -116,7 +125,9 @@ export function StartTripPage() {
     if (cu.remitente && cu.remitente.modo !== CAMPO_MODO.FIJO && cu.remitente.requerido !== false && !remitenteFinal) {
       return setError(`Falta: ${cu.remitente.label ?? "el lugar de carga"}.`);
     }
-    if (usaLibretaDestino) {
+    if (recorridoPorCarga) {
+      // Nada que validar: el recorrido todavía no existe y se va a armar con las cargas.
+    } else if (usaLibretaDestino) {
       if (!destinoFinal) return setError("Elegí el destino.");
       if (cu.destinatario && cu.destinatario.requerido !== false && !destinatarioFinal) {
         return setError("Elegí el destinatario.");

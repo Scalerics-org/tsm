@@ -213,6 +213,8 @@ function TemplateForm({
     foto_carga_requerida: initial?.foto_carga_requerida ?? true,
     pide_kilometros: initial?.pide_kilometros ?? false,
     viaje_vacio: initial?.viaje_vacio ?? false,
+    multi_renglon: initial?.multi_renglon ?? false,
+    renglon_pide_ubicacion: initial?.renglon_pide_ubicacion ?? false,
     renglon_pide_departamento: initial?.renglon_pide_departamento ?? false,
     active: initial?.active ?? true,
   });
@@ -250,11 +252,10 @@ function TemplateForm({
       viaje_vacio: f.viaje_vacio,
       renglon_pide_departamento: f.renglon_pide_departamento,
       campos_ubicacion: armarCampos(initial?.campos_ubicacion ?? null, origen, destino),
-      // Estos no tienen control en pantalla, pero HAY QUE MANDARLOS: el backend lee lo que
-      // llega y lo que falta lo apaga. Sin esta línea, guardar el combinado desde la oficina
-      // lo convertía en un viaje común, y la plantilla del Azul pasaba a verla toda la flota.
-      multi_renglon: initial?.multi_renglon ?? false,
-      renglon_pide_ubicacion: initial?.renglon_pide_ubicacion ?? false,
+      multi_renglon: f.multi_renglon,
+      // Sin varias cargas, la ubicación por carga no significa nada: se apaga sola para que
+      // no queden plantillas con una combinación imposible.
+      renglon_pide_ubicacion: f.multi_renglon && f.renglon_pide_ubicacion,
       renglones_fijos: initial?.renglones_fijos ?? null,
       carga_photo_label: initial?.carga_photo_label ?? null,
     };
@@ -345,7 +346,24 @@ function TemplateForm({
           />
           {/* Sólo tiene sentido donde el viaje lleva varias cargas: si el viaje es de una sola,
               el departamento ya es el del viaje y preguntarlo es una pregunta de más. */}
-          {(initial?.multi_renglon ?? false) && (
+          {/* Las dos casillas que definen un combinado. Faltaban, y por eso el cliente creó
+              una plantilla de combinado desde esta pantalla y le quedó como viaje simple:
+              armó lo que podía y no tenía con qué terminarla. */}
+          <Casilla
+            titulo="El viaje lleva varias cargas"
+            ayuda="Para los combinados: el chofer va sumando cada carga durante el viaje, y cada una se factura por separado."
+            checked={f.multi_renglon}
+            onChange={(v) => setF({ ...f, multi_renglon: v })}
+          />
+          {f.multi_renglon && (
+            <Casilla
+              titulo="Cada carga elige su propio origen y destino"
+              ayuda="El chofer indica en cada carga de qué departamento salió y a cuál va, y escribe el lugar. El recorrido del viaje se arma solo con la primera y la última. Dejalo apagado si el viaje siempre hace el mismo recorrido."
+              checked={f.renglon_pide_ubicacion}
+              onChange={(v) => setF({ ...f, renglon_pide_ubicacion: v })}
+            />
+          )}
+          {f.multi_renglon && !f.renglon_pide_ubicacion && (
             <Casilla
               titulo="Preguntar el departamento en cada carga"
               ayuda="Para los viajes con origen fijo donde las cargas igual salen de varios lados, como el combinado. La lista de lugares no cambia."

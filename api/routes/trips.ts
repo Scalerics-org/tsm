@@ -15,10 +15,12 @@ import {
   avisoViajeCerrado,
   fotosFaltantes,
   parseRenglon,
+  recorridoSegunCargas,
   requiereFotoCarga,
   sinCobro,
   sirveComoLugarDeCarga,
   type Trip,
+  type TripSegment,
   type TripSegmentInput,
   type TripTemplate,
 } from "../../shared/domain";
@@ -115,6 +117,25 @@ async function primerAgrupador(db: D1Database, segs: TripSegmentInput[]): Promis
   return null;
 }
 
+/**
+ * Rearma el recorrido del viaje con sus cargas, si es de los que lo derivan.
+ *
+ * Se llama después de CADA escritura de renglones —agregar, corregir, borrar, y la edición
+ * de oficina— porque el recorrido cambia con ellas: borrar la última carga mueve el destino
+ * del viaje. Sólo aplica a las plantillas donde cada carga trae su propia ubicación; en las
+ * de recorrido fijo (Mdeo → Bella Unión) el viaje ya sabe por dónde va y no se toca.
+ */
+async function recalcularRecorrido(
+  db: D1Database,
+  tripId: number,
+  tpl: Pick<TripTemplate, "renglon_pide_ubicacion"> | null,
+  segments: Pick<TripSegment, "origen" | "destino">[],
+): Promise<void> {
+  if (!tpl?.renglon_pide_ubicacion) return;
+  const r = recorridoSegunCargas(segments);
+  if (r) await tripsRepo.setRecorrido(db, tripId, r.origin, r.destination);
+}
+
 const mensajeAgrupador = (nombre: string) =>
   `"${nombre}" no sirve como lugar de carga: elegí dónde cargaste.`;
 
@@ -197,7 +218,7 @@ trips.post("/", async (c) => {
   }
 
   const b = await c.req.json<any>().catch(() => null);
-  if (!b || !b.template_id || !b.destino) return fail(c, "Elegí el viaje y el destino", 400);
+  if (!b || !b.template_id) return fail(c, "Elegí el viaje", 400);
 
   // La oficina puede cargar un viaje a mano, para corregir uno que el chofer no registró.
   // Como no lo está manejando ella, tiene que decir de quién es; el chofer siempre es él.
@@ -247,6 +268,11 @@ trips.post("/", async (c) => {
   const tpl = await templatesRepo.getTemplate(c.env.DB, Number(b.template_id));
   if (!tpl || !tpl.active) return fail(c, "Plantilla de viaje no disponible", 404);
 
+  // El destino se sigue exigiendo, SALVO en los viajes donde cada carga trae su propia
+  // ubicación: ahí el recorrido lo arman las cargas y preguntarlo antes de arrancar era
+  // pedirle al chofer dos veces el mismo dato.
+  if (!tpl.renglon_pide_ubicacion && !b.destino) return fail(c, "Elegí el destino", 400);
+
   const values: Record<string, string> = b.field_values ?? {};
   const missing = missingField(tpl, "carga", values);
   if (missing) return fail(c, `Falta: ${missing}`, 400);
@@ -287,7 +313,7 @@ trips.post("/", async (c) => {
     // El remitente puede venir de la libreta (plantillas con campos_ubicacion);
     // si no, se mantiene el fijo de la plantilla.
     remite: b.remitente ? String(b.remitente).trim() : tpl.remite,
-    destination: String(b.destino),
+    destination: b.destino ? String(b.destino) : "",
     destinatario: b.destinatario ? String(b.destinatario) : null,
     driver_id: driverId,
     truck_id: truckId,
@@ -342,6 +368,7 @@ trips.post("/:id/segments", async (c) => {
 
   const todos = [...s.trip.segments, ...(await conCobro(c.env.DB, nuevos))];
   await tripsRepo.updateSegments(c.env.DB, s.trip.id, todos);
+  await recalcularRecorrido(c.env.DB, s.trip.id, tplSeg, todos);
   return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
 });
 
@@ -407,6 +434,13 @@ trips.delete("/:id/segments/:sid", async (c) => {
 
   const quedan = s.trip.segments.filter((x) => x.sid !== sid);
   await tripsRepo.updateSegments(c.env.DB, s.trip.id, quedan);
+  // Borrar la primera o la última carga mueve el recorrido del viaje.
+  await recalcularRecorrido(
+    c.env.DB,
+    s.trip.id,
+    s.trip.template_id ? await templatesRepo.getTemplate(c.env.DB, s.trip.template_id) : null,
+    quedan,
+  );
   return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
 });
 
@@ -453,6 +487,12 @@ trips.put("/:id/segments", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
     userId: c.get("user").id,
     when: nowIso(),
   });
+  await recalcularRecorrido(
+    c.env.DB,
+    trip.id,
+    trip.template_id ? await templatesRepo.getTemplate(c.env.DB, trip.template_id) : null,
+    finales,
+  );
   return ok(c, await tripsRepo.getTrip(c.env.DB, trip.id));
 });
 

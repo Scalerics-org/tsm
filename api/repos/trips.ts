@@ -326,6 +326,19 @@ export async function correrFecha(
     .run();
 }
 
+/** El recorrido del viaje, cuando lo arman las cargas y no la plantilla. */
+export async function setRecorrido(
+  db: D1Database,
+  id: number,
+  origin: string,
+  destination: string,
+): Promise<void> {
+  await db
+    .prepare("UPDATE trips SET origin=?, destination=? WHERE id=?")
+    .bind(origin, destination, id)
+    .run();
+}
+
 export async function setKilometros(db: D1Database, id: number, km: number | null): Promise<void> {
   await db.prepare("UPDATE trips SET kilometros=? WHERE id=?").bind(km, id).run();
 }

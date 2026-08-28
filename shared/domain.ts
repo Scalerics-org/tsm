@@ -826,14 +826,41 @@ interface FLog {
  * - Siempre devuelve el acumulado del mes desde el primer llenado del mes.
  * `logs` debe incluir la surtida recién registrada (`current`).
  */
+/**
+ * La cadena continua más reciente: se corta donde el odómetro cambió de escala.
+ *
+ * "No me está tirando el acumulado." Pasó de verdad: en agosto el GTP 4325 tenía seis
+ * surtidas de prueba de 393.051 a 397.000 km conviviendo con las ocho reales que el cliente
+ * cargó después, de 140.076 a 147.200. Medido de la primera a la última, el mes daba -245.851
+ * km — y sin kilómetros no hay rendimiento, así que el acumulado salía vacío.
+ *
+ * LA PARTE FINA es separar un cambio de escala de una lectura que simplemente bajó. Un
+ * "chorro" guarda el km de arranque tal cual, así que después de una corrección de oficina
+ * puede quedar por debajo del llenado anterior — y ésos SÍ tienen que contar, que fue otro
+ * arreglo de este mismo archivo.
+ *
+ * La diferencia es si la cadena se recupera: si más adelante el odómetro vuelve a pasar el
+ * valor de antes del salto, fue un bache y la cadena sigue siendo la misma. Si nunca lo
+ * alcanza, el número cambió de escala y los dos lados no se pueden restar entre sí.
+ */
+function cadenaContinua(enOrden: FLog[]): FLog[] {
+  let desde = 0;
+  for (let i = 1; i < enOrden.length; i++) {
+    if (enOrden[i].odometer_km >= enOrden[i - 1].odometer_km) continue;
+    const maximoPosterior = Math.max(...enOrden.slice(i).map((l) => l.odometer_km));
+    if (maximoPosterior < enOrden[i - 1].odometer_km) desde = i;
+  }
+  return desde === 0 ? enOrden : enOrden.slice(desde);
+}
+
 export function fuelFeedback(logs: FLog[], current: FLog): FuelFeedback {
   // CRONOLÓGICO, no por odómetro. El odómetro dejó de ser monótono desde que la oficina puede
   // corregirlo para abajo: un chorro guarda el km de arranque tal cual, así que puede quedar
   // POR DEBAJO de un llenado anterior. Ordenando por km, esos litros quedaban fuera del tramo
   // y el camión parecía rendir mejor de lo que rinde. El tiempo sí es monótono.
   // (El acumulado del mes, más abajo, ya se recorría así por el mismo motivo.)
-  const enOrden = [...logs].sort(
-    (a, b) => a.logged_at.localeCompare(b.logged_at) || a.odometer_km - b.odometer_km,
+  const enOrden = cadenaContinua(
+    [...logs].sort((a, b) => a.logged_at.localeCompare(b.logged_at) || a.odometer_km - b.odometer_km),
   );
   const closed = current.is_full;
 
@@ -868,9 +895,11 @@ export function fuelFeedback(logs: FLog[], current: FLog): FuelFeedback {
   // Se recorre por fecha y no por odómetro: una surtida sin llenar no mueve el tacógrafo,
   // así que puede tener el mismo kilometraje que el llenado anterior.
   const month = current.logged_at.slice(0, 7);
-  const cronologico = logs
-    .filter((l) => l.logged_at.slice(0, 7) === month)
-    .sort((a, b) => a.logged_at.localeCompare(b.logged_at));
+  const cronologico = cadenaContinua(
+    logs
+      .filter((l) => l.logged_at.slice(0, 7) === month)
+      .sort((a, b) => a.logged_at.localeCompare(b.logged_at)),
+  );
   const primerLleno = cronologico.findIndex((l) => l.is_full);
   const ultimoLleno = cronologico.map((l) => l.is_full).lastIndexOf(true);
 
@@ -922,49 +951,35 @@ export function monthlyConsumption(logs: FLog[]): MonthlyConsumption[] {
   );
   if (enOrden.length === 0) return [];
 
-  // Ancla de cada mes = PRIMER llenado completo del mes, en el tiempo.
-  const anchorByMonth = new Map<string, number>();
-  enOrden.forEach((l, i) => {
-    if (!l.is_full) return;
-    const m = l.logged_at.slice(0, 7);
-    if (!anchorByMonth.has(m)) anchorByMonth.set(m, i);
-  });
-  const anclas = [...anchorByMonth.values()].sort((a, b) => a - b);
-
+  const meses = [...new Set(enOrden.map((l) => l.logged_at.slice(0, 7)))].sort();
   const out: MonthlyConsumption[] = [];
-  for (let i = 0; i < anclas.length; i++) {
-    const desde = anclas[i];
-    const siguiente = anclas[i + 1] ?? null;
-    // El mes cierra con el primer llenado del mes que viene; el mes en curso, con la última
-    // surtida que haya.
-    let hasta = siguiente ?? enOrden.length - 1;
-    let cerrado = siguiente != null;
 
-    // SALVO que el odómetro haya dado un salto para atrás en el medio: eso pasa cuando la
-    // oficina lo corrige entre un mes y el otro, y ahí los dos extremos no están en la misma
-    // escala. Restarlos daba un mes en NEGATIVO. Se cierra el mes con su propia última
-    // surtida y se deja marcado como abierto: es lo que de verdad sabemos.
-    if (enOrden[hasta].odometer_km < enOrden[desde].odometer_km) {
-      const mes = enOrden[desde].logged_at.slice(0, 7);
-      let ultimo = desde;
-      for (let j = desde; j < enOrden.length; j++) {
-        if (enOrden[j].logged_at.slice(0, 7) === mes) ultimo = j;
-      }
-      hasta = ultimo;
-      cerrado = false;
-    }
+  for (const mes of meses) {
+    // Cada mes se mira sobre SU cadena, recortada donde el odómetro cambió de escala. Es lo
+    // que pasó en agosto del GTP 4325: seis surtidas de prueba en 393.000 km conviviendo con
+    // las reales en 140.000. Medido de punta a punta el mes daba -245.851 km y el acumulado
+    // salía vacío.
+    const delMes = cadenaContinua(enOrden.filter((l) => l.logged_at.slice(0, 7) === mes));
+    const abre = delMes.findIndex((l) => l.is_full);
+    // Un mes que no arranca con un llenado no tiene línea de base contra la cual medir.
+    if (abre < 0) continue;
 
-    const km = enOrden[hasta].odometer_km - enOrden[desde].odometer_km;
+    const ultimo = delMes[delMes.length - 1];
+
+    // El mes cierra con el primer llenado del mes siguiente — esa surtida cierra uno y abre
+    // el otro. Pero sólo si está en la misma escala: si el odómetro se corrigió entre medio,
+    // los dos extremos no se pueden restar y el mes se cierra con su propia última surtida,
+    // marcado como abierto. Es lo que de verdad sabemos.
+    const siguiente = enOrden.find((l) => l.is_full && l.logged_at.slice(0, 7) > mes) ?? null;
+    const cierra = siguiente && siguiente.odometer_km >= ultimo.odometer_km ? siguiente : null;
+
+    const km = (cierra ?? ultimo).odometer_km - delMes[abre].odometer_km;
     // El llenado de apertura es la línea de base y no cuenta: los litros arrancan en el
     // siguiente. Mismo criterio que el tramo.
-    const liters = enOrden.slice(desde + 1, hasta + 1).reduce((s, l) => s + l.liters, 0);
-    out.push({
-      month: enOrden[desde].logged_at.slice(0, 7),
-      km,
-      liters,
-      kml: kmPorLitro(km, liters),
-      closed: cerrado,
-    });
+    const liters =
+      delMes.slice(abre + 1).reduce((t, l) => t + l.liters, 0) + (cierra ? cierra.liters : 0);
+
+    out.push({ month: mes, km, liters, kml: kmPorLitro(km, liters), closed: cierra != null });
   }
   return out.reverse(); // más reciente primero
 }
@@ -1328,4 +1343,32 @@ export function esFechaValida(v: unknown): v is string {
   if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
   const t = Date.parse(`${v}T00:00:00Z`);
   return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === v;
+}
+
+/**
+ * El recorrido del viaje, armado con sus cargas.
+ *
+ * "Sacale esos pasos." En el combinado genérico cada carga es un tramo propio —el chofer
+ * elige el departamento donde cargó y el de destino, carga por carga—, así que preguntarle
+ * además de dónde sale y adónde va el viaje entero era pedirle dos veces lo mismo. Con tres
+ * cargas eran catorce pasos y dos repetidos.
+ *
+ * Y era ambiguo: si carga en Artigas y en Salto y descarga todo en Montevideo, ¿cuál es "el
+ * origen del viaje"? El dato verdadero está en las cargas. El viaje sale de donde salió la
+ * primera y termina donde terminó la última.
+ *
+ * Devuelve `null` si ninguna carga dice dónde estuvo: no se le inventa un recorrido a un
+ * viaje que todavía no tiene con qué armarlo. Las cargas sin ubicación propia —los renglones
+ * que deja puestos la oficina— se saltean, no cuentan como extremo.
+ */
+export function recorridoSegunCargas(
+  segments: Pick<TripSegment, "origen" | "destino">[],
+): { origin: string; destination: string } | null {
+  const conOrigen = segments.filter((s) => s.origen?.trim());
+  const conDestino = segments.filter((s) => s.destino?.trim());
+  if (!conOrigen.length && !conDestino.length) return null;
+  return {
+    origin: conOrigen[0]?.origen?.trim() ?? "",
+    destination: conDestino[conDestino.length - 1]?.destino?.trim() ?? "",
+  };
 }
