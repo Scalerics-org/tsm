@@ -22,7 +22,7 @@ export const CSV_HEADER = [
   "N° remito",
   "Se cobra a",
   "Tipo",
-  "Toneladas",
+  "Kilos",
   "Km",
   "Campos",
   "Chofer",
@@ -42,7 +42,7 @@ export type Celda = string | number | null;
 export function filasDeViaje(t: Trip, campos: string): Celda[][] {
   const comunes: Celda[] = [t.id, t.started_at.slice(0, 10), t.provider_name];
   const cola: Celda[] = [
-    t.weight_tons ?? "",
+    t.kilos_carga ?? "",
     t.kilometros ?? "",
     campos,
     t.driver_name ?? "",

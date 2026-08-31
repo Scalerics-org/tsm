@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { fmtConsumo, type FuelLog, type Trip, type Truck } from "@shared/domain";
+import { fmtConsumo, fmtKilos, type FuelLog, type Trip, type Truck } from "@shared/domain";
 import { api } from "../../lib/api";
 import { Card, Corners, Spinner, Stat, StatusBadge } from "../../components/ui";
 import { SurtidaRow } from "./SurtidaRow";
@@ -54,7 +54,7 @@ export function TruckDetailPage() {
         <Stat label="Odómetro" value={`${truck.odometer_km.toLocaleString("es-UY")} km`} />
         <Stat label="Rendimiento" value={`${fmtConsumo(truck.avg_km_litro)} km/L`} hint="esperado" />
         <Stat label="Viajes" value={d.trips.length} accent="blue" />
-        <Stat label="Toneladas" value={`${d.tons} t`} accent="green" />
+        <Stat label="Kilos" value={fmtKilos(d.tons)} accent="green" />
       </div>
 
       {d.monthly.length > 0 && (

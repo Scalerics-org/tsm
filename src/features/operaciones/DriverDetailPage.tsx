@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { Driver, Trip } from "@shared/domain";
+import { fmtKilos } from "@shared/domain";
 import { api } from "../../lib/api";
 import { Card, Corners, Spinner, Stat, StatusBadge } from "../../components/ui";
 import { fmtDate, fmtDateTime } from "../../lib/format";
@@ -38,7 +39,7 @@ export function DriverDetailPage() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Viajes" value={stats.total} accent="blue" />
         <Stat label="Completados" value={stats.completed} accent="green" />
-        <Stat label="Toneladas" value={`${stats.tons} t`} />
+        <Stat label="Kilos" value={fmtKilos(stats.tons)} />
         <Stat
           label="Sin foto"
           value={stats.withoutPhoto}

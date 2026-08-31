@@ -172,7 +172,15 @@ export interface Trip {
   driver_id: number;
   truck_id: number;
   cargo_type: string;
-  weight_tons: number | null; // del campo marcado como peso (para reportes)
+  /**
+   * El peso de la carga EN KILOS, del campo marcado como peso en la plantilla.
+   *
+   * Se llama como la columna de la base (`kilos`) y no "toneladas", que es lo que decía antes:
+   * el remito viene en kilos —el de Casarone marca Neto 29.710— y en producción convivían
+   * 29200 y 30000 con 29.539 y 29.7 en el mismo lugar. Mil de diferencia, y el total por
+   * cliente no servía para nada.
+   */
+  kilos_carga: number | null;
   field_values: Record<string, string>; // valores de los campos configurables
   status: TripStatus;
   started_at: string;
@@ -1371,4 +1379,38 @@ export function recorridoSegunCargas(
     origin: conOrigen[0]?.origen?.trim() ?? "",
     destination: conDestino[conDestino.length - 1]?.destino?.trim() ?? "",
   };
+}
+
+// ── El peso de la carga ──
+
+/**
+ * Por debajo de esto, un peso de carga casi seguro son toneladas tipeadas como kilos.
+ *
+ * "En el tema kilos podemos dejar una unidad sola de medida?" En producción convivían 29200
+ * y 30000 con 29.539, 29.7 y 29 en la misma columna: mil de diferencia entre unos y otros, y
+ * el total por cliente no significaba nada.
+ *
+ * El umbral es de criterio, por eso está acá arriba: un camión cargado anda por las 30
+ * toneladas y el viaje más chico que registran no baja de una. Si un día llevan bultos
+ * sueltos, se baja.
+ */
+export const PESO_MINIMO_ESPERADO = 1_000;
+
+/**
+ * Si el peso escrito parece toneladas en un campo que pide kilos.
+ *
+ * AVISA, NO BLOQUEA. La app no adivina ni convierte sola: si alguien escribe 29 no hay forma
+ * de saber si son 29 kilos o 29 toneladas, y ése es el número con el que se factura. Un
+ * conversor que acierta el 95% de las veces sobre eso es una factura mal hecha que nadie ve.
+ * Se le pregunta y decide la persona, que sí tiene el remito adelante.
+ */
+export function pesoSospechoso(kilos: number | null | undefined): boolean {
+  if (kilos == null || !Number.isFinite(kilos) || kilos <= 0) return false;
+  return kilos < PESO_MINIMO_ESPERADO;
+}
+
+/** El peso como lo lee el remito: kilos enteros con separador de miles. */
+export function fmtKilos(kilos: number | null | undefined): string {
+  if (kilos == null || !Number.isFinite(kilos)) return "—";
+  return `${Math.round(kilos).toLocaleString("es-UY")} kg`;
 }

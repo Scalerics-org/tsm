@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AvisosCard } from "./AvisosCard";
 import { Link } from "react-router-dom";
-import { fmtConsumo } from "@shared/domain";
+import { fmtConsumo, fmtKilos } from "@shared/domain";
 import { api, downloadFile } from "../../lib/api";
 import { Button, Card, Corners, Spinner, Stat } from "../../components/ui";
 
@@ -98,7 +98,7 @@ export function OpsSummary() {
                   <tr className="border-b border-ink/15">
                     <th className="px-4 py-3">Camión</th>
                     <th className="px-4 py-3 text-right">Viajes</th>
-                    <th className="px-4 py-3 text-right">Ton</th>
+                    <th className="px-4 py-3 text-right">Kilos</th>
                     <th className="px-4 py-3 text-right">Km</th>
                     <th className="px-4 py-3 text-right">km/L</th>
                   </tr>
@@ -114,7 +114,7 @@ export function OpsSummary() {
                       <td className="px-4 py-3 text-right text-ink/70">
                         {t.completed}/{t.trips}
                       </td>
-                      <td className="px-4 py-3 text-right text-ink/70">{t.tons}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-ink/70">{fmtKilos(t.tons)}</td>
                       <td className="px-4 py-3 text-right text-ink/70">{t.km.toLocaleString("es-UY")}</td>
                       <td className="px-4 py-3 text-right font-semibold text-ink">
                         {fmtConsumo(t.consumption_kml)}
@@ -134,7 +134,7 @@ export function OpsSummary() {
                   <tr className="border-b border-ink/15">
                     <th className="px-4 py-3">Cliente</th>
                     <th className="px-4 py-3 text-right">Viajes</th>
-                    <th className="px-4 py-3 text-right">Ton</th>
+                    <th className="px-4 py-3 text-right">Kilos</th>
                     <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
@@ -145,7 +145,7 @@ export function OpsSummary() {
                       <td className="px-4 py-3 text-right text-ink/70">
                         {p.completed}/{p.trips}
                       </td>
-                      <td className="px-4 py-3 text-right text-ink/70">{p.tons}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-ink/70">{fmtKilos(p.tons)}</td>
                       <td className="px-4 py-3 text-right">
                         <button
                           className="text-brand-700 hover:underline"

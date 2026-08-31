@@ -9,6 +9,7 @@ import {
 import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText, Spinner, StatusBadge } from "../../components/ui";
 import { fmtDateTime } from "../../lib/format";
+import { fmtKilos } from "@shared/domain";
 import { CargasDelViaje } from "./CargasDelViaje";
 
 interface Detail {
@@ -134,7 +135,7 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
         <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
           {trip.remite && <Info label="Remite" value={trip.remite} />}
           <Info label="Carga" value={trip.cargo_type || "—"} />
-          <Info label="Toneladas" value={trip.weight_tons != null ? `${trip.weight_tons} t` : "—"} />
+          <Info label="Kilos" value={fmtKilos(trip.kilos_carga)} />
           {fields
             .filter((f) => !f.is_weight)
             .map((f) => (

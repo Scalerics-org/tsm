@@ -47,7 +47,7 @@ reports.get("/summary", async (c) => {
       plate: t.plate,
       trips: tTrips.length,
       completed: tTrips.filter((x) => x.status === TRIP_STATUS.COMPLETADO).length,
-      tons: roundTo(tTrips.reduce((s, x) => s + (x.weight_tons ?? 0), 0)),
+      tons: roundTo(tTrips.reduce((s, x) => s + (x.kilos_carga ?? 0), 0)),
       km: Math.round(fs.km),
       liters: Math.round(fs.liters),
       consumption_kml: fs.consumption_kml != null ? roundTo(fs.consumption_kml, 2) : null,
@@ -60,7 +60,7 @@ reports.get("/summary", async (c) => {
     const p = provMap.get(t.provider_name) ?? { trips: 0, completed: 0, tons: 0 };
     p.trips += 1;
     if (t.status === TRIP_STATUS.COMPLETADO) p.completed += 1;
-    p.tons += t.weight_tons ?? 0;
+    p.tons += t.kilos_carga ?? 0;
     provMap.set(t.provider_name, p);
   }
   const byProvider = [...provMap.entries()]
@@ -213,7 +213,7 @@ reports.get("/truck/:id", async (c) => {
     trips: trips.slice(0, 20),
     monthly,
     fuel: fuel.slice(0, 20),
-    tons: roundTo(trips.reduce((s, t) => s + (t.weight_tons ?? 0), 0)),
+    tons: roundTo(trips.reduce((s, t) => s + (t.kilos_carga ?? 0), 0)),
   });
 });
 
@@ -234,7 +234,7 @@ reports.get("/driver/:id", async (c) => {
     stats: {
       total: trips.length,
       completed: trips.filter((t) => t.status === TRIP_STATUS.COMPLETADO).length,
-      tons: roundTo(trips.reduce((s, t) => s + (t.weight_tons ?? 0), 0)),
+      tons: roundTo(trips.reduce((s, t) => s + (t.kilos_carga ?? 0), 0)),
       withPhoto,
       withoutPhoto,
     },

@@ -318,7 +318,7 @@ trips.post("/", async (c) => {
     driver_id: driverId,
     truck_id: truckId,
     cargo_type: tpl.cargo_type,
-    weight_tons: weight != null && !isNaN(weight) ? weight : null,
+    kilos_carga: weight != null && !isNaN(weight) ? weight : null,
     field_values: values,
     // Los renglones que la oficina dejó puestos (la ida y la vuelta de Manassi) se crean
     // junto con el viaje: el chofer no los arma, sólo les completa la cantidad y la foto.

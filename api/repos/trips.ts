@@ -95,7 +95,7 @@ function toTrip(r: TripRow): Trip {
     driver_id: r.driver_id,
     truck_id: r.truck_id,
     cargo_type: r.cargo_type,
-    weight_tons: r.kilos,
+    kilos_carga: r.kilos,
     field_values,
     status: r.status,
     started_at: r.started_at,
@@ -192,7 +192,7 @@ export interface StartTripInput {
   driver_id: number;
   truck_id: number;
   cargo_type: string;
-  weight_tons: number | null;
+  kilos_carga: number | null;
   field_values: Record<string, string>;
   segments?: TripSegment[];
   kilometros?: number | null;
@@ -214,7 +214,7 @@ export async function startTrip(
     )
     .bind(
       t.template_id, t.provider_name, t.origin, t.remite, t.destination, t.destinatario, t.driver_id, t.truck_id,
-      t.cargo_type, t.weight_tons, JSON.stringify(t.field_values ?? {}),
+      t.cargo_type, t.kilos_carga, JSON.stringify(t.field_values ?? {}),
       t.segments?.length ? JSON.stringify(t.segments) : null, t.kilometros ?? null,
       cargadoPorOficina ? "COMPLETADO" : "EN_CURSO",
       cargadoPorOficina?.startedAt ?? null,

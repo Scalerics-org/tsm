@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { TRIP_STATUS, type Trip } from "@shared/domain";
+import { TRIP_STATUS, fmtKilos, type Trip } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { Spinner, StatusBadge } from "../../components/ui";
 import { fmtDateTime } from "../../lib/format";
@@ -90,7 +90,7 @@ export function FilaViaje({ t, onCambio }: { t: Trip; onCambio: () => void }) {
       <td className="px-4 py-3 text-ink/70">{t.driver_name}</td>
       <td className="px-4 py-3 text-ink/70">{t.truck_plate}</td>
       <td className="px-4 py-3 text-right text-ink/70">
-        {t.weight_tons != null ? `${t.weight_tons} t` : "—"}
+        {fmtKilos(t.kilos_carga)}
       </td>
       <td className="px-4 py-3 text-ink/60">
         {editandoFecha ? (
