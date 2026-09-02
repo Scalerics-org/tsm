@@ -3,6 +3,7 @@ import { litrosTotales, type FuelLog } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { Button, ErrorText, Spinner } from "../../components/ui";
 import { fmtDateTime } from "../../lib/format";
+import { VisorFotos, type FotoDelVisor } from "../../components/VisorFotos";
 
 /**
  * Una surtida en la ficha del camión, con corregir y borrar.
@@ -25,6 +26,16 @@ export function SurtidaRow({ f, onChanged }: { f: FuelLog; onChanged: () => void
   const [fecha, setFecha] = useState(f.logged_at.slice(0, 10));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ampliada, setAmpliada] = useState<number | null>(null);
+
+  const fotos: FotoDelVisor[] = [
+    f.r2_key && { r2_key: f.r2_key, titulo: "Tacógrafo", detalle: fmtDateTime(f.logged_at) },
+    f.r2_key_boleta && {
+      r2_key: f.r2_key_boleta,
+      titulo: "Boleta de gasoil",
+      detalle: fmtDateTime(f.logged_at),
+    },
+  ].filter(Boolean) as FotoDelVisor[];
 
   // Mismo criterio que en el celular: el total se suma, no se escribe. Si la surtida es
   // vieja y no tiene desglose, se deja editar el total sin repartirlo por tanque.
@@ -88,7 +99,23 @@ export function SurtidaRow({ f, onChanged }: { f: FuelLog; onChanged: () => void
             </div>
           )}
         </td>
-        <td className="px-4 py-2 text-ink/70">{f.is_full ? "Sí" : "Chorro"}</td>
+        <td className="px-4 py-2 text-ink/70">
+          {f.is_full ? "Sí" : "Chorro"}
+          {/* Las dos fotos respaldan números distintos: el tacógrafo los km y la boleta los
+              litros. Estaban guardadas y no se podían mirar desde ningún lado. */}
+          {fotos.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setAmpliada(0)}
+              className="mt-1 block text-xs text-brand-700 hover:underline"
+            >
+              📷 ver {fotos.length === 1 ? "la foto" : `las ${fotos.length} fotos`}
+            </button>
+          )}
+          {ampliada != null && (
+            <VisorFotos fotos={fotos} indice={ampliada} onCerrar={() => setAmpliada(null)} />
+          )}
+        </td>
         <td className="px-4 py-2 text-right">
           <button
             type="button"

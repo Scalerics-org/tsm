@@ -1,46 +1,26 @@
-import { useEffect, useState } from "react";
-import { fetchPhotoUrl } from "../lib/api";
+import { useFotoUrl } from "./VisorFotos";
 
 /**
- * Muestra una foto protegida de R2. Descarga el blob con el token de auth y
- * genera un object URL. Si la foto no existe (p. ej. datos de ejemplo), muestra
+ * Muestra una foto protegida de R2. Si la foto no existe (p. ej. datos de ejemplo), muestra
  * un marcador de posición en lugar de romper la vista.
+ *
+ * Con `onAmpliar` se vuelve un botón: la miniatura va recortada y de un remito se ve un
+ * pedazo, así que en la oficina se toca para abrirla entera en el visor.
  */
 export function PhotoImage({
   r2Key,
   alt,
   className = "",
+  onAmpliar,
 }: {
   r2Key: string;
   alt: string;
   className?: string;
+  onAmpliar?: () => void;
 }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  const { url, falló } = useFotoUrl(r2Key);
 
-  useEffect(() => {
-    let active = true;
-    let objectUrl: string | null = null;
-    setFailed(false);
-    setUrl(null);
-    fetchPhotoUrl(r2Key)
-      .then((u) => {
-        if (!active) return;
-        if (!u) {
-          setFailed(true);
-          return;
-        }
-        objectUrl = u;
-        setUrl(u);
-      })
-      .catch(() => active && setFailed(true));
-    return () => {
-      active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [r2Key]);
-
-  if (failed) {
+  if (falló) {
     return (
       <div
         className={`flex flex-col items-center justify-center gap-1 border border-dashed border-ink/25 bg-surface text-ink/45 ${className}`}
@@ -53,5 +33,21 @@ export function PhotoImage({
   if (!url) {
     return <div className={`animate-pulse bg-surface ${className}`} />;
   }
-  return <img src={url} alt={alt} className={`object-cover ${className}`} />;
+
+  const img = <img src={url} alt={alt} className={`object-cover ${className}`} />;
+  if (!onAmpliar) return img;
+
+  return (
+    <button
+      type="button"
+      onClick={onAmpliar}
+      title="Tocá para ampliar"
+      className="group relative block w-full cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+    >
+      {img}
+      <span className="absolute inset-0 hidden place-items-center bg-navy/30 text-2xl text-white group-hover:grid">
+        ⤢
+      </span>
+    </button>
+  );
 }

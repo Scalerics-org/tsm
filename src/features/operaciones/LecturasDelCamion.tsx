@@ -3,6 +3,7 @@ import type { LecturaOdometro } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { Button, Card, Corners, ErrorText, Spinner } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
+import { VisorFotos } from "../../components/VisorFotos";
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -78,6 +79,7 @@ function FilaLectura({ l, onChanged }: { l: LecturaOdometro; onChanged: () => vo
   const [km, setKm] = useState(String(l.kilometraje));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [ampliada, setAmpliada] = useState(false);
 
   async function guardar() {
     const n = Number(km);
@@ -126,7 +128,32 @@ function FilaLectura({ l, onChanged }: { l: LecturaOdometro; onChanged: () => vo
       </td>
       <td className="px-4 py-2 text-ink/70">
         {l.driver_name ?? <span className="text-ink/40">la oficina</span>}
-        {!l.r2_key && <div className="text-[11px] text-ink/45">sin foto</div>}
+        {/* Es la evidencia contra la que se compara el kilometraje corregido. Existía en R2
+            desde el primer día y no había forma de mirarla. */}
+        {l.r2_key ? (
+          <button
+            type="button"
+            onClick={() => setAmpliada(true)}
+            className="mt-0.5 block text-xs text-brand-700 hover:underline"
+          >
+            📷 ver la foto
+          </button>
+        ) : (
+          <div className="text-[11px] text-ink/45">sin foto</div>
+        )}
+        {ampliada && l.r2_key && (
+          <VisorFotos
+            fotos={[
+              {
+                r2_key: l.r2_key,
+                titulo: `Tacógrafo · ${nombreDelMes(l.periodo)}`,
+                detalle: `Foto del ${fmtDate(l.tomada_at)} · ${Math.round(l.kilometraje).toLocaleString("es-UY")} km`,
+              },
+            ]}
+            indice={0}
+            onCerrar={() => setAmpliada(false)}
+          />
+        )}
       </td>
       <td className="px-4 py-2 text-right">
         {editando ? (

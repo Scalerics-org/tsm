@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   COBRO_TIPO,
   PHOTO_KIND_LABEL,
@@ -8,6 +9,7 @@ import {
 } from "@shared/domain";
 import { Card } from "../../components/ui";
 import { PhotoImage } from "../../components/PhotoImage";
+import { VisorFotos, type FotoDelVisor } from "../../components/VisorFotos";
 import { fmtDateTime } from "../../lib/format";
 
 interface Props {
@@ -21,6 +23,26 @@ interface Props {
  */
 export function CargasDelViaje({ segments, photos }: Props) {
   const { porCarga, delViaje } = fotosPorRenglon(photos);
+
+  /* Todas las fotos del viaje en una sola lista: con las flechas del visor la oficina las
+     recorre de corrido, en vez de cerrar y abrir una por una. El orden es el de la pantalla
+     —primero las de cada carga, después las del viaje— para que no se pierda. */
+  const todas: FotoDelVisor[] = [
+    ...segments.flatMap((s) =>
+      (porCarga.get(s.sid) ?? []).map((f) => ({
+        r2_key: f.r2_key,
+        titulo: `Carga en ${s.remitente}`,
+        detalle: fmtDateTime(f.taken_at),
+      })),
+    ),
+    ...delViaje.map((f) => ({
+      r2_key: f.r2_key,
+      titulo: PHOTO_KIND_LABEL[f.kind as PhotoKind],
+      detalle: fmtDateTime(f.taken_at),
+    })),
+  ];
+  const [ampliada, setAmpliada] = useState<number | null>(null);
+  const abrir = (r2Key: string) => setAmpliada(todas.findIndex((f) => f.r2_key === r2Key));
 
   return (
     <div className="space-y-4">
@@ -76,7 +98,7 @@ export function CargasDelViaje({ segments, photos }: Props) {
                   </div>
                 </div>
 
-                <FotosDeCarga fotos={porCarga.get(s.sid) ?? []} lugar={s.remitente} />
+                <FotosDeCarga fotos={porCarga.get(s.sid) ?? []} lugar={s.remitente} onAmpliar={abrir} />
               </Card>
             ))}
           </div>
@@ -95,6 +117,7 @@ export function CargasDelViaje({ segments, photos }: Props) {
                   r2Key={p.r2_key}
                   alt={PHOTO_KIND_LABEL[p.kind as PhotoKind]}
                   className="h-32 w-full"
+                  onAmpliar={() => abrir(p.r2_key)}
                 />
                 <div className="mt-1 text-xs text-ink/60">
                   {PHOTO_KIND_LABEL[p.kind as PhotoKind]} · {fmtDateTime(p.taken_at)}
@@ -108,11 +131,23 @@ export function CargasDelViaje({ segments, photos }: Props) {
       {segments.length === 0 && delViaje.length === 0 && (
         <p className="text-sm text-ink/50">Sin cargas ni fotos registradas todavía.</p>
       )}
+
+      {ampliada != null && ampliada >= 0 && (
+        <VisorFotos fotos={todas} indice={ampliada} onCerrar={() => setAmpliada(null)} />
+      )}
     </div>
   );
 }
 
-function FotosDeCarga({ fotos, lugar }: { fotos: TripPhoto[]; lugar: string }) {
+function FotosDeCarga({
+  fotos,
+  lugar,
+  onAmpliar,
+}: {
+  fotos: TripPhoto[];
+  lugar: string;
+  onAmpliar: (r2Key: string) => void;
+}) {
   if (fotos.length === 0) {
     return <p className="border-t border-ink/10 pt-2 text-xs text-ink/45">Sin foto de esta carga.</p>;
   }
@@ -120,7 +155,12 @@ function FotosDeCarga({ fotos, lugar }: { fotos: TripPhoto[]; lugar: string }) {
     <div className="grid grid-cols-2 gap-3 border-t border-ink/10 pt-3 sm:grid-cols-4">
       {fotos.map((p) => (
         <div key={p.id}>
-          <PhotoImage r2Key={p.r2_key} alt={`Carga en ${lugar}`} className="h-28 w-full" />
+          <PhotoImage
+            r2Key={p.r2_key}
+            alt={`Carga en ${lugar}`}
+            className="h-28 w-full"
+            onAmpliar={() => onAmpliar(p.r2_key)}
+          />
           <div className="mt-1 text-xs text-ink/55">{fmtDateTime(p.taken_at)}</div>
         </div>
       ))}
