@@ -1,10 +1,23 @@
 import type { PhotoKind, TripPhoto } from "../../shared/domain";
 
+/**
+ * Las fotos de un viaje, en el orden en que se sacaron.
+ *
+ * El desempate por `id` no es decorativo. `taken_at` se guarda con precisión de segundo
+ * (`api/routes/photos.ts` corta el ISO en 19 caracteres), así que dos fotos disparadas
+ * seguidas caen en el mismo valor y ordenar sólo por ahí deja el empate a criterio de SQLite:
+ * el orden puede cambiar entre dos consultas de las mismas fotos. Con una foto por viaje no
+ * se notaba; con las cuatro hojas de una hoja de ruta la oficina no puede saber cuál es la
+ * página 1.
+ *
+ * Va exportada para poder fijar eso en un test: es una regla que vive entera en el SQL y que
+ * TypeScript no ve.
+ */
+export const SQL_FOTOS_DEL_VIAJE =
+  "SELECT * FROM trip_photos WHERE trip_id = ? ORDER BY taken_at ASC, id ASC";
+
 export async function listPhotos(db: D1Database, tripId: number): Promise<TripPhoto[]> {
-  const { results } = await db
-    .prepare("SELECT * FROM trip_photos WHERE trip_id = ? ORDER BY taken_at ASC")
-    .bind(tripId)
-    .all<TripPhoto>();
+  const { results } = await db.prepare(SQL_FOTOS_DEL_VIAJE).bind(tripId).all<TripPhoto>();
   return results ?? [];
 }
 

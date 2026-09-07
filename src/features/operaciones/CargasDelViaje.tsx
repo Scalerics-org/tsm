@@ -7,7 +7,8 @@ import {
   type TripPhoto,
   type TripSegment,
 } from "@shared/domain";
-import { Card } from "../../components/ui";
+import { api, ApiError } from "../../lib/api";
+import { Card, ErrorText } from "../../components/ui";
 import { PhotoImage } from "../../components/PhotoImage";
 import { VisorFotos, type FotoDelVisor } from "../../components/VisorFotos";
 import { fmtDateTime } from "../../lib/format";
@@ -15,13 +16,15 @@ import { fmtDateTime } from "../../lib/format";
 interface Props {
   segments: TripSegment[];
   photos: TripPhoto[];
+  /** Recargar el viaje después de borrar una foto. Sin esto las fotos son de sólo lectura. */
+  onChanged?: () => void;
 }
 
 /**
  * Las cargas del viaje como las ve la oficina: una por lugar de carga, con su foto y a
  * quién se le factura. Es la misma fila que sale en el Excel, pero en pantalla.
  */
-export function CargasDelViaje({ segments, photos }: Props) {
+export function CargasDelViaje({ segments, photos, onChanged }: Props) {
   const { porCarga, delViaje } = fotosPorRenglon(photos);
 
   /* Todas las fotos del viaje en una sola lista: con las flechas del visor la oficina las
@@ -98,7 +101,12 @@ export function CargasDelViaje({ segments, photos }: Props) {
                   </div>
                 </div>
 
-                <FotosDeCarga fotos={porCarga.get(s.sid) ?? []} lugar={s.remitente} onAmpliar={abrir} />
+                <FotosDeCarga
+                  fotos={porCarga.get(s.sid) ?? []}
+                  lugar={s.remitente}
+                  onAmpliar={abrir}
+                  onBorrada={onChanged}
+                />
               </Card>
             ))}
           </div>
@@ -112,17 +120,15 @@ export function CargasDelViaje({ segments, photos }: Props) {
           </h3>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {delViaje.map((p) => (
-              <div key={p.id}>
-                <PhotoImage
-                  r2Key={p.r2_key}
-                  alt={PHOTO_KIND_LABEL[p.kind as PhotoKind]}
-                  className="h-32 w-full"
-                  onAmpliar={() => abrir(p.r2_key)}
-                />
-                <div className="mt-1 text-xs text-ink/60">
-                  {PHOTO_KIND_LABEL[p.kind as PhotoKind]} · {fmtDateTime(p.taken_at)}
-                </div>
-              </div>
+              <FotoDeOficina
+                key={p.id}
+                foto={p}
+                titulo={PHOTO_KIND_LABEL[p.kind as PhotoKind]}
+                pie={`${PHOTO_KIND_LABEL[p.kind as PhotoKind]} · ${fmtDateTime(p.taken_at)}`}
+                alto="h-32"
+                onAmpliar={() => abrir(p.r2_key)}
+                onBorrada={onChanged}
+              />
             ))}
           </div>
         </div>
@@ -143,10 +149,12 @@ function FotosDeCarga({
   fotos,
   lugar,
   onAmpliar,
+  onBorrada,
 }: {
   fotos: TripPhoto[];
   lugar: string;
   onAmpliar: (r2Key: string) => void;
+  onBorrada?: () => void;
 }) {
   if (fotos.length === 0) {
     return <p className="border-t border-ink/10 pt-2 text-xs text-ink/45">Sin foto de esta carga.</p>;
@@ -154,16 +162,83 @@ function FotosDeCarga({
   return (
     <div className="grid grid-cols-2 gap-3 border-t border-ink/10 pt-3 sm:grid-cols-4">
       {fotos.map((p) => (
-        <div key={p.id}>
-          <PhotoImage
-            r2Key={p.r2_key}
-            alt={`Carga en ${lugar}`}
-            className="h-28 w-full"
-            onAmpliar={() => onAmpliar(p.r2_key)}
-          />
-          <div className="mt-1 text-xs text-ink/55">{fmtDateTime(p.taken_at)}</div>
-        </div>
+        <FotoDeOficina
+          key={p.id}
+          foto={p}
+          titulo={`Carga en ${lugar}`}
+          pie={fmtDateTime(p.taken_at)}
+          alto="h-28"
+          onAmpliar={() => onAmpliar(p.r2_key)}
+          onBorrada={onBorrada}
+        />
       ))}
+    </div>
+  );
+}
+
+/**
+ * Una foto en la vista de oficina: se amplía y —esto es lo nuevo— se puede sacar.
+ *
+ * El único `DELETE /photos/:id` que había en todo el front estaba en la pantalla del chofer, y
+ * ahí el backend sólo lo permite con el viaje EN CURSO. O sea: una foto movida en un viaje ya
+ * cerrado no la podía sacar nadie. El endpoint siempre lo permitió para oficina, incluso en un
+ * viaje facturado —que es justamente el caso donde más duele—; lo que faltaba era el botón.
+ *
+ * Con confirmación y diciendo que no se recupera: acá no hay papelera, y esta foto es la
+ * evidencia con la que se dio el viaje por bueno.
+ */
+function FotoDeOficina({
+  foto,
+  titulo,
+  pie,
+  alto,
+  onAmpliar,
+  onBorrada,
+}: {
+  foto: TripPhoto;
+  titulo: string;
+  pie: string;
+  alto: string;
+  onAmpliar: () => void;
+  /** Sin esto no se dibuja el botón: la pantalla que la muestra decide si se puede borrar. */
+  onBorrada?: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function borrar() {
+    if (busy) return;
+    if (!confirm(`¿Borrar esta foto (${titulo})?\n\nEs la evidencia del viaje y no se puede recuperar.`)) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.del(`/photos/${foto.id}`);
+      onBorrada?.();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudo borrar");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <PhotoImage r2Key={foto.r2_key} alt={titulo} className={`${alto} w-full`} onAmpliar={onAmpliar} />
+      <div className="mt-1 flex items-start justify-between gap-2">
+        <span className="text-xs text-ink/55">{pie}</span>
+        {onBorrada && (
+          <button
+            type="button"
+            onClick={borrar}
+            disabled={busy}
+            className="flex-none text-xs text-st-redTx hover:underline disabled:opacity-40"
+          >
+            {busy ? "…" : "Borrar"}
+          </button>
+        )}
+      </div>
+      <ErrorText>{error}</ErrorText>
     </div>
   );
 }

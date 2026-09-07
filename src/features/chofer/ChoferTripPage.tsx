@@ -14,6 +14,7 @@ import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner, StatusBadge } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
 import { PhotoImage } from "../../components/PhotoImage";
+import { VisorFotos, type FotoDelVisor } from "../../components/VisorFotos";
 import { CargasPanel } from "./CargasPanel";
 import { compressImage } from "../../lib/image";
 import { estimateTravel, fmtDuration } from "../../lib/eta";
@@ -154,6 +155,7 @@ export function ChoferTripPage() {
           descargaFields={fields.filter((f) => f.stage === FIELD_STAGE.DESCARGA)}
           photoLabel={arrival_photo_label}
           pideKilometros={data.pide_kilometros}
+          fotosDeLlegada={photos.filter((p) => p.kind === PHOTO_KIND.DESCARGA)}
           onDone={load}
         />
       )}
@@ -237,17 +239,37 @@ function MissingCargoPhoto({
   );
 }
 
+/**
+ * Registrar la llegada, con tantas fotos como haga falta.
+ *
+ * "MOLINO PARA CERRAR PIDE HORA FIRMADA. PERO DA PARA SACAR SOLO UNA FOTO, TIENE Q DAR OPCIÓN
+ * DE SACAR OTRA FOTO POR SI SON MÁS DE UNA." — el cliente. El backend siempre aguantó N fotos
+ * (`POST /api/photos` ni siquiera mira el estado del viaje); lo que había acá era un solo
+ * `CameraCapture` cuyo File se pisaba al sacar la segunda.
+ *
+ * Cada foto se sube EN EL MOMENTO, no al confirmar la llegada, igual que la de la carga en
+ * `MissingCargoPhoto`. Dos razones:
+ *
+ *  - el chofer ve cuántas lleva y puede borrar la movida antes de cerrar (la galería de abajo
+ *    tiene el botón mientras el viaje esté en curso);
+ *  - la versión de una sola foto tenía un bug: la subía y RECIÉN DESPUÉS llamaba a `finish`.
+ *    Si el cierre fallaba —un campo de descarga sin llenar—, la foto ya estaba arriba y el
+ *    reintento la subía de nuevo. Dos copias del mismo papel, sin que nadie lo notara.
+ */
 function ArrivalForm({
   tripId,
   descargaFields,
   photoLabel,
   pideKilometros,
+  fotosDeLlegada,
   onDone,
 }: {
   tripId: number;
   descargaFields: TemplateField[];
   photoLabel: string | null;
   pideKilometros: boolean;
+  /** Las de descarga que ya están guardadas. Es contra esto que se valida el cierre. */
+  fotosDeLlegada: TripPhoto[];
   onDone: () => void;
 }) {
   const [kilometros, setKilometros] = useState("");
@@ -255,19 +277,42 @@ function ArrivalForm({
   const [values, setValues] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
+  const [subiendo, setSubiendo] = useState(false);
+  // Remonta el CameraCapture después de cada subida: no expone forma de limpiarse, y sin esto
+  // la vista previa de la foto anterior queda puesta como si la nueva no se hubiera sacado.
+  const [ronda, setRonda] = useState(0);
   const [error, setError] = useState("");
   const photoRequired = !!photoLabel;
+  const yaSubidas = fotosDeLlegada.length;
+
+  async function guardarFoto() {
+    if (!descarga) return;
+    setError("");
+    setSubiendo(true);
+    try {
+      await uploadPhoto(tripId, descarga, PHOTO_KIND.DESCARGA);
+      setDescarga(null);
+      setRonda((n) => n + 1);
+      onDone();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudo subir la foto");
+    } finally {
+      setSubiendo(false);
+    }
+  }
 
   async function confirm() {
     setError("");
+    // El error nuevo que trae subir de a una: el chofer saca la foto, la ve en la vista previa
+    // y da por hecho que ya está. Sin este aviso se le perdería al confirmar.
+    if (descarga) return setError("Te falta guardar la foto que sacaste.");
     for (const f of descargaFields) {
       if (f.required && !String(values[f.key] ?? "").trim()) return setError(`Cargá ${f.label}.`);
     }
-    if (photoRequired && !descarga) return setError(`Sacá la foto: ${photoLabel}.`);
+    if (photoRequired && !yaSubidas) return setError(`Sacá la foto: ${photoLabel}.`);
     if (pideKilometros && !kilometros) return setError("Cargá los kilómetros del recorrido.");
     setBusy(true);
     try {
-      if (descarga) await uploadPhoto(tripId, descarga, PHOTO_KIND.DESCARGA);
       await api.post(`/trips/${tripId}/finish`, {
         field_values: values,
         notes: notes || undefined,
@@ -306,10 +351,27 @@ function ArrivalForm({
           />
         </Field>
       )}
-      <CameraCapture
-        label={photoLabel ? `Foto: ${photoLabel}` : "Foto de descarga (opcional)"}
-        onChange={setDescarga}
-      />
+      <div className="space-y-2">
+        <CameraCapture
+          key={ronda}
+          label={photoLabel ? `Foto: ${photoLabel}` : "Foto de descarga (opcional)"}
+          onChange={setDescarga}
+        />
+        <p className="text-sm text-ink/60">
+          {yaSubidas === 0
+            ? "Podés sumar las que necesites: sacá una, guardala, y volvé a sacar."
+            : `${yaSubidas} guardada${yaSubidas === 1 ? "" : "s"}. Podés sumar las que necesites; si alguna salió mal, borrala abajo.`}
+        </p>
+        <Button
+          variant="secondary"
+          loading={subiendo}
+          disabled={!descarga}
+          onClick={guardarFoto}
+          className="w-full py-3"
+        >
+          {yaSubidas === 0 ? "Guardar foto" : "Guardar otra foto"}
+        </Button>
+      </div>
       <Field label="Agregar comentario (opcional)">
         <textarea
           className="input min-h-[70px]"
@@ -326,6 +388,14 @@ function ArrivalForm({
   );
 }
 
+/**
+ * Las fotos del viaje como las ve el chofer.
+ *
+ * Con el visor puesto, igual que en oficina. La miniatura va recortada (`object-cover`) y de
+ * un remito se ve un pedazo: con cinco papeles el chofer no tenía cómo verificar que se leen
+ * ANTES de cerrar el viaje, que es el único momento en que todavía puede sacarlos de nuevo.
+ * El componente ya sabía ampliar; lo que faltaba era pasarle el `onAmpliar`.
+ */
 function Gallery({
   photos,
   editable,
@@ -335,14 +405,30 @@ function Gallery({
   editable: boolean;
   onChanged: () => void;
 }) {
+  const [ampliada, setAmpliada] = useState<number | null>(null);
+  const paraElVisor: FotoDelVisor[] = photos.map((p) => ({
+    r2_key: p.r2_key,
+    titulo: PHOTO_KIND_LABEL[p.kind as PhotoKind],
+    detalle: fmtDateTime(p.taken_at),
+  }));
+
   return (
     <div>
       <h3 className="mb-2 font-semibold text-ink">Fotos</h3>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {photos.map((p) => (
-          <FotoDelViaje key={p.id} p={p} editable={editable} onChanged={onChanged} />
+        {photos.map((p, i) => (
+          <FotoDelViaje
+            key={p.id}
+            p={p}
+            editable={editable}
+            onChanged={onChanged}
+            onAmpliar={() => setAmpliada(i)}
+          />
         ))}
       </div>
+      {ampliada != null && (
+        <VisorFotos fotos={paraElVisor} indice={ampliada} onCerrar={() => setAmpliada(null)} />
+      )}
     </div>
   );
 }
@@ -352,10 +438,12 @@ function FotoDelViaje({
   p,
   editable,
   onChanged,
+  onAmpliar,
 }: {
   p: TripPhoto;
   editable: boolean;
   onChanged: () => void;
+  onAmpliar: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -381,7 +469,7 @@ Vas a poder sacar otra en su lugar.`)) return;
 
   return (
     <div>
-      <PhotoImage r2Key={p.r2_key} alt={etiqueta} className="h-32 w-full" />
+      <PhotoImage r2Key={p.r2_key} alt={etiqueta} className="h-32 w-full" onAmpliar={onAmpliar} />
       <div className="mt-1 flex items-center justify-between gap-2">
         <span className="text-xs text-ink/60">{etiqueta}</span>
         {editable && (

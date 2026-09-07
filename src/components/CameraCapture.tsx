@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Captura una foto desde la cámara del celular (o galería como respaldo).
@@ -14,9 +14,17 @@ export function CameraCapture({
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
 
+  // El object URL de la vista previa se libera al cambiar de foto Y al desmontar. Lo segundo
+  // faltaba: cuando se sacaba una sola foto por viaje no se notaba, pero la llegada ahora
+  // remonta este componente una vez por foto, y con cuatro hojas de ruta serían cuatro
+  // imágenes colgadas en la memoria del celular.
+  useEffect(() => {
+    if (!preview) return;
+    return () => URL.revokeObjectURL(preview);
+  }, [preview]);
+
   function handleFile(file: File | null) {
     onChange(file);
-    if (preview) URL.revokeObjectURL(preview);
     setPreview(file ? URL.createObjectURL(file) : null);
   }
 
