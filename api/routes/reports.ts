@@ -265,7 +265,17 @@ function flattenFields(t: Trip): string {
 // exportan una fila, igual que antes.
 reports.get("/trips.csv", async (c) => {
   const q = c.req.query();
-  const trips = await listTrips(c.env.DB, { from: q.from, to: q.to, provider: q.provider || undefined });
+  // La pantalla ya mandaba chofer, camión y estado —es el mismo `query` con el que pide la
+  // lista—, pero acá se leían sólo las fechas: el Excel bajaba TODO y no lo que se estaba
+  // mirando. Los nombres de los parámetros son los mismos que en GET /api/trips.
+  const trips = await listTrips(c.env.DB, {
+    from: q.from,
+    to: q.to,
+    provider: q.provider || undefined,
+    driverId: q.driver ? Number(q.driver) : undefined,
+    truckId: q.truck ? Number(q.truck) : undefined,
+    status: (q.status as Trip["status"]) || undefined,
+  });
   const rows = trips.flatMap((t) => filasDeViaje(t, flattenFields(t)));
   return csvResponse(q.provider ? `viajes-${q.provider}.csv` : "viajes.csv", [CSV_HEADER, ...rows]);
 });

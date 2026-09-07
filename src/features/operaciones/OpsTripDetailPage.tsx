@@ -155,7 +155,7 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
         )}
       </Card>
 
-      <CargasDelViaje segments={trip.segments} photos={photos} />
+      <CargasDelViaje segments={trip.segments} photos={photos} onChanged={load} />
     </div>
   );
 }

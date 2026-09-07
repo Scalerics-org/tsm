@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   LIBRETA_TIPO,
   PHOTO_KIND,
@@ -285,20 +285,29 @@ function NuevaCarga({
   const [lugar, setLugar] = useState<LibretaEntry | null>(null);
   const [clientes, setClientes] = useState<LibretaEntry[]>([]);
   const [opciones, setOpciones] = useState<LibretaEntry[] | null>(null);
+  const [libretaFalló, setLibretaFalló] = useState(false);
   const [cantidad, setCantidad] = useState("");
   const [unidad, setUnidad] = useState<Unidad>(UNIDAD.KILOS);
   const [foto, setFoto] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  // Si la libreta no llega, el bloque quedaba dibujado con cero chips y un "Podés marcar más
+  // de uno" abajo: el chofer leía que no hay clientes, no que la lista no cargó, y guardaba
+  // la carga sin marcar a nadie. Ese dato no se recupera después.
+  const cargarClientes = useCallback(() => {
     const p = new URLSearchParams({ tipo: LIBRETA_TIPO.DESTINATARIO });
     if (providerId != null) p.set("provider", String(providerId));
+    setLibretaFalló(false);
     api
       .get<LibretaEntry[]>(`/libreta?${p}`)
       .then(setOpciones)
-      .catch(() => setOpciones([]));
+      .catch(() => {
+        setOpciones([]);
+        setLibretaFalló(true);
+      });
   }, [providerId]);
+  useEffect(cargarClientes, [cargarClientes]);
 
   const toggleCliente = (e: LibretaEntry) =>
     setClientes((prev) =>
@@ -439,6 +448,15 @@ function NuevaCarga({
         <span className="label">¿Para quién?</span>
         {opciones === null ? (
           <Spinner size={18} />
+        ) : libretaFalló ? (
+          <p className="text-sm text-st-redTx">
+            No se pudo cargar la lista de clientes.{" "}
+            <button type="button" onClick={cargarClientes} className="underline">
+              Reintentar
+            </button>
+          </p>
+        ) : opciones.length === 0 ? (
+          <p className="text-sm text-ink/50">Todavía no hay clientes en la libreta.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {opciones.map((o) => {
@@ -458,7 +476,7 @@ function NuevaCarga({
             })}
           </div>
         )}
-        <p className="mt-1 text-xs text-ink/45">Podés marcar más de uno.</p>
+        {!!opciones?.length && <p className="mt-1 text-xs text-ink/45">Podés marcar más de uno.</p>}
       </div>
 
       <div>

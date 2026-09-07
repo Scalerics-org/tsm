@@ -7,6 +7,7 @@ import {
   type TripPhoto,
   type TripSegment,
 } from "@shared/domain";
+import { api, ApiError } from "../../lib/api";
 import { Card } from "../../components/ui";
 import { PhotoImage } from "../../components/PhotoImage";
 import { VisorFotos, type FotoDelVisor } from "../../components/VisorFotos";
@@ -15,13 +16,15 @@ import { fmtDateTime } from "../../lib/format";
 interface Props {
   segments: TripSegment[];
   photos: TripPhoto[];
+  /** Para releer el viaje después de borrar una foto. */
+  onChanged: () => void;
 }
 
 /**
  * Las cargas del viaje como las ve la oficina: una por lugar de carga, con su foto y a
  * quién se le factura. Es la misma fila que sale en el Excel, pero en pantalla.
  */
-export function CargasDelViaje({ segments, photos }: Props) {
+export function CargasDelViaje({ segments, photos, onChanged }: Props) {
   const { porCarga, delViaje } = fotosPorRenglon(photos);
 
   /* Todas las fotos del viaje en una sola lista: con las flechas del visor la oficina las
@@ -98,7 +101,12 @@ export function CargasDelViaje({ segments, photos }: Props) {
                   </div>
                 </div>
 
-                <FotosDeCarga fotos={porCarga.get(s.sid) ?? []} lugar={s.remitente} onAmpliar={abrir} />
+                <FotosDeCarga
+                  fotos={porCarga.get(s.sid) ?? []}
+                  lugar={s.remitente}
+                  onAmpliar={abrir}
+                  onChanged={onChanged}
+                />
               </Card>
             ))}
           </div>
@@ -119,8 +127,15 @@ export function CargasDelViaje({ segments, photos }: Props) {
                   className="h-32 w-full"
                   onAmpliar={() => abrir(p.r2_key)}
                 />
-                <div className="mt-1 text-xs text-ink/60">
-                  {PHOTO_KIND_LABEL[p.kind as PhotoKind]} · {fmtDateTime(p.taken_at)}
+                <div className="mt-1 flex items-center justify-between gap-2 text-xs text-ink/60">
+                  <span className="min-w-0 truncate">
+                    {PHOTO_KIND_LABEL[p.kind as PhotoKind]} · {fmtDateTime(p.taken_at)}
+                  </span>
+                  <BorrarFoto
+                    foto={p}
+                    que={`la foto de ${PHOTO_KIND_LABEL[p.kind as PhotoKind].toLowerCase()}`}
+                    onChanged={onChanged}
+                  />
                 </div>
               </div>
             ))}
@@ -143,10 +158,12 @@ function FotosDeCarga({
   fotos,
   lugar,
   onAmpliar,
+  onChanged,
 }: {
   fotos: TripPhoto[];
   lugar: string;
   onAmpliar: (r2Key: string) => void;
+  onChanged: () => void;
 }) {
   if (fotos.length === 0) {
     return <p className="border-t border-ink/10 pt-2 text-xs text-ink/45">Sin foto de esta carga.</p>;
@@ -161,9 +178,60 @@ function FotosDeCarga({
             className="h-28 w-full"
             onAmpliar={() => onAmpliar(p.r2_key)}
           />
-          <div className="mt-1 text-xs text-ink/55">{fmtDateTime(p.taken_at)}</div>
+          <div className="mt-1 flex items-center justify-between gap-2 text-xs text-ink/55">
+            <span className="min-w-0 truncate">{fmtDateTime(p.taken_at)}</span>
+            <BorrarFoto foto={p} que={`la foto de la carga en ${lugar}`} onChanged={onChanged} />
+          </div>
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * Sacar una foto desde la oficina.
+ *
+ * El backend ya lo permitía desde el primer día, pero el único botón vivía en la pantalla del
+ * chofer y sólo con el viaje en curso: una foto movida en un viaje ya cerrado no la podía
+ * sacar nadie. Se lleva también el archivo de R2, así que se pregunta antes.
+ */
+function BorrarFoto({
+  foto,
+  que,
+  onChanged,
+}: {
+  foto: TripPhoto;
+  que: string;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function borrar() {
+    if (busy) return;
+    if (!confirm(`¿Borrar ${que}?\n\nNo se puede deshacer: la foto se borra también del archivo.`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.del(`/photos/${foto.id}`);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudo borrar");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={borrar}
+        disabled={busy}
+        className="flex-none text-st-redTx hover:underline disabled:opacity-40"
+      >
+        {busy ? "…" : "Borrar"}
+      </button>
+      {error && <span className="text-st-redTx">{error}</span>}
+    </>
   );
 }

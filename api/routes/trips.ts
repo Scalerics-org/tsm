@@ -446,8 +446,18 @@ trips.delete("/:id/segments/:sid", async (c) => {
 
 // PUT /api/trips/:id/segments — la oficina corrige las cargas, incluso de un viaje cerrado.
 trips.put("/:id/segments", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
-  const trip = await tripsRepo.getTrip(c.env.DB, Number(c.req.param("id")));
-  if (!trip) return fail(c, "Viaje no encontrado", 404);
+  const facturable = await tripsRepo.getTripFacturable(c.env.DB, Number(c.req.param("id")));
+  if (!facturable) return fail(c, "Viaje no encontrado", 404);
+  // Borrar y cambiar la fecha ya frenaban acá; esto se había quedado afuera y dejaba
+  // cambiar cantidades — y con ellas el cobro— de un viaje que ya está en una factura emitida.
+  if (facturable.factura_numero) {
+    return fail(
+      c,
+      `Ese viaje ya está en la factura ${facturable.factura_numero}. Desmarcalo desde Facturación y después corregí las cargas.`,
+      409,
+    );
+  }
+  const trip = facturable;
   const b = (await c.req.json().catch(() => ({}))) as { segments?: unknown };
   const segs = parseSegments(b.segments);
 

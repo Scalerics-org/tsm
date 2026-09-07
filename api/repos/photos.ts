@@ -2,7 +2,10 @@ import type { PhotoKind, TripPhoto } from "../../shared/domain";
 
 export async function listPhotos(db: D1Database, tripId: number): Promise<TripPhoto[]> {
   const { results } = await db
-    .prepare("SELECT * FROM trip_photos WHERE trip_id = ? ORDER BY taken_at ASC")
+    // `taken_at` sólo guarda hasta el segundo: dos fotos disparadas seguidas empatan y sin
+    // desempate salían en orden indefinido — con varias hojas de ruta, la oficina no podía
+    // saber cuál era la página 1.
+    .prepare("SELECT * FROM trip_photos WHERE trip_id = ? ORDER BY taken_at ASC, id ASC")
     .bind(tripId)
     .all<TripPhoto>();
   return results ?? [];
