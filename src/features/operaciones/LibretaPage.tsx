@@ -22,9 +22,22 @@ import {
 import { LibretaEntryRow } from "./LibretaEntryRow";
 import { PendientesCobroCard } from "./PendientesCobroCard";
 
+/**
+ * Las etiquetas usan la palabra del cliente, no la del modelo.
+ *
+ * "Rodrigo no puede agregar clientes desde oficina" — y sí podía: entraba acá, tocaba
+ * Destinatarios y daba de alta. El problema era que en su planilla la columna se titula
+ * CLIENTES (Agronorte, Jair, BMR) y acá se llamaba "Destinatarios", mientras el desplegable
+ * de alcance decía "Todos los clientes" queriendo decir OTRA cosa: los proveedores para los
+ * que trabaja (Casarone, Nayna, Combinados). Venía a buscar la palabra "clientes" y la
+ * encontraba señalando a otro lado.
+ *
+ * En el código siguen siendo `destinatario` —es el modelo y no se toca por una etiqueta—,
+ * pero en la pantalla se llama como él lo llama.
+ */
 const TABS: { tipo: LibretaTipo; label: string }[] = [
-  { tipo: LIBRETA_TIPO.REMITENTE, label: "Remitentes" },
-  { tipo: LIBRETA_TIPO.DESTINATARIO, label: "Destinatarios" },
+  { tipo: LIBRETA_TIPO.REMITENTE, label: "Lugares de carga" },
+  { tipo: LIBRETA_TIPO.DESTINATARIO, label: "Clientes" },
   { tipo: LIBRETA_TIPO.LUGAR, label: "Lugares" },
 ];
 
@@ -292,7 +305,10 @@ function NuevaEntradaForm({
               value={f.provider_id}
               onChange={(e) => setF({ ...f, provider_id: e.target.value })}
             >
-              <option value="">Todos los clientes</option>
+              {/* Decía "Todos los clientes", que es justo la palabra que se usa arriba para
+                  otra cosa. Acá el alcance es a qué PROVEEDOR queda atada la entrada, y
+                  dejarlo abierto es lo que hace que aparezca en todas las plantillas. */}
+              <option value="">Todos los proveedores</option>
               {providers.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}

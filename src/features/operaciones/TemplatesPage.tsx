@@ -25,12 +25,18 @@ interface TruckOption {
   plate: string;
 }
 
-/** Las listas de las que puede elegir el chofer, como se las nombra en la oficina. */
+/**
+ * Las listas de las que puede elegir el chofer, como se las nombra en la oficina.
+ *
+ * Tienen que decir LO MISMO que las pestañas de la Libreta: acá se elige qué lista usa una
+ * plantilla y allá se cargan sus entradas. Si cada pantalla le pone un nombre distinto a la
+ * misma lista, no hay forma de saber dónde se agrega lo que falta.
+ */
 const LISTAS: Record<PickerTipo, string> = {
   [TIPO_DEPARTAMENTO]: "Los 19 departamentos",
   [LIBRETA_TIPO.LUGAR]: "Lugares de la libreta",
-  [LIBRETA_TIPO.REMITENTE]: "Remitentes de la libreta",
-  [LIBRETA_TIPO.DESTINATARIO]: "Destinatarios de la libreta",
+  [LIBRETA_TIPO.REMITENTE]: "Lugares de carga de la libreta",
+  [LIBRETA_TIPO.DESTINATARIO]: "Clientes de la libreta",
 };
 
 /**
