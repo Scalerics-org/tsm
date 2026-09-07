@@ -14,6 +14,7 @@ import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner, StatusBadge } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
 import { PhotoImage } from "../../components/PhotoImage";
+import { VisorFotos, type FotoDelVisor } from "../../components/VisorFotos";
 import { CargasPanel } from "./CargasPanel";
 import { compressImage } from "../../lib/image";
 import { estimateTravel, fmtDuration } from "../../lib/eta";
@@ -154,6 +155,7 @@ export function ChoferTripPage() {
           descargaFields={fields.filter((f) => f.stage === FIELD_STAGE.DESCARGA)}
           photoLabel={arrival_photo_label}
           pideKilometros={data.pide_kilometros}
+          photos={photos}
           onDone={load}
         />
       )}
@@ -242,32 +244,58 @@ function ArrivalForm({
   descargaFields,
   photoLabel,
   pideKilometros,
+  photos,
   onDone,
 }: {
   tripId: number;
   descargaFields: TemplateField[];
   photoLabel: string | null;
   pideKilometros: boolean;
+  photos: TripPhoto[];
   onDone: () => void;
 }) {
   const [kilometros, setKilometros] = useState("");
-  const [descarga, setDescarga] = useState<File | null>(null);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+  const [fotoError, setFotoError] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const photoRequired = !!photoLabel;
+  const fotosDescarga = photos.filter((p) => p.kind === PHOTO_KIND.DESCARGA).length;
+
+  /**
+   * "Molino para cerrar pide hora firmada. Pero da para sacar solo una foto, tiene q dar
+   * opción de sacar otra foto por si son más de una."
+   *
+   * Cada foto se sube al toque —como la de la carga— en vez de quedar guardada en el
+   * formulario hasta confirmar la llegada: así la cámara vuelve vacía y se pueden sacar
+   * todas las hojas que haga falta. Lo que exige el cierre es que exista al menos una,
+   * y eso se mira sobre las que ya están subidas.
+   */
+  async function subirFoto(file: File | null) {
+    if (!file || subiendoFoto) return;
+    setSubiendoFoto(true);
+    setFotoError(null);
+    try {
+      await uploadPhoto(tripId, file, PHOTO_KIND.DESCARGA);
+      onDone();
+    } catch (e) {
+      setFotoError(e instanceof ApiError ? e.message : "No se pudo subir la foto");
+    } finally {
+      setSubiendoFoto(false);
+    }
+  }
 
   async function confirm() {
     setError("");
     for (const f of descargaFields) {
       if (f.required && !String(values[f.key] ?? "").trim()) return setError(`Cargá ${f.label}.`);
     }
-    if (photoRequired && !descarga) return setError(`Sacá la foto: ${photoLabel}.`);
+    if (photoRequired && !fotosDescarga) return setError(`Sacá la foto: ${photoLabel}.`);
     if (pideKilometros && !kilometros) return setError("Cargá los kilómetros del recorrido.");
     setBusy(true);
     try {
-      if (descarga) await uploadPhoto(tripId, descarga, PHOTO_KIND.DESCARGA);
       await api.post(`/trips/${tripId}/finish`, {
         field_values: values,
         notes: notes || undefined,
@@ -306,10 +334,22 @@ function ArrivalForm({
           />
         </Field>
       )}
-      <CameraCapture
-        label={photoLabel ? `Foto: ${photoLabel}` : "Foto de descarga (opcional)"}
-        onChange={setDescarga}
-      />
+      <div>
+        {fotosDescarga > 0 && (
+          <p className="mb-1 text-xs text-ink/50">Podés sumar otra foto si son más de una.</p>
+        )}
+        {subiendoFoto ? (
+          <div className="flex h-48 items-center justify-center gap-2 text-sm text-ink/60">
+            <Spinner size={16} /> Subiendo…
+          </div>
+        ) : (
+          <CameraCapture
+            label={photoLabel ? `Foto: ${photoLabel}` : "Foto de descarga (opcional)"}
+            onChange={subirFoto}
+          />
+        )}
+        <ErrorText>{fotoError}</ErrorText>
+      </div>
       <Field label="Agregar comentario (opcional)">
         <textarea
           className="input min-h-[70px]"
@@ -335,14 +375,26 @@ function Gallery({
   editable: boolean;
   onChanged: () => void;
 }) {
+  // Con cinco papeles fotografiados, el chofer no tenía forma de releerlos antes de cerrar
+  // el viaje: la miniatura recortada no alcanza para verificar un número escrito a mano.
+  const [ampliada, setAmpliada] = useState<number | null>(null);
+  const abrir = (r2Key: string) => setAmpliada(photos.findIndex((f) => f.r2_key === r2Key));
+  const todas: FotoDelVisor[] = photos.map((f) => ({
+    r2_key: f.r2_key,
+    titulo: PHOTO_KIND_LABEL[f.kind as PhotoKind],
+  }));
+
   return (
     <div>
       <h3 className="mb-2 font-semibold text-ink">Fotos</h3>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {photos.map((p) => (
-          <FotoDelViaje key={p.id} p={p} editable={editable} onChanged={onChanged} />
+          <FotoDelViaje key={p.id} p={p} editable={editable} onChanged={onChanged} onAmpliar={() => abrir(p.r2_key)} />
         ))}
       </div>
+      {ampliada != null && (
+        <VisorFotos fotos={todas} indice={ampliada} onCerrar={() => setAmpliada(null)} />
+      )}
     </div>
   );
 }
@@ -352,10 +404,12 @@ function FotoDelViaje({
   p,
   editable,
   onChanged,
+  onAmpliar,
 }: {
   p: TripPhoto;
   editable: boolean;
   onChanged: () => void;
+  onAmpliar: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -381,7 +435,7 @@ Vas a poder sacar otra en su lugar.`)) return;
 
   return (
     <div>
-      <PhotoImage r2Key={p.r2_key} alt={etiqueta} className="h-32 w-full" />
+      <PhotoImage r2Key={p.r2_key} alt={etiqueta} className="h-32 w-full" onAmpliar={onAmpliar} />
       <div className="mt-1 flex items-center justify-between gap-2">
         <span className="text-xs text-ink/60">{etiqueta}</span>
         {editable && (
