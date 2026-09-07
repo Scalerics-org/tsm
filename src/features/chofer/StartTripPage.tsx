@@ -234,6 +234,16 @@ export function StartTripPage() {
           />
         )}
 
+        {/* El selector clásico sólo se dibuja si tiene algo adentro. Un desplegable con una
+            única opción "Elegí…" no es un campo: es una pared. Le pasó al combinado genérico,
+            que arma el recorrido con las cargas (`recorridoSegunCargas`) y por eso no configura
+            destino ni `dest_options`; el chofer veía un campo obligatorio imposible de completar
+            y no salía. La validación ya lo contemplaba —ver `recorridoPorCarga` arriba—, era el
+            render el que no.
+
+            La condición mira las opciones y NO `recorridoPorCarga`: las cuatro plantillas de Efe
+            Roig también arman el recorrido por carga y sin embargo configuran destino de libreta
+            a propósito. Colgarse de esa bandera se lo sacaba a las cuatro. */}
         {usaLibretaDestino ? (
           <>
             {cu.destino?.modo === CAMPO_MODO.LIBRETA && (
@@ -277,7 +287,7 @@ export function StartTripPage() {
               />
             )}
           </>
-        ) : (
+        ) : tpl.dest_options.length > 0 ? (
           <>
             <Field label="Destino">
               <select className="input" value={optIdx} onChange={(e) => setOptIdx(e.target.value)}>
@@ -296,7 +306,7 @@ export function StartTripPage() {
               </Field>
             )}
           </>
-        )}
+        ) : null}
         {cargaFields.map((f) => {
           /* El peso va SIEMPRE en kilos enteros, como viene en el remito — el de Casarone
              marca "Neto 29.710". Antes el campo pedía toneladas y el papel decía kilos, así
