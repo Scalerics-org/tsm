@@ -319,6 +319,55 @@ export async function completarCobrosPendientes(
   return destrabadas;
 }
 
+/**
+ * La cabecera de un viaje que la oficina corrige.
+ *
+ * `provider_name` NO está: es una copia denormalizada y es la clave con la que se filtra el
+ * resumen de facturación, así que cambiarla mueve el viaje de cliente sin que nada más se
+ * entere. Si alguna vez hace falta, se hace aparte y con cuidado.
+ */
+export interface CabeceraPatch {
+  origin: string;
+  remite: string | null;
+  destination: string;
+  destinatario: string | null;
+  cargo_type: string;
+  kilos_carga: number | null;
+  kilometros: number | null;
+  notes: string | null;
+  driver_id: number;
+  truck_id: number;
+  /**
+   * Los campos de plantilla van enteros porque los kilos viven en dos lados: la columna
+   * `kilos` (con la que se suman los reportes) y el campo `is_weight` de la plantilla (que
+   * es el que sale en el Excel). Corregir uno solo los deja diciendo cosas distintas.
+   */
+  field_values: Record<string, string>;
+}
+
+export async function updateCabecera(
+  db: D1Database,
+  id: number,
+  p: CabeceraPatch,
+  editor: { userId: number; when: string },
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE trips
+          SET origin=?, remite=?, destination=?, destinatario=?, cargo_type=?,
+              kilos=?, kilometros=?, notes=?, driver_id=?, truck_id=?, field_values=?,
+              edited_by=?, edited_at=?
+        WHERE id=?`,
+    )
+    .bind(
+      p.origin, p.remite, p.destination, p.destinatario, p.cargo_type,
+      p.kilos_carga, p.kilometros, p.notes, p.driver_id, p.truck_id,
+      JSON.stringify(p.field_values ?? {}),
+      editor.userId, editor.when, id,
+    )
+    .run();
+}
+
 /** El viaje con su marca de facturación. Lo que hace falta para saber si se puede tocar. */
 export async function getTripFacturable(db: D1Database, id: number): Promise<TripFacturable | null> {
   const r = await db.prepare(`${SELECT} WHERE t.id = ?`).bind(id).first<TripRow>();
