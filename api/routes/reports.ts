@@ -11,7 +11,7 @@ import {
   type Trip,
 } from "../../shared/domain";
 import { listTrips, listTripsFacturables } from "../repos/trips";
-import { CSV_HEADER, filasDeViaje } from "../lib/export-viajes";
+import { columnasDeCampos, encabezado, filasDeViaje } from "../lib/export-viajes";
 import { resumenCliente } from "../lib/resumen-cliente";
 import { listTemplates } from "../repos/templates";
 import { listFuelLogs } from "../repos/fuel";
@@ -243,7 +243,10 @@ reports.get("/driver/:id", async (c) => {
 
 // ── Exports CSV ──
 function csvCell(v: unknown): string {
-  const s = v == null ? "" : String(v);
+  // Un número sale con coma decimal. El separador de columnas ya es `;` porque el Excel de
+  // acá está en español, y en ese mismo Excel "28.07" con punto entra como texto (o peor,
+  // como fecha): la columna no se puede sumar ni ordenar. Con coma entra como número.
+  const s = v == null ? "" : typeof v === "number" ? String(v).replace(".", ",") : String(v);
   return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 function csvResponse(filename: string, rows: (string | number | null)[][]): Response {
@@ -255,12 +258,6 @@ function csvResponse(filename: string, rows: (string | number | null)[][]): Resp
     },
   });
 }
-function flattenFields(t: Trip): string {
-  return Object.entries(t.field_values ?? {})
-    .map(([k, v]) => `${k}: ${v}`)
-    .join(" · ");
-}
-
 // Una fila por carga: es la unidad facturable. Los viajes de un solo tramo
 // exportan una fila, igual que antes.
 reports.get("/trips.csv", async (c) => {
@@ -268,16 +265,22 @@ reports.get("/trips.csv", async (c) => {
   // La pantalla ya mandaba chofer, camión y estado —es el mismo `query` con el que pide la
   // lista—, pero acá se leían sólo las fechas: el Excel bajaba TODO y no lo que se estaba
   // mirando. Los nombres de los parámetros son los mismos que en GET /api/trips.
-  const trips = await listTrips(c.env.DB, {
-    from: q.from,
-    to: q.to,
-    provider: q.provider || undefined,
-    driverId: q.driver ? Number(q.driver) : undefined,
-    truckId: q.truck ? Number(q.truck) : undefined,
-    status: (q.status as Trip["status"]) || undefined,
-  });
-  const rows = trips.flatMap((t) => filasDeViaje(t, flattenFields(t)));
-  return csvResponse(q.provider ? `viajes-${q.provider}.csv` : "viajes.csv", [CSV_HEADER, ...rows]);
+  const [trips, templates] = await Promise.all([
+    listTrips(c.env.DB, {
+      from: q.from,
+      to: q.to,
+      provider: q.provider || undefined,
+      driverId: q.driver ? Number(q.driver) : undefined,
+      truckId: q.truck ? Number(q.truck) : undefined,
+      status: (q.status as Trip["status"]) || undefined,
+    }),
+    listTemplates(c.env.DB),
+  ]);
+  // El remito, la boleta y el número de orden salen cada uno en su columna, no apelmazados
+  // en una sola celda: así se ordena, se filtra y se suma por cualquiera de ellos.
+  const campos = columnasDeCampos(trips, templates);
+  const rows = trips.flatMap((t) => filasDeViaje(t, campos));
+  return csvResponse(q.provider ? `viajes-${q.provider}.csv` : "viajes.csv", [encabezado(campos), ...rows]);
 });
 
 // Cargas sin regla de facturación: el único trabajo manual que queda, y es una vez
