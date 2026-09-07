@@ -31,8 +31,10 @@ import * as photosRepo from "../repos/photos";
 import * as libretaRepo from "../repos/libreta";
 import * as lecturasRepo from "../repos/lecturas";
 import * as driversRepo from "../repos/drivers";
+import * as trucksRepo from "../repos/trucks";
 import { periodoDeHoy } from "../lib/periodo";
 import { notificarOficina } from "../lib/avisos";
+import { cabeceraCorregida } from "../lib/cabecera-viaje";
 
 const trips = new Hono<{ Bindings: Env; Variables: Vars }>();
 trips.use("*", requireAuth);
@@ -592,6 +594,59 @@ trips.post("/:id/cancel", async (c) => {
   const b = (await c.req.json().catch(() => ({}))) as { notes?: string };
   await tripsRepo.cancelTrip(c.env.DB, s.trip.id, b.notes ?? "");
   return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
+});
+
+/**
+ * PATCH /api/trips/:id — la oficina corrige la cabecera de un viaje ya cargado.
+ *
+ * "Borrar viajes o agregar viajes desde oficina, para posibles correcciones." Faltaba el caso
+ * del medio, que es el más común: el viaje está bien salvo un dato —el destino que el chofer
+ * eligió de apuro, los kilos mal tipeados, el camión equivocado—, y hasta ahora la única
+ * salida era borrarlo y cargarlo de nuevo, perdiendo las fotos.
+ *
+ * Tres cosas que quedan afuera a propósito:
+ *
+ * - Un viaje ya facturado no se toca, igual que en borrar y en corregir la fecha.
+ * - El cobro NO se vuelve a calcular. Las reglas de hoy no son las de hace tres meses, y
+ *   recalcular acá le cambiaría en silencio el "se cobra a" a un viaje viejo. Las cargas se
+ *   corrigen por PUT /:id/segments, que es donde eso sí corresponde.
+ * - `provider_name` tampoco: es la clave con la que se filtra el resumen de facturación.
+ *
+ * Cambiar el camión o los kilómetros mueve la auditoría de kilómetros de dos camiones; por eso
+ * queda registrado quién lo editó y cuándo, y la pantalla lo muestra.
+ */
+trips.patch("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+  const trip = await tripsRepo.getTripFacturable(c.env.DB, Number(c.req.param("id")));
+  if (!trip) return fail(c, "Viaje no encontrado", 404);
+  if (trip.factura_numero) {
+    return fail(
+      c,
+      `Ese viaje ya está en la factura ${trip.factura_numero}. Desmarcalo desde Facturación y después corregilo.`,
+      409,
+    );
+  }
+
+  const b = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!b) return fail(c, "Faltan datos", 400);
+
+  const tpl = trip.template_id ? await templatesRepo.getTemplate(c.env.DB, trip.template_id) : null;
+  const r = cabeceraCorregida(trip, b, tpl?.fields.find((f) => f.is_weight)?.key ?? null);
+  if ("error" in r) return fail(c, r.error, 400);
+
+  // El chofer y el camión se validan contra la base: un id que no existe rompería el JOIN de
+  // la lista y el viaje desaparecería de todas las pantallas sin ningún error visible.
+  const [chofer, camion] = await Promise.all([
+    driversRepo.getDriver(c.env.DB, r.patch.driver_id),
+    trucksRepo.getTruck(c.env.DB, r.patch.truck_id),
+  ]);
+  if (!chofer) return fail(c, "Ese chofer no existe", 400);
+  if (!camion) return fail(c, "Ese camión no existe", 400);
+
+  await tripsRepo.updateCabecera(c.env.DB, trip.id, r.patch, {
+    userId: c.get("user").id,
+    when: nowIso(),
+  });
+  return okViaje(c, await tripsRepo.getTrip(c.env.DB, trip.id));
 });
 
 /**
