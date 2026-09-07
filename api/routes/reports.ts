@@ -11,7 +11,7 @@ import {
   type Trip,
 } from "../../shared/domain";
 import { listTrips, listTripsFacturables } from "../repos/trips";
-import { CSV_HEADER, filasDeViaje } from "../lib/export-viajes";
+import { columnasDeExport, encabezadoDeExport, filasDeViaje } from "../lib/export-viajes";
 import { resumenCliente } from "../lib/resumen-cliente";
 import { listTemplates } from "../repos/templates";
 import { listFuelLogs } from "../repos/fuel";
@@ -255,12 +255,6 @@ function csvResponse(filename: string, rows: (string | number | null)[][]): Resp
     },
   });
 }
-function flattenFields(t: Trip): string {
-  return Object.entries(t.field_values ?? {})
-    .map(([k, v]) => `${k}: ${v}`)
-    .join(" · ");
-}
-
 // Una fila por carga: es la unidad facturable. Los viajes de un solo tramo
 // exportan una fila, igual que antes.
 reports.get("/trips.csv", async (c) => {
@@ -269,16 +263,28 @@ reports.get("/trips.csv", async (c) => {
   // —que es lo que el botón ya manda. Antes acá se leían sólo `from` y `to`: la oficina
   // filtraba los ocho viajes de un chofer, exportaba, y le bajaban los trescientos del mes.
   // El archivo no dice con qué filtros salió, así que eso no se nota hasta puntearlo a mano.
-  const trips = await listTrips(c.env.DB, {
-    from: q.from,
-    to: q.to,
-    provider: q.provider || undefined,
-    driverId: q.driver ? Number(q.driver) : undefined,
-    truckId: q.truck ? Number(q.truck) : undefined,
-    status: (q.status as Trip["status"]) || undefined,
-  });
-  const rows = trips.flatMap((t) => filasDeViaje(t, flattenFields(t)));
-  return csvResponse(q.provider ? `viajes-${q.provider}.csv` : "viajes.csv", [CSV_HEADER, ...rows]);
+  const [trips, templates] = await Promise.all([
+    listTrips(c.env.DB, {
+      from: q.from,
+      to: q.to,
+      provider: q.provider || undefined,
+      driverId: q.driver ? Number(q.driver) : undefined,
+      truckId: q.truck ? Number(q.truck) : undefined,
+      status: (q.status as Trip["status"]) || undefined,
+    }),
+    // Todas, no sólo las activas: un viaje viejo puede colgar de una plantilla dada de baja y
+    // sus columnas tienen que salir igual.
+    listTemplates(c.env.DB),
+  ]);
+
+  // El encabezado y las filas se arman con LA MISMA lista de columnas. Si cada uno la
+  // calculara por su lado, alcanzaría con un campo de más para correr todas las celdas.
+  const columnas = columnasDeExport(trips, templates);
+  const rows = trips.flatMap((t) => filasDeViaje(t, columnas));
+  return csvResponse(q.provider ? `viajes-${q.provider}.csv` : "viajes.csv", [
+    encabezadoDeExport(columnas),
+    ...rows,
+  ]);
 });
 
 // Cargas sin regla de facturación: el único trabajo manual que queda, y es una vez
