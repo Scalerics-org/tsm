@@ -265,7 +265,18 @@ function flattenFields(t: Trip): string {
 // exportan una fila, igual que antes.
 reports.get("/trips.csv", async (c) => {
   const q = c.req.query();
-  const trips = await listTrips(c.env.DB, { from: q.from, to: q.to, provider: q.provider || undefined });
+  // Los mismos filtros que la pantalla, con los mismos nombres de parámetro que GET /api/trips
+  // —que es lo que el botón ya manda. Antes acá se leían sólo `from` y `to`: la oficina
+  // filtraba los ocho viajes de un chofer, exportaba, y le bajaban los trescientos del mes.
+  // El archivo no dice con qué filtros salió, así que eso no se nota hasta puntearlo a mano.
+  const trips = await listTrips(c.env.DB, {
+    from: q.from,
+    to: q.to,
+    provider: q.provider || undefined,
+    driverId: q.driver ? Number(q.driver) : undefined,
+    truckId: q.truck ? Number(q.truck) : undefined,
+    status: (q.status as Trip["status"]) || undefined,
+  });
   const rows = trips.flatMap((t) => filasDeViaje(t, flattenFields(t)));
   return csvResponse(q.provider ? `viajes-${q.provider}.csv` : "viajes.csv", [CSV_HEADER, ...rows]);
 });
