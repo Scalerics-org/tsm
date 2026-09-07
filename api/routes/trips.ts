@@ -444,10 +444,27 @@ trips.delete("/:id/segments/:sid", async (c) => {
   return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
 });
 
-// PUT /api/trips/:id/segments — la oficina corrige las cargas, incluso de un viaje cerrado.
+/**
+ * PUT /api/trips/:id/segments — la oficina corrige las cargas, incluso de un viaje cerrado.
+ *
+ * Cerrado sí; facturado no. La misma guarda que ya tenían borrar el viaje y correrle la fecha
+ * faltaba justo acá, que es el camino que más pesa de los tres: cada renglón es una unidad
+ * facturable, así que corregir una cantidad le cambia el monto a una factura ya emitida.
+ *
+ * Y hay un segundo efecto que no se ve: cada guardado vuelve a pasar por `conCobro`, que
+ * aplica las reglas de HOY. Corregir un dato en un viaje de hace tres meses puede cambiarle
+ * el "se cobra a" en silencio, sobre un período que ya se cobró.
+ */
 trips.put("/:id/segments", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
-  const trip = await tripsRepo.getTrip(c.env.DB, Number(c.req.param("id")));
+  const trip = await tripsRepo.getTripFacturable(c.env.DB, Number(c.req.param("id")));
   if (!trip) return fail(c, "Viaje no encontrado", 404);
+  if (trip.factura_numero) {
+    return fail(
+      c,
+      `Ese viaje ya está en la factura ${trip.factura_numero}. Desmarcalo desde Facturación y después corregile las cargas.`,
+      409,
+    );
+  }
   const b = (await c.req.json().catch(() => ({}))) as { segments?: unknown };
   const segs = parseSegments(b.segments);
 
