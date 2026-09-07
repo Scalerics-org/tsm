@@ -177,8 +177,11 @@ export function OpsSummary() {
             <Card>
               <Corners />
               <h2 className="mb-1 font-cond text-lg font-semibold text-ink">Consumo mensual por camión</h2>
+              {/* La regla va escrita porque el número no se puede reconstruir mirando la
+                  pantalla, y cuando no cierra contra las facturas hay que saber dónde buscar. */}
               <p className="mb-3 text-xs text-ink/50">
-                Cada mes se cierra con la primera surtida del mes siguiente. El mes en curso queda abierto.
+                Cada mes arranca en la última surtida del mes anterior y cuenta todos los litros
+                cargados dentro del mes. El mes en curso queda abierto.
               </p>
               <div className="space-y-4">
                 {s.monthlyByTruck.map((t) => (

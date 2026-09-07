@@ -5,7 +5,7 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import {
   ROLES,
   TRIP_STATUS,
-  fuelSummary,
+  consumoDelPeriodo,
   monthlyConsumption,
   type PendienteCobro,
   type Trip,
@@ -40,8 +40,13 @@ reports.get("/summary", async (c) => {
 
   const byTruck = trucks.map((t) => {
     const tTrips = trips.filter((x) => x.truck_id === t.id);
-    const tFuel = fuel.filter((x) => x.truck_id === t.id);
-    const fs = fuelSummary(tFuel.map((f) => ({ odometer_km: f.odometer_km, liters: f.liters })));
+    // Con TODAS las surtidas del camión, no con `fuel` que ya viene recortado por el período.
+    // La línea de base tiene que salir de ANTES del rango: recortando primero, el arranque del
+    // período quedaba sin contra qué medirse. Es el mismo corte de mes que reportó el cliente,
+    // y por eso esta tarjeta y la de consumo mensual decían cosas distintas del mismo camión
+    // (10.816 km / 2,74 acá contra 11.197 / 2,77 abajo).
+    const tFuel = allFuel.filter((x) => x.truck_id === t.id);
+    const fs = consumoDelPeriodo(tFuel, range.from ?? "0000-01-01", range.to ?? "9999-12-31");
     return {
       truck_id: t.id,
       plate: t.plate,
@@ -50,7 +55,7 @@ reports.get("/summary", async (c) => {
       tons: roundTo(tTrips.reduce((s, x) => s + (x.kilos_carga ?? 0), 0)),
       km: Math.round(fs.km),
       liters: Math.round(fs.liters),
-      consumption_kml: fs.consumption_kml != null ? roundTo(fs.consumption_kml, 2) : null,
+      consumption_kml: fs.kml != null ? roundTo(fs.kml, 2) : null,
     };
   });
 

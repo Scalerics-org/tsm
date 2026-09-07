@@ -133,8 +133,11 @@ describe("fuelFeedback (cierre por llenado + mensual)", () => {
   });
 });
 
-describe("monthlyConsumption (cierre con el primer llenado del mes siguiente)", () => {
-  it("cierra julio con la primera surtida de agosto", () => {
+describe("monthlyConsumption (calendario: cada litro en el mes en que se compró)", () => {
+  // Antes julio cerraba con el primer llenado de AGOSTO y se llevaba puestos los 160 litros
+  // comprados en agosto. El cliente lo pidió al revés: "tiene q tomar la última surtida del
+  // mes anterior como inicial". El caso completo está en tests/consumo-calendario.test.ts.
+  it("julio termina en su última surtida y agosto arranca ahí", () => {
     const logs = [
       { odometer_km: 100000, liters: 300, is_full: true, logged_at: "2026-07-05 08:00:00" },
       { odometer_km: 100450, liters: 150, is_full: true, logged_at: "2026-07-27 08:00:00" },
@@ -143,11 +146,17 @@ describe("monthlyConsumption (cierre con el primer llenado del mes siguiente)", 
     const r = monthlyConsumption(logs); // más reciente primero
     const julio = r.find((m) => m.month === "2026-07")!;
     expect(julio.closed).toBe(true);
-    expect(julio.km).toBe(900); // de la 1ª de julio a la 1ª de agosto
-    expect(julio.liters).toBe(310); // 150 + 160, no cuenta el llenado base
-    expect(julio.kml).toBeCloseTo(2.9, 2);
+    expect(julio.km).toBe(450); // 100.450 − 100.000, todo dentro de julio
+    expect(julio.liters).toBe(150); // el llenado de apertura es la base y no cuenta
+    expect(julio.base_propia).toBe(true); // no hay nada antes de julio contra qué medir
 
     const agosto = r.find((m) => m.month === "2026-08")!;
     expect(agosto.closed).toBe(false); // mes en curso
+    expect(agosto.km).toBe(450); // 100.900 − 100.450: la última de julio es la línea de base
+    expect(agosto.liters).toBe(160); // los litros del 2 de agosto son DE AGOSTO
+    expect(agosto.base_propia).toBe(false);
+
+    // Y lo que de verdad importa: entre los dos no se pierde ni se duplica un kilómetro.
+    expect(julio.km + agosto.km).toBe(100900 - 100000);
   });
 });

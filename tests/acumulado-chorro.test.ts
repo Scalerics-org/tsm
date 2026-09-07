@@ -145,11 +145,18 @@ describe("el consumo mensual de la oficina", () => {
     // Viene el más reciente primero, que es como lo muestra la ficha del camión.
     const meses = monthlyConsumption(logs);
     expect(meses.map((m) => m.month)).toEqual(["2026-09", "2026-08"]);
-    expect(meses[1].km).toBe(1_000); // agosto cierra con su propia última surtida
-    expect(meses[1].closed).toBe(false); // y queda abierto: el odómetro saltó en el medio
-    expect(meses[0].km).toBe(1_500);
+    expect(meses[1].km).toBe(1_000); // agosto, entero sobre su propia escala
+    expect(meses[0].km).toBe(1_500); // setiembre, entero sobre la escala nueva
     // Y sobre todo: ningún mes en negativo.
     expect(meses.every((m) => m.km >= 0)).toBe(true);
+
+    // Agosto está CERRADO: el mes terminó y sus kilómetros se conocen exactos. El que queda
+    // incompleto es SETIEMBRE, que pierde el tramo del 20/8 al 2/9 porque el salto de
+    // odómetro no deja restar los dos extremos. Eso ahora lo dice `base_propia`; antes se
+    // marcaba con `closed`, que mezclaba dos cosas distintas y encima señalaba al mes
+    // equivocado.
+    expect(meses[1].closed).toBe(true);
+    expect(meses[0].base_propia).toBe(true);
   });
 });
 

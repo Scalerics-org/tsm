@@ -193,6 +193,14 @@ export interface Trip {
   /** Auditoría de correcciones de oficina sobre viajes ya cerrados. */
   edited_by: number | null;
   edited_at: string | null;
+  /**
+   * Número del viaje dentro de su mes: 1, 2, 3… y de nuevo desde 1 el mes que viene.
+   *
+   * Es un número para leer y para nombrar un viaje en un mensaje, no una identidad: se
+   * calcula por posición, así que cargar un viaje con fecha vieja corre a los de abajo.
+   * Para identificar sin ambigüedad está `id`. Lo calcula el repo, no la base.
+   */
+  numero_mes?: number;
   // joins
   driver_name?: string;
   truck_plate?: string;
@@ -902,6 +910,22 @@ export function fuelFeedback(logs: FLog[], current: FLog): FuelFeedback {
   //
   // Se recorre por fecha y no por odómetro: una surtida sin llenar no mueve el tacógrafo,
   // así que puede tener el mismo kilometraje que el llenado anterior.
+  //
+  // ────────────────────────────────────────────────────────────────────────────────────
+  // NO ES `consumoDelPeriodo`, Y ESTÁ DECIDIDO ASÍ. No lo unifiques sin preguntar.
+  //
+  // La oficina mide por calendario: de la última surtida del mes anterior a la última del
+  // mes, con todos los litros del mes adentro. Ésta, la del chofer, mide de llenado a
+  // llenado. Sobre los mismos datos dan distinto, y es a propósito: éste es un número EN
+  // VIVO, que el chofer ve apenas carga. Con la regla de la oficina, a mitad de mes le
+  // sumaría litros que todavía están en el tanque y el camión le aparecería peor de lo
+  // que anda, justo en el momento en que mira la pantalla.
+  //
+  // La contra, que hay que tener presente: chofer y oficina pueden mostrar km/L distintos
+  // del mismo mes, y ahí no se le puede reclamar a nadie. Si algún día molesta, la salida
+  // es que la oficina siga con la suya y al chofer se le muestre el TRAMO (`segment_kml`,
+  // que es exacto) en vez del acumulado, no forzar que los dos usen la misma cuenta.
+  // ────────────────────────────────────────────────────────────────────────────────────
   const month = current.logged_at.slice(0, 7);
   const cronologico = cadenaContinua(
     logs
@@ -939,57 +963,117 @@ export interface MonthlyConsumption {
   km: number;
   liters: number;
   kml: number | null;
-  closed: boolean; // cerrado con el primer llenado del mes siguiente
+  /** `false` = todavía pueden entrar surtidas de ese mes. El mes en curso. */
+  closed: boolean;
+  /**
+   * `true` = no había una surtida anterior utilizable y el mes se midió desde su propia
+   * primera. Los kilómetros que van del cierre del mes anterior a esa surtida quedan afuera.
+   * Pasa en el primer mes que existe y cuando la oficina corrigió el odómetro en el medio.
+   */
+  base_propia: boolean;
 }
 
 /**
- * Cierre de consumo mensual por camión (según el cliente): el consumo de un mes
- * va desde su primer llenado completo hasta el primer llenado completo del mes
- * siguiente (esa surtida cierra el mes y abre el próximo). El mes en curso queda
- * "abierto" (closed=false) hasta que haya un llenado el mes que viene.
+ * Ordenada por fecha. SIN recortar: el recorte por cambio de escala se hace sobre cada
+ * período, no sobre toda la historia.
+ *
+ * Recortando acá, una corrección de odómetro en setiembre borraba agosto entero del informe
+ * —y agosto era perfectamente medible sobre su propia escala—. El salto invalida la resta
+ * ENTRE los dos lados, no los datos de cada lado.
  */
-export function monthlyConsumption(logs: FLog[]): MonthlyConsumption[] {
-  // CRONOLÓGICO, por el mismo motivo que `fuelFeedback`: desde que la oficina puede corregir
-  // el odómetro para abajo, ordenar por kilometraje mezcla los meses —agosto se comía los km
-  // de setiembre— y deja fuera del recuento los litros de un chorro que quedó por debajo.
-  // Éste es el número que mira la oficina; el otro es el que ve el chofer. Tienen que dar
-  // igual o no se le puede reclamar a nadie.
-  const enOrden = [...logs].sort(
+function cronologia(logs: FLog[]): FLog[] {
+  return [...logs].sort(
     (a, b) => a.logged_at.localeCompare(b.logged_at) || a.odometer_km - b.odometer_km,
   );
+}
+
+/**
+ * Consumo de un rango de fechas, con la regla de calendario del cliente.
+ *
+ *   km     = último odómetro DENTRO del rango − último odómetro ANTES del rango
+ *   litros = todo lo que se cargó dentro del rango
+ *
+ * Es LA cuenta del consumo, y está sola a propósito: antes había tres —ésta, la del cierre
+ * mensual y la del acumulado que ve el chofer— y las tres daban distinto sobre los mismos
+ * datos. El cliente lo vio de dos formas el mismo día: "10.816 km / 2,74" en la tarjeta por
+ * camión contra "11.197 km / 2,77" en la de consumo mensual, y los 1.273 km del corte de
+ * julio a agosto que no aparecían en agosto.
+ *
+ * La línea de base sale de ANTES del rango, y ahí está el cambio: el gasoil que se carga el 4
+ * de agosto pagó los kilómetros que se hicieron desde la última carga de julio, pero es una
+ * compra de agosto. Cerrando el mes contra la surtida anterior, cada litro cae en el mes en
+ * que se compró y el resumen cierra contra las facturas. El modelo viejo —de llenado a
+ * llenado— era más exacto físicamente y le mandaba a julio litros comprados en agosto.
+ *
+ * Lo que se paga a cambio: en el corte el tanque no está necesariamente lleno, así que el
+ * km/L de un mes suelto queda aproximado. Se compensa de un mes al otro, porque lo que sobra
+ * de uno le falta al siguiente.
+ *
+ * Sin surtida previa (el primer mes que existe) la primera de adentro hace de línea de base y
+ * sus litros NO cuentan: llenaron el tanque para kilómetros que se hicieron antes del rango.
+ */
+export function consumoDelPeriodo(
+  logs: FLog[],
+  desde: string,
+  hasta: string,
+): { km: number; liters: number; kml: number | null; base_propia: boolean } {
+  const enOrden = cronologia(logs);
+  // El recorte por cambio de escala se hace acá, sobre el período: dentro de un mismo mes
+  // pueden convivir dos escalas (le pasó al GTP 4325, con seis surtidas de prueba en 393.000
+  // km al lado de las reales en 140.000) y restarlas daba el mes en negativo.
+  const dentro = cadenaContinua(
+    enOrden.filter((l) => {
+      const dia = l.logged_at.slice(0, 10);
+      return dia >= desde && dia <= hasta;
+    }),
+  );
+  if (dentro.length === 0) return { km: 0, liters: 0, kml: null, base_propia: true };
+
+  const ultimo = dentro[dentro.length - 1];
+  const previas = enOrden.filter((l) => l.logged_at.slice(0, 10) < desde);
+  const anterior = previas[previas.length - 1] ?? null;
+
+  // La anterior sólo sirve si está en la misma escala. Si el odómetro se corrigió entre medio,
+  // los dos extremos no se pueden restar y se mide desde adentro, como si no hubiera nada
+  // antes. Es lo que de verdad sabemos, y `base_propia` lo dice en voz alta en vez de
+  // devolver un número que parece completo.
+  const sirve = anterior != null && anterior.odometer_km <= ultimo.odometer_km;
+  const base = sirve ? anterior : dentro[0];
+  const km = ultimo.odometer_km - base.odometer_km;
+  // Con base de afuera cuentan TODOS los litros del período —es la regla del calendario—.
+  // Con base propia, el primero es la línea de base: llenó el tanque para kilómetros que se
+  // hicieron antes, y contarlo acá haría parecer que el camión rinde peor de lo que rinde.
+  const liters = (sirve ? dentro : dentro.slice(1)).reduce((s, l) => s + l.liters, 0);
+
+  return { km, liters, kml: kmPorLitro(km, liters), base_propia: !sirve };
+}
+
+/**
+ * El consumo mes por mes, que es `consumoDelPeriodo` aplicado a cada mes calendario.
+ *
+ * Un mes aparece sólo si hay algo que medir. El primer mes que existe, si trae una sola
+ * surtida, no tiene contra qué compararse y no es un mes: es una línea de base. Dejarlo
+ * entrar es lo que hacía aparecer "JUL 2026 · 1.273 km", que no era julio sino el pedazo del
+ * cruce disfrazado de mes.
+ */
+export function monthlyConsumption(logs: FLog[]): MonthlyConsumption[] {
+  const enOrden = cronologia(logs);
   if (enOrden.length === 0) return [];
 
   const meses = [...new Set(enOrden.map((l) => l.logged_at.slice(0, 7)))].sort();
-  const out: MonthlyConsumption[] = [];
+  const ultimoMes = meses[meses.length - 1];
 
-  for (const mes of meses) {
-    // Cada mes se mira sobre SU cadena, recortada donde el odómetro cambió de escala. Es lo
-    // que pasó en agosto del GTP 4325: seis surtidas de prueba en 393.000 km conviviendo con
-    // las reales en 140.000. Medido de punta a punta el mes daba -245.851 km y el acumulado
-    // salía vacío.
-    const delMes = cadenaContinua(enOrden.filter((l) => l.logged_at.slice(0, 7) === mes));
-    const abre = delMes.findIndex((l) => l.is_full);
-    // Un mes que no arranca con un llenado no tiene línea de base contra la cual medir.
-    if (abre < 0) continue;
-
-    const ultimo = delMes[delMes.length - 1];
-
-    // El mes cierra con el primer llenado del mes siguiente — esa surtida cierra uno y abre
-    // el otro. Pero sólo si está en la misma escala: si el odómetro se corrigió entre medio,
-    // los dos extremos no se pueden restar y el mes se cierra con su propia última surtida,
-    // marcado como abierto. Es lo que de verdad sabemos.
-    const siguiente = enOrden.find((l) => l.is_full && l.logged_at.slice(0, 7) > mes) ?? null;
-    const cierra = siguiente && siguiente.odometer_km >= ultimo.odometer_km ? siguiente : null;
-
-    const km = (cierra ?? ultimo).odometer_km - delMes[abre].odometer_km;
-    // El llenado de apertura es la línea de base y no cuenta: los litros arrancan en el
-    // siguiente. Mismo criterio que el tramo.
-    const liters =
-      delMes.slice(abre + 1).reduce((t, l) => t + l.liters, 0) + (cierra ? cierra.liters : 0);
-
-    out.push({ month: mes, km, liters, kml: kmPorLitro(km, liters), closed: cierra != null });
-  }
-  return out.reverse(); // más reciente primero
+  return meses
+    .map((mes) => ({
+      month: mes,
+      ...consumoDelPeriodo(enOrden, `${mes}-01`, `${mes}-31`),
+      // Cerrado = el mes terminó y ya no le van a entrar surtidas. Antes quería decir "se
+      // pudo cerrar contra el llenado del mes siguiente", que es otra cosa y dejaba meses
+      // completos marcados como abiertos.
+      closed: mes !== ultimoMes,
+    }))
+    .filter((m) => m.km > 0 || m.liters > 0)
+    .reverse(); // más reciente primero
 }
 
 /**
