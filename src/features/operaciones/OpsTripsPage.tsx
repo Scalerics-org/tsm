@@ -111,14 +111,19 @@ export function OpsTripsPage() {
         <Empty>No hay viajes con esos filtros.</Empty>
       ) : (
         <Card className="overflow-x-auto p-0">
-          <table className="w-full min-w-[760px] text-sm">
+          <table className="w-full min-w-[900px] text-sm">
             <thead className="text-left text-ink/60">
               <tr className="border-b border-ink/15">
+                {/* El N° es del mes: reinicia en 1 cada mes. Va primero y angosto porque es
+                    para leerlo de un vistazo y para nombrar un viaje por teléfono. */}
+                <th className="px-3 py-3 text-right">N°</th>
                 <th className="px-4 py-3">Proveedor / Ruta</th>
                 <th className="px-4 py-3">Chofer</th>
                 <th className="px-4 py-3">Camión</th>
-                <th className="px-4 py-3 text-right">Ton</th>
+                {/* Decía "Ton" y la celda muestra kilos desde la migración 0039. */}
+                <th className="px-4 py-3 text-right">Kilos</th>
                 <th className="px-4 py-3">Salida</th>
+                <th className="px-4 py-3">Descarga</th>
                 <th className="px-4 py-3">Estado</th>
                 <th className="px-4 py-3 text-right">Acciones</th>
               </tr>

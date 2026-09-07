@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { TRIP_STATUS, fmtKilos, type Trip } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { Spinner, StatusBadge } from "../../components/ui";
-import { fmtDateTime } from "../../lib/format";
+import { fmtDate, fmtDateTime } from "../../lib/format";
 
 /**
  * Una fila de la lista de viajes, con la fecha corregible y el botón de borrar.
@@ -80,6 +80,11 @@ export function FilaViaje({ t, onCambio }: { t: Trip; onCambio: () => void }) {
 
   return (
     <tr className="border-b border-ink/10 hover:bg-surface">
+      {/* El número del mes. Tabular para que las unidades queden alineadas entre filas, y
+          apagado porque es una referencia: lo que se lee primero es el recorrido. */}
+      <td className="px-3 py-3 text-right font-cond tabular-nums text-ink/45">
+        {t.numero_mes ?? "—"}
+      </td>
       <td className="px-4 py-3">
         <Link to={`/panel/viajes/${t.id}`} className="font-medium text-ink hover:text-brand-700">
           {t.origin} → {t.destination}
@@ -125,6 +130,12 @@ export function FilaViaje({ t, onCambio }: { t: Trip; onCambio: () => void }) {
             {fmtDateTime(t.started_at)}
           </button>
         )}
+      </td>
+      {/* Fecha de descarga: es `finished_at`, o sea cuándo el chofer registró la llegada.
+          Un viaje en curso todavía no la tiene, y ahí el guión es el dato: dice que sigue
+          abierto. Va sin hora porque al lado de la salida lo que se compara son los días. */}
+      <td className="px-4 py-3 text-ink/60">
+        {t.finished_at ? fmtDate(t.finished_at) : <span className="text-ink/30">—</span>}
       </td>
       <td className="px-4 py-3">
         <StatusBadge status={t.status} />

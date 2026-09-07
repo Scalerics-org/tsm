@@ -31,6 +31,8 @@ interface TripRow {
   factura_numero: string | null;
   facturado_at: string | null;
   facturado_by: number | null;
+  /** Lo calcula `NUMERADOS` con ROW_NUMBER; no es una columna de la tabla. */
+  numero_mes: number;
   driver_name?: string;
   truck_plate?: string;
 }
@@ -52,14 +54,42 @@ export interface TripFacturacion {
 
 export type TripFacturable = Trip & TripFacturacion;
 
+/**
+ * El número de viaje del mes: 1, 2, 3… arrancando de nuevo cada mes.
+ *
+ * NO se guarda en una columna, se calcula acá, y es a propósito. La oficina puede correr la
+ * fecha de un viaje y puede borrarlo; un número guardado quedaría viejo apenas se hace
+ * cualquiera de las dos cosas —un viaje que se pasa de agosto a julio se llevaría puesto su
+ * número de agosto— y la serie tendría huecos. Calculado siempre da 1, 2, 3 sin saltos.
+ *
+ * A cambio, el número no es una identidad: si se carga un viaje con fecha retroactiva, los
+ * que quedan abajo se corren uno. Para identificar un viaje sin ambigüedad está `id`, que no
+ * se mueve nunca y es el que sigue yendo en la primera columna del Excel.
+ *
+ * Va en una subconsulta y no en el SELECT de afuera porque en SQL el WHERE corre ANTES que la
+ * función de ventana: numerando arriba, filtrar por chofer o por camión renumeraba desde 1 y
+ * el mismo viaje mostraba números distintos según cómo estuviera filtrada la pantalla.
+ *
+ * El desempate por `id` no es decorativo: los viajes que carga la oficina nacen a las
+ * 00:00:00, así que dos del mismo día tienen `started_at` idéntico y sin él el orden —y por
+ * lo tanto el número— cambiaba de una consulta a la otra.
+ */
+const NUMERADOS = `
+  SELECT t.*, ROW_NUMBER() OVER (
+           PARTITION BY substr(t.started_at, 1, 7)
+           ORDER BY t.started_at, t.id
+         ) AS numero_mes
+  FROM trips t
+`;
+
 const SELECT = `
   SELECT t.id, t.template_id, t.provider_name, t.origin, t.remite, t.destination, t.destinatario,
          t.driver_id, t.truck_id, t.cargo_type, t.kilos, t.field_values, t.status,
          t.started_at, t.finished_at, t.notes, t.created_at,
          t.segments, t.kilometros, t.edited_by, t.edited_at,
-         t.factura_numero, t.facturado_at, t.facturado_by,
+         t.factura_numero, t.facturado_at, t.facturado_by, t.numero_mes,
          d.name AS driver_name, tr.plate AS truck_plate
-  FROM trips t
+  FROM (${NUMERADOS}) t
   JOIN drivers d ON d.id = t.driver_id
   JOIN trucks tr ON tr.id = t.truck_id
 `;
@@ -106,6 +136,7 @@ function toTrip(r: TripRow): Trip {
     kilometros: r.kilometros,
     edited_by: r.edited_by,
     edited_at: r.edited_at,
+    numero_mes: r.numero_mes,
     driver_name: r.driver_name,
     truck_plate: r.truck_plate,
   };
@@ -151,7 +182,7 @@ function filtrar(f: TripFilters): { sql: string; binds: unknown[] } {
     binds.push(f.to);
   }
   return {
-    sql: SELECT + (where.length ? ` WHERE ${where.join(" AND ")}` : "") + " ORDER BY t.started_at DESC",
+    sql: SELECT + (where.length ? ` WHERE ${where.join(" AND ")}` : "") + " ORDER BY t.started_at DESC, t.id DESC",
     binds,
   };
 }

@@ -109,7 +109,13 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="kicker">{trip.provider_name}</div>
+          {/* El número del mes junto al proveedor: es así como se nombra un viaje por
+              teléfono. El `id`, que no se mueve nunca, sigue en la URL y en la primera
+              columna del Excel. */}
+          <div className="kicker">
+            {trip.numero_mes != null && `Viaje N° ${trip.numero_mes} · `}
+            {trip.provider_name}
+          </div>
           <h1 className="text-2xl text-ink">
             {trip.origin} → {trip.destination}
             {trip.destinatario ? ` (${trip.destinatario})` : ""}
