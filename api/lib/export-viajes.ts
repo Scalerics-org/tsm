@@ -130,10 +130,27 @@ function valorDeCampo(crudo: string | undefined, col: ColumnaCampo): Celda {
  */
 export function filasDeViaje(t: Trip, campos: ColumnaCampo[]): Celda[][] {
   const comunes: Celda[] = [t.id, t.started_at.slice(0, 10), t.provider_name];
-  const cola: Celda[] = [
-    t.kilos_carga ?? "",
-    t.kilometros ?? "",
-    ...campos.map((c) => valorDeCampo(t.field_values?.[c.key], c)),
+
+  /**
+   * La cola es la cabecera del viaje, y se pega a cada fila de carga. Lo que se SUMA va sólo
+   * en la primera.
+   *
+   * Los kilómetros y los kilos son del viaje, no de cada carga: el chofer los carga una vez
+   * al cerrar. Repetidos en las tres filas de un combinado, la columna que la oficina arrastra
+   * cuenta el mismo viaje tres veces — sobre los datos reales, la columna "Km" sumaba 42.902
+   * contra 34.089, un 25,8% de más.
+   *
+   * Lo que no se suma sí se repite: chofer, camión, estado y los identificadores de plantilla
+   * sirven para leer una fila suelta y para cruzar contra una factura, y repetirlos no
+   * distorsiona ningún total. El "ID viaje" es lo que vuelve a atar las filas.
+   */
+  const cabecera = (primera: boolean): Celda[] => [
+    primera ? (t.kilos_carga ?? "") : "",
+    primera ? (t.kilometros ?? "") : "",
+    ...campos.map((c) => {
+      if (c.totaliza && !primera) return "";
+      return valorDeCampo(t.field_values?.[c.key], c);
+    }),
     t.driver_name ?? "",
     t.truck_plate ?? "",
     t.status,
@@ -141,6 +158,7 @@ export function filasDeViaje(t: Trip, campos: ColumnaCampo[]): Celda[][] {
     t.finished_at ?? "",
     t.notes ?? "",
   ];
+  const cola = cabecera(true);
 
   // Sin cargas el viaje igual va: existió, tiene chofer y kilómetros, y esconderlo del Excel
   // sería esconder trabajo hecho.
@@ -150,7 +168,7 @@ export function filasDeViaje(t: Trip, campos: ColumnaCampo[]): Celda[][] {
     ];
   }
 
-  return t.segments.map((s) => [
+  return t.segments.map((s, i) => [
     ...comunes,
     // En el combinado genérico cada carga tiene su propio tramo; en los demás hereda el del viaje.
     s.origen ?? t.origin,
@@ -162,6 +180,6 @@ export function filasDeViaje(t: Trip, campos: ColumnaCampo[]): Celda[][] {
     s.remito ?? "",
     s.cobro_a ?? "",
     s.cobro_tipo ?? "",
-    ...cola,
+    ...(i === 0 ? cola : cabecera(false)),
   ]);
 }
