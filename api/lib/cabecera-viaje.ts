@@ -15,7 +15,17 @@ import type { CabeceraPatch } from "../repos/trips";
  *
  * No valida que el chofer y el camión existan: eso necesita la base y lo hace la ruta.
  */
-export type Resultado = { patch: CabeceraPatch } | { error: string };
+export type Resultado = { patch: CabeceraPatch; avisos: string[] } | { error: string };
+
+/** Lo que la ruta sabe del contexto y la función pura no puede averiguar sola. */
+export interface ContextoCabecera {
+  /**
+   * La plantilla arma el recorrido con las cargas (`renglon_pide_ubicacion`). En esas,
+   * `recalcularRecorrido` pisa origen y destino después de cada escritura de renglones, así
+   * que corregirlos acá se revierte solo en el próximo guardado.
+   */
+  recorridoPorCargas?: boolean;
+}
 
 const texto = (v: unknown): string => String(v ?? "").trim();
 const textoONull = (v: unknown): string | null => texto(v) || null;
@@ -32,17 +42,44 @@ export function cabeceraCorregida(
   body: Record<string, unknown>,
   /** La key del campo de peso de la plantilla, si tiene uno. */
   weightKey: string | null,
+  ctx: ContextoCabecera = {},
 ): Resultado {
   const trae = (k: string) => Object.prototype.hasOwnProperty.call(body, k);
+  /** Mandar el mismo valor que ya tenía no es cambiarlo: la pantalla manda todo junto. */
+  const cambia = (k: keyof Trip) => trae(k) && texto(body[k]) !== texto(trip[k]);
 
+  // Se valida lo que el pedido MANDA, no lo que ya estaba. Mirando el valor resultante, un
+  // viaje con un campo ya vacío rechazaba TODO patch —incluso uno que no lo tocaba— y
+  // quedaba incorregible para siempre. En producción hay 2 así, con el tipo de carga vacío,
+  // y son justo los que hay que poder arreglar.
   const origin = trae("origin") ? texto(body.origin) : trip.origin;
-  if (!origin) return { error: "El origen no puede quedar vacío." };
+  if (trae("origin") && !origin) return { error: "El origen no puede quedar vacío." };
 
   const destination = trae("destination") ? texto(body.destination) : trip.destination;
-  if (!destination) return { error: "El destino no puede quedar vacío." };
+  if (trae("destination") && !destination) return { error: "El destino no puede quedar vacío." };
 
   const cargo_type = trae("cargo_type") ? texto(body.cargo_type) : trip.cargo_type;
-  if (!cargo_type) return { error: "El tipo de carga no puede quedar vacío." };
+  if (trae("cargo_type") && !cargo_type) {
+    return { error: "El tipo de carga no puede quedar vacío." };
+  }
+
+  // El recorrido de estas plantillas sale de las cargas y se reescribe en cada guardado de
+  // renglones: aceptar la corrección acá sería aceptarla y revertirla sin decir nada.
+  if (ctx.recorridoPorCargas && (cambia("origin") || cambia("destination"))) {
+    return {
+      error:
+        "En esta plantilla el recorrido sale de las cargas: corregí el lugar en la carga y el viaje se acomoda solo.",
+    };
+  }
+
+  // Un viaje andando tiene un chofer con la app abierta en la ruta. Cambiárselo se lo saca
+  // de la mano a mitad de camino.
+  if (trip.status === "EN_CURSO" && (cambia("driver_id") || cambia("truck_id"))) {
+    return {
+      error:
+        "El viaje está en curso: el chofer lo tiene abierto. Esperá a que lo cierre para cambiarle el chofer o el camión.",
+    };
+  }
 
   const kilos_carga = trae("kilos_carga") ? numeroONull(body.kilos_carga) : trip.kilos_carga;
   if (kilos_carga === undefined) return { error: "Los kilos van en número, y no pueden ser negativos." };
@@ -66,7 +103,18 @@ export function cabeceraCorregida(
     else field_values[weightKey] = String(kilos_carga);
   }
 
+  // Los km son la lectura del chofer, no una estimación: pisarlos al cambiar el recorrido
+  // sería inventar un número. Pero dejarlos callado tampoco sirve — ese valor sigue contando
+  // como km real en la auditoría del tacógrafo. Se avisa, y que la oficina decida.
+  const avisos: string[] = [];
+  if ((cambia("origin") || cambia("destination")) && !trae("kilometros")) {
+    avisos.push(
+      `Cambió el recorrido pero los kilómetros quedaron en ${trip.kilometros ?? 0}. Si ya no corresponden, corregilos: ese número entra en la auditoría del tacógrafo.`,
+    );
+  }
+
   return {
+    avisos,
     patch: {
       origin,
       remite: trae("remite") ? textoONull(body.remite) : trip.remite,

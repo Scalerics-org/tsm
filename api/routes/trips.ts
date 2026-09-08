@@ -630,7 +630,9 @@ trips.patch("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   if (!b) return fail(c, "Faltan datos", 400);
 
   const tpl = trip.template_id ? await templatesRepo.getTemplate(c.env.DB, trip.template_id) : null;
-  const r = cabeceraCorregida(trip, b, tpl?.fields.find((f) => f.is_weight)?.key ?? null);
+  const r = cabeceraCorregida(trip, b, tpl?.fields.find((f) => f.is_weight)?.key ?? null, {
+    recorridoPorCargas: !!tpl?.renglon_pide_ubicacion,
+  });
   if ("error" in r) return fail(c, r.error, 400);
 
   // El chofer y el camión se validan contra la base: un id que no existe rompería el JOIN de
@@ -646,7 +648,10 @@ trips.patch("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
     userId: c.get("user").id,
     when: nowIso(),
   });
-  return okViaje(c, await tripsRepo.getTrip(c.env.DB, trip.id));
+  // Los avisos no son errores: la corrección se guardó. Son lo que la oficina tiene que
+  // mirar después de guardar, como los km que quedaron de un recorrido que ya no es ése.
+  const guardado = await tripsRepo.getTrip(c.env.DB, trip.id);
+  return ok(c, { ...guardado, avisos: r.avisos });
 });
 
 /**
