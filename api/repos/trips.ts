@@ -35,6 +35,7 @@ interface TripRow {
   numero_mes: number;
   driver_name?: string;
   truck_plate?: string;
+  edited_by_name?: string | null;
 }
 
 /**
@@ -88,10 +89,14 @@ const SELECT = `
          t.started_at, t.finished_at, t.notes, t.created_at,
          t.segments, t.kilometros, t.edited_by, t.edited_at,
          t.factura_numero, t.facturado_at, t.facturado_by, t.numero_mes,
-         d.name AS driver_name, tr.plate AS truck_plate
+         d.name AS driver_name, tr.plate AS truck_plate,
+         -- Quién fue el último en corregirlo. El LEFT es porque el usuario puede haberse
+         -- borrado, y un viaje no puede desaparecer de la lista por eso.
+         e.name AS edited_by_name
   FROM (${NUMERADOS}) t
   JOIN drivers d ON d.id = t.driver_id
   JOIN trucks tr ON tr.id = t.truck_id
+  LEFT JOIN users e ON e.id = t.edited_by
 `;
 
 function parseSegments(raw: string | null): TripSegment[] {
@@ -139,6 +144,7 @@ function toTrip(r: TripRow): Trip {
     numero_mes: r.numero_mes,
     driver_name: r.driver_name,
     truck_plate: r.truck_plate,
+    edited_by_name: r.edited_by_name ?? null,
   };
 }
 

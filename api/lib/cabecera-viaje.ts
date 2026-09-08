@@ -112,7 +112,11 @@ export function cabeceraCorregida(
   const avisos: string[] = [];
   if ((cambia("origin") || cambia("destination")) && !trae("kilometros")) {
     avisos.push(
-      `Cambió el recorrido pero los kilómetros quedaron en ${trip.kilometros ?? 0}. Si ya no corresponden, corregilos: ese número entra en la auditoría del tacógrafo.`,
+      // `?? 0` decía "quedaron en 0" cuando el viaje no tiene kilómetros cargados, que es
+      // otra cosa: 0 km es una afirmación, y sin dato no hay nada que afirmar.
+      trip.kilometros == null
+        ? "Cambió el recorrido y el viaje no tiene kilómetros cargados. Ese número entra en la auditoría del tacógrafo: si lo sabés, cargalo."
+        : `Cambió el recorrido pero los kilómetros quedaron en ${trip.kilometros}. Si ya no corresponden, corregilos: ese número entra en la auditoría del tacógrafo.`,
     );
   }
 

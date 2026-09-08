@@ -11,10 +11,13 @@ import { Button, Card, ErrorText, Spinner, StatusBadge } from "../../components/
 import { fmtDateTime } from "../../lib/format";
 import { fmtKilos } from "@shared/domain";
 import { CargasDelViaje } from "./CargasDelViaje";
+import { EditarCabecera } from "./EditarCabecera";
 
 interface Detail {
   trip: Trip & { fields?: TemplateField[] };
   photos: TripPhoto[];
+  /** En estas plantillas el recorrido lo arman las cargas y no se corrige acá. */
+  renglon_pide_ubicacion: boolean;
 }
 
 export function OpsTripDetailPage() {
@@ -24,6 +27,10 @@ export function OpsTripDetailPage() {
   const [error, setError] = useState("");
   const [borrando, setBorrando] = useState(false);
   const [guardandoFecha, setGuardandoFecha] = useState(false);
+  const [editando, setEditando] = useState(false);
+  // Lo que el backend devuelve después de guardar: no son errores, son las consecuencias que
+  // la oficina tiene que mirar —los km que quedaron de un recorrido que ya no es ése—.
+  const [avisos, setAvisos] = useState<string[]>([]);
 
   const load = useCallback(() => {
     api
@@ -126,6 +133,11 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={trip.status} />
+          {!editando && (
+            <Button variant="secondary" onClick={() => setEditando(true)}>
+              Corregir
+            </Button>
+          )}
           {trip.status === TRIP_STATUS.EN_CURSO && (
             <Button variant="ghost" onClick={cancel}>
               Cancelar
@@ -137,6 +149,39 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
         </div>
       </div>
 
+      {/* Los avisos del guardado. Se quedan hasta que la oficina los cierre: son justo lo que
+          no hay que perderse de vista, y un cartel que se va solo no lo lee nadie. */}
+      {avisos.length > 0 && (
+        <div className="border-l-4 border-st-amberBd bg-st-amberBg p-3 text-sm text-ink/80">
+          <div className="flex items-start justify-between gap-3">
+            <ul className="space-y-1">
+              {avisos.map((a) => (
+                <li key={a}>{a}</li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              onClick={() => setAvisos([])}
+              className="flex-none text-xs text-ink/60 hover:underline"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editando ? (
+        <EditarCabecera
+          trip={trip}
+          recorridoPorCargas={data.renglon_pide_ubicacion}
+          onGuardado={(nuevos) => {
+            setEditando(false);
+            setAvisos(nuevos);
+            load();
+          }}
+          onCancelar={() => setEditando(false)}
+        />
+      ) : (
       <Card>
         <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
           {trip.remite && <Info label="Remite" value={trip.remite} />}
@@ -159,7 +204,16 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
             <span className="font-semibold">Observaciones:</span> {trip.notes}
           </div>
         )}
+        {/* El rastro de la corrección se guarda desde la migración 0013 y no se mostraba en
+            ninguna pantalla. Importa: cambiar el camión o los km de un viaje cerrado mueve la
+            auditoría de kilómetros de dos camiones, y alguien va a preguntar por qué. */}
+        {trip.edited_at && (
+          <p className="mt-3 text-xs text-ink/50">
+            Corregido por {trip.edited_by_name ?? "la oficina"} el {fmtDateTime(trip.edited_at)}
+          </p>
+        )}
       </Card>
+      )}
 
       <CargasDelViaje segments={trip.segments} photos={photos} onChanged={load} />
     </div>

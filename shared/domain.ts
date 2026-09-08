@@ -190,9 +190,15 @@ export interface Trip {
   /** Cargas del viaje. Vacío en los viajes de un solo tramo. */
   segments: TripSegment[];
   kilometros: number | null;
-  /** Auditoría de correcciones de oficina sobre viajes ya cerrados. */
+  /**
+   * Auditoría de correcciones de oficina sobre viajes ya cerrados.
+   *
+   * El nombre viene del JOIN y puede faltar —el usuario que corrigió pudo borrarse—, así que
+   * la pantalla muestra la fecha igual: que el viaje se tocó importa aunque no se sepa quién.
+   */
   edited_by: number | null;
   edited_at: string | null;
+  edited_by_name?: string | null;
   /**
    * Número del viaje dentro de su mes: 1, 2, 3… y de nuevo desde 1 el mes que viene.
    *

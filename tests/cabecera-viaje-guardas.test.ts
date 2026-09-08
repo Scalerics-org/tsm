@@ -133,7 +133,21 @@ describe("2 · cambiar el recorrido avisa que los kilómetros quedaron como esta
     const r = cabeceraCorregida(viaje(), { destination: "Salto" }, null);
     if ("error" in r) throw new Error("tenía que poder corregirse");
     expect(r.avisos.join(" ")).toMatch(/kil[oó]metros/i);
+    expect(r.avisos.join(" ")).toContain("627");
     expect(r.patch.kilometros).toBe(627);
+  });
+
+  /**
+   * Un viaje sin kilómetros cargados no "quedó en 0": no tiene el dato. Decir 0 es afirmar
+   * que no se recorrió nada, y ese número es justo el que después se compara contra el
+   * tacógrafo.
+   */
+  it("cuando el viaje no tiene kilómetros, el aviso no inventa un 0", () => {
+    const r = cabeceraCorregida(viaje({ kilometros: null }), { destination: "Salto" }, null);
+    if ("error" in r) throw new Error("tenía que poder corregirse");
+    const aviso = r.avisos.join(" ");
+    expect(aviso).toMatch(/no tiene kil[oó]metros/i);
+    expect(aviso).not.toMatch(/\b0\b/);
   });
 
   it("no avisa si los kilómetros vienen corregidos en el mismo pedido", () => {
