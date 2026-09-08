@@ -80,23 +80,42 @@ export async function createLectura(db: D1Database, l: LecturaInput): Promise<nu
 }
 
 /**
- * La oficina corrige el kilometraje de una lectura.
+ * La oficina corrige una lectura: el kilometraje, el mes al que pertenece, o los dos.
  *
- * La foto NO se toca: es la evidencia, y si se pudiera cambiar dejaría de servir para eso —
- * la misma regla que en las surtidas. Lo que sí se corrige es el número tipeado, porque un
- * dígito de más descuadra este mes y el siguiente (los dos usan esta lectura como extremo) y
- * el chofer no puede volver a cargarla: hay una sola por mes.
+ * La foto NO se toca, ni tampoco `tomada_at`: son la evidencia, y si se pudieran cambiar
+ * dejarían de servir para eso — la misma regla que en las surtidas. La pantalla muestra el
+ * día real de la foto aparte del mes, justo para que se vea la ventana que se comparó.
+ *
+ * Se corrige el número tipeado, porque un dígito de más descuadra este mes y el siguiente
+ * (los dos usan esta lectura como extremo) y el chofer no puede volver a cargarla: hay una
+ * sola por mes. Y se corrige el MES, porque la foto que cierra agosto se saca casi siempre
+ * en setiembre, y anotada contra setiembre corre la cuenta de los dos meses.
+ *
+ * El mes llega ya validado contra los vecinos por `moverLectura`: acá sólo se escribe.
  */
-export async function updateKilometraje(
+export async function updateLectura(
   db: D1Database,
   id: number,
-  kilometraje: number,
+  cambios: { kilometraje?: number; periodo?: string },
   editor: { userId: number; when: string },
 ): Promise<void> {
+  const sets: string[] = [];
+  const binds: unknown[] = [];
+  if (cambios.kilometraje != null) {
+    sets.push("kilometraje = ?");
+    binds.push(cambios.kilometraje);
+  }
+  if (cambios.periodo != null) {
+    sets.push("periodo = ?");
+    binds.push(cambios.periodo);
+  }
+  if (sets.length === 0) return;
+
+  sets.push("edited_by = ?", "edited_at = ?");
+  binds.push(editor.userId, editor.when, id);
+
   await db
-    .prepare(
-      `UPDATE lecturas_odometro SET kilometraje = ?, edited_by = ?, edited_at = ? WHERE id = ?`,
-    )
-    .bind(kilometraje, editor.userId, editor.when, id)
+    .prepare(`UPDATE lecturas_odometro SET ${sets.join(", ")} WHERE id = ?`)
+    .bind(...binds)
     .run();
 }

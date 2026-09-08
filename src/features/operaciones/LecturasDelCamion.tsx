@@ -77,9 +77,17 @@ export function LecturasDelCamion({ truckId }: { truckId: number }) {
 function FilaLectura({ l, onChanged }: { l: LecturaOdometro; onChanged: () => void }) {
   const [editando, setEditando] = useState(false);
   const [km, setKm] = useState(String(l.kilometraje));
+  const [mes, setMes] = useState(l.periodo);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [ampliada, setAmpliada] = useState(false);
+
+  const cancelar = () => {
+    setKm(String(l.kilometraje));
+    setMes(l.periodo);
+    setError("");
+    setEditando(false);
+  };
 
   async function guardar() {
     const n = Number(km);
@@ -87,7 +95,12 @@ function FilaLectura({ l, onChanged }: { l: LecturaOdometro; onChanged: () => vo
     setError("");
     setBusy(true);
     try {
-      await api.put(`/lecturas/${l.id}`, { kilometraje: n });
+      // El mes va sólo si de verdad cambió: el backend lo trata como opcional y así una
+      // corrección de kilometraje sigue siendo exactamente lo que era antes.
+      await api.put(`/lecturas/${l.id}`, {
+        kilometraje: n,
+        ...(mes !== l.periodo ? { periodo: mes } : {}),
+      });
       setEditando(false);
       onChanged();
     } catch (e) {
@@ -100,9 +113,23 @@ function FilaLectura({ l, onChanged }: { l: LecturaOdometro; onChanged: () => vo
   return (
     <tr className="border-b border-ink/10">
       <td className="px-4 py-2 text-ink/70">
-        {nombreDelMes(l.periodo)}
+        {/* La foto que cierra agosto se saca en los primeros días de setiembre. Si quedó
+            anotada contra el mes equivocado, se corre la cuenta de los dos meses, y hasta
+            ahora no había forma de moverla. */}
+        {editando ? (
+          <input
+            className="input w-40"
+            type="month"
+            value={mes}
+            onChange={(e) => setMes(e.target.value)}
+            aria-label="Mes al que pertenece la lectura"
+          />
+        ) : (
+          nombreDelMes(l.periodo)
+        )}
         <div className="text-[11px] text-ink/45">
-          {/* El día real de la foto, que casi nunca es el 1°: es la ventana que se compara. */}
+          {/* El día real de la foto, que casi nunca es el 1°: es la ventana que se compara.
+              No se corrige nunca: es la evidencia. */}
           foto del {fmtDate(l.tomada_at)}
           {l.edited_at && (
             <span className="ml-2 uppercase tracking-[0.08em] text-st-amberTx">corregida</span>
@@ -161,7 +188,7 @@ function FilaLectura({ l, onChanged }: { l: LecturaOdometro; onChanged: () => vo
             <Button onClick={guardar} loading={busy}>
               Guardar
             </Button>
-            <Button variant="ghost" onClick={() => { setKm(String(l.kilometraje)); setEditando(false); }}>
+            <Button variant="ghost" onClick={cancelar}>
               Cancelar
             </Button>
           </div>
@@ -178,7 +205,9 @@ function FilaLectura({ l, onChanged }: { l: LecturaOdometro; onChanged: () => vo
             propio y el siguiente. Mejor decirlo que sorprender. */}
         {editando && (
           <p className="mt-1 text-right text-[11px] text-ink/55">
-            Cambia los kilómetros de este mes y del siguiente.
+            {mes !== l.periodo
+              ? "Al cambiarla de mes se mueven los kilómetros de cuatro meses: el que deja y el que ocupa, más el siguiente a cada uno."
+              : "Cambia los kilómetros de este mes y del siguiente."}
           </p>
         )}
         <ErrorText>{error}</ErrorText>

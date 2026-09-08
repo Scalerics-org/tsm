@@ -14,6 +14,7 @@ import {
 } from "../../shared/domain";
 import { kmEstimados } from "../../shared/distancias";
 import { periodoDeHoy } from "../lib/periodo";
+import { esPeriodo, moverLectura } from "../lib/lectura-periodo";
 import * as repo from "../repos/lecturas";
 import { listTrips } from "../repos/trips";
 import { currentTruckId } from "../repos/drivers";
@@ -45,10 +46,6 @@ lecturas.use("*", requireAuth);
 async function camionDelChofer(db: D1Database, user: AuthUser): Promise<number | null> {
   if (user.role !== ROLES.CHOFER || user.driver_id == null) return null;
   return (await currentTruckId(db, user.driver_id)) ?? user.truck_id;
-}
-
-function esPeriodo(v: string): boolean {
-  return /^\d{4}-(0[1-9]|1[0-2])$/.test(v);
 }
 
 /**
@@ -257,15 +254,22 @@ lecturas.get("/auditoria", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
 });
 
 /**
- * PUT /api/lecturas/:id — la oficina corrige el kilometraje.
+ * PUT /api/lecturas/:id — la oficina corrige el kilometraje y/o el mes.
  *
  * "Al igual gas oil desde oficina, corregir litros y km", mismo caso: un dígito de más deja
  * el mes y el siguiente descuadrados, y el chofer no puede recargarla porque hay una sola por
  * mes. La foto no se toca: es la evidencia contra la que se compara el número corregido.
+ *
+ * "Tiene que poder corregir la fecha del tacógrafo del mes." El mes también se corrige, y es
+ * lo más delicado de los dos: la foto que cierra agosto se saca casi siempre en los primeros
+ * días de setiembre, y anotada contra setiembre corre la cuenta de los dos meses. Se valida
+ * contra los vecinos en `moverLectura` antes de escribir, porque mover una lectura a un mes
+ * donde el odómetro iría para atrás rompe la auditoría en silencio.
  */
 lecturas.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const id = Number(c.req.param("id"));
-  if (!(await repo.getLecturaPorId(c.env.DB, id))) return fail(c, "Lectura no encontrada", 404);
+  const actual = await repo.getLecturaPorId(c.env.DB, id);
+  if (!actual) return fail(c, "Lectura no encontrada", 404);
 
   const b = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
   const kilometraje = Number(b?.kilometraje);
@@ -273,7 +277,23 @@ lecturas.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
     return fail(c, "El kilometraje tiene que ser un número mayor que cero", 400);
   }
 
-  await repo.updateKilometraje(c.env.DB, id, kilometraje, {
+  // El mes es opcional: sin él, esto sigue siendo la corrección de kilometraje de siempre.
+  const pedido = b?.periodo == null ? null : String(b.periodo);
+  let periodo: string | undefined;
+  if (pedido != null && pedido !== actual.periodo) {
+    const todas = await repo.listLecturas(c.env.DB, { truckId: actual.truck_id });
+    // Se valida con el kilometraje NUEVO: si se corrigen los dos a la vez, lo que tiene que
+    // encajar entre los vecinos es el número que va a quedar, no el que estaba.
+    const mov = moverLectura(
+      { id, periodo: actual.periodo, kilometraje },
+      pedido,
+      todas.map((l) => ({ id: l.id, periodo: l.periodo, kilometraje: l.kilometraje })),
+    );
+    if (!mov.ok) return fail(c, mov.motivo, mov.status);
+    periodo = pedido;
+  }
+
+  await repo.updateLectura(c.env.DB, id, { kilometraje, periodo }, {
     userId: c.get("user").id,
     when: new Date().toISOString().replace("T", " ").slice(0, 19),
   });
