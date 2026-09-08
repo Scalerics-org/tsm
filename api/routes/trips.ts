@@ -594,10 +594,29 @@ async function avisarViajeCerrado(env: Env, trip: Trip, campos: TripTemplate["fi
   await notificarOficina(env, avisoViajeCerrado(trip, campos));
 }
 
-// POST /api/trips/:id/cancel
+/**
+ * POST /api/trips/:id/cancel
+ *
+ * Un viaje ya facturado NO se cancela. Era el último hueco de "un viaje facturado no se
+ * toca": borrar, corregir las cargas, cambiar la fecha y corregir la cabecera ya frenaban, y
+ * cancelar se había quedado afuera. Cancelarlo lo saca del resumen —`viajesAFacturar` filtra
+ * los CANCELADO—, o sea le quita el respaldo a una factura ya emitida y deja el número
+ * colgando de un viaje que el resumen no muestra más.
+ */
 trips.post("/:id/cancel", async (c) => {
   const s = await scoped(c);
   if ("error" in s) return fail(c, s.error, s.status);
+
+  // `scoped` trae el viaje sin la facturación: hay que volver a pedirlo para poder mirarla.
+  const facturable = await tripsRepo.getTripFacturable(c.env.DB, s.trip.id);
+  if (facturable?.factura_numero) {
+    return fail(
+      c,
+      `Ese viaje ya está en la factura ${facturable.factura_numero}. Desmarcalo desde Facturación y después cancelalo.`,
+      409,
+    );
+  }
+
   const b = (await c.req.json().catch(() => ({}))) as { notes?: string };
   await tripsRepo.cancelTrip(c.env.DB, s.trip.id, b.notes ?? "");
   return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
