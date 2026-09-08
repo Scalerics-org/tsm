@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./lib/auth";
-import { ROLES, type Role } from "@shared/domain";
+import { LIBRETA_TIPO, ROLES, type Role } from "@shared/domain";
 import { Spinner } from "./components/ui";
 import { AppShell } from "./components/AppShell";
 import { LoginPage } from "./features/auth/LoginPage";
@@ -16,6 +16,7 @@ import { NuevoViajePage } from "./features/operaciones/NuevoViajePage";
 import { OpsTripDetailPage } from "./features/operaciones/OpsTripDetailPage";
 import { TemplatesPage } from "./features/operaciones/TemplatesPage";
 import { LibretaPage } from "./features/operaciones/LibretaPage";
+import { ProveedoresPage } from "./features/operaciones/ProveedoresPage";
 import { ControlPage } from "./features/operaciones/ControlPage";
 import { TruckDetailPage } from "./features/operaciones/TruckDetailPage";
 import { DriverDetailPage } from "./features/operaciones/DriverDetailPage";
@@ -79,7 +80,34 @@ export default function App() {
         <Route path="/panel/camion/:id" element={<RequireRole roles={OPS}><TruckDetailPage /></RequireRole>} />
         <Route path="/panel/chofer/:id" element={<RequireRole roles={OPS}><DriverDetailPage /></RequireRole>} />
         <Route path="/panel/plantillas" element={<RequireRole roles={OPS}><TemplatesPage /></RequireRole>} />
-        <Route path="/panel/libreta" element={<RequireRole roles={OPS}><LibretaPage /></RequireRole>} />
+        {/* Clientes y Proveedores son dos pantallas separadas: son dos cosas distintas y
+            la palabra "cliente" venía significando las dos, que es lo que confundía.
+            Clientes es la Libreta mostrando un solo tipo; Proveedores es su propia tabla. */}
+        <Route
+          path="/panel/clientes"
+          element={
+            <RequireRole roles={OPS}>
+              <LibretaPage
+                tipos={[LIBRETA_TIPO.DESTINATARIO]}
+                titulo="Clientes"
+                bajada="A quién va la carga. Es la lista que ve el chofer cuando marca para quién es cada bulto."
+              />
+            </RequireRole>
+          }
+        />
+        <Route path="/panel/proveedores" element={<RequireRole roles={OPS}><ProveedoresPage /></RequireRole>} />
+        <Route
+          path="/panel/libreta"
+          element={
+            <RequireRole roles={OPS}>
+              <LibretaPage
+                tipos={[LIBRETA_TIPO.REMITENTE, LIBRETA_TIPO.LUGAR]}
+                titulo="Lugares"
+                bajada="Dónde se carga y dónde se descarga. Los clientes y los proveedores tienen su propia pantalla."
+              />
+            </RequireRole>
+          }
+        />
 
         {/* Admin */}
         <Route path="/admin/choferes" element={<RequireRole roles={[ROLES.ADMIN]}><AdminDriversPage /></RequireRole>} />

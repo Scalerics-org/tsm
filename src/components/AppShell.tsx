@@ -37,7 +37,11 @@ const OPS_NAV: NavItem[] = [
   { to: "/panel/viajes", label: "Viajes" },
   { to: "/panel/resumen-cliente", label: "Por cliente" },
   { to: "/panel/plantillas", label: "Plantillas" },
-  { to: "/panel/libreta", label: "Libreta" },
+  // Clientes y Proveedores separados: eran dos cosas distintas metidas en la misma pantalla,
+  // y la palabra "cliente" significaba las dos según dónde se la mirara.
+  { to: "/panel/clientes", label: "Clientes" },
+  { to: "/panel/proveedores", label: "Proveedores" },
+  { to: "/panel/libreta", label: "Lugares" },
 ];
 const ADMIN_NAV: NavItem[] = [
   ...OPS_NAV,

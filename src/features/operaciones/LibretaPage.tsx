@@ -42,12 +42,33 @@ const TABS: { tipo: LibretaTipo; label: string }[] = [
 ];
 
 /**
+ * La misma pantalla sirve para las dos entradas del menú.
+ *
+ * "Vamos a hacer dos páginas, una de clientes y otra de proveedores." Los clientes salen de
+ * acá y los proveedores de su propia tabla, así que Clientes es esta pantalla mostrando un
+ * solo tipo. Se parametriza en vez de duplicarse porque toda la parte cara —fusionar
+ * duplicados, las reglas de cobro, los pendientes— es la misma, y dos copias se separan a la
+ * primera corrección que se haga en una sola.
+ */
+export interface LibretaPageProps {
+  /** Qué pestañas mostrar. Sin esto, las tres: la Libreta completa de siempre. */
+  tipos?: LibretaTipo[];
+  titulo?: string;
+  bajada?: string;
+}
+
+/**
  * Curaduría de la libreta: revisar las altas del chofer, limpiar duplicados y definir
  * las reglas de facturación. Es la pantalla que evita que los reportes se fragmenten.
  */
-export function LibretaPage() {
+export function LibretaPage({ tipos, titulo, bajada }: LibretaPageProps = {}) {
   const { user } = useAuth();
   const isAdmin = user?.role === ROLES.ADMIN;
+
+  const tabs = useMemo(
+    () => (tipos ? TABS.filter((t) => tipos.includes(t.tipo)) : TABS),
+    [tipos],
+  );
 
   const [entries, setEntries] = useState<LibretaEntry[] | null>(null);
   const [reglas, setReglas] = useState<CobroRegla[]>([]);
@@ -56,7 +77,7 @@ export function LibretaPage() {
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
 
-  const [tipo, setTipo] = useState<LibretaTipo>(LIBRETA_TIPO.REMITENTE);
+  const [tipo, setTipo] = useState<LibretaTipo>(tabs[0]?.tipo ?? LIBRETA_TIPO.REMITENTE);
   const [query, setQuery] = useState("");
   const [alcance, setAlcance] = useState<AlcanceFiltro>("todos");
   const [creando, setCreando] = useState(false);
@@ -112,7 +133,8 @@ export function LibretaPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="kicker">Oficina</div>
-          <h1 className="text-3xl text-ink">Libreta</h1>
+          <h1 className="text-3xl text-ink">{titulo ?? "Libreta"}</h1>
+          {bajada && <p className="mt-1 max-w-prose text-sm text-ink/60">{bajada}</p>}
         </div>
         <Button onClick={() => setCreando((c) => !c)}>+ Nueva entrada</Button>
       </div>
@@ -144,6 +166,7 @@ export function LibretaPage() {
       {creando && (
         <NuevaEntradaForm
           tipo={tipo}
+          tabs={tabs}
           providers={providers}
           onClose={() => setCreando(false)}
           onSaved={() => {
@@ -160,8 +183,9 @@ export function LibretaPage() {
       />
 
       <Card className="space-y-3">
-        <div className="flex flex-wrap gap-1">
-          {TABS.map((t) => {
+        {/* Con una sola lista la barra de pestañas no dice nada: el título ya lo dice. */}
+        <div className={`flex flex-wrap gap-1 ${tabs.length < 2 ? "hidden" : ""}`}>
+          {tabs.map((t) => {
             const delTab = todas.filter((e) => e.tipo === t.tipo);
             // Lo que hay que revisar no puede quedar escondido detrás de una pestaña.
             const porRevisar = delTab.filter((e) => e.estado === LIBRETA_ESTADO.NUEVO).length;
@@ -237,11 +261,13 @@ export function LibretaPage() {
 
 function NuevaEntradaForm({
   tipo,
+  tabs,
   providers,
   onClose,
   onSaved,
 }: {
   tipo: LibretaTipo;
+  tabs: { tipo: LibretaTipo; label: string }[];
   providers: Provider[];
   onClose: () => void;
   onSaved: () => void;
@@ -274,14 +300,15 @@ function NuevaEntradaForm({
     <Card>
       <form onSubmit={guardar} className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-3">
-          <label className="block">
+          {/* Con una sola lista no hay tipo que elegir: el alta es de eso y nada más. */}
+          <label className={`block ${tabs.length < 2 ? "hidden" : ""}`}>
             <span className="label">Tipo</span>
             <select
               className="input"
               value={f.tipo}
               onChange={(e) => setF({ ...f, tipo: e.target.value as LibretaTipo })}
             >
-              {TABS.map((t) => (
+              {tabs.map((t) => (
                 <option key={t.tipo} value={t.tipo}>
                   {t.label}
                 </option>
