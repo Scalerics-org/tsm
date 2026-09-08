@@ -14,7 +14,7 @@ import {
 } from "../../shared/domain";
 import { kmEstimados } from "../../shared/distancias";
 import { periodoDeHoy } from "../lib/periodo";
-import { esPeriodo, moverLectura } from "../lib/lectura-periodo";
+import { claveMovida, esPeriodo, moverLectura } from "../lib/lectura-periodo";
 import * as repo from "../repos/lecturas";
 import { listTrips } from "../repos/trips";
 import { currentTruckId } from "../repos/drivers";
@@ -293,7 +293,33 @@ lecturas.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
     periodo = pedido;
   }
 
-  await repo.updateLectura(c.env.DB, id, { kilometraje, periodo }, {
+  // La foto se muda con la lectura. La clave de R2 lleva el mes adentro
+  // (`odometro/{camion}/{periodo}.jpg`), así que dejarla en el mes viejo hace que la próxima
+  // lectura de ESE mes escriba en la misma clave y la pise: la movida terminaría mostrando la
+  // foto de otra, sin que nada avise. Y es la evidencia contra la que se contrasta el
+  // kilometraje corregido.
+  //
+  // Se copia y se borra la vieja, que es lo más cerca de un rename que da R2. Si la copia
+  // falla, la clave NO se actualiza: la fila sigue apuntando a la foto que existe, que es el
+  // estado menos malo. Y el mes igual se corrige, porque es lo que se vino a hacer.
+  let r2_key: string | undefined;
+  if (periodo && c.env.FOTOS) {
+    const nueva = claveMovida(actual.r2_key, periodo);
+    if (nueva && nueva !== actual.r2_key) {
+      try {
+        const obj = await c.env.FOTOS.get(actual.r2_key as string);
+        if (obj) {
+          await c.env.FOTOS.put(nueva, obj.body, { httpMetadata: obj.httpMetadata });
+          await c.env.FOTOS.delete(actual.r2_key as string);
+          r2_key = nueva;
+        }
+      } catch {
+        // Se sigue sin tocar la clave: mover el mes vale más que la mudanza de la foto.
+      }
+    }
+  }
+
+  await repo.updateLectura(c.env.DB, id, { kilometraje, periodo, r2_key }, {
     userId: c.get("user").id,
     when: new Date().toISOString().replace("T", " ").slice(0, 19),
   });

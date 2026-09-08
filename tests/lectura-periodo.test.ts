@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { esPeriodo, moverLectura, periodoSiguiente } from "../api/lib/lectura-periodo";
+import { claveMovida, esPeriodo, moverLectura, periodoSiguiente } from "../api/lib/lectura-periodo";
 
 /**
  * Corregir el MES de una lectura del tacógrafo.
@@ -115,5 +115,30 @@ describe("mover una lectura a otro mes", () => {
     const sep = L(3, "2026-09", 310066);
     const r = moverLectura(sep, "2026-07", [L(1, "2026-03", 280000), sep]);
     expect(r.ok).toBe(true);
+  });
+});
+
+describe("la foto se muda con la lectura", () => {
+  /**
+   * La clave de R2 es `odometro/{camion}/{periodo}.jpg`: lleva el mes adentro. Dejarla en el
+   * mes viejo hace que la próxima lectura de ESE mes escriba en la misma clave y la pise —la
+   * lectura movida pasa a mostrar la foto de otra, en silencio—. Es evidencia: es contra lo
+   * único que se contrasta un kilometraje corregido.
+   */
+  it("arma la clave del mes nuevo", () => {
+    expect(claveMovida("odometro/1/2026-09.jpg", "2026-08")).toBe("odometro/1/2026-08.jpg");
+  });
+
+  it("respeta la extensión", () => {
+    expect(claveMovida("odometro/12/2026-09.png", "2027-01")).toBe("odometro/12/2027-01.png");
+  });
+
+  it("sin foto no hay nada que mover", () => {
+    expect(claveMovida(null, "2026-08")).toBeNull();
+  });
+
+  it("una clave con otra forma se deja quieta: mejor eso que moverla a ciegas", () => {
+    expect(claveMovida("fotos/viejo/algo.jpg", "2026-08")).toBeNull();
+    expect(claveMovida("odometro/1/agosto.jpg", "2026-08")).toBeNull();
   });
 });

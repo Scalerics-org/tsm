@@ -1,13 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  fmtConsumo,
-  fuelFeedback,
-  kmPorLitro,
   litrosTotales,
   textoKmInicial,
   type FuelFeedback,
-  type FuelLog,
   type KmInicial,
 } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
@@ -43,18 +39,14 @@ export function FuelPage() {
   // El km inicial no se pide: lo resuelve el servidor —última surtida de este camión, o el
   // odómetro que le cargó la oficina— y viene con de dónde salió, para poder mostrarlo.
   const [inicial, setInicial] = useState<KmInicial | null>(null);
-  const [logsPrevios, setLogsPrevios] = useState<FuelLog[]>([]);
   const [kmInicialManual, setKmInicialManual] = useState("");
   useEffect(() => {
     if (user?.truck_id == null) return setInicial(SIN_DATO);
-    Promise.all([
-      api.get<FuelLog[]>(`/fuel?truck=${user.truck_id}`),
-      api.get<KmInicial>("/fuel/inicial"),
-    ])
-      .then(([logs, ini]) => {
-        setLogsPrevios(logs);
-        setInicial(ini);
-      })
+    // Las surtidas previas se pedían sólo para calcular el acumulado que se le mostraba al
+    // chofer. Sin esa tarjeta, la pantalla no las necesita: una consulta menos por surtida.
+    api
+      .get<KmInicial>("/fuel/inicial")
+      .then(setInicial)
       .catch(() => setInicial(SIN_DATO));
   }, [user?.truck_id]);
 
@@ -69,39 +61,6 @@ export function FuelPage() {
     tanque1 === "" ? null : Number(tanque1),
     tanque2 === "" ? null : Number(tanque2),
   );
-  const consumoDelDia =
-    isFull && fotoTacografo && recorridos && recorridos > 0 && litros
-      ? kmPorLitro(recorridos, litros)
-      : null;
-
-  /**
-   * El acumulado del mes, como premio por subir la boleta.
-   *
-   * Es la segunda mitad de la misma idea que el consumo del día: cada foto abre algo que al
-   * chofer le interesa ver. Sin esto, el acumulado recién aparecía después de guardar, así
-   * que la boleta no tenía ninguna recompensa atada y era la que más se salteaba.
-   *
-   * Se calcula acá con los mismos datos que usa el servidor, así que es lo que va a quedar
-   * guardado — no una estimación distinta.
-   */
-  const acumuladoPrevio =
-    fotoBoleta && litros && inicial != null
-      ? fuelFeedback(
-          logsPrevios.map((l) => ({
-            odometer_km: l.odometer_km,
-            liters: l.liters,
-            is_full: !!l.is_full,
-            logged_at: l.logged_at,
-          })),
-          {
-            odometer_km: isFull ? Number(kmFinal) : kmInicial,
-            liters: litros,
-            is_full: !!isFull,
-            logged_at: new Date().toISOString().slice(0, 10),
-          },
-        ).month_kml
-      : null;
-
   async function confirm() {
     setError("");
     if (isFull === null) return setError("Indicá si llenaste o no.");
@@ -140,7 +99,7 @@ export function FuelPage() {
     }
   }
 
-  if (result) return <ResultView r={result} onDone={() => navigate("/")} />;
+  if (result) return <ResultView onDone={() => navigate("/")} />;
   if (inicial === null) return <Spinner size={28} />;
 
   return (
@@ -294,36 +253,10 @@ export function FuelPage() {
           </div>
         )}
 
-        {/* La recompensa: su consumo, apenas subió la foto y puso los litros. */}
-        {consumoDelDia != null && (
-          <div className="border-l-4 border-l-st-greenDot bg-st-greenBg px-3 py-3">
-            <div className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-st-greenTx">
-              Tu consumo en este viaje
-            </div>
-            <div className="mt-1 font-cond text-4xl font-semibold text-ink">
-              {fmtConsumo(consumoDelDia)}
-            </div>
-            <div className="text-xs text-ink/55">km por litro</div>
-          </div>
-        )}
-
         {tacografoListo && litros != null && (
           <CameraCapture label="Foto de la boleta de gasoil" onChange={setFotoBoleta} />
         )}
 
-        {/* La segunda recompensa: el acumulado del mes, apenas sube la boleta. Cada foto
-            abre algo que al chofer le interesa ver — es lo que hace que las fotos lleguen. */}
-        {acumuladoPrevio != null && (
-          <div className="border-l-4 border-l-brand bg-brand/[.06] px-3 py-3">
-            <div className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-brand-700">
-              Cómo venís este mes
-            </div>
-            <div className="mt-1 font-cond text-4xl font-semibold text-ink">
-              {fmtConsumo(acumuladoPrevio)}
-            </div>
-            <div className="text-xs text-ink/55">km por litro acumulado</div>
-          </div>
-        )}
       </Card>
 
       <ErrorText>{error}</ErrorText>
@@ -334,42 +267,33 @@ export function FuelPage() {
   );
 }
 
-function ResultView({ r, onDone }: { r: FuelFeedback; onDone: () => void }) {
+/**
+ * Lo que ve el chofer después de registrar la surtida.
+ *
+ * YA NO MUESTRA EL CONSUMO, y es una decisión del cliente: "estos detalles que los choferes no
+ * los vean". Antes mostraba dos km/L —el de esta surtida y el acumulado del mes— como premio
+ * por subir la boleta.
+ *
+ * De paso se cae sola la tensión que arrastrábamos: el acumulado del chofer se calculaba de
+ * llenado a llenado y la oficina mide por calendario, así que sobre los mismos datos daban
+ * distinto. Se había decidido dejarlo y documentarlo; ahora directamente no se muestra, y el
+ * único km/L que existe para mirar es el de la oficina.
+ *
+ * Lo que se guarda no cambia: `fuelFeedback` se sigue calculando y la oficina lo sigue viendo.
+ */
+function ResultView({ onDone }: { onDone: () => void }) {
   return (
     <div className="space-y-5">
       <div>
-        <div className="kicker">Surtida registrada</div>
-        <h1 className="text-3xl text-ink">Consumo</h1>
+        <div className="kicker">Listo</div>
+        <h1 className="text-3xl text-ink">Surtida registrada</h1>
       </div>
 
       <Card className="border-l-4 border-l-st-greenDot">
         <Corners />
-        <div className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-st-greenTx">
-          Esta surtida
-        </div>
-        <div className="mt-1 font-cond text-5xl font-semibold text-ink">
-          {r.closed && r.segment_kml != null ? fmtConsumo(r.segment_kml) : "0,00"}
-        </div>
-        <div className="mt-1 text-sm text-ink/60">
-          {r.closed && r.segment_kml != null
-            ? `${r.segment_liters} L en ${r.segment_km?.toLocaleString("es-UY")} km`
-            : r.closed
-              ? "Es tu primer llenado, queda como base."
-              : "Se calcula cuando llenes el tanque."}
-        </div>
-      </Card>
-
-      <Card className="border-l-4 border-l-st-blueDot">
-        <Corners />
-        <div className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-brand-700">
-          Acumulado del mes
-        </div>
-        <div className="mt-1 font-cond text-5xl font-semibold text-ink">{fmtConsumo(r.month_kml)}</div>
-        {r.month_kml != null && (
-          <div className="mt-1 text-sm text-ink/60">
-            {Math.round(r.month_liters)} L en {r.month_km.toLocaleString("es-UY")} km
-          </div>
-        )}
+        <p className="text-ink">
+          Quedó anotada con la foto de la boleta. No tenés que hacer nada más.
+        </p>
       </Card>
 
       <Button variant="navy" onClick={onDone} className="w-full py-4 text-lg">

@@ -96,7 +96,7 @@ export async function createLectura(db: D1Database, l: LecturaInput): Promise<nu
 export async function updateLectura(
   db: D1Database,
   id: number,
-  cambios: { kilometraje?: number; periodo?: string },
+  cambios: { kilometraje?: number; periodo?: string; r2_key?: string },
   editor: { userId: number; when: string },
 ): Promise<void> {
   const sets: string[] = [];
@@ -108,6 +108,12 @@ export async function updateLectura(
   if (cambios.periodo != null) {
     sets.push("periodo = ?");
     binds.push(cambios.periodo);
+  }
+  // Sólo cuando la foto se pudo mudar de verdad en R2. La clave lleva el mes adentro, así que
+  // dejarla en el mes viejo hace que la próxima lectura de ese mes la pise.
+  if (cambios.r2_key != null) {
+    sets.push("r2_key = ?");
+    binds.push(cambios.r2_key);
   }
   if (sets.length === 0) return;
 

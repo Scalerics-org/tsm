@@ -36,6 +36,25 @@ export interface LecturaMinima {
   kilometraje: number;
 }
 
+/**
+ * La clave de R2 lleva el mes adentro: `odometro/{camion}/{periodo}.{ext}`.
+ *
+ * Por eso mover una lectura de mes NO puede dejar la foto donde está. La fila quedaría
+ * apuntando a la clave del mes viejo, y la próxima lectura que se cargue para ESE mes escribe
+ * en la misma clave y la pisa: la lectura movida terminaría mostrando la foto de otra, sin
+ * que nada avise. Es evidencia, y es lo único contra lo que se contrasta un kilometraje
+ * corregido.
+ *
+ * Devuelve `null` cuando no hay foto o cuando la clave no tiene la forma esperada —una vieja,
+ * cargada a mano—: en ese caso se deja como está, que es mejor que moverla a ciegas.
+ */
+export function claveMovida(r2Key: string | null, nuevoPeriodo: string): string | null {
+  if (!r2Key) return null;
+  const m = r2Key.match(/^(odometro\/\d+\/)\d{4}-\d{2}(\.[A-Za-z0-9]+)$/);
+  if (!m) return null;
+  return `${m[1]}${nuevoPeriodo}${m[2]}`;
+}
+
 export type Movimiento =
   | { ok: true; afectados: string[] }
   | { ok: false; motivo: string; status: 400 | 409 };

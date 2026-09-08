@@ -100,7 +100,26 @@ export function viajesAFacturar<T extends ViajeDelResumen>(
   );
 }
 
-function fila(t: ViajeDelResumen): FilaResumen {
+/**
+ * El peso sale de `trips.kilos`, no del texto que tipeó el chofer.
+ *
+ * `field_values` guarda el crudo a propósito —es la evidencia— y en producción viene en tres
+ * notaciones para el mismo peso: "29.539" (punto de miles), "29" (toneladas) y "29690"
+ * (kilos). Totalizarlo con `Number()` daba 29,539 donde van 29.539 kg, y Casarone sumaba
+ * 401.177 en vez de 489.479. La migración 0039 ya dejó `kilos` normalizado y confirmado con
+ * el cliente: es de ahí de donde tiene que salir. Misma decisión que en el Excel, que ya lo
+ * hacía y dejó esta pantalla contradiciéndolo.
+ */
+function conPesoNormalizado(t: ViajeDelResumen, pesos: Set<string>): Record<string, string> {
+  const valores = { ...(t.field_values ?? {}) };
+  if (t.kilos_carga == null) return valores;
+  for (const key of pesos) {
+    if (key in valores) valores[key] = String(t.kilos_carga);
+  }
+  return valores;
+}
+
+function fila(t: ViajeDelResumen, pesos: Set<string>): FilaResumen {
   return {
     trip_id: t.id,
     fecha: t.started_at.slice(0, 10),
@@ -110,7 +129,7 @@ function fila(t: ViajeDelResumen): FilaResumen {
     chofer: t.driver_name ?? "",
     camion: t.truck_plate ?? "",
     estado: t.status,
-    valores: t.field_values ?? {},
+    valores: conPesoNormalizado(t, pesos),
     cargas: t.segments.map((s) => ({
       remitente: s.remitente,
       clientes: s.clientes.join(" / "),
@@ -160,7 +179,10 @@ export function resumenCliente(
   // Los escondidos son los que quedaron afuera SÓLO por tener factura: los CANCELADO no
   // cuentan, esos nunca estuvieron en el resumen y ofrecer verlos no tendría sentido.
   const facturados = viajesAFacturar(trips, { incluirFacturados: true }).length - aFacturar.length;
-  const filas = aFacturar.map(fila);
+  const pesos = new Set(
+    templates.flatMap((t) => t.fields.filter((f) => f.is_weight).map((f) => f.key)),
+  );
+  const filas = aFacturar.map((t) => fila(t, pesos));
 
   const grupos: GrupoResumen[] = [];
   if (opts.porDestino) {
