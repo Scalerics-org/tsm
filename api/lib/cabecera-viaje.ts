@@ -48,18 +48,21 @@ export function cabeceraCorregida(
   /** Mandar el mismo valor que ya tenía no es cambiarlo: la pantalla manda todo junto. */
   const cambia = (k: keyof Trip) => trae(k) && texto(body[k]) !== texto(trip[k]);
 
-  // Se valida lo que el pedido MANDA, no lo que ya estaba. Mirando el valor resultante, un
-  // viaje con un campo ya vacío rechazaba TODO patch —incluso uno que no lo tocaba— y
-  // quedaba incorregible para siempre. En producción hay 2 así, con el tipo de carga vacío,
-  // y son justo los que hay que poder arreglar.
+  // Lo que se frena es VACIAR un campo, no mandarlo vacío como ya estaba.
+  //
+  // Mirar el valor resultante dejaba incorregible para siempre al viaje que ya tenía un campo
+  // vacío —en producción hay 2 así, con el tipo de carga vacío—, y mirar sólo si el pedido lo
+  // manda tapaba la mitad: un formulario de edición manda TODOS los campos, así que el mismo
+  // vacío volvía en el pedido y la guarda saltaba igual. Justo desde la pantalla que se le va
+  // a poner. Se compara contra lo que el viaje ya tiene: si no cambia, no hay nada que frenar.
   const origin = trae("origin") ? texto(body.origin) : trip.origin;
-  if (trae("origin") && !origin) return { error: "El origen no puede quedar vacío." };
+  if (cambia("origin") && !origin) return { error: "El origen no puede quedar vacío." };
 
   const destination = trae("destination") ? texto(body.destination) : trip.destination;
-  if (trae("destination") && !destination) return { error: "El destino no puede quedar vacío." };
+  if (cambia("destination") && !destination) return { error: "El destino no puede quedar vacío." };
 
   const cargo_type = trae("cargo_type") ? texto(body.cargo_type) : trip.cargo_type;
-  if (trae("cargo_type") && !cargo_type) {
+  if (cambia("cargo_type") && !cargo_type) {
     return { error: "El tipo de carga no puede quedar vacío." };
   }
 

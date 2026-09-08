@@ -72,6 +72,54 @@ describe("1 · un viaje con un dato ya vacío se puede corregir igual", () => {
     const r = cabeceraCorregida(viaje(), { cargo_type: "" }, null);
     expect("error" in r).toBe(true);
   });
+
+  /**
+   * La otra mitad, que es la que va a llegar de verdad: un formulario de edición manda TODOS
+   * los campos, así que el mismo vacío vuelve dentro del pedido. Validando "lo que el pedido
+   * manda" la guarda saltaba igual, y los dos viajes de PORLANT seguían incorregibles — justo
+   * desde la pantalla que se les iba a poner. Contra la API real daba 400 con el formulario
+   * entero y 200 mandando sólo el destino: el mismo viaje, corregible o no según cómo se
+   * arme el pedido.
+   *
+   * Lo que se frena es CAMBIAR un campo a vacío, no repetir el vacío que ya estaba.
+   */
+  it("acepta el formulario entero de un viaje con el tipo de carga vacío", () => {
+    const r = cabeceraCorregida(
+      viaje({ cargo_type: "" }),
+      {
+        origin: "Artigas",
+        destination: "Salto",
+        cargo_type: "",
+        remite: "Casarone",
+        destinatario: "Tifecom",
+        kilos_carga: 29000,
+        kilometros: 627,
+        notes: "",
+        driver_id: 1,
+        truck_id: 1,
+      },
+      null,
+    );
+    expect("error" in r).toBe(false);
+    if ("error" in r) return;
+    expect(r.patch.destination).toBe("Salto");
+    expect(r.patch.cargo_type).toBe("");
+  });
+
+  it("y el formulario entero de un viaje sin origen tampoco se traba", () => {
+    const r = cabeceraCorregida(viaje({ origin: "" }), { origin: "", destination: "Salto" }, null);
+    expect("error" in r).toBe(false);
+  });
+
+  it("pero mandar el formulario con un campo que SÍ tenía valor y ahora viene vacío se frena", () => {
+    const r = cabeceraCorregida(viaje({ cargo_type: "Arroz" }), {
+      cargo_type: "",
+      destination: "Salto",
+    }, null);
+    expect("error" in r).toBe(true);
+    if (!("error" in r)) return;
+    expect(r.error).toMatch(/tipo de carga/i);
+  });
 });
 
 describe("2 · cambiar el recorrido avisa que los kilómetros quedaron como estaban", () => {

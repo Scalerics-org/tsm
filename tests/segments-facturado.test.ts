@@ -49,6 +49,9 @@ function fakeDB(trip: ReturnType<typeof viaje>) {
   const responder = (sql: string) => {
     const s = sql.toLowerCase();
     if (s.includes("from trips")) return trip;
+    // La corrección de cabecera valida contra la base que el chofer y el camión existan.
+    if (s.includes("from drivers")) return { id: 1, name: "Carlos Méndez" };
+    if (s.includes("from trucks")) return { id: 1, plate: "STZ 4821" };
     return null;
   };
   return {
@@ -98,5 +101,56 @@ describe("PUT /trips/:id/segments frena un viaje ya facturado", () => {
   it("sin factura, la corrección sigue andando", async () => {
     const { status } = await putSegments(viaje());
     expect(status).toBe(200);
+  });
+});
+
+/**
+ * `PATCH /api/trips/:id` — la respuesta pasa por `okViaje`, como todas las que llevan un viaje.
+ *
+ * La corrección de cabecera se había armado la respuesta con `ok` a mano para poder colgarle
+ * los avisos. Hoy no filtra nada porque la ruta es sólo de oficina, pero saltarse `okViaje`
+ * es exactamente cómo el cobro terminó viajando al celular la vez pasada: el invariante no lo
+ * sostiene una revisión, lo sostiene que todas pasen por el mismo lugar.
+ *
+ * Lo que fija este test es que pasar por `okViaje` no se lleve puestos los avisos —que es lo
+ * que la pantalla necesita después de guardar— y que el chofer no llegue a esta ruta.
+ */
+async function patchCabecera(rol: string, body: unknown) {
+  const token = await signToken(
+    {
+      id: rol === ROLES.CHOFER ? 5 : 2,
+      name: "X",
+      role: rol,
+      driver_id: rol === ROLES.CHOFER ? 1 : null,
+      truck_id: 1,
+      email: null,
+    } as any,
+    SECRET,
+  );
+  const res = await app.request(
+    "/api/trips/1",
+    {
+      method: "PATCH",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify(body),
+    },
+    { DB: fakeDB(viaje({ kilometros: 627 })), JWT_SECRET: SECRET } as any,
+  );
+  return { status: res.status, json: (await res.json()) as any };
+}
+
+describe("PATCH /trips/:id devuelve el viaje y sus avisos", () => {
+  it("la oficina recibe el viaje corregido, con los avisos colgados", async () => {
+    const { status, json } = await patchCabecera(ROLES.ENCARGADO, { destination: "Salto" });
+    expect(status).toBe(200);
+    expect(json.data.id).toBe(1);
+    expect(json.data.provider_name).toBe("Casarone");
+    // Cambió el destino y no se mandaron km: el aviso de la auditoría tiene que llegar.
+    expect(json.data.avisos?.[0]).toMatch(/kilómetros/i);
+  });
+
+  it("el chofer no llega a corregir la cabecera", async () => {
+    const { status } = await patchCabecera(ROLES.CHOFER, { destination: "Salto" });
+    expect(status).toBe(403);
   });
 });

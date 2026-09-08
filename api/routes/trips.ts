@@ -78,10 +78,17 @@ function parseSegments(raw: any, usados = new Set<string>()): TripSegmentInput[]
 /**
  * Devuelve el viaje sacándole la facturación si quien pregunta es un chofer.
  * Se usa en TODA respuesta que lleve un viaje: alcanza con olvidarse en una para filtrarla.
+ *
+ * `extra` es para las respuestas que además del viaje llevan algo de la operación —los avisos
+ * de una corrección, por ejemplo—. Existe para que esas rutas no tengan que salirse de acá:
+ * la corrección de cabecera había armado su respuesta con `ok` a mano, y así es como el cobro
+ * volvió a viajar al celular la vez pasada. Lo que se agregue por acá no es del viaje, así
+ * que no vuelve a meter facturación.
  */
-function okViaje(c: any, trip: Trip | null) {
+function okViaje(c: any, trip: Trip | null, extra?: Record<string, unknown>) {
   const esChofer = c.get("user").role === ROLES.CHOFER;
-  return ok(c, trip && esChofer ? sinCobro(trip) : trip);
+  const visible = trip && esChofer ? sinCobro(trip) : trip;
+  return ok(c, visible && extra ? { ...visible, ...extra } : visible);
 }
 
 /** Completa la facturación de cada carga con las reglas. El chofer nunca manda esto. */
@@ -650,8 +657,7 @@ trips.patch("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   });
   // Los avisos no son errores: la corrección se guardó. Son lo que la oficina tiene que
   // mirar después de guardar, como los km que quedaron de un recorrido que ya no es ése.
-  const guardado = await tripsRepo.getTrip(c.env.DB, trip.id);
-  return ok(c, { ...guardado, avisos: r.avisos });
+  return okViaje(c, await tripsRepo.getTrip(c.env.DB, trip.id), { avisos: r.avisos });
 });
 
 /**

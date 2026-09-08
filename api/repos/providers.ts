@@ -69,13 +69,23 @@ export async function createProvider(db: D1Database, name: string): Promise<numb
  */
 export async function updateProvider(db: D1Database, id: number, name: string): Promise<void> {
   const previo = await getProvider(db, id);
-  await db.prepare("UPDATE providers SET name=? WHERE id=?").bind(name, id).run();
-  if (previo && previo.name !== name) {
-    await db
-      .prepare("UPDATE trips SET provider_name=? WHERE provider_name=?")
-      .bind(name, previo.name)
-      .run();
+  const renombra = !!previo && previo.name !== name;
+  const fila = db.prepare("UPDATE providers SET name=? WHERE id=?").bind(name, id);
+  if (!renombra) {
+    await fila.run();
+    return;
   }
+
+  // Los dos UPDATE van en un `batch`, que D1 corre como una transacción. Sueltos, si el
+  // segundo fallaba quedaba el rename a medias: el proveedor con el nombre nuevo y sus viajes
+  // con el viejo, o sea los viajes fuera del filtro por cliente y fuera del resumen con el
+  // que se factura, sin que nada avise. Es el mismo estado roto que esto venía a evitar.
+  await db.batch([
+    fila,
+    db
+      .prepare("UPDATE trips SET provider_name=? WHERE provider_name=?")
+      .bind(name, previo!.name),
+  ]);
 }
 
 export async function deleteProvider(db: D1Database, id: number): Promise<void> {

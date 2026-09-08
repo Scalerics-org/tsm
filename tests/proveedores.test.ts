@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { motivoParaNoBorrar } from "../api/lib/proveedores";
+import { updateProvider } from "../api/repos/providers";
 
 /**
  * Los dos frenos que hay que tener ANTES de que exista la pantalla de proveedores.
@@ -50,5 +51,62 @@ describe("cuándo NO se puede borrar un proveedor", () => {
     const m = motivoParaNoBorrar({ viajes: 3, plantillas: 0, libreta: 0 }) ?? "";
     // Un 'no se puede' sin salida es un callejón: la oficina queda sin saber cómo seguir.
     expect(m.length).toBeGreaterThan(40);
+  });
+});
+
+/**
+ * Renombrar arrastra los viajes, y tiene que arrastrarlos O NO PASAR NADA.
+ *
+ * `trips.provider_name` es una copia de texto, no una referencia: renombrar la fila de
+ * `providers` sin tocar los viajes los deja con el nombre viejo, o sea fuera del filtro por
+ * cliente y fuera del resumen con el que se factura. Eso ya estaba resuelto. Lo que faltaba
+ * es que los dos UPDATE no puedan quedar a mitad de camino: sueltos, si el segundo fallaba
+ * quedaba exactamente el estado roto que el primero venía a evitar, y sin aviso.
+ */
+describe("renombrar un proveedor", () => {
+  interface Registro {
+    batches: string[][];
+    sueltos: string[];
+    previo: { id: number; name: string } | null;
+  }
+
+  function fakeDB(reg: Registro) {
+    return {
+      prepare(sql: string) {
+        const stmt = {
+          sql,
+          bind: () => stmt,
+          first: async () => reg.previo,
+          run: async () => {
+            reg.sueltos.push(sql);
+            return { meta: {} };
+          },
+        };
+        return stmt;
+      },
+      batch: async (stmts: { sql: string }[]) => {
+        reg.batches.push(stmts.map((s) => s.sql));
+        return [];
+      },
+    } as unknown as D1Database;
+  }
+
+  it("manda los dos UPDATE juntos, en un batch, y ninguno suelto", async () => {
+    const reg: Registro = { batches: [], sueltos: [], previo: { id: 1, name: "Casarone" } };
+    await updateProvider(fakeDB(reg), 1, "Casarone S.A.");
+
+    expect(reg.batches).toHaveLength(1);
+    expect(reg.batches[0].some((s) => /update providers/i.test(s))).toBe(true);
+    expect(reg.batches[0].some((s) => /update trips/i.test(s))).toBe(true);
+    // Si alguno se escapa del batch, vuelve a poder quedar el rename a medias.
+    expect(reg.sueltos.filter((s) => /^update/i.test(s.trim()))).toEqual([]);
+  });
+
+  it("guardar sin cambiar el nombre no toca los viajes", async () => {
+    const reg: Registro = { batches: [], sueltos: [], previo: { id: 1, name: "Casarone" } };
+    await updateProvider(fakeDB(reg), 1, "Casarone");
+
+    expect(reg.batches).toEqual([]);
+    expect(reg.sueltos.some((s) => /update trips/i.test(s))).toBe(false);
   });
 });
