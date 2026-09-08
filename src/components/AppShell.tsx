@@ -31,30 +31,62 @@ interface NavItem {
   label: string;
 }
 
-const OPS_NAV: NavItem[] = [
-  { to: "/panel", label: "Resumen" },
-  { to: "/panel/control", label: "Control" },
-  { to: "/panel/viajes", label: "Viajes" },
-  { to: "/panel/resumen-cliente", label: "Por cliente" },
-  { to: "/panel/plantillas", label: "Plantillas" },
-  // Clientes y Proveedores separados: eran dos cosas distintas metidas en la misma pantalla,
-  // y la palabra "cliente" significaba las dos según dónde se la mirara.
-  { to: "/panel/clientes", label: "Clientes" },
-  { to: "/panel/proveedores", label: "Proveedores" },
-  { to: "/panel/libreta", label: "Lugares" },
+/**
+ * El menú va en grupos, no en una lista corrida.
+ *
+ * Eran nueve entradas y quedaron once cuando Clientes y Proveedores se separaron de la
+ * Libreta. Once renglones iguales, uno abajo del otro, obligan a leerlos todos cada vez: no
+ * hay forma de saltar directo a lo que se busca. Los grupos son los tres momentos distintos
+ * en que se usa la app —mirar el día, curar los datos, administrar la empresa— y la mayoría
+ * de los días sólo se toca el primero.
+ *
+ * El primero va sin título a propósito: es lo que se usa siempre y no necesita que le
+ * expliquen qué es.
+ */
+interface NavGroup {
+  titulo?: string;
+  items: NavItem[];
+}
+
+const OPS_NAV: NavGroup[] = [
+  {
+    items: [
+      { to: "/panel", label: "Resumen" },
+      { to: "/panel/control", label: "Control" },
+      { to: "/panel/viajes", label: "Viajes" },
+      { to: "/panel/resumen-cliente", label: "Por cliente" },
+    ],
+  },
+  {
+    titulo: "Datos",
+    items: [
+      { to: "/panel/plantillas", label: "Plantillas" },
+      // Clientes y Proveedores separados: eran dos cosas distintas metidas en la misma
+      // pantalla, y la palabra "cliente" significaba las dos según dónde se la mirara.
+      { to: "/panel/clientes", label: "Clientes" },
+      { to: "/panel/proveedores", label: "Proveedores" },
+      { to: "/panel/libreta", label: "Lugares" },
+    ],
+  },
 ];
-const ADMIN_NAV: NavItem[] = [
+
+const ADMIN_NAV: NavGroup[] = [
   ...OPS_NAV,
-  { to: "/admin/choferes", label: "Choferes" },
-  { to: "/admin/camiones", label: "Camiones" },
-  { to: "/admin/usuarios", label: "Usuarios" },
+  {
+    titulo: "Administración",
+    items: [
+      { to: "/admin/choferes", label: "Choferes" },
+      { to: "/admin/camiones", label: "Camiones" },
+      { to: "/admin/usuarios", label: "Usuarios" },
+    ],
+  },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   if (!user) return <>{children}</>;
   if (user.role === ROLES.CHOFER) return <ChoferShell>{children}</ChoferShell>;
-  return <DesktopShell items={user.role === ROLES.ADMIN ? ADMIN_NAV : OPS_NAV}>{children}</DesktopShell>;
+  return <DesktopShell grupos={user.role === ROLES.ADMIN ? ADMIN_NAV : OPS_NAV}>{children}</DesktopShell>;
 }
 
 // ── Chofer: móvil ──
@@ -106,13 +138,16 @@ function BottomLink({ to, label, icon }: { to: string; label: string; icon: stri
 }
 
 // ── Oficina: escritorio ──
-function DesktopShell({ items, children }: { items: NavItem[]; children: ReactNode }) {
+function DesktopShell({ grupos, children }: { grupos: NavGroup[]; children: ReactNode }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const doLogout = () => {
     logout();
     navigate("/login");
   };
+  // En el celular la barra es horizontal y con scroll: ahí los títulos de grupo estorbarían
+  // más de lo que ordenan, así que va corrida.
+  const items = grupos.flatMap((g) => g.items);
   return (
     <div className="flex min-h-full">
       <aside className="sticky top-0 hidden h-screen w-60 flex-none flex-col bg-navy py-5 md:flex">
@@ -120,19 +155,28 @@ function DesktopShell({ items, children }: { items: NavItem[]; children: ReactNo
           <Logo />
         </div>
         <nav className="flex flex-col">
-          {items.map((it) => (
-            <NavLink
-              key={it.to}
-              to={it.to}
-              end={it.to === "/panel"}
-              className={({ isActive }) =>
-                `flex items-center gap-3 border-l-[3px] px-5 py-3 font-cond text-[15px] font-semibold uppercase tracking-[0.08em] ${
-                  isActive ? "border-brand bg-brand/20 text-bg" : "border-transparent text-bg/65 hover:bg-white/5 hover:text-bg"
-                }`
-              }
-            >
-              {it.label}
-            </NavLink>
+          {grupos.map((g, i) => (
+            <div key={g.titulo ?? "principal"} className={i > 0 ? "mt-5" : undefined}>
+              {g.titulo && (
+                <div className="px-5 pb-1.5 font-cond text-[11px] font-semibold uppercase tracking-[0.14em] text-bg/35">
+                  {g.titulo}
+                </div>
+              )}
+              {g.items.map((it) => (
+                <NavLink
+                  key={it.to}
+                  to={it.to}
+                  end={it.to === "/panel"}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 border-l-[3px] px-5 py-2.5 font-cond text-[15px] font-semibold uppercase tracking-[0.08em] ${
+                      isActive ? "border-brand bg-brand/20 text-bg" : "border-transparent text-bg/65 hover:bg-white/5 hover:text-bg"
+                    }`
+                  }
+                >
+                  {it.label}
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
         <div className="mt-auto border-t border-white/10 px-5 pt-4">
