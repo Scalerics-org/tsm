@@ -57,15 +57,42 @@ export const COLUMNAS_DESPUES = ["Chofer", "Camión", "Estado", "Inicio", "Fin",
  * Un campo que quedó guardado en un viaje pero ya no está en su plantilla —la plantilla
  * cambió después— se agrega igual, con la key como título: en la celda apelmazada se veía, y
  * perderlo al pasar a columnas sería cambiar un formato feo por un dato menos.
+ *
+ * EL PESO NO. El campo marcado `is_weight` no lleva columna propia, y no es una omisión.
+ * `trips.kilos` ya trae el peso normalizado a kilos por la migración 0039 —confirmado con el
+ * cliente— y sale en la columna "Kilos". `field_values` guarda a propósito el texto crudo que
+ * tipeó el chofer, que en producción viene en tres notaciones para el mismo peso:
+ *
+ *     viaje 27:  kilos 29539   campo "29.539"   <- el punto es separador de MILES
+ *     viaje 31:  kilos 29000   campo "29"       <- son toneladas
+ *     viaje 40:  kilos 29690   campo "29690"    <- kilos redondos
+ *
+ * Emitirlo como número daba 29,539 —el peso dividido por mil— en una columna que la oficina
+ * suma para facturar; en el export de Casarone eran 401.177 kg contra los 489.479 de la
+ * columna "Kilos" de la misma planilla. Y como `toneladas` y `ton_carga` llevan las dos la
+ * etiqueta "Kilos de carga", salían además dos columnas con el título idéntico.
+ *
+ * Un hecho, una columna, y la que queda es la corregida.
  */
 export function columnasDeCampos(trips: Trip[], templates: TripTemplate[]): ColumnaCampo[] {
   const usadas = new Set(trips.map((t) => t.template_id).filter((id): id is number => id != null));
-  const columnas: ColumnaCampo[] = columnasDe(templates.filter((t) => usadas.has(t.id)));
+
+  // Las keys de peso de TODAS las plantillas, no sólo de las exportadas: el mismo viaje puede
+  // traer guardada la key de una plantilla que después cambió, y volvería por la rama de
+  // abajo con la key como título. `columnasDe` no las filtra porque la comparte el Resumen
+  // por cliente, donde el peso sí es una columna que se quiere.
+  const pesos = new Set(
+    templates.flatMap((t) => t.fields.filter((f) => f.is_weight).map((f) => f.key)),
+  );
+
+  const columnas: ColumnaCampo[] = columnasDe(templates.filter((t) => usadas.has(t.id))).filter(
+    (c) => !pesos.has(c.key),
+  );
 
   const vistas = new Set(columnas.map((c) => c.key));
   for (const t of trips) {
     for (const key of Object.keys(t.field_values ?? {})) {
-      if (vistas.has(key)) continue;
+      if (vistas.has(key) || pesos.has(key)) continue;
       vistas.add(key);
       // Sin plantilla que lo describa no se sabe si es una cantidad: va como texto, que es
       // lo que no rompe nada.

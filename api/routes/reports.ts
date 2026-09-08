@@ -12,6 +12,7 @@ import {
 } from "../../shared/domain";
 import { listTrips, listTripsFacturables } from "../repos/trips";
 import { columnasDeCampos, encabezado, filasDeViaje } from "../lib/export-viajes";
+import { csvResponse } from "../lib/csv";
 import { resumenCliente } from "../lib/resumen-cliente";
 import { listTemplates } from "../repos/templates";
 import { listFuelLogs } from "../repos/fuel";
@@ -247,22 +248,8 @@ reports.get("/driver/:id", async (c) => {
 });
 
 // ── Exports CSV ──
-function csvCell(v: unknown): string {
-  // Un número sale con coma decimal. El separador de columnas ya es `;` porque el Excel de
-  // acá está en español, y en ese mismo Excel "28.07" con punto entra como texto (o peor,
-  // como fecha): la columna no se puede sumar ni ordenar. Con coma entra como número.
-  const s = v == null ? "" : typeof v === "number" ? String(v).replace(".", ",") : String(v);
-  return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-function csvResponse(filename: string, rows: (string | number | null)[][]): Response {
-  const body = "﻿" + rows.map((r) => r.map(csvCell).join(";")).join("\r\n");
-  return new Response(body, {
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${filename}"`,
-    },
-  });
-}
+// El armado del archivo vive en `api/lib/csv.ts`: acá adentro no se podía probar, y las
+// reglas de escapado son justo las que rompen en silencio.
 // Una fila por carga: es la unidad facturable. Los viajes de un solo tramo
 // exportan una fila, igual que antes.
 reports.get("/trips.csv", async (c) => {

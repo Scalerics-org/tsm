@@ -151,6 +151,9 @@ function plantilla(p: Partial<TripTemplate> = {}): TripTemplate {
     fields: [
       { key: "remito", label: "N° de remito", type: "texto", required: true, stage: "carga" },
       { key: "boleta", label: "Boleta", type: "texto", required: false, stage: "descarga" },
+      { key: "pallets", label: "Cantidad de pallets", type: "numero", required: false, stage: "carga" },
+      // El peso NO lleva columna propia: `trips.kilos` ya lo trae normalizado y sale en
+      // "Kilos". Queda en la plantilla para fijar justamente que se excluye.
       { key: "kilos", label: "Kilos de carga", type: "numero", required: false, stage: "carga", is_weight: true },
     ],
     ...p,
@@ -160,7 +163,8 @@ function plantilla(p: Partial<TripTemplate> = {}): TripTemplate {
 describe("columnasDeCampos (cada campo de plantilla, su columna)", () => {
   it("saca una columna por campo, con el título que ve la oficina", () => {
     const campos = columnasDeCampos([viaje({ template_id: 1 })], [plantilla()]);
-    expect(campos.map((c) => c.label)).toEqual(["N° de remito", "Boleta", "Kilos de carga"]);
+    // "Kilos de carga" no está: el peso ya viaja en la columna "Kilos", corregido.
+    expect(campos.map((c) => c.label)).toEqual(["N° de remito", "Boleta", "Cantidad de pallets"]);
     expect(encabezado(campos)).toContain("N° de remito");
   });
 
@@ -194,7 +198,7 @@ describe("columnasDeCampos (cada campo de plantilla, su columna)", () => {
       fields: [{ key: "mic", label: "N° de MIC", type: "texto", required: true, stage: "carga" }],
     } as Partial<TripTemplate>);
     const campos = columnasDeCampos([viaje({ template_id: 1 })], [plantilla(), otra]);
-    expect(campos.map((c) => c.key)).toEqual(["remito", "boleta", "kilos"]);
+    expect(campos.map((c) => c.key)).toEqual(["remito", "boleta", "pallets"]);
   });
 
   /**
@@ -206,7 +210,7 @@ describe("columnasDeCampos (cada campo de plantilla, su columna)", () => {
       [viaje({ template_id: 1, field_values: { remito: "1", orden_vieja: "17" } })],
       [plantilla()],
     );
-    expect(campos.map((c) => c.label)).toEqual(["N° de remito", "Boleta", "Kilos de carga", "orden_vieja"]);
+    expect(campos.map((c) => c.label)).toEqual(["N° de remito", "Boleta", "Cantidad de pallets", "orden_vieja"]);
     const [fila] = filasDeViaje(viaje({ template_id: 1, field_values: { orden_vieja: "17" } }), campos);
     expect(fila[col(campos, "orden_vieja")]).toBe("17");
   });
@@ -219,18 +223,18 @@ describe("columnasDeCampos (cada campo de plantilla, su columna)", () => {
   it("una cantidad sale como número; un remito sigue siendo texto", () => {
     const campos = columnasDeCampos([viaje({ template_id: 1 })], [plantilla()]);
     const [fila] = filasDeViaje(
-      viaje({ template_id: 1, field_values: { kilos: "28.07", remito: "0012345" } }),
+      viaje({ template_id: 1, field_values: { pallets: "28.07", remito: "0012345" } }),
       campos,
     );
-    expect(fila[col(campos, "Kilos de carga")]).toBe(28.07);
+    expect(fila[col(campos, "Cantidad de pallets")]).toBe(28.07);
     // Como número, "0012345" llegaría al Excel convertido en 12345 y el remito no cerraría.
     expect(fila[col(campos, "N° de remito")]).toBe("0012345");
   });
 
   it("una cantidad escrita cualquier cosa no se convierte en un número inventado", () => {
     const campos = columnasDeCampos([viaje({ template_id: 1 })], [plantilla()]);
-    const [fila] = filasDeViaje(viaje({ template_id: 1, field_values: { kilos: "28 y pico" } }), campos);
-    expect(fila[col(campos, "Kilos de carga")]).toBe("28 y pico");
+    const [fila] = filasDeViaje(viaje({ template_id: 1, field_values: { pallets: "28 y pico" } }), campos);
+    expect(fila[col(campos, "Cantidad de pallets")]).toBe("28 y pico");
   });
 
   it("un viaje cargado sin plantilla no rompe el encabezado", () => {
