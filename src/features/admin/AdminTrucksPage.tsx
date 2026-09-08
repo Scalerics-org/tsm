@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { TRUCK_STATUS, fmtConsumo, type Truck, type TruckStatus } from "@shared/domain";
 import { api } from "../../lib/api";
 import { Button, Card, Field, Spinner } from "../../components/ui";
@@ -73,7 +74,18 @@ export function AdminTrucksPage() {
           <tbody>
             {trucks.map((t) => (
               <tr key={t.id} className="border-b border-ink/10">
-                <td className="px-4 py-3 font-medium text-ink">{t.plate}</td>
+                {/* La patente entra a la ficha del camión: es lo que uno mira y lo que va a
+                    tocar. Choferes enlazaba a su ficha desde el primer día y Camiones se
+                    había quedado sin puerta, así que a las surtidas y al tacógrafo de un
+                    camión sólo se llegaba desde el Resumen. */}
+                <td className="px-4 py-3 font-medium">
+                  <Link
+                    to={`/panel/camion/${t.id}`}
+                    className="text-ink hover:text-brand-700 hover:underline"
+                  >
+                    {t.plate}
+                  </Link>
+                </td>
                 <td className="px-4 py-3 text-ink/70">
                   {t.brand} {t.model} · {t.year}
                 </td>
@@ -82,6 +94,10 @@ export function AdminTrucksPage() {
                 <td className="px-4 py-3 text-right text-ink/70">{fmtConsumo(t.avg_km_litro)}</td>
                 <td className="px-4 py-3 text-ink/70">{STATUS_LABEL[t.status]}</td>
                 <td className="px-4 py-3 text-right">
+                  {/* Y también en Acciones, igual que en Choferes: es donde se busca. */}
+                  <Link to={`/panel/camion/${t.id}`} className="mr-3 text-brand-700 hover:underline">
+                    Ver
+                  </Link>
                   <button className="mr-3 text-brand-700 hover:underline" onClick={() => setEditing(t)}>
                     Editar
                   </button>
