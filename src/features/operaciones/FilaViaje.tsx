@@ -141,14 +141,26 @@ export function FilaViaje({ t, onCambio }: { t: Trip; onCambio: () => void }) {
         <StatusBadge status={t.status} />
       </td>
       <td className="px-4 py-3 text-right">
-        <button
-          type="button"
-          onClick={borrar}
-          disabled={busy}
-          className="text-sm text-st-redTx hover:underline disabled:opacity-40"
-        >
-          {busy ? <Spinner size={12} /> : "Borrar"}
-        </button>
+        {/* Corregir va acá, en Acciones, y no sólo adentro de la ficha: la oficina revisa la
+            lista y corrige de a varios, así que mandarla a abrir el viaje para recién ahí
+            encontrar el botón es un paso de más en cada corrección. Lleva a la ficha con la
+            edición ya abierta — el formulario vive allá, no se duplica. */}
+        <div className="flex items-center justify-end gap-3">
+          <Link
+            to={`/panel/viajes/${t.id}?editar=1`}
+            className="text-sm text-brand-700 hover:underline"
+          >
+            Corregir
+          </Link>
+          <button
+            type="button"
+            onClick={borrar}
+            disabled={busy}
+            className="text-sm text-st-redTx hover:underline disabled:opacity-40"
+          >
+            {busy ? <Spinner size={12} /> : "Borrar"}
+          </button>
+        </div>
       </td>
     </tr>
   );

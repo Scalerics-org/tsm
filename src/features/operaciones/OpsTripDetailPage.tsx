@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   TRIP_STATUS,
   type TemplateField,
@@ -27,7 +27,10 @@ export function OpsTripDetailPage() {
   const [error, setError] = useState("");
   const [borrando, setBorrando] = useState(false);
   const [guardandoFecha, setGuardandoFecha] = useState(false);
-  const [editando, setEditando] = useState(false);
+  // Con `?editar=1` la ficha abre directo en la corrección: es como llega desde el botón
+  // "Corregir" de la lista, para que no haya que buscarlo otra vez acá adentro.
+  const [params] = useSearchParams();
+  const [editando, setEditando] = useState(params.get("editar") === "1");
   // Lo que el backend devuelve después de guardar: no son errores, son las consecuencias que
   // la oficina tiene que mirar —los km que quedaron de un recorrido que ya no es ése—.
   const [avisos, setAvisos] = useState<string[]>([]);
