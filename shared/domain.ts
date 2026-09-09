@@ -243,6 +243,16 @@ export interface FuelLog {
   /** Corrección desde oficina: quién y cuándo. */
   edited_by?: number | null;
   edited_at?: string | null;
+  /**
+   * "Ya chequeé esta boleta contra los litros que cargó el chofer."
+   *
+   * Se borra sola en cuanto la surtida se corrige: verificada respalda LOS NÚMEROS que se
+   * miraron, y si cambian, la marca dejaría de decir la verdad.
+   */
+  verificado_by?: number | null;
+  verificado_at?: string | null;
+  /** Nombre de quien la verificó, del join. */
+  verificado_por?: string | null;
   // joins
   truck_plate?: string;
   driver_name?: string;

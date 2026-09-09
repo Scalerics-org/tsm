@@ -44,9 +44,14 @@ export function ChoferClientePage() {
               >
                 <Corners />
                 <div className="font-cond text-xl font-semibold leading-tight text-ink">{t.name}</div>
-                <div className="mt-1 text-sm text-ink/60">
-                  {t.origin} → {destinos || "destino a elegir"}
-                </div>
+                {/* El recorrido, sólo cuando dice algo que el nombre no diga ya. "Mdeo →
+                    destino a elegir" debajo de "Viaje Mdeo - Bella Unión" no informaba nada:
+                    el destino está en el título, y "a elegir" es lo que pasa en todos. */}
+                {destinos && (
+                  <div className="mt-1 text-sm text-ink/60">
+                    {t.origin ? `${t.origin} → ${destinos}` : destinos}
+                  </div>
+                )}
               </Link>
             );
           })}

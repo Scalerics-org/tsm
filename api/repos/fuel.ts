@@ -1,10 +1,11 @@
 import type { FuelLog, OdometroCamion } from "../../shared/domain";
 
 const SELECT = `
-  SELECT f.*, tr.plate AS truck_plate, d.name AS driver_name
+  SELECT f.*, tr.plate AS truck_plate, d.name AS driver_name, u.name AS verificado_por
   FROM fuel_logs f
   JOIN trucks tr ON tr.id = f.truck_id
   LEFT JOIN drivers d ON d.id = f.driver_id
+  LEFT JOIN users u ON u.id = f.verificado_by
 `;
 
 export async function listFuelLogs(
@@ -126,7 +127,11 @@ export async function updateFuelLog(
       `UPDATE fuel_logs
        SET odometer_km = ?, liters = ?, liters_tanque1 = ?, liters_tanque2 = ?, is_full = ?,
            logged_at = CASE WHEN ? IS NULL THEN logged_at ELSE ? || substr(logged_at, 11) END,
-           edited_by = ?, edited_at = ?
+           edited_by = ?, edited_at = ?,
+           -- Corregir una surtida BORRA su verificación. "Verificada" dice que alguien miró
+           -- la boleta contra ESTOS números; si los números cambian, la marca pasaría a
+           -- respaldar algo que nadie miró. Se vuelve a verificar y listo.
+           verificado_by = NULL, verificado_at = NULL
        WHERE id = ?`,
     )
     .bind(
@@ -172,5 +177,25 @@ async function recalcularOdometro(db: D1Database, truckId: number, odometroPrevi
         WHERE id = ? AND odometer_km = ? AND odometer_at IS NULL`,
     )
     .bind(truckId, truckId, odometroPrevio)
+    .run();
+}
+
+/**
+ * Marcar o desmarcar una surtida como verificada contra la boleta.
+ *
+ * "Yo voy a tener que chequear todos los litros que ellos echan con la factura." La marca
+ * no cambia ningún número: sólo deja constancia de quién miró la boleta y cuándo, para que
+ * la surtida revisada y la que nadie abrió dejen de verse igual.
+ *
+ * Se puede desmarcar: si alguien tildó la fila equivocada, no hay por qué dejarlo así.
+ */
+export async function setVerificado(
+  db: D1Database,
+  id: number,
+  quien: { userId: number; when: string } | null,
+): Promise<void> {
+  await db
+    .prepare("UPDATE fuel_logs SET verificado_by = ?, verificado_at = ? WHERE id = ?")
+    .bind(quien?.userId ?? null, quien?.when ?? null, id)
     .run();
 }

@@ -179,6 +179,7 @@ export function TruckDetailPage() {
               <th className="px-4 py-2 text-right">Odómetro</th>
               <th className="px-4 py-2 text-right">Litros</th>
               <th className="px-4 py-2">Llenó</th>
+              <th className="px-4 py-2">Verificada</th>
               <th className="px-4 py-2" />
             </tr>
           </thead>

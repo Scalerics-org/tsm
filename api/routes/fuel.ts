@@ -208,6 +208,33 @@ fuel.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   return ok(c, await repo.getFuelLog(c.env.DB, id));
 });
 
+/**
+ * PUT /api/fuel/:id/verificado — la oficina tilda que ya chequeó la boleta.
+ *
+ * Va aparte del PUT que corrige la surtida a propósito. Verificar no cambia ningún número:
+ * si fuera el mismo endpoint, tildar una fila la marcaría como "corregida" y quedaría
+ * registrado un cambio que nadie hizo. Y al revés, corregir una surtida BORRA su verificación
+ * —eso lo hace `updateFuelLog`—, porque la marca dice que alguien miró la boleta contra esos
+ * números y con otros números ya no respalda nada.
+ *
+ * Sólo oficina: es el control sobre lo que carga el chofer.
+ */
+fuel.put("/:id/verificado", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+  const id = Number(c.req.param("id"));
+  if (!(await repo.getFuelLog(c.env.DB, id))) return fail(c, "Surtida no encontrada", 404);
+
+  const b = (await c.req.json().catch(() => null)) as { verificado?: unknown } | null;
+  // Sin cuerpo se entiende que la están tildando: es la acción que se pide el 99% de las veces.
+  const marcar = b?.verificado === undefined ? true : !!b.verificado;
+
+  await repo.setVerificado(
+    c.env.DB,
+    id,
+    marcar ? { userId: c.get("user").id, when: new Date().toISOString().replace("T", " ").slice(0, 19) } : null,
+  );
+  return ok(c, await repo.getFuelLog(c.env.DB, id));
+});
+
 // DELETE /api/fuel/:id — sacar una surtida cargada por error.
 fuel.delete("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const truckId = await repo.deleteFuelLog(c.env.DB, Number(c.req.param("id")));

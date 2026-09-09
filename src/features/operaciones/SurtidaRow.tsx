@@ -18,6 +18,10 @@ import { FechaInput } from "../../components/FechaInput";
  * la hora se conserva, que es lo que ordena dos surtidas del mismo día.
  *
  * Las fotos no se editan: son la evidencia de lo que pasó.
+ *
+ * Y el TILDE DE VERIFICADA, que es el control de la oficina sobre los litros: el único número
+ * de la surtida que el chofer puede mover a mano —menos litros declarados = mejor consumo—.
+ * El tilde no cambia nada, sólo deja dicho quién miró la boleta contra estos números.
  */
 export function SurtidaRow({ f, onChanged }: { f: FuelLog; onChanged: () => void }) {
   const [editando, setEditando] = useState(false);
@@ -28,6 +32,22 @@ export function SurtidaRow({ f, onChanged }: { f: FuelLog; onChanged: () => void
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ampliada, setAmpliada] = useState<number | null>(null);
+  // Optimista: el tilde tiene que responder al toque, es una fila más de una tabla que la
+  // oficina va a recorrer entera. Si el servidor rechaza, vuelve solo.
+  const [verificada, setVerificada] = useState(f.verificado_at != null);
+
+  async function alternarVerificada() {
+    const querido = !verificada;
+    setVerificada(querido);
+    setError(null);
+    try {
+      await api.put(`/fuel/${f.id}/verificado`, { verificado: querido });
+      onChanged();
+    } catch (e) {
+      setVerificada(!querido);
+      setError(e instanceof ApiError ? e.message : "No se pudo guardar el tilde");
+    }
+  }
 
   const fotos: FotoDelVisor[] = [
     f.r2_key && { r2_key: f.r2_key, titulo: "Tacógrafo", detalle: fmtDateTime(f.logged_at) },
@@ -117,6 +137,34 @@ export function SurtidaRow({ f, onChanged }: { f: FuelLog; onChanged: () => void
             <VisorFotos fotos={fotos} indice={ampliada} onCerrar={() => setAmpliada(null)} />
           )}
         </td>
+        <td className="px-4 py-2">
+          {/* El tilde de la oficina. Cuando está puesto dice quién y cuándo: sin eso sería
+              una marca sin dueño, y lo que se quiere saber es justamente quién la miró. */}
+          <button
+            type="button"
+            onClick={alternarVerificada}
+            aria-pressed={verificada}
+            title={
+              verificada
+                ? `Verificada${f.verificado_por ? ` por ${f.verificado_por}` : ""}${
+                    f.verificado_at ? ` el ${fmtDateTime(f.verificado_at)}` : ""
+                  }`
+                : "Marcar que ya chequeaste la boleta"
+            }
+            className={`flex h-6 w-6 items-center justify-center border transition ${
+              verificada
+                ? "border-st-greenDot bg-st-greenBg text-st-greenTx"
+                : "border-ink/25 text-transparent hover:border-brand hover:text-ink/25"
+            }`}
+          >
+            <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M3 8.5l3.5 3.5L13 4.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          {verificada && f.verificado_por && (
+            <div className="mt-1 text-[11px] text-ink/45">{f.verificado_por}</div>
+          )}
+        </td>
         <td className="px-4 py-2 text-right">
           <button
             type="button"
@@ -195,6 +243,8 @@ export function SurtidaRow({ f, onChanged }: { f: FuelLog; onChanged: () => void
         <div className="mt-1 text-[11px] text-ink/55">Total {total ?? 0} L</div>
       </td>
       <td className="px-4 py-2 text-ink/70">{f.is_full ? "Sí" : "Chorro"}</td>
+      {/* Sin tilde mientras se corrige: guardar la corrección se lo lleva puesto igual. */}
+      <td className="px-4 py-2" />
       <td className="px-4 py-2">
         <div className="flex justify-end gap-2">
           <Button onClick={guardar} loading={busy}>
