@@ -14,6 +14,7 @@ import {
 } from "../../shared/domain";
 import { kmEstimados } from "../../shared/distancias";
 import { periodoDeHoy } from "../lib/periodo";
+import { vaciosEntreViajes } from "../../shared/vacios";
 import { claveMovida, esPeriodo, moverLectura } from "../lib/lectura-periodo";
 import * as repo from "../repos/lecturas";
 import { listTrips } from "../repos/trips";
@@ -222,8 +223,24 @@ lecturas.get("/auditoria", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
       // para mostrar cuántos viajes hubo.
       const desde = previa?.tomada_at ?? `${mes}-01`;
       const hasta = lectura?.tomada_at ?? `${mes}-31 23:59:59`;
-      const suyos: ViajeAuditado[] = delPeriodo
-        .filter((t) => t.truck_id === camion.id && t.started_at >= desde && t.started_at <= hasta)
+      const crudos = delPeriodo.filter(
+        (t) => t.truck_id === camion.id && t.started_at >= desde && t.started_at <= hasta,
+      );
+
+      // Los vacíos salen de la seguidilla de viajes, no de que alguien los registre: las
+      // plantillas de viaje vacío existen hace un mes y NUNCA se usaron. Entre dónde descargó
+      // y dónde volvió a cargar está el tramo, y ese dato ya está cargado.
+      const tramos = vaciosEntreViajes(
+        crudos.map((t) => ({
+          id: t.id,
+          started_at: t.started_at,
+          origin: t.origin,
+          destination: t.destination,
+          kilometros: Number.isFinite(t.kilometros as number) ? (t.kilometros as number) : null,
+        })),
+      );
+
+      const suyos: ViajeAuditado[] = crudos
         .map((t) => {
           // Los km que nadie cargó los estima la app con el origen y el destino, igual que al
           // cerrar el viaje. Contarlos como 0 hacía que cada viaje registrado empeorara el
@@ -236,13 +253,16 @@ lecturas.get("/auditoria", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
             vacio: t.template_id != null && plantillasVacias.has(t.template_id),
           };
         });
-      const auditoria = auditoriaKilometros(mes, lectura, previa, suyos);
+      const auditoria = auditoriaKilometros(mes, lectura, previa, suyos, tramos);
       return {
         truck_id: camion.id,
         plate: camion.plate,
         lectura,
         lectura_previa: previa,
         auditoria,
+        // Los tramos en detalle, para poder mostrarlos y no sólo el total: "Bella Unión →
+        // Artigas, 137 km" dice mucho más que "841 km vacíos".
+        tramos,
         // "Si un camión se pasa de 100-200 km, que le avise a Rodrigo en Control." La
         // pantalla no vuelve a decidir cuándo algo amerita mirarse: se lo decimos acá, con
         // el mismo criterio para todos.

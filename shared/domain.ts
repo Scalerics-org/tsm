@@ -1221,7 +1221,17 @@ export interface AuditoriaKm {
   /** Km entre las dos lecturas. `null` = falta alguna y no hay contra qué comparar. */
   km_periodo: number | null;
   km_cargados: number;
+  /** Viajes vacíos REGISTRADOS por el chofer, con una plantilla `viaje_vacio`. */
   km_vacios: number;
+  /**
+   * Vacíos DEDUCIDOS de los viajes cargados, que es de donde salen de verdad: nadie registró
+   * nunca un viaje vacío. `retorno` deshace el viaje anterior; `reposicion` es ir a buscar
+   * carga a otro lado. Son las dos categorías que pidió el cliente.
+   */
+  km_retorno: number;
+  km_reposicion: number;
+  /** Tramos vacíos deducidos, incluidos los que no se pudieron estimar. */
+  tramos_vacios: number;
   /** `null` si no hay `km_periodo`. Negativo también es una señal, ver abajo. */
   km_sin_justificar: number | null;
   viajes_cargados: number;
@@ -1268,12 +1278,23 @@ export function auditoriaKilometros(
   lectura: Pick<LecturaOdometro, "kilometraje" | "tomada_at"> | null,
   previa: Pick<LecturaOdometro, "kilometraje" | "tomada_at"> | null,
   viajes: ViajeAuditado[],
+  /**
+   * Los tramos vacíos deducidos de la seguidilla de viajes (ver `shared/vacios.ts`). Van como
+   * parámetro y no se calculan acá porque necesitan el origen y el destino de cada viaje, que
+   * `ViajeAuditado` no lleva: acá sólo se restan.
+   */
+  deducidos: { km: number | null; tipo: "retorno" | "reposicion" }[] = [],
 ): AuditoriaKm {
   const cargados = viajes.filter((v) => !v.vacio);
   const vacios = viajes.filter((v) => v.vacio);
 
   const km_cargados = sumaKm(cargados);
   const km_vacios = sumaKm(vacios);
+  // Un tramo sin estimación suma 0: no se le inventa un recorrido, igual que a un viaje sin km.
+  const sumaTramos = (tipo: "retorno" | "reposicion") =>
+    redondearKm(deducidos.filter((d) => d.tipo === tipo).reduce((s, d) => s + (d.km ?? 0), 0));
+  const km_retorno = sumaTramos("retorno");
+  const km_reposicion = sumaTramos("reposicion");
   const km_periodo =
     lectura && previa ? redondearKm(lectura.kilometraje - previa.kilometraje) : null;
 
@@ -1282,8 +1303,13 @@ export function auditoriaKilometros(
     km_periodo,
     km_cargados,
     km_vacios,
+    km_retorno,
+    km_reposicion,
+    tramos_vacios: deducidos.length,
     km_sin_justificar:
-      km_periodo == null ? null : redondearKm(km_periodo - km_cargados - km_vacios),
+      km_periodo == null
+        ? null
+        : redondearKm(km_periodo - km_cargados - km_vacios - km_retorno - km_reposicion),
     viajes_cargados: cargados.length,
     viajes_vacios: vacios.length,
     viajes_sin_km: viajes.filter((v) => !Number.isFinite(v.kilometros as number)).length,

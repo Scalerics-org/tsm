@@ -90,6 +90,9 @@ interface AuditoriaCamion {
     km_periodo: number | null;
     km_cargados: number;
     km_vacios: number;
+    /** Vacíos deducidos: el retorno deshace el viaje anterior, la reposición va a otra carga. */
+    km_retorno: number;
+    km_reposicion: number;
     km_sin_justificar: number | null;
   };
   senal: { nivel: "ok" | "revisar" | "sin_datos"; motivo: string | null };
@@ -206,10 +209,18 @@ export function ControlPage() {
               left={
                 <>
                   {c.plate}
+                  {/* Las tres categorías que pidió el cliente: "1 cargados, 2 vacíos
+                      (retornos), 3 vacíos para llegar a cargas o surtir". Antes todo lo que
+                      no fuera carga caía junto en "sin justificar", y el número asustaba sin
+                      explicar nada: un camión marcaba 6.606 km en un mes. */}
                   <span className="text-ink/50">
                     {" "}
-                    · tacógrafo {km(c.auditoria.km_periodo)} · viajes{" "}
+                    · tacógrafo {km(c.auditoria.km_periodo)} · cargados{" "}
                     {km(c.auditoria.km_cargados + c.auditoria.km_vacios)}
+                    {c.auditoria.km_retorno > 0 && <> · retornos {km(c.auditoria.km_retorno)}</>}
+                    {c.auditoria.km_reposicion > 0 && (
+                      <> · a buscar carga {km(c.auditoria.km_reposicion)}</>
+                    )}
                   </span>
                 </>
               }

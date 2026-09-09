@@ -14,11 +14,23 @@ interface MonthRow {
   kml: number | null;
   closed: boolean;
 }
+/** Un tramo que el camión hizo sin carga, deducido de dónde descargó y dónde volvió a cargar. */
+interface TramoVacio {
+  desde: string;
+  hasta: string;
+  km: number | null;
+  tipo: "retorno" | "reposicion";
+  despues_de: number;
+  antes_de: number;
+}
+
 interface Ficha {
   truck: Truck;
   trips: Trip[];
   monthly: MonthRow[];
   fuel: FuelLog[];
+  vacios: TramoVacio[];
+  km_vacios: number;
   tons: number;
 }
 
@@ -106,6 +118,51 @@ export function TruckDetailPage() {
             {d.trips.length === 0 && (
               <tr>
                 <td className="px-4 py-3 text-ink/50">Sin viajes.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </Card>
+
+      {/* Los viajes vacíos NO los registra nadie: se deducen de la seguidilla de viajes. Entre
+          dónde descargó uno y dónde cargó el siguiente hay un tramo que el camión hizo sin
+          carga, y esos kilómetros antes caían enteros en "sin justificar". */}
+      <Card className="overflow-x-auto p-0">
+        <Corners />
+        <div className="flex items-baseline justify-between border-b border-ink/15 px-4 py-3">
+          <span className="font-cond text-lg font-semibold text-ink">Viajes vacíos</span>
+          <span className="font-cond text-sm text-ink/55 tabular-nums">
+            {d.km_vacios.toLocaleString("es-UY")} km en total
+          </span>
+        </div>
+        <table className="w-full min-w-[560px] text-sm">
+          <tbody>
+            {d.vacios.map((t) => (
+              <tr key={`${t.despues_de}-${t.antes_de}`} className="border-b border-ink/10">
+                <td className="px-4 py-2">
+                  <span className="text-ink">
+                    {t.desde} → {t.hasta}
+                  </span>
+                  <div className="font-cond text-xs uppercase tracking-[0.06em] text-ink/45">
+                    {t.tipo === "retorno" ? "Retorno · vuelve a cargar donde ya cargó" : "Va a buscar carga"}
+                  </div>
+                </td>
+                <td className="px-4 py-2 text-right tabular-nums text-ink/70">
+                  {/* Sin estimación no se inventa un número: la app no conoce el lugar. */}
+                  {t.km != null ? `${t.km.toLocaleString("es-UY")} km` : <span className="text-ink/40">sin estimar</span>}
+                </td>
+                <td className="px-4 py-2 text-right">
+                  <Link to={`/panel/viajes/${t.antes_de}`} className="text-xs text-brand-700 hover:underline">
+                    ver el viaje siguiente
+                  </Link>
+                </td>
+              </tr>
+            ))}
+            {d.vacios.length === 0 && (
+              <tr>
+                <td className="px-4 py-3 text-ink/50">
+                  Sin tramos vacíos: cada viaje arranca donde terminó el anterior.
+                </td>
               </tr>
             )}
           </tbody>

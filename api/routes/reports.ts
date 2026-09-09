@@ -13,6 +13,7 @@ import {
 import { listTrips, listTripsFacturables } from "../repos/trips";
 import { columnasDeCampos, encabezado, filasDeViaje } from "../lib/export-viajes";
 import { csvResponse } from "../lib/csv";
+import { vaciosEntreViajes, kmVacios } from "../../shared/vacios";
 import { resumenCliente } from "../lib/resumen-cliente";
 import { listTemplates } from "../repos/templates";
 import { listFuelLogs } from "../repos/fuel";
@@ -214,11 +215,26 @@ reports.get("/truck/:id", async (c) => {
     kml: m.kml != null ? roundTo(m.kml, 2) : null,
     closed: m.closed,
   }));
+  // Los tramos vacíos, deducidos de la seguidilla de viajes de ESTE camión. Se calculan
+  // sobre todos sus viajes y no sobre los 20 que se muestran: el hueco entre dos viajes
+  // necesita a los dos, y recortar la lista primero inventaría vacíos donde no los hay.
+  const vacios = vaciosEntreViajes(
+    trips.map((t) => ({
+      id: t.id,
+      started_at: t.started_at,
+      origin: t.origin,
+      destination: t.destination,
+      kilometros: Number.isFinite(t.kilometros as number) ? (t.kilometros as number) : null,
+    })),
+  );
+
   return ok(c, {
     truck,
     trips: trips.slice(0, 20),
     monthly,
     fuel: fuel.slice(0, 20),
+    vacios: vacios.slice(-20).reverse(),
+    km_vacios: kmVacios(vacios),
     tons: roundTo(trips.reduce((s, t) => s + (t.kilos_carga ?? 0), 0)),
   });
 });
