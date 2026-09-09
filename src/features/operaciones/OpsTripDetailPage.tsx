@@ -12,6 +12,7 @@ import { fmtDateTime } from "../../lib/format";
 import { fmtKilos } from "@shared/domain";
 import { CargasDelViaje } from "./CargasDelViaje";
 import { EditarCabecera } from "./EditarCabecera";
+import { FechaInput } from "../../components/FechaInput";
 
 interface Detail {
   trip: Trip & { fields?: TemplateField[] };
@@ -256,12 +257,11 @@ function FechaDelViaje({
       <div className="font-cond text-[11px] font-semibold uppercase tracking-[0.1em] text-ink/50">
         Salida
       </div>
-      <input
-        type="date"
+      <FechaInput
         className="input mt-0.5 py-1 text-sm"
         value={borrador}
         disabled={guardando}
-        onChange={(e) => setBorrador(e.target.value)}
+        onChange={setBorrador}
         onBlur={guardar}
         onKeyDown={(e) => {
           if (e.key === "Enter") e.currentTarget.blur();

@@ -4,6 +4,7 @@ import type { Provider } from "@shared/domain";
 import { api, downloadFile } from "../../lib/api";
 import { Button, Card, Corners, Empty, ErrorText, Field, Spinner } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
+import { FechaInput } from "../../components/FechaInput";
 
 interface Columna {
   key: string;
@@ -163,10 +164,10 @@ export function ResumenClientePage() {
             </select>
           </Field>
           <Field label="Desde">
-            <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            <FechaInput value={from} onChange={setFrom} />
           </Field>
           <Field label="Hasta">
-            <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            <FechaInput value={to} onChange={setTo} />
           </Field>
           <Field label="Agrupar">
             <label className="flex h-[42px] items-center gap-2 text-sm text-ink/75">

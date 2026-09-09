@@ -4,6 +4,7 @@ import { UNIDAD, type Driver, type LibretaEntry, type TripTemplate, type Unidad 
 import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
 import { LibretaPicker } from "../../components/LibretaPicker";
+import { FechaInput } from "../../components/FechaInput";
 
 interface TruckOption {
   id: number;
@@ -142,7 +143,7 @@ export function NuevoViajePage() {
             </select>
           </Field>
           <Field label="Fecha del viaje">
-            <input className="input" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+            <FechaInput value={fecha} onChange={setFecha} />
           </Field>
           <Field label="Chofer">
             <select className="input" value={driverId} onChange={(e) => setDriverId(e.target.value)}>

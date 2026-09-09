@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { fmtConsumo, fmtKilos } from "@shared/domain";
 import { api, downloadFile } from "../../lib/api";
 import { Button, Card, Corners, Spinner, Stat } from "../../components/ui";
+import { FechaInput } from "../../components/FechaInput";
 
 interface MonthRow {
   month: string;
@@ -62,11 +63,11 @@ export function OpsSummary() {
         <div className="flex flex-wrap items-end gap-2">
           <label className="text-xs text-ink/60">
             Desde
-            <input type="date" className="input mt-1" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} />
+            <FechaInput className="input mt-1" value={range.from} onChange={(iso) => setRange({ ...range, from: iso })} />
           </label>
           <label className="text-xs text-ink/60">
             Hasta
-            <input type="date" className="input mt-1" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} />
+            <FechaInput className="input mt-1" value={range.to} onChange={(iso) => setRange({ ...range, to: iso })} />
           </label>
           <Button variant="secondary" onClick={() => downloadFile(`/reports/trips.csv${query}`, "viajes.csv")}>
             ⬇ Viajes

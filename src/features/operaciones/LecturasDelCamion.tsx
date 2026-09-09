@@ -4,6 +4,7 @@ import { api, ApiError } from "../../lib/api";
 import { Button, Card, Corners, ErrorText, Spinner } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { VisorFotos } from "../../components/VisorFotos";
+import { FechaInput } from "../../components/FechaInput";
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -141,11 +142,10 @@ function FilaLectura({ l, onChanged }: { l: LecturaOdometro; onChanged: () => vo
             <span className="block text-[11px] uppercase tracking-[0.08em] text-ink/45">
               Día de la foto
             </span>
-            <input
+            <FechaInput
               className="input w-40 py-1 text-sm"
-              type="date"
               value={dia}
-              onChange={(e) => setDia(e.target.value)}
+              onChange={setDia}
               aria-label="Día en que se sacó la foto del tacógrafo"
             />
           </label>

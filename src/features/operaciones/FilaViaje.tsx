@@ -4,6 +4,7 @@ import { TRIP_STATUS, fmtKilos, type Trip } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { Spinner, StatusBadge } from "../../components/ui";
 import { fmtDate, fmtDateTime } from "../../lib/format";
+import { FechaInput } from "../../components/FechaInput";
 
 /**
  * Una fila de la lista de viajes, con la fecha corregible y el botón de borrar.
@@ -104,13 +105,12 @@ export function FilaViaje({ t, onCambio }: { t: Trip; onCambio: () => void }) {
              pero equivocadas —incluso del año 0002— y cada una salía como un PATCH. El viaje
              quedaba con una fecha que nadie eligió, la casilla se cerraba sola y el resto de
              lo que estaba tecleando se perdía. Se guarda al salir del campo o con Enter. */
-          <input
-            type="date"
+          <FechaInput
             className="input w-36 py-1 text-sm"
             value={borrador}
             autoFocus
             disabled={busy}
-            onChange={(e) => setBorrador(e.target.value)}
+            onChange={setBorrador}
             onBlur={() => cambiarFecha(borrador)}
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur();

@@ -4,6 +4,7 @@ import { DRIVER_STATUS, type Driver, type Truck } from "@shared/domain";
 import { api } from "../../lib/api";
 import { Button, Card, Field, Spinner } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
+import { FechaInput } from "../../components/FechaInput";
 
 export function AdminDriversPage() {
   const [drivers, setDrivers] = useState<Driver[] | null>(null);
@@ -167,7 +168,7 @@ function DriverForm({
           <input className="input" value={f.license_category} onChange={set("license_category")} placeholder="C, D…" />
         </Field>
         <Field label="Vencimiento licencia">
-          <input type="date" className="input" value={f.license_expiry} onChange={set("license_expiry")} />
+          <FechaInput value={f.license_expiry} onChange={(iso) => setF({ ...f, license_expiry: iso })} />
         </Field>
         <Field label="Teléfono">
           <input className="input" value={f.phone} onChange={set("phone")} />

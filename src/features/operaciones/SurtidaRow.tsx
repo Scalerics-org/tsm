@@ -4,6 +4,7 @@ import { api, ApiError } from "../../lib/api";
 import { Button, ErrorText, Spinner } from "../../components/ui";
 import { fmtDateTime } from "../../lib/format";
 import { VisorFotos, type FotoDelVisor } from "../../components/VisorFotos";
+import { FechaInput } from "../../components/FechaInput";
 
 /**
  * Una surtida en la ficha del camión, con corregir y borrar.
@@ -141,11 +142,10 @@ export function SurtidaRow({ f, onChanged }: { f: FuelLog; onChanged: () => void
   return (
     <tr className="border-b border-ink/10 bg-surface">
       <td className="px-4 py-2">
-        <input
+        <FechaInput
           className="input w-36"
-          type="date"
           value={fecha}
-          onChange={(e) => setFecha(e.target.value)}
+          onChange={setFecha}
           aria-label="Fecha de la surtida"
         />
         <div className="mt-1 text-[11px] text-ink/45">{fmtDateTime(f.logged_at)}</div>

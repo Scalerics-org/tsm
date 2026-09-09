@@ -12,6 +12,7 @@ import {
 import { api, downloadFile } from "../../lib/api";
 import { Button, Card, Empty, Spinner } from "../../components/ui";
 import { FilaViaje } from "./FilaViaje";
+import { FechaInput } from "../../components/FechaInput";
 
 export function OpsTripsPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -101,8 +102,8 @@ export function OpsTripsPage() {
             </option>
           ))}
         </select>
-        <input type="date" className="input" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} />
-        <input type="date" className="input" value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} />
+        <FechaInput value={f.from} onChange={(iso) => setF({ ...f, from: iso })} />
+        <FechaInput value={f.to} onChange={(iso) => setF({ ...f, to: iso })} />
       </Card>
 
       {!trips ? (
