@@ -62,8 +62,12 @@ function Section({
 
 const Row = ({ to, left, right }: { to?: string; left: React.ReactNode; right: React.ReactNode }) => {
   const inner = (
-    <div className="flex items-center justify-between gap-3 border-t border-ink/10 py-2 text-sm first:border-t-0">
-      <span className="text-ink">{left}</span>
+    /* `flex-wrap`: la parte de la derecha no se encoge, así que cuando el texto es largo
+       —"4.110 km sin justificar · 1 con km estimado por la app"— aplastaba a la izquierda
+       hasta partirla en tres líneas y los renglones dejaban de alinearse entre sí. Ahora, si
+       no entra, baja entera en vez de aplastar. */
+    <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-0.5 border-t border-ink/10 py-2 text-sm first:border-t-0">
+      <span className="min-w-0 text-ink">{left}</span>
       <span className="shrink-0 text-ink/60">{right}</span>
     </div>
   );
@@ -104,8 +108,14 @@ interface AuditoriaMes {
   umbral_km: number;
 }
 
-const km = (n: number | null) =>
-  n == null ? "—" : `${Math.round(n).toLocaleString("es-UY")} km`;
+/**
+ * Sólo el número, sin el "km" pegado.
+ *
+ * En el desglose de un camión la unidad se repetía cuatro veces por renglón —"tacógrafo
+ * 10.816 km · cargados 5.865 km · a buscar carga 841 km"— y era lo que hacía que el renglón
+ * no entrara. El título de la tarjeta ya dice que son kilómetros.
+ */
+const km = (n: number | null) => (n == null ? "—" : Math.round(n).toLocaleString("es-UY"));
 
 export function ControlPage() {
   const [a, setA] = useState<Alerts | null>(null);
@@ -207,22 +217,24 @@ export function ControlPage() {
               key={c.truck_id}
               to={`/panel/camion/${c.truck_id}`}
               left={
-                <>
-                  {c.plate}
+                /* El desglose va en su propio renglón y no pegado a la patente: con cuatro
+                   cifras adentro, el de arriba se partía en tres líneas y no alineaba con
+                   los de abajo. La patente manda, el desglose la explica. */
+                <span className="block">
+                  <span className="block text-ink">{c.plate}</span>
                   {/* Las tres categorías que pidió el cliente: "1 cargados, 2 vacíos
                       (retornos), 3 vacíos para llegar a cargas o surtir". Antes todo lo que
                       no fuera carga caía junto en "sin justificar", y el número asustaba sin
                       explicar nada: un camión marcaba 6.606 km en un mes. */}
-                  <span className="text-ink/50">
-                    {" "}
-                    · tacógrafo {km(c.auditoria.km_periodo)} · cargados{" "}
+                  <span className="block font-cond text-xs uppercase tracking-[0.05em] text-ink/45 tabular-nums">
+                    tacógrafo {km(c.auditoria.km_periodo)} · cargados{" "}
                     {km(c.auditoria.km_cargados + c.auditoria.km_vacios)}
                     {c.auditoria.km_retorno > 0 && <> · retornos {km(c.auditoria.km_retorno)}</>}
                     {c.auditoria.km_reposicion > 0 && (
                       <> · a buscar carga {km(c.auditoria.km_reposicion)}</>
                     )}
                   </span>
-                </>
+                </span>
               }
               right={<span className="text-st-redTx">{c.senal.motivo}</span>}
             />
