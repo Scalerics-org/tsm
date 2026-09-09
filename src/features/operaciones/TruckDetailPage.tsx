@@ -4,6 +4,7 @@ import { fmtConsumo, fmtKilos, type FuelLog, type Trip, type Truck } from "@shar
 import { api } from "../../lib/api";
 import { Card, Corners, Spinner, Stat, StatusBadge } from "../../components/ui";
 import { SurtidaRow } from "./SurtidaRow";
+import { rangoDeSurtidas } from "@shared/rango-surtidas";
 import { LecturasDelCamion } from "./LecturasDelCamion";
 import { fmtDateTime } from "../../lib/format";
 
@@ -47,6 +48,21 @@ export function TruckDetailPage() {
   useEffect(load, [id]);
 
   if (!d) return <Spinner size={28} />;
+
+  // Cuáles de estas surtidas no cierran contra el propio rendimiento del camión. Se calcula
+  // acá y no en el endpoint porque la pantalla ya tiene TODAS las surtidas del camión, que es
+  // exactamente lo que necesita la mediana; pedirlo aparte sería traer lo mismo dos veces.
+  const raras = new Map(
+    rangoDeSurtidas(
+      d.fuel.map((f) => ({
+        id: f.id,
+        odometer_km: f.odometer_km,
+        liters: f.liters,
+        is_full: !!f.is_full,
+        logged_at: f.logged_at,
+      })),
+    ).sospechosas.map((s) => [s.id, s.motivo] as const),
+  );
   const { truck } = d;
 
   return (
@@ -185,7 +201,7 @@ export function TruckDetailPage() {
           </thead>
           <tbody>
             {d.fuel.map((f) => (
-              <SurtidaRow key={f.id} f={f} onChanged={load} />
+              <SurtidaRow key={f.id} f={f} onChanged={load} sospechosa={raras.get(f.id) ?? null} />
             ))}
             {d.fuel.length === 0 && (
               <tr>

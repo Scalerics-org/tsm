@@ -875,7 +875,7 @@ interface FLog {
  * valor de antes del salto, fue un bache y la cadena sigue siendo la misma. Si nunca lo
  * alcanza, el número cambió de escala y los dos lados no se pueden restar entre sí.
  */
-function cadenaContinua(enOrden: FLog[]): FLog[] {
+export function cadenaContinua<T extends { odometer_km: number }>(enOrden: T[]): T[] {
   let desde = 0;
   for (let i = 1; i < enOrden.length; i++) {
     if (enOrden[i].odometer_km >= enOrden[i - 1].odometer_km) continue;

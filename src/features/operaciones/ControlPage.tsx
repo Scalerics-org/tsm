@@ -100,12 +100,29 @@ interface AuditoriaCamion {
     km_sin_justificar: number | null;
   };
   senal: { nivel: "ok" | "revisar" | "sin_datos"; motivo: string | null };
+  /** Las surtidas de este camión cuyos litros no cierran contra su propio rendimiento. */
+  combustible: {
+    nivel: "ok" | "revisar" | "sin_datos";
+    mediana: number | null;
+    tramos: number;
+    sospechosas: {
+      id: number;
+      logged_at: string;
+      km: number;
+      litros: number;
+      kml: number;
+      litros_esperados: number;
+      diferencia: number;
+      motivo: string;
+    }[];
+  };
 }
 
 interface AuditoriaMes {
   mes: string;
   camiones: AuditoriaCamion[];
   umbral_km: number;
+  umbral_litros: number;
 }
 
 /**
@@ -131,6 +148,13 @@ export function ControlPage() {
 
   const descuadrados = (audit?.camiones ?? []).filter((c) => c.senal.nivel === "revisar");
   const sinLectura = (audit?.camiones ?? []).filter((c) => c.senal.nivel === "sin_datos");
+
+  // Aplanado a una fila por surtida, no por camión: lo que la oficina abre es una boleta, y
+  // un camión puede tener más de una para mirar. Las más grandes primero, que son por las
+  // que conviene empezar.
+  const litrosRaros = (audit?.camiones ?? [])
+    .flatMap((c) => c.combustible.sospechosas.map((s) => ({ ...s, plate: c.plate, truck_id: c.truck_id })))
+    .sort((x, y) => Math.abs(y.diferencia) - Math.abs(x.diferencia));
 
   return (
     <div className="space-y-4">
@@ -253,6 +277,40 @@ export function ControlPage() {
               to={`/panel/camion/${c.truck_id}`}
               left={c.plate}
               right={c.senal.motivo}
+            />
+          ))}
+        </Section>
+
+        {/* No es lo mismo que "Consumo anómalo", que está abajo: aquélla compara el MES entero
+            contra el rendimiento que la oficina le configuró al camión. Ésta compara cada
+            surtida contra lo que ese camión rinde de verdad, y señala la boleta puntual que
+            hay que abrir. Una dice "este camión anduvo mal en agosto"; la otra, "mirá esta". */}
+        <Section
+          title="Litros que no cierran"
+          count={litrosRaros.length}
+          accent="red"
+          empty="Ninguna surtida se aparta del rendimiento de su camión."
+        >
+          {litrosRaros.map((s) => (
+            <Row
+              key={s.id}
+              to={`/panel/camion/${s.truck_id}`}
+              left={
+                <span className="min-w-0">
+                  {s.plate}
+                  <span className="text-ink/50"> · {fmtDate(s.logged_at)}</span>
+                  <span className="block font-cond text-xs uppercase tracking-[0.05em] text-ink/45 tabular-nums">
+                    {Math.round(s.km).toLocaleString("es-UY")} km · {Math.round(s.litros).toLocaleString("es-UY")} L
+                    declarados · {s.kml.toFixed(2).replace(".", ",")} km/L
+                  </span>
+                </span>
+              }
+              right={
+                <span className={s.diferencia > 0 ? "text-st-redTx" : "text-st-amberTx"}>
+                  {s.diferencia > 0 ? "faltan" : "sobran"}{" "}
+                  {Math.abs(Math.round(s.diferencia)).toLocaleString("es-UY")} L
+                </span>
+              }
             />
           ))}
         </Section>

@@ -23,7 +23,16 @@ import { FechaInput } from "../../components/FechaInput";
  * de la surtida que el chofer puede mover a mano —menos litros declarados = mejor consumo—.
  * El tilde no cambia nada, sólo deja dicho quién miró la boleta contra estos números.
  */
-export function SurtidaRow({ f, onChanged }: { f: FuelLog; onChanged: () => void }) {
+export function SurtidaRow({
+  f,
+  onChanged,
+  sospechosa = null,
+}: {
+  f: FuelLog;
+  onChanged: () => void;
+  /** Por qué esta surtida no cierra contra el rendimiento del camión, o `null` si cierra. */
+  sospechosa?: string | null;
+}) {
   const [editando, setEditando] = useState(false);
   const [km, setKm] = useState(String(f.odometer_km));
   const [t1, setT1] = useState(f.liters_tanque1 == null ? "" : String(f.liters_tanque1));
@@ -117,6 +126,13 @@ export function SurtidaRow({ f, onChanged }: { f: FuelLog; onChanged: () => void
           {(f.liters_tanque1 != null || f.liters_tanque2 != null) && (
             <div className="text-[11px] text-ink/45">
               T1 {f.liters_tanque1 ?? 0} · T2 {f.liters_tanque2 ?? 0}
+            </div>
+          )}
+          {/* El aviso va pegado a los litros porque es el número que no cierra, y en la fila
+              que la oficina va a tildar: es el momento en que tiene la boleta en la mano. */}
+          {sospechosa && !verificada && (
+            <div className="mt-1 text-left text-[11px] font-medium text-st-redTx" title={sospechosa}>
+              ⚠ revisar la boleta
             </div>
           )}
         </td>

@@ -15,12 +15,15 @@ import {
 import { kmEstimados } from "../../shared/distancias";
 import { periodoDeHoy } from "../lib/periodo";
 import { vaciosEntreViajes } from "../../shared/vacios";
+import { DESVIO_SURTIDA } from "../../shared/rango-surtidas";
 import { claveMovida, esPeriodo, fechaDeFoto, moverLectura } from "../lib/lectura-periodo";
 import * as repo from "../repos/lecturas";
 import { listTrips } from "../repos/trips";
 import { currentTruckId } from "../repos/drivers";
 import { listTrucks, getTruck } from "../repos/trucks";
 import { listTemplates } from "../repos/templates";
+import { listFuelLogs } from "../repos/fuel";
+import { surtidasARevisar } from "../lib/surtidas-a-revisar";
 
 /**
  * Lecturas mensuales del tacógrafo y la auditoría de kilómetros que salen de ellas.
@@ -190,7 +193,7 @@ lecturas.get("/auditoria", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
   if (!esPeriodo(mes)) return fail(c, "El mes va como 2026-01", 400);
   const previo = periodoAnterior(mes);
 
-  const [camiones, delMes, delPrevio, viajes, plantillas] = await Promise.all([
+  const [camiones, delMes, delPrevio, viajes, plantillas, surtidas] = await Promise.all([
     listTrucks(c.env.DB),
     repo.listLecturas(c.env.DB, { periodo: mes }),
     repo.listLecturas(c.env.DB, { periodo: previo }),
@@ -200,11 +203,24 @@ lecturas.get("/auditoria", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
     // recorta por camión más abajo, que cada uno tiene su propia ventana.
     listTrips(c.env.DB, { from: `${previo}-01`, to: `${mes}-31` }),
     listTemplates(c.env.DB),
+    // TODAS las surtidas, sin filtro de mes y a propósito: la referencia contra la que se
+    // mide una surtida es el rendimiento histórico de SU camión, y recortada al mes no habría
+    // tramos suficientes para que la mediana diga nada. Se filtra al final, no al principio.
+    listFuelLogs(c.env.DB),
   ]);
 
   // Un viaje cancelado no recorrió nada que haya que justificar.
   const delPeriodo = viajes.filter((t) => t.status !== TRIP_STATUS.CANCELADO);
   const plantillasVacias = new Set(plantillas.filter((p) => p.viaje_vacio).map((p) => p.id));
+
+  // Una sola consulta y se agrupa acá: una por camión serían N consultas para leer la misma
+  // tabla entera.
+  const suSurtidas = new Map<number, typeof surtidas>();
+  for (const f of surtidas) {
+    const suyas = suSurtidas.get(f.truck_id);
+    if (suyas) suyas.push(f);
+    else suSurtidas.set(f.truck_id, [f]);
+  }
 
   return ok(c, {
     mes,
@@ -267,9 +283,15 @@ lecturas.get("/auditoria", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
         // pantalla no vuelve a decidir cuándo algo amerita mirarse: se lo decimos acá, con
         // el mismo criterio para todos.
         senal: senalKilometros(auditoria),
+        // El aviso de litros: qué surtidas de este camión no cierran contra su propio
+        // rendimiento. Cierra el círculo con el tilde de verificado — una vez que alguien
+        // abrió la boleta y la tildó, sale de la lista y no vuelve a molestar. Sin eso, la
+        // del GTP 4413 del 31/08 le iba a aparecer todos los meses para siempre.
+        combustible: surtidasARevisar(suSurtidas.get(camion.id) ?? []),
       };
     }),
     umbral_km: KM_SIN_JUSTIFICAR_ALERTA,
+    umbral_litros: DESVIO_SURTIDA,
   });
 });
 
