@@ -36,6 +36,71 @@ export interface LecturaMinima {
   kilometraje: number;
 }
 
+/** Los vecinos en el tiempo, para no dar vuelta la ventana que compara la auditoría. */
+export interface ContextoFecha {
+  /** Hoy, "YYYY-MM-DD". Se pasa para poder probar el freno de fechas futuras. */
+  hoy: string;
+  /** `tomada_at` de la lectura anterior y de la siguiente, si existen. */
+  previa?: string | null;
+  siguiente?: string | null;
+}
+
+const soloDia = (v: string) => v.slice(0, 10);
+
+/**
+ * La fecha en que se sacó la foto del tacógrafo.
+ *
+ * `tomada_at` se llenaba con `datetime('now')` al guardar, y nadie podía decirle cuándo se
+ * había sacado la foto. Mientras el chofer la sacaba parado en la ruta era lo mismo; con la
+ * oficina cargando el atraso de atrás, pasó a ser la fecha en que se subió el archivo. Y la
+ * auditoría compara justamente la ventana que va de una foto a la otra, así que estaba
+ * comparando fechas de carga: de ahí salía el descuadre entero.
+ *
+ * LA HORA. Con sólo el día se guarda al MEDIODÍA, no a las 00:00 ni a las 23:59. Esta fecha
+ * es a la vez el final de la ventana de su mes y el arranque de la del siguiente: cualquiera
+ * de los dos extremos deja media jornada de viajes del lado equivocado, y el mediodía reparte
+ * el error en vez de cargarlo todo de un lado.
+ */
+export function fechaDeFoto(
+  valor: unknown,
+  ctx: ContextoFecha,
+): { ok: true; fecha: string } | { ok: false; motivo: string } {
+  const texto = typeof valor === "string" ? valor.trim() : "";
+  const m = texto.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (!m) return { ok: false, motivo: "La fecha va como 2026-09-01." };
+
+  const [, anio, mes, dia, hh, mm, ss] = m;
+  const mesN = Number(mes);
+  const diaN = Number(dia);
+  if (mesN < 1 || mesN > 12 || diaN < 1 || diaN > 31) {
+    return { ok: false, motivo: "Esa fecha no existe." };
+  }
+
+  const hora = hh ? `${hh}:${mm}:${ss ?? "00"}` : "12:00:00";
+  const fecha = `${anio}-${mes}-${dia} ${hora}`;
+
+  if (soloDia(fecha) > ctx.hoy) {
+    return { ok: false, motivo: "Esa foto todavía no se sacó: la fecha está en el futuro." };
+  }
+
+  // Las fotos van una detrás de otra. Con una fuera de orden, la ventana que compara la
+  // auditoría se da vuelta y pasa a medir kilómetros negativos sin que nada avise.
+  if (ctx.previa && fecha < ctx.previa) {
+    return {
+      ok: false,
+      motivo: `La lectura anterior es del ${soloDia(ctx.previa)}: ésta no puede ser de antes.`,
+    };
+  }
+  if (ctx.siguiente && fecha > ctx.siguiente) {
+    return {
+      ok: false,
+      motivo: `La lectura siguiente es del ${soloDia(ctx.siguiente)}: ésta no puede ser de después.`,
+    };
+  }
+
+  return { ok: true, fecha };
+}
+
 /**
  * La clave de R2 lleva el mes adentro: `odometro/{camion}/{periodo}.{ext}`.
  *

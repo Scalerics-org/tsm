@@ -15,7 +15,7 @@ import {
 import { kmEstimados } from "../../shared/distancias";
 import { periodoDeHoy } from "../lib/periodo";
 import { vaciosEntreViajes } from "../../shared/vacios";
-import { claveMovida, esPeriodo, moverLectura } from "../lib/lectura-periodo";
+import { claveMovida, esPeriodo, fechaDeFoto, moverLectura } from "../lib/lectura-periodo";
 import * as repo from "../repos/lecturas";
 import { listTrips } from "../repos/trips";
 import { currentTruckId } from "../repos/drivers";
@@ -339,7 +339,26 @@ lecturas.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
     }
   }
 
-  await repo.updateLectura(c.env.DB, id, { kilometraje, periodo, r2_key }, {
+  // La fecha de la FOTO, que no es la de carga. Con la oficina cargando el atraso de atrás,
+  // `tomada_at` venía siendo el día en que se subía el archivo; y es la fecha con la que la
+  // auditoría arma la ventana que compara, así que un mes entero salía descuadrado por eso.
+  let tomada_at: string | undefined;
+  if (b?.tomada_at != null) {
+    const delCamion = await repo.listLecturas(c.env.DB, { truckId: actual.truck_id });
+    const enOrden = delCamion
+      .filter((l) => l.id !== id)
+      .sort((a, z) => a.periodo.localeCompare(z.periodo));
+    const destino = periodo ?? actual.periodo;
+    const fecha = fechaDeFoto(b.tomada_at, {
+      hoy: new Date().toISOString().slice(0, 10),
+      previa: enOrden.filter((l) => l.periodo < destino).pop()?.tomada_at ?? null,
+      siguiente: enOrden.find((l) => l.periodo > destino)?.tomada_at ?? null,
+    });
+    if (!fecha.ok) return fail(c, fecha.motivo, 400);
+    tomada_at = fecha.fecha;
+  }
+
+  await repo.updateLectura(c.env.DB, id, { kilometraje, periodo, r2_key, tomada_at }, {
     userId: c.get("user").id,
     when: new Date().toISOString().replace("T", " ").slice(0, 19),
   });

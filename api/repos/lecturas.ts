@@ -96,7 +96,7 @@ export async function createLectura(db: D1Database, l: LecturaInput): Promise<nu
 export async function updateLectura(
   db: D1Database,
   id: number,
-  cambios: { kilometraje?: number; periodo?: string; r2_key?: string },
+  cambios: { kilometraje?: number; periodo?: string; r2_key?: string; tomada_at?: string },
   editor: { userId: number; when: string },
 ): Promise<void> {
   const sets: string[] = [];
@@ -114,6 +114,13 @@ export async function updateLectura(
   if (cambios.r2_key != null) {
     sets.push("r2_key = ?");
     binds.push(cambios.r2_key);
+  }
+  // La fecha de la foto. Con la oficina cargando el atraso, `datetime('now')` guardaba el
+  // día en que se subió el archivo y no el del tacógrafo — y es la fecha con la que la
+  // auditoría arma la ventana que compara.
+  if (cambios.tomada_at != null) {
+    sets.push("tomada_at = ?");
+    binds.push(cambios.tomada_at);
   }
   if (sets.length === 0) return;
 

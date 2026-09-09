@@ -78,6 +78,7 @@ function FilaLectura({ l, onChanged }: { l: LecturaOdometro; onChanged: () => vo
   const [editando, setEditando] = useState(false);
   const [km, setKm] = useState(String(l.kilometraje));
   const [mes, setMes] = useState(l.periodo);
+  const [dia, setDia] = useState(l.tomada_at.slice(0, 10));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [ampliada, setAmpliada] = useState(false);
@@ -85,6 +86,7 @@ function FilaLectura({ l, onChanged }: { l: LecturaOdometro; onChanged: () => vo
   const cancelar = () => {
     setKm(String(l.kilometraje));
     setMes(l.periodo);
+    setDia(l.tomada_at.slice(0, 10));
     setError("");
     setEditando(false);
   };
@@ -100,6 +102,9 @@ function FilaLectura({ l, onChanged }: { l: LecturaOdometro; onChanged: () => vo
       await api.put(`/lecturas/${l.id}`, {
         kilometraje: n,
         ...(mes !== l.periodo ? { periodo: mes } : {}),
+        // La fecha de la foto va sólo si cambió, por lo mismo que el mes. Y va el día
+        // pelado: el backend le pone el mediodía, que es lo que menos corre la ventana.
+        ...(dia !== l.tomada_at.slice(0, 10) ? { tomada_at: dia } : {}),
       });
       setEditando(false);
       onChanged();
@@ -127,14 +132,31 @@ function FilaLectura({ l, onChanged }: { l: LecturaOdometro; onChanged: () => vo
         ) : (
           nombreDelMes(l.periodo)
         )}
-        <div className="text-[11px] text-ink/45">
-          {/* El día real de la foto, que casi nunca es el 1°: es la ventana que se compara.
-              No se corrige nunca: es la evidencia. */}
-          foto del {fmtDate(l.tomada_at)}
-          {l.edited_at && (
-            <span className="ml-2 uppercase tracking-[0.08em] text-st-amberTx">corregida</span>
-          )}
-        </div>
+        {/* El día real de la foto, que casi nunca es el 1°: es la ventana que la auditoría
+            compara. Se corrige porque `tomada_at` se llenaba con la fecha de CARGA, y
+            cargando el atraso desde oficina eso es el día en que se subió el archivo, no el
+            del tacógrafo. La foto en sí no se toca: es la evidencia. */}
+        {editando ? (
+          <label className="mt-1 block">
+            <span className="block text-[11px] uppercase tracking-[0.08em] text-ink/45">
+              Día de la foto
+            </span>
+            <input
+              className="input w-40 py-1 text-sm"
+              type="date"
+              value={dia}
+              onChange={(e) => setDia(e.target.value)}
+              aria-label="Día en que se sacó la foto del tacógrafo"
+            />
+          </label>
+        ) : (
+          <div className="text-[11px] text-ink/45">
+            foto del {fmtDate(l.tomada_at)}
+            {l.edited_at && (
+              <span className="ml-2 uppercase tracking-[0.08em] text-st-amberTx">corregida</span>
+            )}
+          </div>
+        )}
       </td>
       <td className="px-4 py-2 text-right">
         {editando ? (
@@ -207,7 +229,9 @@ function FilaLectura({ l, onChanged }: { l: LecturaOdometro; onChanged: () => vo
           <p className="mt-1 text-right text-[11px] text-ink/55">
             {mes !== l.periodo
               ? "Al cambiarla de mes se mueven los kilómetros de cuatro meses: el que deja y el que ocupa, más el siguiente a cada uno."
-              : "Cambia los kilómetros de este mes y del siguiente."}
+              : dia !== l.tomada_at.slice(0, 10)
+                ? "La fecha de la foto define la ventana que se compara: al moverla cambian qué viajes entran en este mes y en el siguiente."
+                : "Cambia los kilómetros de este mes y del siguiente."}
           </p>
         )}
         <ErrorText>{error}</ErrorText>
