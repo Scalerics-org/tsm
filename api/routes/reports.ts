@@ -218,14 +218,21 @@ reports.get("/truck/:id", async (c) => {
   // Los tramos vacíos, deducidos de la seguidilla de viajes de ESTE camión. Se calculan
   // sobre todos sus viajes y no sobre los 20 que se muestran: el hueco entre dos viajes
   // necesita a los dos, y recortar la lista primero inventaría vacíos donde no los hay.
+  //
+  // SIN LOS CANCELADOS. Un viaje cancelado no se hizo, así que el camión nunca estuvo en
+  // ese destino: dejarlo adentro parte la cadena en dos y aparecen tramos que no existieron.
+  // Lo encontró el cliente probando: arrancó tres viajes, los canceló, y le quedaron
+  // figurando como vacíos en la ficha. Control ya los filtraba; esta pantalla no.
+  const hechos = trips.filter((t) => t.status !== TRIP_STATUS.CANCELADO);
   const vacios = vaciosEntreViajes(
-    trips.map((t) => ({
-      id: t.id,
-      started_at: t.started_at,
-      origin: t.origin,
-      destination: t.destination,
-      kilometros: Number.isFinite(t.kilometros as number) ? (t.kilometros as number) : null,
-    })),
+    hechos
+      .map((t) => ({
+        id: t.id,
+        started_at: t.started_at,
+        origin: t.origin,
+        destination: t.destination,
+        kilometros: Number.isFinite(t.kilometros as number) ? (t.kilometros as number) : null,
+      })),
   );
 
   return ok(c, {
@@ -235,7 +242,10 @@ reports.get("/truck/:id", async (c) => {
     fuel: fuel.slice(0, 20),
     vacios: vacios.slice(-20).reverse(),
     km_vacios: kmVacios(vacios),
-    tons: roundTo(trips.reduce((s, t) => s + (t.kilos_carga ?? 0), 0)),
+    // Mismo criterio que los vacíos: un viaje cancelado no cargó nada, así que sus kilos
+    // no son toneladas transportadas. La lista de arriba SÍ los sigue mostrando — la
+    // oficina tiene que poder ver que existieron—, pero no entran en el total.
+    tons: roundTo(hechos.reduce((s, t) => s + (t.kilos_carga ?? 0), 0)),
   });
 });
 
