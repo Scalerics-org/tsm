@@ -13,7 +13,7 @@ import {
 import { listTrips, listTripsFacturables } from "../repos/trips";
 import { columnasDeCampos, encabezado, filasDeViaje } from "../lib/export-viajes";
 import { csvResponse } from "../lib/csv";
-import { vaciosEntreViajes, kmVacios } from "../../shared/vacios";
+import { vaciosEntreViajes, kmVacios, vaciosDelPeriodo } from "../../shared/vacios";
 import { resumenCliente } from "../lib/resumen-cliente";
 import { listTemplates } from "../repos/templates";
 import { listFuelLogs } from "../repos/fuel";
@@ -33,12 +33,37 @@ function roundTo(n: number, d = 1): number {
 reports.get("/summary", async (c) => {
   const q = c.req.query();
   const range = { from: q.from, to: q.to };
-  const [trucks, trips, fuel, allFuel] = await Promise.all([
+  const [trucks, trips, fuel, allFuel, todosLosViajes] = await Promise.all([
     listTrucks(c.env.DB),
     listTrips(c.env.DB, { from: range.from, to: range.to }),
     listFuelLogs(c.env.DB, { from: range.from, to: range.to }),
     listFuelLogs(c.env.DB, {}),
+    // Los vacíos se calculan sobre TODOS los viajes y se filtran después (`vaciosDelPeriodo`):
+    // con los del rango solos se pierde el tramo del borde de mes.
+    listTrips(c.env.DB, {}),
   ]);
+
+  const vaciosDelCamion = (truckId: number) => {
+    const v = vaciosDelPeriodo(
+      todosLosViajes
+        .filter((x) => x.truck_id === truckId && x.status !== TRIP_STATUS.CANCELADO)
+        .map((x) => ({
+          id: x.id,
+          started_at: x.started_at,
+          origin: x.origin,
+          destination: x.destination,
+          kilometros: Number.isFinite(x.kilometros as number) ? (x.kilometros as number) : null,
+        })),
+      range.from,
+      range.to,
+    );
+    return {
+      km_retorno: Math.round(v.km_retorno),
+      km_reposicion: Math.round(v.km_reposicion),
+      tramos_vacios: v.tramos,
+      vacios_sin_km: v.sin_km,
+    };
+  };
 
   const byTruck = trucks.map((t) => {
     const tTrips = trips.filter((x) => x.truck_id === t.id);
@@ -54,10 +79,16 @@ reports.get("/summary", async (c) => {
       plate: t.plate,
       trips: tTrips.length,
       completed: tTrips.filter((x) => x.status === TRIP_STATUS.COMPLETADO).length,
-      tons: roundTo(tTrips.reduce((s, x) => s + (x.kilos_carga ?? 0), 0)),
+      // Sin los cancelados, igual que en la ficha del camión: un viaje que no se hizo no cargó.
+      tons: roundTo(
+        tTrips.filter((x) => x.status !== TRIP_STATUS.CANCELADO).reduce((s, x) => s + (x.kilos_carga ?? 0), 0),
+      ),
       km: Math.round(fs.km),
       liters: Math.round(fs.liters),
       consumption_kml: fs.kml != null ? roundTo(fs.kml, 2) : null,
+      // "No veo bien dónde quedó el resumen, identificado por camión." Estaba repartido entre
+      // la ficha de cada camión y la letra chica de Control; acá queda en la tabla de todos.
+      ...vaciosDelCamion(t.id),
     };
   });
 

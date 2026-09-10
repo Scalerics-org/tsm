@@ -97,3 +97,41 @@ export function vaciosEntreViajes(viajes: ViajeParaVacios[]): TramoVacio[] {
 export function kmVacios(tramos: TramoVacio[]): number {
   return tramos.reduce((s, t) => s + (t.km ?? 0), 0);
 }
+
+export interface VaciosDelPeriodo {
+  km_retorno: number;
+  km_reposicion: number;
+  tramos: number;
+  /** Tramos que aparecen pero no suman: la app no conoce alguno de los dos lugares. */
+  sin_km: number;
+}
+
+/**
+ * Los vacíos de un camión en un período, para el resumen por camión.
+ *
+ * CADA TRAMO VA AL PERÍODO EN QUE EL CAMIÓN LLEGA A CARGAR — el viaje `antes_de` —, porque
+ * el tramo vacío se maneja justo antes de ese viaje. Y por eso se calcula sobre TODOS los
+ * viajes del camión y se filtra después: recortar los viajes al rango primero perdería el
+ * tramo del borde, el que va del último viaje de agosto al primero de setiembre.
+ *
+ * Los viajes cancelados los tiene que sacar quien llama, igual que en el resto de las
+ * pantallas: un cancelado no se hizo y parte la cadena.
+ */
+export function vaciosDelPeriodo(
+  viajes: ViajeParaVacios[],
+  desde?: string,
+  hasta?: string,
+): VaciosDelPeriodo {
+  const inicio = new Map(viajes.map((v) => [v.id, v.started_at.slice(0, 10)]));
+  const enRango = (id: number) => {
+    const dia = inicio.get(id);
+    return dia != null && (!desde || dia >= desde) && (!hasta || dia <= hasta);
+  };
+  const tramos = vaciosEntreViajes(viajes).filter((t) => enRango(t.antes_de));
+  return {
+    km_retorno: kmVacios(tramos.filter((t) => t.tipo === "retorno")),
+    km_reposicion: kmVacios(tramos.filter((t) => t.tipo === "reposicion")),
+    tramos: tramos.length,
+    sin_km: tramos.filter((t) => t.km == null).length,
+  };
+}

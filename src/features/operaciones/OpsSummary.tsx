@@ -24,6 +24,12 @@ interface Summary {
     km: number;
     liters: number;
     consumption_kml: number | null;
+    /** Vacíos deducidos: volver de donde salió, o ir a buscar carga a otro lado. */
+    km_retorno: number;
+    km_reposicion: number;
+    tramos_vacios: number;
+    /** Tramos que la app no pudo medir: aparecen pero no suman. */
+    vacios_sin_km: number;
   }[];
   byProvider: { name: string; trips: number; completed: number; tons: number }[];
   monthlyByTruck: { truck_id: number; plate: string; months: MonthRow[] }[];
@@ -94,13 +100,18 @@ export function OpsSummary() {
             <Card className="overflow-x-auto p-0">
               <Corners />
               <div className="border-b border-ink/15 px-4 py-3 font-cond text-lg font-semibold text-ink">Por camión</div>
-              <table className="w-full min-w-[520px] text-sm">
+              <table className="w-full min-w-[680px] text-sm">
                 <thead className="text-left text-ink/60">
                   <tr className="border-b border-ink/15">
                     <th className="px-4 py-3">Camión</th>
                     <th className="px-4 py-3 text-right">Viajes</th>
                     <th className="px-4 py-3 text-right">Kilos</th>
                     <th className="px-4 py-3 text-right">Km</th>
+                    {/* Los vacíos van pegados a Km: se leen como "de esos kilómetros, tantos
+                        fueron sin carga". Dos columnas y no una porque el cliente los separa
+                        así — "1 cargados, 2 retornos, 3 vacíos para llegar a cargas". */}
+                    <th className="px-4 py-3 text-right">Retornos</th>
+                    <th className="px-4 py-3 text-right">A buscar carga</th>
                     <th className="px-4 py-3 text-right">km/L</th>
                   </tr>
                 </thead>
@@ -117,6 +128,22 @@ export function OpsSummary() {
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums text-ink/70">{fmtKilos(t.tons)}</td>
                       <td className="px-4 py-3 text-right text-ink/70">{t.km.toLocaleString("es-UY")}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-ink/70">
+                        {t.km_retorno ? t.km_retorno.toLocaleString("es-UY") : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-ink/70">
+                        {t.km_reposicion ? t.km_reposicion.toLocaleString("es-UY") : "—"}
+                        {/* Se dice cuando el total es un piso: hay tramos que la app no pudo
+                            medir porque no conoce el lugar ("Salto y Artigas", Buenos Aires). */}
+                        {t.vacios_sin_km > 0 && (
+                          <div
+                            className="text-[11px] text-st-amberTx"
+                            title="Tramos entre lugares que la app no conoce: aparecen en la ficha del camión pero no suman."
+                          >
+                            + {t.vacios_sin_km} sin medir
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-right font-semibold text-ink">
                         {fmtConsumo(t.consumption_kml)}
                       </td>
