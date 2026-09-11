@@ -152,9 +152,18 @@ export function StartTripPage() {
         field_values: values,
         truck_id: truckId ? Number(truckId) : undefined,
       });
-      if (file) await uploadPhoto(trip.id, file, PHOTO_KIND.CARGA);
+      // El viaje ya existe. Si la foto falla —la señal que se corta en el galpón— NO es "no se
+      // pudo iniciar": se sigue a la pantalla del viaje, que muestra "Falta la foto de la carga"
+      // con su botón para volver a sacarla. Antes el error de la foto caía en el mismo catch y le
+      // decía al chofer que el viaje no había arrancado.
+      if (file) await uploadPhoto(trip.id, file, PHOTO_KIND.CARGA).catch(() => undefined);
       navigate(`/viaje/${trip.id}`);
     } catch (e) {
+      // Si la respuesta se perdió pero el viaje se creó, reintentar da "Todavía tenés un viaje sin
+      // cerrar". Por eso, antes de mostrar un error, se busca el viaje abierto: si es de este mismo
+      // viaje, se va a él en vez de decirle al chofer lo contrario de lo que pasó.
+      const abierto = await api.get<Trip | null>("/trips/active").catch(() => null);
+      if (abierto && abierto.template_id === tpl!.id) return navigate(`/viaje/${abierto.id}`);
       setError(e instanceof ApiError ? e.message : "No se pudo iniciar el viaje");
     } finally {
       setBusy(false);

@@ -7,10 +7,20 @@ import { Corners, Spinner } from "../../components/ui";
 export function ChoferClientePage() {
   const { providerId } = useParams();
   const [templates, setTemplates] = useState<TripTemplate[] | null>(null);
+  // Un corte de señal no es "este cliente no tiene viajes": se dice distinto y se puede reintentar.
+  const [falló, setFalló] = useState(false);
+  const cargarPlantillas = () => {
+    setFalló(false);
+    api
+      .get<TripTemplate[]>("/templates")
+      .then(setTemplates)
+      .catch(() => {
+        setTemplates([]);
+        setFalló(true);
+      });
+  };
 
-  useEffect(() => {
-    api.get<TripTemplate[]>("/templates").then(setTemplates).catch(() => setTemplates([]));
-  }, []);
+  useEffect(cargarPlantillas, []);
 
   if (!templates) return <Spinner size={28} />;
 
@@ -30,7 +40,16 @@ export function ChoferClientePage() {
       {viajes.length === 0 ? (
         <div className="panel p-6 text-center text-ink/50">
           <Corners />
-          Este cliente no tiene viajes activos.
+          {falló ? (
+            <span className="text-st-redTx">
+              No se pudo cargar la lista de viajes. Puede ser la señal.{" "}
+              <button type="button" onClick={cargarPlantillas} className="underline">
+                Reintentar
+              </button>
+            </span>
+          ) : (
+            "Este cliente no tiene viajes activos."
+          )}
         </div>
       ) : (
         <div className="space-y-3">

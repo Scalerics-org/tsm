@@ -303,6 +303,11 @@ function ArrivalForm({
       });
       onDone();
     } catch (e) {
+      // Si la respuesta se perdió pero el viaje sí se cerró, reintentar da "El viaje no está en
+      // curso", que no le dice al chofer que su llegada quedó registrada. Antes de mostrar un
+      // error se mira cómo quedó el viaje: si ya está completado, salió bien.
+      const t = await api.get<Trip>(`/trips/${tripId}`).catch(() => null);
+      if (t?.status === TRIP_STATUS.COMPLETADO) return onDone();
       setError(e instanceof ApiError ? e.message : "No se pudo registrar la llegada");
     } finally {
       setBusy(false);

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { AuthUser } from "@shared/domain";
-import { api, getToken, setToken, clearToken } from "./api";
+import { api, ApiError, getToken, setToken, clearToken, getCachedUser, setCachedUser } from "./api";
 
 interface AuthState {
   user: AuthUser | null;
@@ -23,8 +23,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     api
       .get<AuthUser>("/auth/me")
-      .then(setUser)
-      .catch(() => clearToken())
+      .then((u) => {
+        setUser(u);
+        setCachedUser(u);
+      })
+      .catch((e) => {
+        // Un 401 ya borró la sesión en `request`: ahí sí hay que volver a entrar. Cualquier otra
+        // falla —sin señal en el galpón, el servidor que tarda— NO es motivo para echar al chofer
+        // y hacerle tipear patente y PIN de nuevo, parado y con guantes: se sigue con el usuario
+        // que ya tenía, y el próximo pedido que haga dirá si la sesión sigue viva.
+        if (!(e instanceof ApiError && e.status === 401)) setUser(getCachedUser());
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -34,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
     });
     setToken(token);
+    setCachedUser(user);
     setUser(user);
   }
 
@@ -43,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       pin,
     });
     setToken(token);
+    setCachedUser(user);
     setUser(user);
   }
 

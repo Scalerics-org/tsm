@@ -556,13 +556,20 @@ function CompletarCantidad({
   const [cantidad, setCantidad] = useState("");
   const [unidad, setUnidad] = useState<Unidad>(seg.unidad ?? UNIDAD.PALLETS);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
   async function guardar() {
     if (!cantidad) return;
     setBusy(true);
+    setError("");
     try {
       await api.patch(`/trips/${tripId}/segments/${seg.sid}`, { cantidad: Number(cantidad), unidad });
       onDone();
+    } catch (e) {
+      // Sin esto, un corte de señal o un rechazo del servidor apagaba el spinner y nada más:
+      // quedaba igual que si hubiera guardado, y la carga seguía sin cantidad —que es de donde
+      // sale lo que se factura— sin que nadie se enterara hasta que la oficina revisaba el viaje.
+      setError(e instanceof ApiError ? e.message : "No se pudo guardar la cantidad");
     } finally {
       setBusy(false);
     }
@@ -581,7 +588,8 @@ function CompletarCantidad({
   }
 
   return (
-    <div className="flex flex-none items-center gap-1">
+    <div className="flex flex-none flex-col items-end gap-1">
+    <div className="flex items-center gap-1">
       <input
         className="input h-10 w-20 px-2"
         type="number"
@@ -612,6 +620,8 @@ function CompletarCantidad({
       >
         OK
       </button>
+    </div>
+    {error && <ErrorText>{error}</ErrorText>}
     </div>
   );
 }

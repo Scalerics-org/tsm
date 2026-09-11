@@ -15,11 +15,24 @@ interface Cliente {
 export function ChoferHome() {
   const [active, setActive] = useState<Trip | null>(null);
   const [templates, setTemplates] = useState<TripTemplate[] | null>(null);
+  // Separado de "lista vacía": un corte de señal se mostraba como "No hay viajes precargados
+  // todavía", y el chofer terminaba llamando a la oficina por algo que se arreglaba recargando.
+  const [templatesFalló, setTemplatesFalló] = useState(false);
+  const cargarPlantillas = () => {
+    setTemplatesFalló(false);
+    api
+      .get<TripTemplate[]>("/templates")
+      .then(setTemplates)
+      .catch(() => {
+        setTemplates([]);
+        setTemplatesFalló(true);
+      });
+  };
   const [lectura, setLectura] = useState<Pendiente | null>(null);
 
   useEffect(() => {
     api.get<Trip | null>("/trips/active").then(setActive).catch(() => setActive(null));
-    api.get<TripTemplate[]>("/templates").then(setTemplates).catch(() => setTemplates([]));
+    cargarPlantillas();
     // Si esto falla no se bloquea a nadie: el backend igual lo va a frenar al salir, y dejar
     // al chofer sin poder cargar un viaje por un pedido que no respondió sería peor.
     api.get<Pendiente>("/lecturas/pendiente").then(setLectura).catch(() => setLectura(null));
@@ -112,6 +125,14 @@ export function ChoferHome() {
           >
             Ir al viaje en curso →
           </Link>
+        </div>
+      ) : templatesFalló ? (
+        <div className="panel p-6 text-center text-st-redTx">
+          <Corners />
+          No se pudo cargar la lista de viajes. Puede ser la señal.{" "}
+          <button type="button" onClick={cargarPlantillas} className="underline">
+            Reintentar
+          </button>
         </div>
       ) : clientes.length === 0 ? (
         <div className="panel p-6 text-center text-ink/50">
