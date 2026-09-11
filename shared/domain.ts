@@ -1560,3 +1560,35 @@ export function missingField(
   }
   return null;
 }
+
+/**
+ * Qué tiene de malo la cantidad de una carga, o `null` si está bien (o si todavía no hay).
+ *
+ * Una sola regla para todos los caminos que guardan cargas. Antes sólo la tenía el PATCH, así
+ * que por el POST y el PUT entró una carga de Agencia con −3 kg, que es una carga que se cobra.
+ */
+export function problemaDeCantidad(cantidad: number | null | undefined): string | null {
+  if (cantidad == null) return null;
+  if (!Number.isFinite(cantidad) || cantidad <= 0) return "La cantidad tiene que ser mayor a cero";
+  return null;
+}
+
+/**
+ * Las cargas fijas de la plantilla, con la cantidad que puso la oficina.
+ *
+ * Se emparejan POR POSICIÓN con `renglones_fijos` de la plantilla: cada viaje instancia las
+ * fijas con un sid propio, así que la pantalla no puede conocerlo de antemano. Lo que no venga
+ * queda como estaba (cantidad null), y el que llama decide si eso es un error.
+ */
+export function conCantidadesFijas<T extends { cantidad: number | null; unidad: Unidad | null }>(
+  fijos: T[],
+  cantidades: unknown,
+): T[] {
+  const lista = Array.isArray(cantidades) ? cantidades : [];
+  return fijos.map((f, i) => {
+    const c = (lista[i] ?? {}) as { cantidad?: unknown; unidad?: unknown };
+    const cantidad = c.cantidad != null && c.cantidad !== "" ? Number(c.cantidad) : f.cantidad;
+    const unidad = c.unidad === UNIDAD.KILOS || c.unidad === UNIDAD.PALLETS ? (c.unidad as Unidad) : f.unidad;
+    return { ...f, cantidad, unidad };
+  });
+}

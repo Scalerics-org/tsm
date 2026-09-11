@@ -1,4 +1,4 @@
-import { missingField } from "../../shared/domain";
+import { conCantidadesFijas, missingField, problemaDeCantidad } from "../../shared/domain";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
@@ -291,16 +291,29 @@ trips.post("/", async (c) => {
   // Los fijos se instancian SIEMPRE, no solo cuando el pedido no trae renglones: si no,
   // alcanzaba con crear el viaje mandando `segments` propios para que la ida y la vuelta de
   // la oficina no existieran nunca.
-  const fijos = (await conCobro(c.env.DB, parseSegments(tpl.renglones_fijos ?? []))).map((x) => ({
+  const deLaPlantilla = (await conCobro(c.env.DB, parseSegments(tpl.renglones_fijos ?? []))).map((x) => ({
     ...x,
     fijo: true,
   }));
+  // La oficina carga un viaje que YA PASÓ: nace cerrado, y no hay un paso después donde
+  // completarles la cantidad a las cargas fijas — el chofer la completa con el viaje en
+  // curso, y éste nunca lo está. Por eso viene en el mismo pedido y es obligatoria. Sin esto,
+  // la ida y la vuelta de Manassi o el tramo de Agencia nacían sin cantidad y sin ninguna
+  // forma de ponérsela; y si la oficina la volvía a cargar a mano, quedaba duplicada.
+  const fijos = esOficina ? conCantidadesFijas(deLaPlantilla, b.cantidades_fijas) : deLaPlantilla;
+  if (esOficina) {
+    const sinCantidad = fijos.find((x) => x.cantidad == null);
+    if (sinCantidad) return fail(c, `Falta la cantidad de la carga fija "${sinCantidad.remitente}".`, 400);
+  }
   // Un viaje de un solo tramo no lleva renglones del chofer: cada renglón es una unidad
   // facturable, y ahí no hay ninguna que armar. La oficina sí puede, por PUT /:id/segments.
   const propios =
     user.role === ROLES.CHOFER && !tpl.multi_renglon
       ? []
       : parseSegments(b.segments, new Set(fijos.map((x) => x.sid)));
+
+  const cantidadMala = [...fijos, ...propios].map((x) => problemaDeCantidad(x.cantidad)).find(Boolean);
+  if (cantidadMala) return fail(c, cantidadMala, 400);
 
   const agrupadorAlta = await primerAgrupador(c.env.DB, propios);
   if (agrupadorAlta) return fail(c, mensajeAgrupador(agrupadorAlta), 400);
@@ -363,6 +376,8 @@ trips.post("/:id/segments", async (c) => {
   // y con él, la foto de otra.
   const nuevos = parseSegments(b.segments, new Set(s.trip.segments.map((x) => x.sid)));
   if (!nuevos.length) return fail(c, "Falta el lugar de carga", 400);
+  const cantidadMala = nuevos.map((x) => problemaDeCantidad(x.cantidad)).find(Boolean);
+  if (cantidadMala) return fail(c, cantidadMala, 400);
 
   const agrupador = await primerAgrupador(c.env.DB, nuevos);
   if (agrupador) return fail(c, mensajeAgrupador(agrupador), 400);
@@ -390,9 +405,8 @@ trips.patch("/:id/segments/:sid", async (c) => {
 
   const b = (await c.req.json().catch(() => ({}))) as { cantidad?: unknown; unidad?: unknown; remito?: unknown };
   const cantidad = b.cantidad != null && b.cantidad !== "" ? Number(b.cantidad) : null;
-  if (cantidad != null && (isNaN(cantidad) || cantidad <= 0)) {
-    return fail(c, "La cantidad tiene que ser mayor a cero", 400);
-  }
+  const cantidadMala = problemaDeCantidad(cantidad);
+  if (cantidadMala) return fail(c, cantidadMala, 400);
 
   const actualizados = s.trip.segments.map((x) =>
     x.sid !== sid
@@ -461,6 +475,8 @@ trips.put("/:id/segments", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
   const trip = facturable;
   const b = (await c.req.json().catch(() => ({}))) as { segments?: unknown };
   const segs = parseSegments(b.segments);
+  const cantidadMala = segs.map((x) => problemaDeCantidad(x.cantidad)).find(Boolean);
+  if (cantidadMala) return fail(c, cantidadMala, 400);
 
   // La misma regla que ya frena al chofer: "Varios" no vale como lugar de carga. Faltaba
   // acá, así que la oficina podía dejarlo grabado — y ése es el dato que no se puede perder.

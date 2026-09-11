@@ -287,7 +287,10 @@ function NuevaCarga({
   const [opciones, setOpciones] = useState<LibretaEntry[] | null>(null);
   const [libretaFalló, setLibretaFalló] = useState(false);
   const [cantidad, setCantidad] = useState("");
-  const [unidad, setUnidad] = useState<Unidad>(UNIDAD.KILOS);
+  // Pallets por defecto: es la unidad del 74% de las cargas de producción (49 contra 17), y la
+  // que ya usan "+ Cargar viaje" y completar cantidad. Con kilos por defecto, el chofer que
+  // tipeaba "2" pensando en pallets guardaba 2 kilos: en producción hay cuatro así.
+  const [unidad, setUnidad] = useState<Unidad>(UNIDAD.PALLETS);
   const [foto, setFoto] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");

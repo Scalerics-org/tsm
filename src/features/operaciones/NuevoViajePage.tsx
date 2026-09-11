@@ -4,6 +4,7 @@ import {
   FIELD_STAGE,
   UNIDAD,
   missingField,
+  problemaDeCantidad,
   type Driver,
   type LibretaEntry,
   type TripTemplate,
@@ -58,6 +59,9 @@ export function NuevoViajePage() {
   const [cargas, setCargas] = useState<CargaForm[]>([cargaVacia()]);
   // Los campos propios de la plantilla: hoja de ruta, remito, pallets, peso.
   const [values, setValues] = useState<Record<string, string>>({});
+  // Las cargas que la plantilla trae puestas (la ida y la vuelta de Manassi, el tramo de
+  // Agencia). El servidor las crea igual; acá sólo se les pone la cantidad.
+  const [fijas, setFijas] = useState<{ cantidad: string; unidad: Unidad }[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,8 +79,14 @@ export function NuevoViajePage() {
     setTemplateId(id);
     // Cada plantilla trae sus propios campos: los de la anterior no le corresponden a esta.
     setValues({});
+    setFijas([]);
     const t = templates?.find((x) => String(x.id) === id);
     if (!t) return;
+    // Con cargas fijas, la "Carga 1" vacía de siempre era una trampa: la oficina la llenaba
+    // con la misma carga que ya viene puesta, y quedaba duplicada — y se facturaba dos veces.
+    const fs = t.renglones_fijos ?? [];
+    setFijas(fs.map((f) => ({ cantidad: f.cantidad != null ? String(f.cantidad) : "", unidad: f.unidad ?? UNIDAD.PALLETS })));
+    setCargas(fs.length ? [] : [cargaVacia()]);
     setOrigen(t.origin ?? "");
     const primera = t.dest_options?.[0];
     if (primera) {
@@ -98,6 +108,20 @@ export function NuevoViajePage() {
     // después se rebota. Sólo los de la etapa de carga, que son los que exige al crear.
     const falta = tpl ? missingField(tpl, FIELD_STAGE.CARGA, values) : null;
     if (falta) return setError(`Falta: ${falta}.`);
+
+    // La cantidad de las fijas es obligatoria: el viaje nace cerrado y no hay después.
+    const fijasDeLaPlantilla = tpl?.renglones_fijos ?? [];
+    for (let i = 0; i < fijasDeLaPlantilla.length; i++) {
+      const cant = fijas[i]?.cantidad ?? "";
+      if (!cant.trim()) return setError(`Falta la cantidad de la carga fija "${fijasDeLaPlantilla[i].remitente}".`);
+      const mala = problemaDeCantidad(Number(cant));
+      if (mala) return setError(`${mala}: ${fijasDeLaPlantilla[i].remitente}.`);
+    }
+    for (const c of cargas) {
+      if (!c.lugar || !c.cantidad) continue;
+      const mala = problemaDeCantidad(Number(c.cantidad));
+      if (mala) return setError(`${mala}: ${c.lugar.nombre}.`);
+    }
 
     const segments = cargas
       .filter((c) => c.lugar)
@@ -122,6 +146,7 @@ export function NuevoViajePage() {
         destinatario: destinatario || null,
         kilometros: kilometros || null,
         field_values: values,
+        cantidades_fijas: fijas.map((f) => ({ cantidad: Number(f.cantidad), unidad: f.unidad })),
         segments,
       });
       navigate(`/panel/viajes/${trip.id}`);
@@ -235,6 +260,45 @@ export function NuevoViajePage() {
             Cada carga es un renglón facturable. Si el viaje no llevaba cargas, dejalo vacío.
           </p>
         </div>
+
+        {(tpl?.renglones_fijos ?? []).map((f, i) => (
+          <div key={`fija-${i}`} className="space-y-3 border border-brand/30 bg-brand/[.04] p-3">
+            <div className="flex items-center justify-between">
+              <span className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-brand-700">
+                Carga fija {i + 1}
+              </span>
+              <span className="text-xs text-ink/50">viene con el viaje</span>
+            </div>
+            <p className="text-sm text-ink">
+              {f.remitente} → {f.clientes.join(" · ") || "sin cliente"}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Cantidad">
+                <input
+                  className="input"
+                  type="number"
+                  inputMode="decimal"
+                  value={fijas[i]?.cantidad ?? ""}
+                  onChange={(e) =>
+                    setFijas((prev) => prev.map((x, j) => (j === i ? { ...x, cantidad: e.target.value } : x)))
+                  }
+                />
+              </Field>
+              <Field label="Unidad">
+                <select
+                  className="input"
+                  value={fijas[i]?.unidad ?? UNIDAD.PALLETS}
+                  onChange={(e) =>
+                    setFijas((prev) => prev.map((x, j) => (j === i ? { ...x, unidad: e.target.value as Unidad } : x)))
+                  }
+                >
+                  <option value={UNIDAD.PALLETS}>Pallets</option>
+                  <option value={UNIDAD.KILOS}>Kilos</option>
+                </select>
+              </Field>
+            </div>
+          </div>
+        ))}
 
         {cargas.map((c, i) => (
           <div key={i} className="space-y-3 border border-ink/15 bg-bg p-3">
