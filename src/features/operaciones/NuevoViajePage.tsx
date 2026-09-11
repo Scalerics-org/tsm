@@ -10,8 +10,8 @@ import {
   type TripTemplate,
   type Unidad,
 } from "@shared/domain";
-import { api, ApiError } from "../../lib/api";
-import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
+import { api, ApiError, mensajeDe } from "../../lib/api";
+import { Button, Card, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
 import { LibretaPicker } from "../../components/LibretaPicker";
 import { FechaInput } from "../../components/FechaInput";
 import { CampoDePlantilla } from "../../components/CampoDePlantilla";
@@ -65,11 +65,17 @@ export function NuevoViajePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    api.get<TripTemplate[]>("/templates").then(setTemplates).catch(() => setTemplates([]));
-    api.get<Driver[]>("/drivers").then(setDrivers).catch(() => setDrivers([]));
-    api.get<TruckOption[]>("/trucks/options").then(setTrucks).catch(() => setTrucks([]));
-  }, []);
+  // Sin esto, si fallaba una de las tres listas su desplegable quedaba vacío, sin nada que
+  // dijera si no hay choferes cargados o si no llegaron.
+  const [listasFalló, setListasFalló] = useState<string | null>(null);
+  const cargarListas = () => {
+    setListasFalló(null);
+    const falla = (e: unknown) => setListasFalló(mensajeDe(e));
+    api.get<TripTemplate[]>("/templates").then(setTemplates).catch(falla);
+    api.get<Driver[]>("/drivers").then(setDrivers).catch(falla);
+    api.get<TruckOption[]>("/trucks/options").then(setTrucks).catch(falla);
+  };
+  useEffect(cargarListas, []);
 
   const tpl = templates?.find((t) => String(t.id) === templateId) ?? null;
 
@@ -156,13 +162,22 @@ export function NuevoViajePage() {
     }
   }
 
-  if (!templates) return <Spinner size={28} />;
+  const avisoListas = listasFalló && (
+    <ErrorDeCarga
+      titulo="No se pudieron cargar las plantillas, los choferes o los camiones."
+      mensaje={listasFalló}
+      onReintentar={cargarListas}
+    />
+  );
+
+  if (!templates) return avisoListas || <Spinner size={28} />;
 
   return (
     <div className="space-y-5">
       <Link to="/panel/viajes" className="text-sm text-ink/60 hover:text-ink">
         ← Viajes
       </Link>
+      {avisoListas}
       <div>
         <div className="kicker">Oficina</div>
         <h1 className="text-2xl text-ink">Cargar un viaje a mano</h1>

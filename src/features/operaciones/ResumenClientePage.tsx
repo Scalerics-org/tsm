@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Provider } from "@shared/domain";
-import { api, downloadFile } from "../../lib/api";
-import { Button, Card, Corners, Empty, ErrorText, Field, Spinner } from "../../components/ui";
+import { api, downloadFile, mensajeDe } from "../../lib/api";
+import { Button, Card, Corners, Empty, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { FechaInput } from "../../components/FechaInput";
 
@@ -77,9 +77,15 @@ export function ResumenClientePage() {
   const [aviso, setAviso] = useState("");
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    api.get<Provider[]>("/providers").then(setProviders).catch(() => setProviders([]));
-  }, []);
+  const [clientesFalló, setClientesFalló] = useState<string | null>(null);
+  const cargarClientes = () => {
+    setClientesFalló(null);
+    api
+      .get<Provider[]>("/providers")
+      .then(setProviders)
+      .catch((e) => setClientesFalló(mensajeDe(e)));
+  };
+  useEffect(cargarClientes, []);
 
   const query = useMemo(() => {
     const p = new URLSearchParams();
@@ -91,17 +97,35 @@ export function ResumenClientePage() {
     return `?${p}`;
   }, [provider, from, to, porDestino, verFacturados]);
 
+  const [falló, setFalló] = useState<string | null>(null);
   useEffect(() => {
     // Cambiar de cliente o de fechas borra lo punteado: marcar viajes que ya no están a la
     // vista sería facturar a ciegas.
     setSeleccion([]);
-    if (!provider) return setData(null);
+    setFalló(null);
+    if (!provider) {
+      // Si había un pedido en camino, ya no es el vigente y no va a apagar `cargando`.
+      setData(null);
+      setCargando(false);
+      return;
+    }
+    // `vigente`: al pasar rápido de un cliente a otro, la respuesta del primero puede llegar
+    // última y quedar en pantalla con el segundo elegido. Lo que se puntee ahí se marca con
+    // el número de factura del cliente equivocado.
+    let vigente = true;
     setCargando(true);
     api
       .get<Resumen>(`/facturacion/resumen${query}`)
-      .then(setData)
-      .catch(() => setData(null))
-      .finally(() => setCargando(false));
+      .then((r) => vigente && setData(r))
+      .catch((e) => {
+        if (!vigente) return;
+        setData(null);
+        setFalló(mensajeDe(e));
+      })
+      .finally(() => vigente && setCargando(false));
+    return () => {
+      vigente = false;
+    };
   }, [provider, query, recarga]);
 
   const alternar = (id: number) =>
@@ -195,8 +219,22 @@ export function ResumenClientePage() {
       {aviso && <Card className="text-sm text-ink/80">✓ {aviso}</Card>}
       {error && <ErrorText>{error}</ErrorText>}
 
-      {!provider && <Empty>Elegí un cliente para ver su resumen.</Empty>}
+      {clientesFalló && (
+        <ErrorDeCarga
+          titulo="No se pudo cargar la lista de clientes."
+          mensaje={clientesFalló}
+          onReintentar={cargarClientes}
+        />
+      )}
+      {!provider && !clientesFalló && <Empty>Elegí un cliente para ver su resumen.</Empty>}
       {provider && cargando && <Spinner size={28} />}
+      {provider && !cargando && falló && (
+        <ErrorDeCarga
+          titulo={`No se pudo cargar el resumen de ${provider}.`}
+          mensaje={falló}
+          onReintentar={() => setRecarga((n) => n + 1)}
+        />
+      )}
       {provider && !cargando && data && data.viajes === 0 && (
         <Empty>
           {data.facturados > 0
@@ -205,7 +243,9 @@ export function ResumenClientePage() {
         </Empty>
       )}
 
-      {data && data.viajes > 0 && (
+      {/* `!cargando`: mientras llega el resumen de otro cliente, la tabla del anterior quedaba
+          a la vista y se podía puntear. */}
+      {!cargando && data && data.viajes > 0 && (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">

@@ -1,4 +1,5 @@
 import type { Truck } from "../../shared/domain";
+import type { AtadoAlCamion } from "../lib/frenos-de-borrado";
 
 export async function listTrucks(db: D1Database): Promise<Truck[]> {
   const { results } = await db.prepare("SELECT * FROM trucks ORDER BY plate").all<Truck>();
@@ -55,7 +56,18 @@ export async function updateTruck(db: D1Database, id: number, t: TruckInput): Pr
     .run();
 }
 
-
+/** Lo que frenaría —o se llevaría puesto— el borrado de este camión. */
+export async function loAtadoAlCamion(db: D1Database, id: number): Promise<AtadoAlCamion> {
+  const row = await db
+    .prepare(
+      `SELECT (SELECT COUNT(*) FROM trips WHERE truck_id = ?)             AS viajes,
+              (SELECT COUNT(*) FROM fuel_logs WHERE truck_id = ?)         AS surtidas,
+              (SELECT COUNT(*) FROM lecturas_odometro WHERE truck_id = ?) AS lecturas`,
+    )
+    .bind(id, id, id)
+    .first<AtadoAlCamion>();
+  return row ?? { viajes: 0, surtidas: 0, lecturas: 0 };
+}
 
 export async function deleteTruck(db: D1Database, id: number): Promise<void> {
   await db.prepare("DELETE FROM trucks WHERE id = ?").bind(id).run();

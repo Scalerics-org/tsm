@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { fmtConsumo, fmtKilos, type FuelLog, type Trip, type Truck } from "@shared/domain";
-import { api } from "../../lib/api";
-import { Card, Corners, Spinner, Stat, StatusBadge } from "../../components/ui";
+import { api, mensajeDe } from "../../lib/api";
+import { Card, Corners, ErrorDeCarga, Spinner, Stat, StatusBadge } from "../../components/ui";
 import { SurtidaRow } from "./SurtidaRow";
 import { LecturasDelCamion } from "./LecturasDelCamion";
 import { fmtDateTime } from "../../lib/format";
@@ -43,16 +43,30 @@ interface Ficha {
 export function TruckDetailPage() {
   const { id } = useParams();
   const [d, setD] = useState<Ficha | null>(null);
+  const [falló, setFalló] = useState<string | null>(null);
 
   // Se recarga entera al corregir o borrar una surtida: el consumo y el odómetro del camión
   // se recalculan del lado del servidor, así que refrescar sólo la fila mostraría números
   // viejos justo en la pantalla donde se fue a arreglar un número.
+  //
+  // Si la recarga falla, la ficha que ya estaba se queda y arriba se avisa que puede estar
+  // vieja. Antes se borraba y quedaba el spinner girando para siempre.
   const load = () => {
-    api.get<Ficha>(`/reports/truck/${id}`).then(setD).catch(() => setD(null));
+    setFalló(null);
+    api
+      .get<Ficha>(`/reports/truck/${id}`)
+      .then(setD)
+      .catch((e) => setFalló(mensajeDe(e)));
   };
   useEffect(load, [id]);
 
-  if (!d) return <Spinner size={28} />;
+  if (!d) {
+    return falló ? (
+      <ErrorDeCarga titulo="No se pudo cargar la ficha del camión." mensaje={falló} onReintentar={load} />
+    ) : (
+      <Spinner size={28} />
+    );
+  }
 
   const { truck } = d;
 
@@ -61,6 +75,13 @@ export function TruckDetailPage() {
       <Link to="/panel" className="text-sm text-ink/60 hover:text-ink">
         ← Resumen
       </Link>
+      {falló && (
+        <ErrorDeCarga
+          titulo="No se pudo actualizar la ficha: los números de abajo pueden estar viejos."
+          mensaje={falló}
+          onReintentar={load}
+        />
+      )}
       <div>
         <div className="kicker">Camión</div>
         <h1 className="text-3xl text-ink">{truck.plate}</h1>

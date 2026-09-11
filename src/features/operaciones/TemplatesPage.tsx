@@ -14,10 +14,10 @@ import {
   type TemplateField,
   type TripTemplate,
 } from "@shared/domain";
-import { api, ApiError } from "../../lib/api";
+import { api, ApiError, mensajeDe } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { ROLES } from "@shared/domain";
-import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
+import { Button, Card, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
 
 /** Lo que devuelve /trucks/options: alcanza con la patente para elegir. */
 interface TruckOption {
@@ -60,41 +60,66 @@ export function TemplatesPage() {
   const [editing, setEditing] = useState<TripTemplate | "new" | null>(null);
   const [newProvider, setNewProvider] = useState("");
 
+  const [cargaFalló, setCargaFalló] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
   function load() {
-    api.get<Provider[]>("/providers").then(setProviders).catch(() => {});
-    api.get<TripTemplate[]>("/templates").then(setTemplates).catch(() => setTemplates([]));
+    setCargaFalló(null);
+    api
+      .get<Provider[]>("/providers")
+      .then(setProviders)
+      .catch((e) => setCargaFalló(mensajeDe(e)));
+    api
+      .get<TripTemplate[]>("/templates")
+      .then(setTemplates)
+      .catch((e) => setCargaFalló(mensajeDe(e)));
   }
   useEffect(load, []);
 
+  /**
+   * Las cuatro acciones sobre clientes y plantillas iban sin `catch`. Borrar un cliente que
+   * tiene plantillas o viajes lo frena el servidor con un mensaje que explica por qué y qué
+   * hacer, y la pantalla no mostraba nada: se apretaba ✕ y el cliente seguía ahí.
+   */
+  async function intentar(hacer: () => Promise<unknown>): Promise<boolean> {
+    setError("");
+    try {
+      await hacer();
+      load();
+      return true;
+    } catch (e) {
+      setError(mensajeDe(e, "No se pudo guardar."));
+      return false;
+    }
+  }
+
   async function addProvider() {
     if (!newProvider.trim()) return;
-    await api.post("/providers", { name: newProvider.trim() });
-    setNewProvider("");
-    load();
+    if (await intentar(() => api.post("/providers", { name: newProvider.trim() }))) setNewProvider("");
   }
   async function renameProvider(p: Provider) {
     const name = prompt("Nuevo nombre del cliente:", p.name);
     if (!name || !name.trim() || name.trim() === p.name) return;
-    await api.put(`/providers/${p.id}`, { name: name.trim() });
-    load();
+    await intentar(() => api.put(`/providers/${p.id}`, { name: name.trim() }));
   }
   async function removeProvider(p: Provider) {
-    const count = (templates ?? []).filter((t) => t.provider_id === p.id).length;
-    const msg =
-      count > 0
-        ? `Al eliminar "${p.name}" se borran también sus ${count} viaje(s) precargado(s). ¿Eliminar?`
-        : `¿Eliminar el cliente "${p.name}"?`;
-    if (!confirm(msg)) return;
-    await api.del(`/providers/${p.id}`);
-    load();
+    // Decía "se borran también sus N viajes precargados": no es así, el servidor no deja
+    // borrar un cliente con plantillas y explica por qué.
+    if (!confirm(`¿Eliminar el cliente "${p.name}"?`)) return;
+    await intentar(() => api.del(`/providers/${p.id}`));
   }
   async function removeTemplate(id: number) {
     if (!confirm("¿Eliminar esta plantilla?")) return;
-    await api.del(`/templates/${id}`);
-    load();
+    await intentar(() => api.del(`/templates/${id}`));
   }
 
-  if (!templates) return <Spinner size={28} />;
+  if (!templates) {
+    return cargaFalló ? (
+      <ErrorDeCarga titulo="No se pudieron cargar las plantillas." mensaje={cargaFalló} onReintentar={load} />
+    ) : (
+      <Spinner size={28} />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -107,6 +132,15 @@ export function TemplatesPage() {
           + Nueva plantilla
         </Button>
       </div>
+
+      {cargaFalló && (
+        <ErrorDeCarga
+          titulo="No se pudo actualizar la lista: puede estar vieja o incompleta."
+          mensaje={cargaFalló}
+          onReintentar={load}
+        />
+      )}
+      <ErrorText>{error}</ErrorText>
 
       <Card className="space-y-3">
         <h2 className="font-cond text-lg font-semibold text-ink">Clientes / Proveedores</h2>
@@ -137,7 +171,9 @@ export function TemplatesPage() {
               )}
             </span>
           ))}
-          {providers.length === 0 && <span className="text-sm text-ink/50">Agregá un cliente primero.</span>}
+          {providers.length === 0 && !cargaFalló && (
+            <span className="text-sm text-ink/50">Agregá un cliente primero.</span>
+          )}
         </div>
         <div className="flex gap-2">
           <input className="input max-w-xs" value={newProvider} onChange={(e) => setNewProvider(e.target.value)} placeholder="Nuevo cliente" />

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ROLES, type AuthUser, type Role } from "@shared/domain";
-import { api, ApiError } from "../../lib/api";
-import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
+import { api, ApiError, mensajeDe } from "../../lib/api";
+import { Button, Card, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
 import { useAuth } from "../../lib/auth";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -16,19 +16,36 @@ export function AdminUsersPage() {
   const { user: me } = useAuth();
   const [users, setUsers] = useState<AuthUser[] | null>(null);
   const [editing, setEditing] = useState<AuthUser | "new" | null>(null);
+  const [falló, setFalló] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   function load() {
-    api.get<AuthUser[]>("/users").then(setUsers).catch(() => setUsers([]));
+    setFalló(null);
+    api
+      .get<AuthUser[]>("/users")
+      .then(setUsers)
+      .catch((e) => setFalló(mensajeDe(e)));
   }
   useEffect(load, []);
 
   async function remove(id: number) {
     if (!confirm("¿Eliminar este usuario?")) return;
-    await api.del(`/users/${id}`);
-    load();
+    setError("");
+    try {
+      await api.del(`/users/${id}`);
+      load();
+    } catch (e) {
+      setError(mensajeDe(e, "No se pudo eliminar."));
+    }
   }
 
-  if (!users) return <Spinner size={28} />;
+  if (!users) {
+    return falló ? (
+      <ErrorDeCarga titulo="No se pudo cargar la lista de usuarios." mensaje={falló} onReintentar={load} />
+    ) : (
+      <Spinner size={28} />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -39,6 +56,11 @@ export function AdminUsersPage() {
         </div>
         <Button onClick={() => setEditing("new")}>+ Nuevo usuario</Button>
       </div>
+
+      {falló && (
+        <ErrorDeCarga titulo="No se pudo actualizar la lista: puede estar vieja." mensaje={falló} onReintentar={load} />
+      )}
+      <ErrorText>{error}</ErrorText>
 
       {editing && (
         <UserForm

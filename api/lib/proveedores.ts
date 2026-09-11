@@ -6,15 +6,14 @@
  * operaciones peligrosas tiene freno. Ponerles un botón sin taparlas es publicar el agujero.
  */
 
+import { enumerar, plural } from "./frenos-de-borrado";
+
 export interface AtadoAlProveedor {
   viajes: number;
   plantillas: number;
   /** Entradas de la libreta con el alcance puesto en este proveedor. */
   libreta: number;
 }
-
-const plural = (n: number, singular: string, plural: string) =>
-  `${n} ${n === 1 ? singular : plural}`;
 
 /**
  * Por qué no se puede borrar este proveedor, o `null` si se puede.
@@ -34,10 +33,5 @@ export function motivoParaNoBorrar(a: AtadoAlProveedor): string | null {
   if (a.libreta > 0) partes.push(plural(a.libreta, "entrada de la libreta", "entradas de la libreta"));
   if (partes.length === 0) return null;
 
-  const lista =
-    partes.length === 1
-      ? partes[0]
-      : `${partes.slice(0, -1).join(", ")} y ${partes[partes.length - 1]}`;
-
-  return `No se puede borrar: tiene ${lista}. Borrarlo se llevaría las plantillas puestas y dejaría los viajes sin proveedor en el resumen para facturar. Si ya no trabajás con él, dejalo: no molesta, y los viajes viejos se siguen pudiendo facturar.`;
+  return `No se puede borrar: tiene ${enumerar(partes)}. Borrarlo se llevaría las plantillas puestas y dejaría los viajes sin proveedor en el resumen para facturar. Si ya no trabajás con él, dejalo: no molesta, y los viajes viejos se siguen pudiendo facturar.`;
 }

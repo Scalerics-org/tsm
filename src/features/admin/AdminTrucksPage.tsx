@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { TRUCK_STATUS, fmtConsumo, type Truck, type TruckStatus } from "@shared/domain";
-import { api } from "../../lib/api";
-import { Button, Card, Field, Spinner } from "../../components/ui";
+import { api, mensajeDe } from "../../lib/api";
+import { Button, Card, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
 
 const EMPTY: Omit<Truck, "id"> = {
   plate: "",
@@ -25,19 +25,38 @@ const STATUS_LABEL: Record<TruckStatus, string> = {
 export function AdminTrucksPage() {
   const [trucks, setTrucks] = useState<Truck[] | null>(null);
   const [editing, setEditing] = useState<Truck | "new" | null>(null);
+  const [falló, setFalló] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   function load() {
-    api.get<Truck[]>("/trucks").then(setTrucks).catch(() => setTrucks([]));
+    setFalló(null);
+    api
+      .get<Truck[]>("/trucks")
+      .then(setTrucks)
+      .catch((e) => setFalló(mensajeDe(e)));
   }
   useEffect(load, []);
 
+  // Un camión con viajes o surtidas no se puede borrar y el servidor dice por qué. Sin el
+  // `catch`, se apretaba Eliminar y no pasaba nada.
   async function remove(id: number) {
     if (!confirm("¿Eliminar este camión?")) return;
-    await api.del(`/trucks/${id}`);
-    load();
+    setError("");
+    try {
+      await api.del(`/trucks/${id}`);
+      load();
+    } catch (e) {
+      setError(mensajeDe(e, "No se pudo eliminar."));
+    }
   }
 
-  if (!trucks) return <Spinner size={28} />;
+  if (!trucks) {
+    return falló ? (
+      <ErrorDeCarga titulo="No se pudo cargar la lista de camiones." mensaje={falló} onReintentar={load} />
+    ) : (
+      <Spinner size={28} />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -45,6 +64,11 @@ export function AdminTrucksPage() {
         <h1 className="text-xl font-bold text-ink">Camiones</h1>
         <Button onClick={() => setEditing("new")}>+ Nuevo camión</Button>
       </div>
+
+      {falló && (
+        <ErrorDeCarga titulo="No se pudo actualizar la lista: puede estar vieja." mensaje={falló} onReintentar={load} />
+      )}
+      <ErrorText>{error}</ErrorText>
 
       {editing && (
         <TruckForm

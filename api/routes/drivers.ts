@@ -5,6 +5,7 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import { ROLES, DRIVER_STATUS } from "../../shared/domain";
 import { hashPassword } from "../lib/crypto";
 import * as repo from "../repos/drivers";
+import { motivoParaNoBorrarChofer } from "../lib/frenos-de-borrado";
 
 const drivers = new Hono<{ Bindings: Env; Variables: Vars }>();
 drivers.use("*", requireAuth);
@@ -50,7 +51,10 @@ drivers.put("/:id", requireRole(ROLES.ADMIN), async (c) => {
 });
 
 drivers.delete("/:id", requireRole(ROLES.ADMIN), async (c) => {
-  await repo.deleteDriver(c.env.DB, Number(c.req.param("id")));
+  const id = Number(c.req.param("id"));
+  const motivo = motivoParaNoBorrarChofer(await repo.loAtadoAlChofer(c.env.DB, id));
+  if (motivo) return fail(c, motivo, 409);
+  await repo.deleteDriver(c.env.DB, id);
   return ok(c, { deleted: true });
 });
 

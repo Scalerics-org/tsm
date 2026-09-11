@@ -9,8 +9,8 @@ import {
   type TripStatus,
   type Truck,
 } from "@shared/domain";
-import { api, downloadFile } from "../../lib/api";
-import { Button, Card, Empty, Spinner } from "../../components/ui";
+import { api, downloadFile, mensajeDe } from "../../lib/api";
+import { Button, Card, Empty, ErrorDeCarga, Spinner } from "../../components/ui";
 import { FilaViaje } from "./FilaViaje";
 import { FechaInput } from "../../components/FechaInput";
 
@@ -42,9 +42,20 @@ export function OpsTripsPage() {
     return s ? `?${s}` : "";
   }, [f]);
 
+  const [falló, setFalló] = useState<string | null>(null);
   useEffect(() => {
+    // `vigente`: al tocar varios filtros seguidos, la respuesta de uno viejo puede llegar
+    // después que la del último y pisarla, y la tabla mostraría viajes de otro filtro.
+    let vigente = true;
     setTrips(null);
-    api.get<Trip[]>(`/trips${query}`).then(setTrips).catch(() => setTrips([]));
+    setFalló(null);
+    api
+      .get<Trip[]>(`/trips${query}`)
+      .then((t) => vigente && setTrips(t))
+      .catch((e) => vigente && setFalló(mensajeDe(e)));
+    return () => {
+      vigente = false;
+    };
   }, [query, version]);
 
   return (
@@ -106,7 +117,13 @@ export function OpsTripsPage() {
         <FechaInput value={f.to} onChange={(iso) => setF({ ...f, to: iso })} />
       </Card>
 
-      {!trips ? (
+      {falló ? (
+        <ErrorDeCarga
+          titulo="No se pudieron cargar los viajes."
+          mensaje={falló}
+          onReintentar={() => setVersion((v) => v + 1)}
+        />
+      ) : !trips ? (
         <Spinner size={24} />
       ) : trips.length === 0 ? (
         <Empty>No hay viajes con esos filtros.</Empty>

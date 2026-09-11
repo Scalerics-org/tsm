@@ -9,9 +9,9 @@ import {
   type PendienteCobro,
   type Provider,
 } from "@shared/domain";
-import { api, ApiError } from "../../lib/api";
+import { api, ApiError, mensajeDe } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
-import { Button, Card, Empty, ErrorText, Spinner, Stat } from "../../components/ui";
+import { Button, Card, Empty, ErrorDeCarga, ErrorText, Spinner, Stat } from "../../components/ui";
 import {
   filtrarEntradas,
   nombrePorId,
@@ -73,8 +73,12 @@ export function LibretaPage({ tipos, titulo, bajada }: LibretaPageProps = {}) {
   const [entries, setEntries] = useState<LibretaEntry[] | null>(null);
   const [reglas, setReglas] = useState<CobroRegla[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
-  const [pendientes, setPendientes] = useState<PendienteCobro[]>([]);
-  const [error, setError] = useState("");
+  // `null` mientras no llegó. Arrancaba en `[]`, y la tarjeta verde "Sin cargas pendientes"
+  // aparecía mientras cargaba y se quedaba para siempre si el pedido fallaba.
+  const [pendientes, setPendientes] = useState<PendienteCobro[] | null>(null);
+  const [entriesFalló, setEntriesFalló] = useState<string | null>(null);
+  const [reglasFalló, setReglasFalló] = useState<string | null>(null);
+  const [pendientesFalló, setPendientesFalló] = useState<string | null>(null);
   const [aviso, setAviso] = useState("");
 
   const [tipo, setTipo] = useState<LibretaTipo>(tabs[0]?.tipo ?? LIBRETA_TIPO.REMITENTE);
@@ -82,20 +86,29 @@ export function LibretaPage({ tipos, titulo, bajada }: LibretaPageProps = {}) {
   const [alcance, setAlcance] = useState<AlcanceFiltro>("todos");
   const [creando, setCreando] = useState(false);
 
+  // Al recargar, lo que ya estaba se queda en pantalla: un error en la recarga se avisa arriba
+  // en vez de vaciar la lista.
   const load = useCallback(() => {
+    setEntriesFalló(null);
+    setReglasFalló(null);
+    setPendientesFalló(null);
     api
       .get<LibretaEntry[]>("/libreta")
       .then(setEntries)
-      .catch((e) => {
-        setEntries([]);
-        setError(e instanceof ApiError ? e.message : "No se pudo cargar la libreta.");
-      });
-    api.get<CobroRegla[]>("/libreta/reglas/all").then(setReglas).catch(() => setReglas([]));
-    api.get<Provider[]>("/providers").then(setProviders).catch(() => setProviders([]));
+      .catch((e) => setEntriesFalló(mensajeDe(e)));
+    // Sin las reglas, cada entrada se ve sin regla de cobro, y lo natural es crearle otra.
+    api
+      .get<CobroRegla[]>("/libreta/reglas/all")
+      .then(setReglas)
+      .catch((e) => setReglasFalló(mensajeDe(e)));
+    api
+      .get<Provider[]>("/providers")
+      .then(setProviders)
+      .catch((e) => setReglasFalló(mensajeDe(e)));
     api
       .get<PendienteCobro[]>("/reports/pendientes-cobro")
       .then(setPendientes)
-      .catch(() => setPendientes([]));
+      .catch((e) => setPendientesFalló(mensajeDe(e)));
   }, []);
   useEffect(load, [load]);
 
@@ -106,7 +119,10 @@ export function LibretaPage({ tipos, titulo, bajada }: LibretaPageProps = {}) {
     [todas],
   );
   const nuevas = todas.filter((e) => e.estado === LIBRETA_ESTADO.NUEVO).length;
-  const combinaciones = useMemo(() => agruparPendientes(pendientes).length, [pendientes]);
+  const combinaciones = useMemo(
+    () => (pendientes ? agruparPendientes(pendientes).length : null),
+    [pendientes],
+  );
 
   const delTipo = useMemo(() => todas.filter((e) => e.tipo === tipo), [todas, tipo]);
   const visibles = useMemo(
@@ -126,7 +142,13 @@ export function LibretaPage({ tipos, titulo, bajada }: LibretaPageProps = {}) {
     load();
   };
 
-  if (!entries) return <Spinner size={28} />;
+  if (!entries) {
+    return entriesFalló ? (
+      <ErrorDeCarga titulo="No se pudo cargar la libreta." mensaje={entriesFalló} onReintentar={load} />
+    ) : (
+      <Spinner size={28} />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -148,14 +170,31 @@ export function LibretaPage({ tipos, titulo, bajada }: LibretaPageProps = {}) {
         />
         <Stat
           label="Sin regla de cobro"
-          value={combinaciones}
+          value={combinaciones ?? "—"}
           hint="combinaciones a definir"
-          accent={combinaciones ? "amber" : "green"}
+          accent={combinaciones == null ? "blue" : combinaciones ? "amber" : "green"}
         />
-        <Stat label="Entradas" value={todas.length} hint={`${reglas.length} regla(s) de cobro`} />
+        <Stat
+          label="Entradas"
+          value={todas.length}
+          hint={reglasFalló ? "reglas sin cargar" : `${reglas.length} regla(s) de cobro`}
+        />
       </div>
 
-      <ErrorText>{error}</ErrorText>
+      {entriesFalló && (
+        <ErrorDeCarga
+          titulo="No se pudo actualizar la libreta: la lista puede estar vieja."
+          mensaje={entriesFalló}
+          onReintentar={load}
+        />
+      )}
+      {reglasFalló && (
+        <ErrorDeCarga
+          titulo="No se pudieron cargar las reglas de cobro o los proveedores: las entradas de abajo pueden verse sin su regla."
+          mensaje={reglasFalló}
+          onReintentar={load}
+        />
+      )}
 
       {aviso && (
         <p className="border-l-4 border-st-greenDot bg-st-greenBg px-3 py-2 text-sm text-st-greenTx">
@@ -176,11 +215,23 @@ export function LibretaPage({ tipos, titulo, bajada }: LibretaPageProps = {}) {
         />
       )}
 
-      <PendientesCobroCard
-        pendientes={pendientes}
-        destinatarios={destinatarios}
-        onReglaCreada={reglaCreada}
-      />
+      {pendientesFalló ? (
+        <ErrorDeCarga
+          titulo="No se pudieron cargar las cargas sin regla de cobro."
+          mensaje={pendientesFalló}
+          onReintentar={load}
+        />
+      ) : pendientes === null ? (
+        <Card>
+          <Spinner size={20} />
+        </Card>
+      ) : (
+        <PendientesCobroCard
+          pendientes={pendientes}
+          destinatarios={destinatarios}
+          onReglaCreada={reglaCreada}
+        />
+      )}
 
       <Card className="space-y-3">
         {/* Con una sola lista la barra de pestañas no dice nada: el título ya lo dice. */}

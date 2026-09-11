@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { DRIVER_STATUS, type Driver, type Truck } from "@shared/domain";
-import { api } from "../../lib/api";
-import { Button, Card, Field, Spinner } from "../../components/ui";
+import { api, mensajeDe } from "../../lib/api";
+import { Button, Card, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { FechaInput } from "../../components/FechaInput";
 
@@ -10,22 +10,41 @@ export function AdminDriversPage() {
   const [drivers, setDrivers] = useState<Driver[] | null>(null);
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [editing, setEditing] = useState<Driver | "new" | null>(null);
+  const [falló, setFalló] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   function load() {
-    api.get<Driver[]>("/drivers").then(setDrivers).catch(() => setDrivers([]));
+    setFalló(null);
+    api
+      .get<Driver[]>("/drivers")
+      .then(setDrivers)
+      .catch((e) => setFalló(mensajeDe(e)));
   }
   useEffect(() => {
     load();
     api.get<Truck[]>("/trucks").then(setTrucks).catch(() => {});
   }, []);
 
+  // Un chofer con viajes no se puede borrar y el servidor dice por qué. Sin el `catch`, se
+  // apretaba Eliminar y no pasaba nada.
   async function remove(id: number) {
     if (!confirm("¿Eliminar este chofer?")) return;
-    await api.del(`/drivers/${id}`);
-    load();
+    setError("");
+    try {
+      await api.del(`/drivers/${id}`);
+      load();
+    } catch (e) {
+      setError(mensajeDe(e, "No se pudo eliminar."));
+    }
   }
 
-  if (!drivers) return <Spinner size={28} />;
+  if (!drivers) {
+    return falló ? (
+      <ErrorDeCarga titulo="No se pudo cargar la lista de choferes." mensaje={falló} onReintentar={load} />
+    ) : (
+      <Spinner size={28} />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -33,6 +52,11 @@ export function AdminDriversPage() {
         <h1 className="text-3xl text-ink">Choferes</h1>
         <Button onClick={() => setEditing("new")}>+ Nuevo chofer</Button>
       </div>
+
+      {falló && (
+        <ErrorDeCarga titulo="No se pudo actualizar la lista: puede estar vieja." mensaje={falló} onReintentar={load} />
+      )}
+      <ErrorText>{error}</ErrorText>
 
       {editing && (
         <DriverForm

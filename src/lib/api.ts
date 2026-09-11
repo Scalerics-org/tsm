@@ -51,6 +51,10 @@ export class ApiError extends Error {
   }
 }
 
+/** El texto de un error para mostrar en pantalla: el del servidor si lo hay. */
+export const mensajeDe = (e: unknown, porDefecto = "Error inesperado."): string =>
+  e instanceof ApiError ? e.message : porDefecto;
+
 interface RequestOptions {
   method?: string;
   body?: unknown;
@@ -105,13 +109,30 @@ export const api = {
   upload: <T>(path: string, formData: FormData) => request<T>(path, { method: "POST", formData }),
 };
 
-/** Descarga un archivo protegido (ej. CSV) con el token y dispara la descarga. */
+/**
+ * Descarga un archivo protegido (ej. CSV) con el token y dispara la descarga.
+ *
+ * Si falla lo avisa ella misma y no rechaza. Todos los botones de exportar la llamaban sin
+ * `catch`, así que un corte o un 500 terminaba en una promesa rechazada que nadie miraba: se
+ * apretaba "⬇ Exportar Excel", no pasaba nada, y no había forma de saber si faltaba esperar o
+ * volver a apretar.
+ */
 export async function downloadFile(path: string, filename: string): Promise<void> {
   const token = getToken();
-  const res = await fetch(`/api${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!res.ok) throw new ApiError("No se pudo descargar", res.status);
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  } catch {
+    alert(`No se pudo descargar. ${SIN_SENAL}`);
+    return;
+  }
+  if (!res.ok) {
+    const json = (await res.json().catch(() => null)) as { error?: string } | null;
+    alert(`No se pudo descargar. ${json?.error ?? `El servidor respondió ${res.status}.`}`);
+    return;
+  }
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

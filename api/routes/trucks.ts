@@ -4,6 +4,7 @@ import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { ROLES, TRUCK_STATUS, type TruckStatus } from "../../shared/domain";
 import * as repo from "../repos/trucks";
+import { motivoParaNoBorrarCamion } from "../lib/frenos-de-borrado";
 
 const trucks = new Hono<{ Bindings: Env; Variables: Vars }>();
 trucks.use("*", requireAuth);
@@ -54,7 +55,10 @@ trucks.put("/:id", requireRole(ROLES.ADMIN), async (c) => {
 });
 
 trucks.delete("/:id", requireRole(ROLES.ADMIN), async (c) => {
-  await repo.deleteTruck(c.env.DB, Number(c.req.param("id")));
+  const id = Number(c.req.param("id"));
+  const motivo = motivoParaNoBorrarCamion(await repo.loAtadoAlCamion(c.env.DB, id));
+  if (motivo) return fail(c, motivo, 409);
+  await repo.deleteTruck(c.env.DB, id);
   return ok(c, { deleted: true });
 });
 

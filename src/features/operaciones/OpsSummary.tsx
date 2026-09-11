@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { AvisosCard } from "./AvisosCard";
 import { Link } from "react-router-dom";
 import { fmtConsumo, fmtKilos } from "@shared/domain";
-import { api, downloadFile } from "../../lib/api";
-import { Button, Card, Corners, Spinner, Stat } from "../../components/ui";
+import { api, downloadFile, mensajeDe } from "../../lib/api";
+import { Button, Card, Corners, ErrorDeCarga, Spinner, Stat } from "../../components/ui";
 import { FechaInput } from "../../components/FechaInput";
 
 interface MonthRow {
@@ -53,10 +53,20 @@ export function OpsSummary() {
     return q ? `?${q}` : "";
   }, [range]);
 
+  const [falló, setFalló] = useState<string | null>(null);
+  const [vuelta, setVuelta] = useState(0);
   useEffect(() => {
+    let vigente = true;
     setS(null);
-    api.get<Summary>(`/reports/summary${query}`).then(setS).catch(() => setS(null));
-  }, [query]);
+    setFalló(null);
+    api
+      .get<Summary>(`/reports/summary${query}`)
+      .then((r) => vigente && setS(r))
+      .catch((e) => vigente && setFalló(mensajeDe(e)));
+    return () => {
+      vigente = false;
+    };
+  }, [query, vuelta]);
 
   return (
     <div className="space-y-6">
@@ -84,7 +94,13 @@ export function OpsSummary() {
         </div>
       </div>
 
-      {!s ? (
+      {falló ? (
+        <ErrorDeCarga
+          titulo="No se pudo cargar el resumen."
+          mensaje={falló}
+          onReintentar={() => setVuelta((v) => v + 1)}
+        />
+      ) : !s ? (
         <Spinner size={28} />
       ) : (
         <>

@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { Driver, Trip } from "@shared/domain";
 import { fmtKilos } from "@shared/domain";
-import { api } from "../../lib/api";
-import { Card, Corners, Spinner, Stat, StatusBadge } from "../../components/ui";
+import { api, mensajeDe } from "../../lib/api";
+import { Card, Corners, ErrorDeCarga, Spinner, Stat, StatusBadge } from "../../components/ui";
 import { fmtDate, fmtDateTime } from "../../lib/format";
 
 interface Ficha {
@@ -15,12 +15,24 @@ interface Ficha {
 export function DriverDetailPage() {
   const { id } = useParams();
   const [d, setD] = useState<Ficha | null>(null);
+  const [falló, setFalló] = useState<string | null>(null);
 
-  useEffect(() => {
-    api.get<Ficha>(`/reports/driver/${id}`).then(setD).catch(() => setD(null));
-  }, [id]);
+  const load = () => {
+    setFalló(null);
+    api
+      .get<Ficha>(`/reports/driver/${id}`)
+      .then(setD)
+      .catch((e) => setFalló(mensajeDe(e)));
+  };
+  useEffect(load, [id]);
 
-  if (!d) return <Spinner size={28} />;
+  if (!d) {
+    return falló ? (
+      <ErrorDeCarga titulo="No se pudo cargar la ficha del chofer." mensaje={falló} onReintentar={load} />
+    ) : (
+      <Spinner size={28} />
+    );
+  }
   const { driver, stats } = d;
 
   return (

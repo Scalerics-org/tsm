@@ -1,4 +1,5 @@
 import type { Driver } from "../../shared/domain";
+import type { AtadoAlChofer } from "../lib/frenos-de-borrado";
 
 const SELECT = `
   SELECT d.*, t.plate AS default_truck_plate
@@ -87,6 +88,19 @@ export async function updateDriver(db: D1Database, id: number, d: DriverInput): 
 
 export async function setPin(db: D1Database, id: number, pinHash: string): Promise<void> {
   await db.prepare("UPDATE drivers SET pin_hash=? WHERE id=?").bind(pinHash, id).run();
+}
+
+/** Lo que frenaría el borrado de este chofer. */
+export async function loAtadoAlChofer(db: D1Database, id: number): Promise<AtadoAlChofer> {
+  const row = await db
+    .prepare(
+      `SELECT (SELECT COUNT(*) FROM trips WHERE driver_id = ?)     AS viajes,
+              (SELECT COUNT(*) FROM fuel_logs WHERE driver_id = ?) AS surtidas,
+              (SELECT COUNT(*) FROM libreta WHERE created_by = ?)  AS libreta`,
+    )
+    .bind(id, id, id)
+    .first<AtadoAlChofer>();
+  return row ?? { viajes: 0, surtidas: 0, libreta: 0 };
 }
 
 export async function deleteDriver(db: D1Database, id: number): Promise<void> {

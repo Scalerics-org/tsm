@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../../lib/api";
-import { Card, Corners, Spinner } from "../../components/ui";
+import { api, mensajeDe } from "../../lib/api";
+import { Card, Corners, ErrorDeCarga, Spinner } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 
 interface Alerts {
@@ -136,15 +136,28 @@ const km = (n: number | null) => (n == null ? "—" : Math.round(n).toLocaleStri
 
 export function ControlPage() {
   const [a, setA] = useState<Alerts | null>(null);
+  const [aFalló, setAFalló] = useState<string | null>(null);
   const [audit, setAudit] = useState<AuditoriaMes | null>(null);
+  const [auditFalló, setAuditFalló] = useState<string | null>(null);
+  const [vuelta, setVuelta] = useState(0);
+  const reintentar = () => setVuelta((v) => v + 1);
 
+  // Cada pedido tiene su propio error: si falla uno, sus secciones lo dicen y el resto de
+  // Control sigue. Lo que no puede pasar es lo de antes, que al fallar la auditoría las tres
+  // secciones del tacógrafo decían "ningún camión se pasa" y "ninguna surtida se aparta".
   useEffect(() => {
-    api.get<Alerts>("/reports/alerts").then(setA).catch(() => setA(null));
-    // Si falla, la sección queda vacía: no puede voltear el resto de Control.
-    api.get<AuditoriaMes>("/lecturas/auditoria").then(setAudit).catch(() => setAudit(null));
-  }, []);
+    setAFalló(null);
+    setAuditFalló(null);
+    api.get<Alerts>("/reports/alerts").then(setA).catch((e) => setAFalló(mensajeDe(e)));
+    api
+      .get<AuditoriaMes>("/lecturas/auditoria")
+      .then(setAudit)
+      .catch((e) => setAuditFalló(mensajeDe(e)));
+  }, [vuelta]);
 
-  if (!a) return <Spinner size={28} />;
+  // Se espera a los dos: mostrar las alertas mientras la auditoría viene en camino era mostrar
+  // por un momento "todos los camiones tienen sus lecturas" sin haberlo mirado.
+  if ((!a && !aFalló) || (!audit && !auditFalló)) return <Spinner size={28} />;
 
   const descuadrados = (audit?.camiones ?? []).filter((c) => c.senal.nivel === "revisar");
   const sinLectura = (audit?.camiones ?? []).filter((c) => c.senal.nivel === "sin_datos");
@@ -164,184 +177,205 @@ export function ControlPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Section
-          title="Viajes atrasados / sin cerrar"
-          count={a.overdue.length}
-          accent="red"
-          empty="Ningún viaje lleva más de 24 h sin cerrar."
-        >
-          {a.overdue.map((t) => (
-            <Row
-              key={t.id}
-              to={`/panel/viajes/${t.id}`}
-              left={
-                <>
-                  {t.origin} → {t.destination}
-                  <span className="text-ink/50"> · {t.driver_name}</span>
-                </>
-              }
-              right={`${t.hours} h`}
-            />
-          ))}
-        </Section>
+        {aFalló && (
+          <ErrorDeCarga
+            titulo="No se pudieron cargar las alertas de viajes, licencias y consumo."
+            mensaje={aFalló}
+            onReintentar={reintentar}
+          />
+        )}
+        {auditFalló && (
+          <ErrorDeCarga
+            titulo="No se pudo cargar el control del tacógrafo y los litros."
+            mensaje={auditFalló}
+            onReintentar={reintentar}
+          />
+        )}
 
-        <Section
-          title="Viajes sin foto"
-          count={a.missingPhotos.length}
-          accent="amber"
-          empty="Todos los viajes completados tienen su evidencia."
-        >
-          {a.missingPhotos.map((t) => (
-            <Row
-              key={t.id}
-              to={`/panel/viajes/${t.id}`}
-              left={
-                <>
-                  {t.origin} → {t.destination}
-                  <span className="text-ink/50"> · {t.driver_name}</span>
-                </>
-              }
-              right={`falta ${t.missing}`}
-            />
-          ))}
-        </Section>
+        {a && (
+          <>
+            <Section
+              title="Viajes atrasados / sin cerrar"
+              count={a.overdue.length}
+              accent="red"
+              empty="Ningún viaje lleva más de 24 h sin cerrar."
+            >
+              {a.overdue.map((t) => (
+                <Row
+                  key={t.id}
+                  to={`/panel/viajes/${t.id}`}
+                  left={
+                    <>
+                      {t.origin} → {t.destination}
+                      <span className="text-ink/50"> · {t.driver_name}</span>
+                    </>
+                  }
+                  right={`${t.hours} h`}
+                />
+              ))}
+            </Section>
 
-        <Section
-          title="Licencias por vencer"
-          count={a.expiringLicenses.length}
-          accent="amber"
-          empty="Ninguna licencia vence en los próximos 60 días."
-        >
-          {a.expiringLicenses.map((d) => (
-            <Row
-              key={d.driver_id}
-              to={`/panel/chofer/${d.driver_id}`}
-              left={d.name}
-              right={
-                <span className={d.days < 0 ? "text-st-redTx" : ""}>
-                  {d.days < 0 ? `vencida (${fmtDate(d.license_expiry)})` : `${d.days} días`}
-                </span>
-              }
-            />
-          ))}
-        </Section>
+            <Section
+              title="Viajes sin foto"
+              count={a.missingPhotos.length}
+              accent="amber"
+              empty="Todos los viajes completados tienen su evidencia."
+            >
+              {a.missingPhotos.map((t) => (
+                <Row
+                  key={t.id}
+                  to={`/panel/viajes/${t.id}`}
+                  left={
+                    <>
+                      {t.origin} → {t.destination}
+                      <span className="text-ink/50"> · {t.driver_name}</span>
+                    </>
+                  }
+                  right={`falta ${t.missing}`}
+                />
+              ))}
+            </Section>
 
-        <Section
-          title={`Kilómetros sin justificar${audit ? ` · ${audit.mes}` : ""}`}
-          count={descuadrados.length}
-          accent="red"
-          empty={
-            audit
-              ? `Ningún camión se pasa de ${audit.umbral_km} km entre el tacógrafo y sus viajes.`
-              : "Sin lecturas del tacógrafo todavía."
-          }
-        >
-          {descuadrados.map((c) => (
-            <Row
-              key={c.truck_id}
-              to={`/panel/camion/${c.truck_id}`}
-              left={
-                /* El desglose va en su propio renglón y no pegado a la patente: con cuatro
-                   cifras adentro, el de arriba se partía en tres líneas y no alineaba con
-                   los de abajo. La patente manda, el desglose la explica. */
-                <span className="block">
-                  <span className="block text-ink">{c.plate}</span>
-                  {/* Las tres categorías que pidió el cliente: "1 cargados, 2 vacíos
-                      (retornos), 3 vacíos para llegar a cargas o surtir". Antes todo lo que
-                      no fuera carga caía junto en "sin justificar", y el número asustaba sin
-                      explicar nada: un camión marcaba 6.606 km en un mes. */}
-                  <span className="block font-cond text-xs uppercase tracking-[0.05em] text-ink/45 tabular-nums">
-                    tacógrafo {km(c.auditoria.km_periodo)} · cargados{" "}
-                    {km(c.auditoria.km_cargados + c.auditoria.km_vacios)}
-                    {c.auditoria.km_retorno > 0 && <> · retornos {km(c.auditoria.km_retorno)}</>}
-                    {c.auditoria.km_reposicion > 0 && (
-                      <> · a buscar carga {km(c.auditoria.km_reposicion)}</>
-                    )}
+            <Section
+              title="Licencias por vencer"
+              count={a.expiringLicenses.length}
+              accent="amber"
+              empty="Ninguna licencia vence en los próximos 60 días."
+            >
+              {a.expiringLicenses.map((d) => (
+                <Row
+                  key={d.driver_id}
+                  to={`/panel/chofer/${d.driver_id}`}
+                  left={d.name}
+                  right={
+                    <span className={d.days < 0 ? "text-st-redTx" : ""}>
+                      {d.days < 0 ? `vencida (${fmtDate(d.license_expiry)})` : `${d.days} días`}
+                    </span>
+                  }
+                />
+              ))}
+            </Section>
+          </>
+        )}
+
+        {audit && (
+          <>
+            <Section
+              title={`Kilómetros sin justificar · ${audit.mes}`}
+              count={descuadrados.length}
+              accent="red"
+              empty={`Ningún camión se pasa de ${audit.umbral_km} km entre el tacógrafo y sus viajes.`}
+            >
+              {descuadrados.map((c) => (
+                <Row
+                  key={c.truck_id}
+                  to={`/panel/camion/${c.truck_id}`}
+                  left={
+                    /* El desglose va en su propio renglón y no pegado a la patente: con cuatro
+                       cifras adentro, el de arriba se partía en tres líneas y no alineaba con
+                       los de abajo. La patente manda, el desglose la explica. */
+                    <span className="block">
+                      <span className="block text-ink">{c.plate}</span>
+                      {/* Las tres categorías que pidió el cliente: "1 cargados, 2 vacíos
+                          (retornos), 3 vacíos para llegar a cargas o surtir". Antes todo lo que
+                          no fuera carga caía junto en "sin justificar", y el número asustaba sin
+                          explicar nada: un camión marcaba 6.606 km en un mes. */}
+                      <span className="block font-cond text-xs uppercase tracking-[0.05em] text-ink/45 tabular-nums">
+                        tacógrafo {km(c.auditoria.km_periodo)} · cargados{" "}
+                        {km(c.auditoria.km_cargados + c.auditoria.km_vacios)}
+                        {c.auditoria.km_retorno > 0 && <> · retornos {km(c.auditoria.km_retorno)}</>}
+                        {c.auditoria.km_reposicion > 0 && (
+                          <> · a buscar carga {km(c.auditoria.km_reposicion)}</>
+                        )}
+                      </span>
+                    </span>
+                  }
+                  right={<span className="text-st-redTx">{c.senal.motivo}</span>}
+                />
+              ))}
+            </Section>
+
+            <Section
+              title="Sin datos para comparar"
+              count={sinLectura.length}
+              accent="amber"
+              empty="Todos los camiones tienen las dos lecturas del tacógrafo, con fechas que se pueden comparar."
+            >
+              {sinLectura.map((c) => (
+                <Row
+                  key={c.truck_id}
+                  to={`/panel/camion/${c.truck_id}`}
+                  left={c.plate}
+                  right={c.senal.motivo}
+                />
+              ))}
+            </Section>
+
+            {/* No es lo mismo que "Consumo anómalo", que está abajo: aquélla compara el MES entero
+                contra el rendimiento que la oficina le configuró al camión. Ésta compara cada
+                surtida contra lo que ese camión rinde de verdad, y señala la boleta puntual que
+                hay que abrir. Una dice "este camión anduvo mal en agosto"; la otra, "mirá esta". */}
+            <Section
+              title="Litros que no cierran"
+              count={litrosRaros.length}
+              accent="red"
+              empty="Ninguna surtida se aparta del rendimiento de su camión."
+            >
+              {litrosRaros.map((s) => (
+                <Row
+                  key={s.id}
+                  to={`/panel/camion/${s.truck_id}`}
+                  left={
+                    <span className="min-w-0">
+                      {s.plate}
+                      <span className="text-ink/50"> · {fmtDate(s.logged_at)}</span>
+                      <span className="block font-cond text-xs uppercase tracking-[0.05em] text-ink/45 tabular-nums">
+                        {Math.round(s.km).toLocaleString("es-UY")} km · {Math.round(s.litros).toLocaleString("es-UY")} L
+                        declarados · {s.kml.toFixed(2).replace(".", ",")} km/L
+                      </span>
+                    </span>
+                  }
+                  right={
+                    <span className={s.diferencia > 0 ? "text-st-redTx" : "text-st-amberTx"}>
+                      {s.diferencia > 0 ? "faltan" : "sobran"}{" "}
+                      {Math.abs(Math.round(s.diferencia)).toLocaleString("es-UY")} L
+                    </span>
+                  }
+                />
+              ))}
+            </Section>
+          </>
+        )}
+
+        {a && (
+          <Section
+            title="Consumo anómalo"
+            count={a.fuelAnomalies.length}
+            accent="red"
+            empty="Ningún camión rinde por debajo de lo esperado."
+          >
+            {a.fuelAnomalies.map((t) => (
+              <Row
+                key={t.truck_id}
+                to={`/panel/camion/${t.truck_id}`}
+                left={
+                  <>
+                    {t.plate}
+                    <span className="text-ink/50"> · {t.month}</span>
+                  </>
+                }
+                right={
+                  /* Decía "L/100 (+-27%)": la app mide en km/L desde hace rato y el porcentaje llega
+                     negativo, así que salían la unidad equivocada y los dos signos pegados. */
+                  <span className="text-st-redTx">
+                    {t.actual.toFixed(2).replace(".", ",")} km/L, esperado{" "}
+                    {Number(t.expected).toFixed(2).replace(".", ",")} ({String(t.pct).replace("-", "−")}%)
                   </span>
-                </span>
-              }
-              right={<span className="text-st-redTx">{c.senal.motivo}</span>}
-            />
-          ))}
-        </Section>
-
-        <Section
-          title="Sin datos para comparar"
-          count={sinLectura.length}
-          accent="amber"
-          empty="Todos los camiones tienen las dos lecturas del tacógrafo, con fechas que se pueden comparar."
-        >
-          {sinLectura.map((c) => (
-            <Row
-              key={c.truck_id}
-              to={`/panel/camion/${c.truck_id}`}
-              left={c.plate}
-              right={c.senal.motivo}
-            />
-          ))}
-        </Section>
-
-        {/* No es lo mismo que "Consumo anómalo", que está abajo: aquélla compara el MES entero
-            contra el rendimiento que la oficina le configuró al camión. Ésta compara cada
-            surtida contra lo que ese camión rinde de verdad, y señala la boleta puntual que
-            hay que abrir. Una dice "este camión anduvo mal en agosto"; la otra, "mirá esta". */}
-        <Section
-          title="Litros que no cierran"
-          count={litrosRaros.length}
-          accent="red"
-          empty="Ninguna surtida se aparta del rendimiento de su camión."
-        >
-          {litrosRaros.map((s) => (
-            <Row
-              key={s.id}
-              to={`/panel/camion/${s.truck_id}`}
-              left={
-                <span className="min-w-0">
-                  {s.plate}
-                  <span className="text-ink/50"> · {fmtDate(s.logged_at)}</span>
-                  <span className="block font-cond text-xs uppercase tracking-[0.05em] text-ink/45 tabular-nums">
-                    {Math.round(s.km).toLocaleString("es-UY")} km · {Math.round(s.litros).toLocaleString("es-UY")} L
-                    declarados · {s.kml.toFixed(2).replace(".", ",")} km/L
-                  </span>
-                </span>
-              }
-              right={
-                <span className={s.diferencia > 0 ? "text-st-redTx" : "text-st-amberTx"}>
-                  {s.diferencia > 0 ? "faltan" : "sobran"}{" "}
-                  {Math.abs(Math.round(s.diferencia)).toLocaleString("es-UY")} L
-                </span>
-              }
-            />
-          ))}
-        </Section>
-
-        <Section
-          title="Consumo anómalo"
-          count={a.fuelAnomalies.length}
-          accent="red"
-          empty="Ningún camión rinde por debajo de lo esperado."
-        >
-          {a.fuelAnomalies.map((t) => (
-            <Row
-              key={t.truck_id}
-              to={`/panel/camion/${t.truck_id}`}
-              left={
-                <>
-                  {t.plate}
-                  <span className="text-ink/50"> · {t.month}</span>
-                </>
-              }
-              right={
-                /* Decía "L/100 (+-27%)": la app mide en km/L desde hace rato y el porcentaje llega
-                   negativo, así que salían la unidad equivocada y los dos signos pegados. */
-                <span className="text-st-redTx">
-                  {t.actual.toFixed(2).replace(".", ",")} km/L, esperado{" "}
-                  {Number(t.expected).toFixed(2).replace(".", ",")} ({String(t.pct).replace("-", "−")}%)
-                </span>
-              }
-            />
-          ))}
-        </Section>
+                }
+              />
+            ))}
+          </Section>
+        )}
       </div>
     </div>
   );

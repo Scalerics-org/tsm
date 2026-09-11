@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { LecturaOdometro } from "@shared/domain";
-import { api, ApiError } from "../../lib/api";
-import { Button, Card, Corners, ErrorText, Spinner } from "../../components/ui";
+import { api, ApiError, mensajeDe } from "../../lib/api";
+import { Button, Card, Corners, ErrorDeCarga, ErrorText, Spinner } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { VisorFotos } from "../../components/VisorFotos";
 import { FechaInput } from "../../components/FechaInput";
@@ -29,12 +29,16 @@ function nombreDelMes(periodo: string): string {
  */
 export function LecturasDelCamion({ truckId }: { truckId: number }) {
   const [lecturas, setLecturas] = useState<LecturaOdometro[] | null>(null);
+  // Si fallaba, decía "Todavía no hay ninguna foto del tacógrafo", que es justo lo que hace que
+  // la oficina llame al chofer para que la saque de nuevo.
+  const [falló, setFalló] = useState<string | null>(null);
 
   const load = useCallback(() => {
+    setFalló(null);
     api
       .get<LecturaOdometro[]>(`/lecturas?truck=${truckId}`)
       .then(setLecturas)
-      .catch(() => setLecturas([]));
+      .catch((e) => setFalló(mensajeDe(e)));
   }, [truckId]);
   useEffect(load, [load]);
 
@@ -48,10 +52,17 @@ export function LecturasDelCamion({ truckId }: { truckId: number }) {
           no puede volver a cargar el mes.
         </p>
       </div>
-      {lecturas === null ? (
-        <div className="flex justify-center py-6">
-          <Spinner size={20} />
+      {falló && (
+        <div className="p-3">
+          <ErrorDeCarga titulo="No se pudieron cargar las lecturas." mensaje={falló} onReintentar={load} />
         </div>
+      )}
+      {lecturas === null ? (
+        !falló && (
+          <div className="flex justify-center py-6">
+            <Spinner size={20} />
+          </div>
+        )
       ) : lecturas.length === 0 ? (
         <p className="px-4 py-3 text-ink/50">Todavía no hay ninguna foto del tacógrafo.</p>
       ) : (

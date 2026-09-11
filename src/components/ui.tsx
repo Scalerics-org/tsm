@@ -162,6 +162,34 @@ export function ErrorText({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Lo que muestra una pantalla cuando no pudo traer sus datos.
+ *
+ * Antes cada una tragaba el error y seguía con la lista vacía, así que un corte se leía como
+ * "no hay viajes", "sin cargas pendientes" o "ninguna surtida se aparta", o dejaba el spinner
+ * girando para siempre. En una pantalla de control eso es peor que un error: dice que está todo
+ * en orden cuando nadie lo sabe.
+ */
+export function ErrorDeCarga({
+  titulo = "No se pudo cargar.",
+  mensaje,
+  onReintentar,
+}: {
+  titulo?: string;
+  mensaje: string;
+  onReintentar: () => void;
+}) {
+  return (
+    <div role="alert" className="panel border-l-4 border-l-st-redDot px-6 py-6 text-sm text-st-redTx">
+      <Corners />
+      <span className="font-semibold">{titulo}</span> {mensaje}{" "}
+      <button type="button" onClick={onReintentar} className="font-semibold underline">
+        Reintentar
+      </button>
+    </div>
+  );
+}
+
 export function Empty({ children }: { children: ReactNode }) {
   return (
     <div className="panel flex items-center justify-center px-6 py-12 text-center text-ink/50">
