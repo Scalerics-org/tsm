@@ -1,3 +1,4 @@
+import { leerFoto } from "../lib/archivo-foto";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
@@ -40,12 +41,11 @@ photos.post("/", async (c) => {
     return fail(c, "La carga de esa foto no existe en el viaje", 400);
   }
 
-  const file = fileEntry as unknown as File;
-  const ext = (file.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
-  const key = `trips/${tripId}/${kind}-${Date.now()}.${ext}`;
-  await c.env.FOTOS.put(key, await file.arrayBuffer(), {
-    httpMetadata: { contentType: file.type || "image/jpeg" },
-  });
+  // Por el contenido, no por lo que dice ser: ver `api/lib/archivo-foto.ts`.
+  const foto = await leerFoto(fileEntry as unknown as File);
+  if (!foto.ok) return fail(c, foto.motivo, 400);
+  const key = `trips/${tripId}/${kind}-${Date.now()}.${foto.ext}`;
+  await c.env.FOTOS.put(key, foto.bytes, { httpMetadata: { contentType: foto.tipo } });
 
   const id = await photosRepo.insertPhoto(c.env.DB, {
     trip_id: tripId,

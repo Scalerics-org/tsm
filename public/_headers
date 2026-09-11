@@ -1,0 +1,19 @@
+# Cabeceras de seguridad de las páginas (HTML, JS, CSS, íconos).
+#
+# Workers las aplica a los archivos estáticos. NO se aplican a lo que responde el Worker (/api/*),
+# que lleva las suyas por secureHeaders en api/app.ts.
+#
+# La política de contenido sale de lo que la página carga de verdad:
+#   - el JS y el CSS de /assets (self), sin scripts en línea;
+#   - las fuentes de Google (CSS en fonts.googleapis.com, archivos en fonts.gstatic.com);
+#   - las fotos, que se muestran como blob: después de pedirlas con el token;
+#   - el service worker de las notificaciones (/sw.js) y el manifest.
+# style-src lleva unsafe-inline por los style={{…}} de React. Si se agrega otro recurso externo,
+# hay que sumarlo acá o el navegador lo bloquea.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000
+  Permissions-Policy: camera=(self), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' blob: data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'

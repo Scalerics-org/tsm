@@ -1,3 +1,4 @@
+import { leerFoto } from "../lib/archivo-foto";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
@@ -145,12 +146,12 @@ lecturas.post("/", async (c) => {
 
   let r2Key: string | null = null;
   if (c.env.FOTOS && foto) {
-    const ext = (foto.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
+    // Por el contenido, no por lo que dice ser: ver `api/lib/archivo-foto.ts`.
+    const leida = await leerFoto(foto);
+    if (!leida.ok) return fail(c, leida.motivo, 400);
     // Una por camión y por mes, igual que la fila: la clave lo dice sola.
-    r2Key = `odometro/${truckId}/${periodo}.${ext}`;
-    await c.env.FOTOS.put(r2Key, await foto.arrayBuffer(), {
-      httpMetadata: { contentType: foto.type || "image/jpeg" },
-    });
+    r2Key = `odometro/${truckId}/${periodo}.${leida.ext}`;
+    await c.env.FOTOS.put(r2Key, leida.bytes, { httpMetadata: { contentType: leida.tipo } });
   }
 
   const id = await repo.createLectura(c.env.DB, {

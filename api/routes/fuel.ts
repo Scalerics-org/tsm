@@ -1,3 +1,4 @@
+import { leerFoto, type FotoLeida } from "../lib/archivo-foto";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
@@ -84,19 +85,26 @@ fuel.post("/", async (c) => {
 
   // Dos fotos: el tacógrafo (de donde salen los km) y la boleta de gasoil (de donde
   // salen los litros). Cada una respalda un número distinto del consumo.
-  const subir = async (campo: string, sufijo: string): Promise<string | null> => {
+  //
+  // Se validan las dos ANTES de subir ninguna —por el contenido, ver `api/lib/archivo-foto.ts`—:
+  // si la segunda no sirve, no queda la primera suelta en el bucket sin surtida que la use.
+  const leer = async (campo: string): Promise<FotoLeida | null> => {
     const file = form.get(campo);
     if (!file || typeof file === "string" || !c.env.FOTOS) return null;
-    const f = file as unknown as File;
-    const ext = (f.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
-    const key = `fuel/${truckId}/${sufijo}-${Date.now()}.${ext}`;
-    await c.env.FOTOS.put(key, await f.arrayBuffer(), {
-      httpMetadata: { contentType: f.type || "image/jpeg" },
-    });
+    return leerFoto(file as unknown as File);
+  };
+  const tacografo = await leer("file");
+  const boleta = await leer("boleta");
+  for (const f of [tacografo, boleta]) if (f && !f.ok) return fail(c, f.motivo, 400);
+
+  const subir = async (foto: FotoLeida | null, sufijo: string): Promise<string | null> => {
+    if (!foto || !foto.ok || !c.env.FOTOS) return null;
+    const key = `fuel/${truckId}/${sufijo}-${Date.now()}.${foto.ext}`;
+    await c.env.FOTOS.put(key, foto.bytes, { httpMetadata: { contentType: foto.tipo } });
     return key;
   };
-  const r2Key = await subir("file", "tacografo");
-  const r2KeyBoleta = await subir("boleta", "boleta");
+  const r2Key = await subir(tacografo, "tacografo");
+  const r2KeyBoleta = await subir(boleta, "boleta");
 
   const isFull = form.get("is_full") !== "false";
 

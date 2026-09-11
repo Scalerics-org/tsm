@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { secureHeaders } from "hono/secure-headers";
 import type { Env, Vars } from "./env";
 import { fail } from "./lib/response";
 import auth from "./routes/auth";
@@ -18,6 +19,18 @@ import lecturas from "./routes/lecturas";
 import facturacion from "./routes/facturacion";
 
 export const app = new Hono<{ Bindings: Env; Variables: Vars }>().basePath("/api");
+
+/**
+ * Cabeceras de seguridad en todas las respuestas de la API.
+ *
+ * Las páginas las llevan por `public/_headers`, que se aplica a los archivos estáticos; pero ese
+ * archivo NO se aplica a lo que responde el Worker —lo dice la documentación de Cloudflare—, y
+ * `run_worker_first` manda /api/* al Worker. Así que acá van aparte.
+ *
+ * La que más importa es `nosniff`: /api/photos sirve archivos que subió un usuario, y sin ella
+ * un navegador podía "adivinar" que uno era HTML y ejecutarlo.
+ */
+app.use("*", secureHeaders({ xFrameOptions: "DENY" }));
 
 app.get("/health", (c) => c.json({ success: true, data: { status: "ok" } }));
 
