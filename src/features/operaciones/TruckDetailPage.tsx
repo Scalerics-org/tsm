@@ -4,7 +4,6 @@ import { fmtConsumo, fmtKilos, type FuelLog, type Trip, type Truck } from "@shar
 import { api } from "../../lib/api";
 import { Card, Corners, Spinner, Stat, StatusBadge } from "../../components/ui";
 import { SurtidaRow } from "./SurtidaRow";
-import { rangoDeSurtidas } from "@shared/rango-surtidas";
 import { LecturasDelCamion } from "./LecturasDelCamion";
 import { fmtDateTime } from "../../lib/format";
 
@@ -30,6 +29,12 @@ interface Ficha {
   trips: Trip[];
   monthly: MonthRow[];
   fuel: FuelLog[];
+  /**
+   * Las surtidas que no cierran contra el rendimiento del camión, con el motivo. Viene calculado
+   * del servidor con TODAS las surtidas —acá llegan sólo algunas— y con la misma función que
+   * Control, así las dos pantallas marcan exactamente las mismas.
+   */
+  surtidas_a_revisar: Record<number, string>;
   vacios: TramoVacio[];
   km_vacios: number;
   tons: number;
@@ -49,20 +54,6 @@ export function TruckDetailPage() {
 
   if (!d) return <Spinner size={28} />;
 
-  // Cuáles de estas surtidas no cierran contra el propio rendimiento del camión. Se calcula
-  // acá y no en el endpoint porque la pantalla ya tiene TODAS las surtidas del camión, que es
-  // exactamente lo que necesita la mediana; pedirlo aparte sería traer lo mismo dos veces.
-  const raras = new Map(
-    rangoDeSurtidas(
-      d.fuel.map((f) => ({
-        id: f.id,
-        odometer_km: f.odometer_km,
-        liters: f.liters,
-        is_full: !!f.is_full,
-        logged_at: f.logged_at,
-      })),
-    ).sospechosas.map((s) => [s.id, s.motivo] as const),
-  );
   const { truck } = d;
 
   return (
@@ -201,7 +192,7 @@ export function TruckDetailPage() {
           </thead>
           <tbody>
             {d.fuel.map((f) => (
-              <SurtidaRow key={f.id} f={f} onChanged={load} sospechosa={raras.get(f.id) ?? null} />
+              <SurtidaRow key={f.id} f={f} onChanged={load} sospechosa={d.surtidas_a_revisar[f.id] ?? null} />
             ))}
             {d.fuel.length === 0 && (
               <tr>

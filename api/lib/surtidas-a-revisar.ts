@@ -33,3 +33,19 @@ export function surtidasARevisar(logs: FuelLog[]): RangoCamion {
     nivel: r.nivel === "revisar" && sospechosas.length === 0 ? "ok" : r.nivel,
   };
 }
+
+/**
+ * Las surtidas que muestra la ficha del camión: las últimas `n`, más las que están para revisar
+ * aunque sean más viejas.
+ *
+ * La ficha mostraba sólo las últimas 20. Una surtida marcada que quedara más atrás no se veía,
+ * así que no había forma de tildarla, y quedaba en Control para siempre. El GTP 4413 ya tiene 19.
+ *
+ * Se respeta el orden en que llegan, de la más nueva a la más vieja: las que se suman son todas
+ * más viejas que la última de las `n`, así que van al final sin desordenar nada.
+ */
+export function surtidasParaLaFicha<T extends { id: number }>(fuel: T[], marcadas: Set<number>, n = 20): T[] {
+  const recientes = fuel.slice(0, n);
+  const yaEstan = new Set(recientes.map((f) => f.id));
+  return [...recientes, ...fuel.slice(n).filter((f) => marcadas.has(f.id) && !yaEstan.has(f.id))];
+}

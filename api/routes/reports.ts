@@ -1,3 +1,4 @@
+import { surtidasARevisar, surtidasParaLaFicha } from "../lib/surtidas-a-revisar";
 import { viajesAFacturar } from "../lib/resumen-cliente";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
@@ -267,11 +268,18 @@ reports.get("/truck/:id", async (c) => {
       })),
   );
 
+  // El aviso de litros se calcula con TODAS las surtidas y con la misma función que Control
+  // (`surtidasARevisar`). Antes lo recalculaba la pantalla con las 20 que le llegaban: con más
+  // de 20, la mediana salía de otra muestra y las dos pantallas marcaban surtidas distintas.
+  const aRevisar = surtidasARevisar(fuel);
+  const marcadas = new Set(aRevisar.sospechosas.map((s) => s.id));
+
   return ok(c, {
     truck,
     trips: trips.slice(0, 20),
     monthly,
-    fuel: fuel.slice(0, 20),
+    fuel: surtidasParaLaFicha(fuel, marcadas),
+    surtidas_a_revisar: Object.fromEntries(aRevisar.sospechosas.map((s) => [s.id, s.motivo])),
     vacios: vacios.slice(-20).reverse(),
     km_vacios: kmVacios(vacios),
     // Mismo criterio que los vacíos: un viaje cancelado no cargó nada, así que sus kilos
