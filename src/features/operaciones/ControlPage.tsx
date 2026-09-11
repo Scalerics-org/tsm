@@ -266,10 +266,10 @@ export function ControlPage() {
         </Section>
 
         <Section
-          title="Falta la foto del tacógrafo"
+          title="Sin datos para comparar"
           count={sinLectura.length}
           accent="amber"
-          empty="Todos los camiones tienen la lectura del mes y la del mes pasado."
+          empty="Todos los camiones tienen las dos lecturas del tacógrafo, con fechas que se pueden comparar."
         >
           {sinLectura.map((c) => (
             <Row
@@ -319,7 +319,7 @@ export function ControlPage() {
           title="Consumo anómalo"
           count={a.fuelAnomalies.length}
           accent="red"
-          empty="Ningún camión supera su rendimiento esperado."
+          empty="Ningún camión rinde por debajo de lo esperado."
         >
           {a.fuelAnomalies.map((t) => (
             <Row
@@ -332,8 +332,11 @@ export function ControlPage() {
                 </>
               }
               right={
+                /* Decía "L/100 (+-27%)": la app mide en km/L desde hace rato y el porcentaje llega
+                   negativo, así que salían la unidad equivocada y los dos signos pegados. */
                 <span className="text-st-redTx">
-                  {t.actual} vs {t.expected} L/100 (+{t.pct}%)
+                  {t.actual.toFixed(2).replace(".", ",")} km/L, esperado{" "}
+                  {Number(t.expected).toFixed(2).replace(".", ",")} ({String(t.pct).replace("-", "−")}%)
                 </span>
               }
             />

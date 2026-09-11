@@ -1349,6 +1349,33 @@ function redondearKm(n: number): number {
  *  número de criterio: cuando el cliente vea unos meses reales va a querer moverlo. */
 export const KM_SIN_JUSTIFICAR_ALERTA = 150;
 
+/**
+ * Menos días que esto entre las dos fotos del tacógrafo, y la comparación no significa nada.
+ *
+ * La foto del mes se saca antes del primer viaje del mes, así que entre una y la siguiente pasan
+ * entre 26 y 35 días. Una ventana más corta dice que alguna fecha está mal —casi siempre la de
+ * SUBIDA en vez de la de la foto—. En setiembre el GTP 4326 comparaba 49 MINUTOS contra un mes
+ * de odómetro y Control marcaba "9.743 km sin justificar": un descuadre del camión inventado por
+ * un error de carga de la oficina, que es la manera más rápida de que nadie mire más la alarma.
+ */
+export const VENTANA_MINIMA_DIAS = 20;
+
+const fechaUtc = (s: string) => new Date(s.length <= 10 ? `${s}T00:00:00Z` : `${s.replace(" ", "T")}Z`);
+
+/** Días entre las dos fotos, o `null` si falta alguna. */
+export function diasEntreFotos(desde: string | null, hasta: string | null): number | null {
+  if (!desde || !hasta) return null;
+  const ms = fechaUtc(hasta).getTime() - fechaUtc(desde).getTime();
+  return Number.isFinite(ms) ? ms / 86_400_000 : null;
+}
+
+function textoDeDistancia(dias: number): string {
+  const horas = dias * 24;
+  if (horas < 1) return `${Math.max(1, Math.round(horas * 60))} minutos`;
+  if (horas < 48) return `${Math.round(horas)} horas`;
+  return `${Math.round(dias)} días`;
+}
+
 export interface SenalKm {
   /** `revisar` = pasó el umbral. `sin_datos` = falta una lectura y no hay contra qué comparar. */
   nivel: "ok" | "revisar" | "sin_datos";
@@ -1371,6 +1398,15 @@ export function senalKilometros(a: AuditoriaKm, umbral = KM_SIN_JUSTIFICAR_ALERT
   if (a.km_sin_justificar == null) {
     const cual = a.hasta == null ? "de este mes" : "del mes pasado";
     return { nivel: "sin_datos", motivo: `Falta la lectura del tacógrafo ${cual}` };
+  }
+
+  // Una ventana demasiado corta no es un descuadre del camión: es una fecha mal cargada.
+  const dias = diasEntreFotos(a.desde, a.hasta);
+  if (dias != null && dias < VENTANA_MINIMA_DIAS) {
+    return {
+      nivel: "sin_datos",
+      motivo: `Las dos fotos del tacógrafo tienen ${textoDeDistancia(dias)} de diferencia: corregí la fecha de las fotos para poder comparar`,
+    };
   }
 
   const km = a.km_sin_justificar;
