@@ -4,7 +4,6 @@ import {
   CAMPO_MODO,
   FIELD_STAGE,
   PHOTO_KIND,
-  pesoSospechoso,
   plantillaHabilitada,
   requiereFotoCarga,
   type CampoUbicacion,
@@ -17,6 +16,7 @@ import { useAuth } from "../../lib/auth";
 import { Button, Card, Corners, ErrorText, Field, Spinner } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
 import { LibretaPicker } from "../../components/LibretaPicker";
+import { CampoDePlantilla } from "../../components/CampoDePlantilla";
 import { compressImage } from "../../lib/image";
 import { estimateTravel, fmtDuration, etaClock } from "../../lib/eta";
 
@@ -307,35 +307,9 @@ export function StartTripPage() {
             )}
           </>
         ) : null}
-        {cargaFields.map((f) => {
-          /* El peso va SIEMPRE en kilos enteros, como viene en el remito — el de Casarone
-             marca "Neto 29.710". Antes el campo pedía toneladas y el papel decía kilos, así
-             que unos convertían de cabeza y otros copiaban: en la base terminaron conviviendo
-             29200 y 30000 con 29.539 y 29.7, con mil de diferencia entre unos y otros.
-             Sin coma y con teclado numérico entero, ese error no se puede tipear. */
-          const esPeso = !!f.is_weight;
-          const valor = values[f.key] ?? "";
-          const avisa = esPeso && pesoSospechoso(Number(valor));
-          return (
-            <Field key={f.key} label={`${f.label}${f.required ? "" : " (opcional)"}`}>
-              <input
-                className="input"
-                type={f.type === "numero" ? "number" : "text"}
-                inputMode={esPeso ? "numeric" : f.type === "numero" ? "decimal" : undefined}
-                step={esPeso ? 1 : undefined}
-                value={valor}
-                onChange={(e) => setVal(f.key, esPeso ? e.target.value.replace(/[.,]/g, "") : e.target.value)}
-              />
-              {/* Avisa, no bloquea: si de verdad llevó 800 kilos, que pueda seguir. */}
-              {avisa && (
-                <p className="mt-1 text-sm text-st-amberTx">
-                  ¿{Number(valor).toLocaleString("es-UY")} kilos? Si son toneladas, poné el número
-                  completo — por ejemplo 29710, como figura en el remito.
-                </p>
-              )}
-            </Field>
-          );
-        })}
+        {cargaFields.map((f) => (
+          <CampoDePlantilla key={f.key} campo={f} valor={values[f.key] ?? ""} onChange={(v) => setVal(f.key, v)} />
+        ))}
       </Card>
 
       {est && (

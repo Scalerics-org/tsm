@@ -1,3 +1,4 @@
+import { missingField } from "../../shared/domain";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
@@ -148,15 +149,6 @@ async function recalcularRecorrido(
 const mensajeAgrupador = (nombre: string) =>
   `"${nombre}" no sirve como lugar de carga: elegí dónde cargaste.`;
 
-// Valida los campos requeridos de una etapa (carga/descarga) contra los valores enviados.
-function missingField(tpl: TripTemplate, stage: string, values: Record<string, string>): string | null {
-  for (const f of tpl.fields) {
-    if (f.stage === stage && f.required && !String(values[f.key] ?? "").trim()) {
-      return f.label;
-    }
-  }
-  return null;
-}
 
 // GET /api/trips
 trips.get("/", async (c) => {

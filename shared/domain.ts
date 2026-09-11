@@ -1540,3 +1540,23 @@ export function fmtKilos(kilos: number | null | undefined): string {
   if (kilos == null || !Number.isFinite(kilos)) return "—";
   return `${Math.round(kilos).toLocaleString("es-UY")} kg`;
 }
+
+/**
+ * El primer campo obligatorio de una etapa que quedó sin llenar, o `null` si están todos.
+ *
+ * Vive acá y no en la ruta porque lo usan los dos lados con la MISMA regla: el servidor lo
+ * exige al crear el viaje, y el "Nuevo viaje" de oficina lo chequea antes de mandar. Si cada
+ * uno tuviera la suya, la pantalla podría dejar pasar algo que el servidor después rebota con
+ * "Falta: …" — que es exactamente lo que pasaba: el formulario de oficina no mandaba ningún
+ * campo, y toda plantilla con uno obligatorio (Cañuelas: hoja de ruta y pallets) se rechazaba.
+ */
+export function missingField(
+  tpl: Pick<TripTemplate, "fields">,
+  stage: string,
+  values: Record<string, string>,
+): string | null {
+  for (const f of tpl.fields) {
+    if (f.stage === stage && f.required && !String(values[f.key] ?? "").trim()) return f.label;
+  }
+  return null;
+}

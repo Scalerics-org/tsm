@@ -1,10 +1,19 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { UNIDAD, type Driver, type LibretaEntry, type TripTemplate, type Unidad } from "@shared/domain";
+import {
+  FIELD_STAGE,
+  UNIDAD,
+  missingField,
+  type Driver,
+  type LibretaEntry,
+  type TripTemplate,
+  type Unidad,
+} from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
 import { LibretaPicker } from "../../components/LibretaPicker";
 import { FechaInput } from "../../components/FechaInput";
+import { CampoDePlantilla } from "../../components/CampoDePlantilla";
 
 interface TruckOption {
   id: number;
@@ -47,6 +56,8 @@ export function NuevoViajePage() {
   const [destinatario, setDestinatario] = useState("");
   const [kilometros, setKilometros] = useState("");
   const [cargas, setCargas] = useState<CargaForm[]>([cargaVacia()]);
+  // Los campos propios de la plantilla: hoja de ruta, remito, pallets, peso.
+  const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,6 +73,8 @@ export function NuevoViajePage() {
   // retipear en el 90% de los casos, y sigue siendo editable para el que no encaja.
   function elegirPlantilla(id: string) {
     setTemplateId(id);
+    // Cada plantilla trae sus propios campos: los de la anterior no le corresponden a esta.
+    setValues({});
     const t = templates?.find((x) => String(x.id) === id);
     if (!t) return;
     setOrigen(t.origin ?? "");
@@ -81,6 +94,10 @@ export function NuevoViajePage() {
     if (!driverId) return setError("Elegí de qué chofer es.");
     if (!truckId) return setError("Elegí el camión.");
     if (!destino.trim()) return setError("Poné el destino.");
+    // La misma regla que el servidor (`missingField`), así la pantalla no deja pasar algo que
+    // después se rebota. Sólo los de la etapa de carga, que son los que exige al crear.
+    const falta = tpl ? missingField(tpl, FIELD_STAGE.CARGA, values) : null;
+    if (falta) return setError(`Falta: ${falta}.`);
 
     const segments = cargas
       .filter((c) => c.lugar)
@@ -104,7 +121,7 @@ export function NuevoViajePage() {
         destino,
         destinatario: destinatario || null,
         kilometros: kilometros || null,
-        field_values: {},
+        field_values: values,
         segments,
       });
       navigate(`/panel/viajes/${trip.id}`);
@@ -186,6 +203,30 @@ export function NuevoViajePage() {
           </Field>
         </div>
       </Card>
+
+      {/* Los datos propios de la plantilla. Faltaban, y no era un detalle: el servidor exige
+          los obligatorios de la carga, así que un viaje de Cañuelas (hoja de ruta y pallets)
+          no se podía guardar desde acá. Por eso el cliente cargaba los viajes atrasados
+          entrando como chofer — donde no puede dar de alta clientes, y donde la fecha queda la
+          del día en que lo carga y hay que corregirla después. */}
+      {tpl && tpl.fields.length > 0 && (
+        <Card className="space-y-4">
+          <div>
+            <span className="label mb-0">Datos del viaje</span>
+            <p className="text-sm text-ink/60">Los mismos que completa el chofer en este viaje.</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {tpl.fields.map((f) => (
+              <CampoDePlantilla
+                key={f.key}
+                campo={f}
+                valor={values[f.key] ?? ""}
+                onChange={(v) => setValues((prev) => ({ ...prev, [f.key]: v }))}
+              />
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card className="space-y-4">
         <div>
