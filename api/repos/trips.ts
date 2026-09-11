@@ -246,8 +246,8 @@ export async function startTrip(
 ): Promise<number> {
   const res = await db
     .prepare(
-      `INSERT INTO trips (template_id, provider_name, origin, remite, destination, destinatario, driver_id, truck_id, cargo_type, kilos, field_values, segments, kilometros, status, started_at, finished_at, edited_by, edited_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?)`,
+      `INSERT INTO trips (template_id, provider_name, origin, remite, destination, destinatario, driver_id, truck_id, cargo_type, kilos, field_values, segments, kilometros, status, started_at, finished_at, edited_by, edited_at, cargado_por_oficina)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?)`,
     )
     .bind(
       t.template_id, t.provider_name, t.origin, t.remite, t.destination, t.destinatario, t.driver_id, t.truck_id,
@@ -261,6 +261,9 @@ export async function startTrip(
       cargadoPorOficina?.userId ?? null,
       // `edited_at` sí es hoy: es cuándo la oficina lo cargó, no cuándo pasó el viaje.
       cargadoPorOficina?.when ?? null,
+      // La marca de verdad, y no inferida de "salida igual a llegada": eso deja de valer en
+      // cuanto se le corrige la llegada. De acá sale que no se le pidan fotos que no puede tener.
+      cargadoPorOficina ? 1 : 0,
     )
     .run();
   return res.meta.last_row_id as number;
@@ -506,4 +509,23 @@ export async function activeTripForDriver(db: D1Database, driverId: number): Pro
     .bind(driverId)
     .first<TripRow>();
   return r ? toTrip(r) : null;
+}
+
+/**
+ * Corrige sólo la llegada de un viaje cerrado.
+ *
+ * `correrFecha` mueve salida y llegada juntas, que es lo que se quiere para un viaje cargado
+ * con el día equivocado. Pero cuando el chofer se olvidó de cerrarlo, la salida está bien y la
+ * llegada es la de cuando por fin tocó el botón: el viaje quedaba de varios días.
+ */
+export async function corregirLlegada(
+  db: D1Database,
+  id: number,
+  finishedAt: string,
+  editor: { userId: number; when: string },
+): Promise<void> {
+  await db
+    .prepare("UPDATE trips SET finished_at = ?, edited_by = ?, edited_at = ? WHERE id = ? AND status = 'COMPLETADO'")
+    .bind(finishedAt, editor.userId, editor.when, id)
+    .run();
 }

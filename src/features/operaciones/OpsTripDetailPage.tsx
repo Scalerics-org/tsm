@@ -201,7 +201,7 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
             guardando={guardandoFecha}
             onCambiar={cambiarFecha}
           />
-          <Info label="Llegada" value={trip.finished_at ? fmtDateTime(trip.finished_at) : "—"} />
+          <LlegadaDelViaje trip={trip} onGuardada={load} />
         </div>
         {trip.notes && (
           <div className="mt-3 border-l-4 border-brand bg-surface p-3 text-sm text-ink/80">
@@ -269,6 +269,101 @@ function FechaDelViaje({
         }}
       />
       <div className="mt-0.5 text-xs text-ink/45">{fmtDateTime(valor)}</div>
+    </div>
+  );
+}
+
+/**
+ * La llegada del viaje, corregible.
+ *
+ * El cierre graba la hora en que el chofer toca "confirmar llegada". Si se olvida y lo cierra
+ * días después, el viaje queda de varios días —el 48 y el 94 ya figuran así— y la oficina no
+ * tenía cómo arreglarlo: cambiar la fecha corre salida y llegada juntas. Acá se corrige sólo
+ * la llegada.
+ *
+ * Se tipea en hora de acá y viaja en UTC, que es como se guarda: `new Date("AAAA-MM-DDTHH:MM")`
+ * es hora LOCAL y `toISOString()` la pasa a UTC. El servidor rechaza cualquier fecha sin zona.
+ *
+ * Tiene su propio error a propósito: el de la página reemplaza la ficha entera por una línea
+ * roja, y un fallo acá no puede hacer desaparecer el viaje que se está mirando.
+ */
+function LlegadaDelViaje({ trip, onGuardada }: { trip: Trip; onGuardada: () => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const [dia, setDia] = useState("");
+  const [hora, setHora] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState("");
+
+  if (!trip.finished_at) return <Info label="Llegada" value="—" />;
+  const llegada = new Date(trip.finished_at.replace(" ", "T") + "Z");
+  const salida = new Date(trip.started_at.replace(" ", "T") + "Z");
+  const dias = (llegada.getTime() - salida.getTime()) / 86_400_000;
+
+  function abrir() {
+    const dos = (n: number) => String(n).padStart(2, "0");
+    setDia(`${llegada.getFullYear()}-${dos(llegada.getMonth() + 1)}-${dos(llegada.getDate())}`);
+    setHora(`${dos(llegada.getHours())}:${dos(llegada.getMinutes())}`);
+    setError("");
+    setAbierto(true);
+  }
+
+  async function guardar() {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dia) || !/^\d{2}:\d{2}$/.test(hora)) return setError("Poné el día y la hora.");
+    setGuardando(true);
+    setError("");
+    try {
+      await api.patch(`/trips/${trip.id}/llegada`, { llegada: new Date(`${dia}T${hora}`).toISOString() });
+      setAbierto(false);
+      onGuardada();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudo corregir la llegada");
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="font-cond text-[11px] font-semibold uppercase tracking-[0.1em] text-ink/50">Llegada</div>
+      {!abierto ? (
+        <>
+          <div className="font-medium text-ink">{fmtDateTime(trip.finished_at)}</div>
+          {trip.status === TRIP_STATUS.COMPLETADO && (
+            <button type="button" onClick={abrir} className="text-xs text-brand-700 hover:underline">
+              Corregir
+            </button>
+          )}
+          {/* Un viaje de más de dos días casi siempre es uno que el chofer se olvidó de cerrar. */}
+          {dias > 2 && (
+            <div className="mt-0.5 text-xs text-st-amberTx">
+              Figura de {Math.round(dias)} días. Si el chofer se olvidó de cerrarlo, corregí la llegada.
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="mt-0.5 space-y-1">
+          <div className="flex flex-wrap gap-1">
+            <FechaInput className="input w-36 py-1 text-sm" value={dia} onChange={setDia} disabled={guardando} />
+            <input
+              className="input w-24 py-1 text-sm"
+              type="time"
+              value={hora}
+              onChange={(e) => setHora(e.target.value)}
+              disabled={guardando}
+              aria-label="Hora de llegada"
+            />
+          </div>
+          <div className="flex gap-3 text-xs">
+            <button type="button" onClick={guardar} disabled={guardando} className="text-brand-700 hover:underline">
+              {guardando ? "Guardando…" : "Guardar"}
+            </button>
+            <button type="button" onClick={() => setAbierto(false)} className="text-ink/50 hover:underline">
+              Cancelar
+            </button>
+          </div>
+          <ErrorText>{error}</ErrorText>
+        </div>
+      )}
     </div>
   );
 }

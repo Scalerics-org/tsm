@@ -31,6 +31,10 @@ export interface TripPhotoStatus {
   arrival_photo_label: string | null;
   has_carga: number;
   has_descarga: number;
+  /** Para saber si la foto de carga se le tenía que pedir (ver `api/lib/fotos-faltantes.ts`). */
+  viaje_vacio: number | null;
+  foto_carga_requerida: number | null;
+  cargado_por_oficina: number;
 }
 
 /** Estado de fotos por viaje (para alertas de fotos faltantes y cumplimiento). */
@@ -51,6 +55,7 @@ export async function tripPhotoStatus(
   const sql = `
     SELECT t.id, t.provider_name, t.origin, t.destination, t.driver_id,
            d.name AS driver_name, tt.arrival_photo_label,
+           tt.viaje_vacio, tt.foto_carga_requerida, t.cargado_por_oficina,
            COUNT(CASE WHEN p.kind='carga' THEN 1 END) AS has_carga,
            COUNT(CASE WHEN p.kind='descarga' THEN 1 END) AS has_descarga
     FROM trips t

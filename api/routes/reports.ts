@@ -1,3 +1,4 @@
+import { fotoQueFalta, leFaltaCarga } from "../lib/fotos-faltantes";
 import { surtidasARevisar, surtidasParaLaFicha } from "../lib/surtidas-a-revisar";
 import { viajesAFacturar } from "../lib/resumen-cliente";
 import { Hono } from "hono";
@@ -169,17 +170,12 @@ reports.get("/alerts", async (c) => {
       hours: t.hours,
     }));
 
+  // Sólo las fotos que se le tenían que pedir: no a un viaje vacío, ni a una plantilla que no
+  // pide foto, ni a un viaje cargado desde oficina, ni sin R2. Ver `api/lib/fotos-faltantes.ts`.
+  const conR2 = !!c.env.FOTOS;
   const missingPhotos = photoStatus
-    .map((p) => {
-      const needCarga = p.has_carga === 0;
-      const needDescarga = p.arrival_photo_label != null && p.has_descarga === 0;
-      let missing = "";
-      if (needCarga && needDescarga) missing = "carga y descarga";
-      else if (needCarga) missing = "carga";
-      else if (needDescarga) missing = p.arrival_photo_label ?? "descarga";
-      return { ...p, missing, flagged: needCarga || needDescarga };
-    })
-    .filter((p) => p.flagged)
+    .map((p) => ({ ...p, missing: fotoQueFalta(p, conR2) ?? "" }))
+    .filter((p) => p.missing)
     .map((p) => ({
       id: p.id,
       provider_name: p.provider_name,
@@ -299,7 +295,9 @@ reports.get("/driver/:id", async (c) => {
     tripPhotoStatus(c.env.DB, { status: TRIP_STATUS.COMPLETADO, driverId: id }),
   ]);
   const withPhoto = photoStatus.filter((p) => p.has_carga > 0).length;
-  const withoutPhoto = photoStatus.length - withPhoto;
+  // "Sin foto" son los que la tenían que tener y no la tienen. Un viaje cargado desde oficina
+  // no cuenta en ninguno de los dos: no es cumplimiento del chofer, pasó sin la app.
+  const withoutPhoto = photoStatus.filter((p) => leFaltaCarga(p, !!c.env.FOTOS)).length;
   return ok(c, {
     driver,
     trips: trips.slice(0, 30),

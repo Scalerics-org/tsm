@@ -1,3 +1,4 @@
+import { llegadaCorregida } from "../lib/llegada";
 import { conCantidadesFijas, missingField, problemaDeCantidad } from "../../shared/domain";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
@@ -715,6 +716,36 @@ trips.patch("/:id/fecha", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) =
   if (dias !== 0) {
     await tripsRepo.correrFecha(c.env.DB, trip.id, dias, { userId: c.get("user").id, when: nowIso() });
   }
+  return okViaje(c, await tripsRepo.getTrip(c.env.DB, trip.id));
+});
+
+/**
+ * PATCH /api/trips/:id/llegada — la oficina corrige sólo la llegada de un viaje cerrado.
+ *
+ * El cierre graba la hora en que el chofer toca "confirmar llegada". Si se olvida y lo cierra
+ * días después, el viaje queda de varios días —pasó con el 48 y el 94— y la oficina no podía
+ * arreglarlo: PATCH /fecha corre salida y llegada juntas. En octubre, con los choferes usando
+ * la app, esto va a pasar cada vez que alguien se olvide de cerrar.
+ *
+ * Un viaje ya facturado no se toca, igual que en el resto de las correcciones.
+ */
+trips.patch("/:id/llegada", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+  const trip = await tripsRepo.getTripFacturable(c.env.DB, Number(c.req.param("id")));
+  if (!trip) return fail(c, "Viaje no encontrado", 404);
+  if (trip.factura_numero) {
+    return fail(
+      c,
+      `Ese viaje ya está en la factura ${trip.factura_numero}. Desmarcalo desde Facturación y después corregí la llegada.`,
+      409,
+    );
+  }
+  if (trip.status !== TRIP_STATUS.COMPLETADO) return fail(c, "Sólo se corrige la llegada de un viaje cerrado", 409);
+
+  const b = (await c.req.json().catch(() => null)) as { llegada?: unknown } | null;
+  const r = llegadaCorregida(trip.started_at, b?.llegada, new Date());
+  if (!r.ok) return fail(c, r.motivo, 400);
+
+  await tripsRepo.corregirLlegada(c.env.DB, trip.id, r.valor, { userId: c.get("user").id, when: nowIso() });
   return okViaje(c, await tripsRepo.getTrip(c.env.DB, trip.id));
 });
 
