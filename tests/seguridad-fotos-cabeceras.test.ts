@@ -83,5 +83,9 @@ describe("las cabeceras de seguridad", () => {
     expect(h).toContain("https://fonts.googleapis.com");
     expect(h).toContain("https://fonts.gstatic.com");
     expect(h).toMatch(/img-src [^;]*blob:/);
+    // El beacon de Web Analytics lo inyecta Cloudflare en el borde, fuera del index.html: la
+    // primera versión de la política lo bloqueó en producción y dejó de medir sin avisar.
+    expect(h).toMatch(/script-src [^;]*https:\/\/static\.cloudflareinsights\.com/);
+    expect(h).toMatch(/connect-src [^;]*https:\/\/cloudflareinsights\.com/);
   });
 });

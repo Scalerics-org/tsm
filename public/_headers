@@ -7,7 +7,9 @@
 #   - el JS y el CSS de /assets (self), sin scripts en línea;
 #   - las fuentes de Google (CSS en fonts.googleapis.com, archivos en fonts.gstatic.com);
 #   - las fotos, que se muestran como blob: después de pedirlas con el token;
-#   - el service worker de las notificaciones (/sw.js) y el manifest.
+#   - el service worker de las notificaciones (/sw.js) y el manifest;
+#   - el beacon de Cloudflare Web Analytics, que Cloudflare inyecta en el borde: no está en el
+#     index.html, así que en local no aparece. Se vio recién en producción, bloqueado.
 # style-src lleva unsafe-inline por los style={{…}} de React. Si se agrega otro recurso externo,
 # hay que sumarlo acá o el navegador lo bloquea.
 /*
@@ -16,4 +18,4 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Strict-Transport-Security: max-age=31536000
   Permissions-Policy: camera=(self), microphone=(), geolocation=()
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' blob: data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' blob: data:; connect-src 'self' https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
