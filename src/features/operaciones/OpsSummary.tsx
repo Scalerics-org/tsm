@@ -157,7 +157,7 @@ export function OpsSummary() {
             <Card className="overflow-x-auto p-0">
               <Corners />
               <div className="border-b border-ink/15 px-4 py-3 font-cond text-lg font-semibold text-ink">Por cliente</div>
-              <table className="w-full min-w-[420px] text-sm">
+              <table className="w-full min-w-[520px] text-sm">
                 <thead className="text-left text-ink/60">
                   <tr className="border-b border-ink/15">
                     <th className="px-4 py-3">Cliente</th>
@@ -185,6 +185,21 @@ export function OpsSummary() {
                           }
                         >
                           ⬇ Excel
+                        </button>
+                        {/* El resumen para mandarle al cliente: fecha, destino, cliente de la
+                            carga y los datos propios de su viaje. Nada de cobro ni de cómo
+                            trabaja la empresa por dentro. */}
+                        <button
+                          className="ml-4 text-brand-700 hover:underline"
+                          title="Fecha, destino, cliente de la carga y los datos propios de su viaje. Sin cobro, chofer ni camión."
+                          onClick={() =>
+                            downloadFile(
+                              `/reports/cliente.csv?provider=${encodeURIComponent(p.name)}${range.from ? `&from=${range.from}` : ""}${range.to ? `&to=${range.to}` : ""}`,
+                              `resumen-${p.name}.csv`,
+                            )
+                          }
+                        >
+                          ⬇ Para el cliente
                         </button>
                       </td>
                     </tr>

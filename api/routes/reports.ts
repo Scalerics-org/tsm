@@ -11,7 +11,7 @@ import {
   type Trip,
 } from "../../shared/domain";
 import { listTrips, listTripsFacturables } from "../repos/trips";
-import { columnasDeCampos, encabezado, filasDeViaje } from "../lib/export-viajes";
+import { columnasDeCampos, encabezado, filasDeViaje, resumenParaElCliente } from "../lib/export-viajes";
 import { csvResponse } from "../lib/csv";
 import { vaciosEntreViajes, kmVacios, vaciosDelPeriodo } from "../../shared/vacios";
 import { resumenCliente } from "../lib/resumen-cliente";
@@ -330,6 +330,27 @@ reports.get("/trips.csv", async (c) => {
   const campos = columnasDeCampos(trips, templates);
   const rows = trips.flatMap((t) => filasDeViaje(t, campos));
   return csvResponse(q.provider ? `viajes-${q.provider}.csv` : "viajes.csv", [encabezado(campos), ...rows]);
+});
+
+/**
+ * GET /api/reports/cliente.csv?provider=…&from=…&to=… — el resumen para mandarle al cliente.
+ *
+ * Las mismas filas que /trips.csv con las columnas que le sirven al cliente: fecha, destino,
+ * clientes de la carga y los datos propios de su viaje. Sin cobro, sin chofer ni camión, y
+ * sin los cancelados. Las reglas viven en `resumenParaElCliente`, donde se pueden probar.
+ *
+ * El cliente es obligatorio: un "resumen para el cliente" de todos los clientes mezclados no
+ * se le puede mandar a nadie.
+ */
+reports.get("/cliente.csv", async (c) => {
+  const q = c.req.query();
+  if (!q.provider) return fail(c, "Falta el cliente", 400);
+  const [trips, templates] = await Promise.all([
+    listTrips(c.env.DB, { from: q.from, to: q.to, provider: q.provider }),
+    listTemplates(c.env.DB),
+  ]);
+  const campos = columnasDeCampos(trips, templates);
+  return csvResponse(`resumen-${q.provider}.csv`, resumenParaElCliente(trips, campos));
 });
 
 // Cargas sin regla de facturación: el único trabajo manual que queda, y es una vez

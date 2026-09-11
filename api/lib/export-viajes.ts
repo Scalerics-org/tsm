@@ -1,4 +1,4 @@
-import type { Trip, TripTemplate } from "../../shared/domain";
+import { TRIP_STATUS, type Trip, type TripTemplate } from "../../shared/domain";
 import { columnasDe } from "./resumen-cliente";
 
 /**
@@ -182,4 +182,52 @@ export function filasDeViaje(t: Trip, campos: ColumnaCampo[]): Celda[][] {
     s.cobro_tipo ?? "",
     ...(i === 0 ? cola : cabecera(false)),
   ]);
+}
+
+/** Lo que siempre va en el resumen para el cliente: cuándo, adónde y para quién. */
+export const COLUMNAS_CLIENTE = ["Fecha", "Destino", "Clientes de la carga"];
+
+/**
+ * Lo que va sólo si en el período alguien lo llenó: los números con los que el cliente cruza
+ * contra sus propios papeles. A esto se le suman los campos propios de sus plantillas.
+ */
+export const COLUMNAS_CLIENTE_SI_HAY_DATO = ["Cantidad", "Unidad", "N° remito", "Kilos"];
+
+/**
+ * El resumen para mandarle al cliente.
+ *
+ * "Le eliminé un montón de celdas y lo dejé con lo que realmente me interesa. Cuando exporte
+ * un resumen del molino me interesaría esos datos nomás." La planilla que armó a mano era
+ * nuestro Excel con 5 de sus 20 columnas: fecha, destino y clientes de la carga, más los dos
+ * campos propios de la plantilla de Cañuelas. La regla sirve para cualquier cliente —lo
+ * básico más lo propio de su viaje—, así que un cliente nuevo sale con sus columnas sin que
+ * nadie configure nada.
+ *
+ * NO ES OTRA EXPORTACIÓN: son las mismas filas del Excel completo (`filasDeViaje`) con las
+ * columnas elegidas. Un valor no puede decir una cosa acá y otra en el Excel de la oficina,
+ * porque hay una sola cuenta: el peso sale corregido, una fila por carga, lo que se suma va
+ * en la primera fila del viaje.
+ *
+ * LO QUE NO VA, A PROPÓSITO. "Se cobra a" y "Tipo" son las reglas de cobro de la oficina, y
+ * esto es un papel que se le manda al cliente. Chofer, camión, km, estado, horarios y
+ * observaciones son cómo trabaja la empresa por dentro. Tampoco los viajes cancelados: no se
+ * entregó nada.
+ *
+ * Una columna opcional que nadie llenó en todo el período no aparece. Justamente de eso se
+ * quejaba: columnas vacías que había que borrar a mano.
+ */
+export function resumenParaElCliente(trips: Trip[], campos: ColumnaCampo[]): Celda[][] {
+  const titulos = encabezado(campos);
+  const filas = trips
+    .filter((t) => t.status !== TRIP_STATUS.CANCELADO)
+    .flatMap((t) => filasDeViaje(t, campos));
+
+  const opcionales = new Set([...COLUMNAS_CLIENTE_SI_HAY_DATO, ...campos.map((c) => c.label)]);
+  const tieneDato = (i: number) => filas.some((f) => f[i] != null && f[i] !== "");
+  const elegidas = titulos
+    .map((titulo, i) => ({ titulo, i }))
+    .filter(({ titulo, i }) => COLUMNAS_CLIENTE.includes(titulo) || (opcionales.has(titulo) && tieneDato(i)))
+    .map(({ i }) => i);
+
+  return [elegidas.map((i) => titulos[i]), ...filas.map((f) => elegidas.map((i) => f[i]))];
 }
