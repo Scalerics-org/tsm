@@ -252,12 +252,15 @@ describe("la ruta de facturación", () => {
    * veces por error deja el mismo viaje cobrado en dos facturas distintas y sin rastro de
    * cuál era la buena.
    */
-  it("no pisa lo ya facturado ni toca los cancelados", async () => {
+  it("no pisa lo ya facturado, y sólo marca viajes completados: ni cancelados ni en curso", async () => {
     const updates: { sql: string; binds: unknown[] }[] = [];
     await pedir("/api/facturacion/marcar", ROLES.ENCARGADO, { trip_ids: [1, 2], factura_numero: "A-1" }, updates);
     expect(updates).toHaveLength(1);
     expect(updates[0].sql).toContain("factura_numero IS NULL");
-    expect(updates[0].sql).toContain("status <> 'CANCELADO'");
+    // Exigir COMPLETADO deja afuera a los cancelados Y a los que siguen en curso. Antes sólo
+    // excluía los cancelados, y un viaje en curso facturado quedaba abierto a que el chofer le
+    // agregara cargas que después no se cobraban nunca.
+    expect(updates[0].sql).toContain("status = 'COMPLETADO'");
   });
 
   /**
