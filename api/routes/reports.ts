@@ -1,3 +1,4 @@
+import { viajesAFacturar } from "../lib/resumen-cliente";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
@@ -314,15 +315,25 @@ reports.get("/trips.csv", async (c) => {
   // La pantalla ya mandaba chofer, camión y estado —es el mismo `query` con el que pide la
   // lista—, pero acá se leían sólo las fechas: el Excel bajaba TODO y no lo que se estaba
   // mirando. Los nombres de los parámetros son los mismos que en GET /api/trips.
+  const filtros = {
+    from: q.from,
+    to: q.to,
+    provider: q.provider || undefined,
+    driverId: q.driver ? Number(q.driver) : undefined,
+    truckId: q.truck ? Number(q.truck) : undefined,
+    status: (q.status as Trip["status"]) || undefined,
+  };
+  // Desde el resumen por cliente se pide SÓLO lo facturable, que es lo que esa pantalla
+  // muestra. Antes el botón bajaba todo —ya facturados y cancelados incluidos, sin ninguna
+  // columna que los distinguiera—, así que el total del Excel no coincidía con el de la
+  // pantalla, y facturando desde el Excel se podía cobrar dos veces un viaje.
+  const soloFacturables = q.facturables === "1";
   const [trips, templates] = await Promise.all([
-    listTrips(c.env.DB, {
-      from: q.from,
-      to: q.to,
-      provider: q.provider || undefined,
-      driverId: q.driver ? Number(q.driver) : undefined,
-      truckId: q.truck ? Number(q.truck) : undefined,
-      status: (q.status as Trip["status"]) || undefined,
-    }),
+    soloFacturables
+      ? listTripsFacturables(c.env.DB, filtros).then((ts) =>
+          viajesAFacturar(ts, { incluirFacturados: q.incluirFacturados === "1" }),
+        )
+      : listTrips(c.env.DB, filtros),
     listTemplates(c.env.DB),
   ]);
   // El remito, la boleta y el número de orden salen cada uno en su columna, no apelmazados

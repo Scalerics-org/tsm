@@ -222,7 +222,7 @@ export function ResumenClientePage() {
             </div>
             <Button
               variant="secondary"
-              onClick={() => downloadFile(`/reports/trips.csv?provider=${encodeURIComponent(provider)}${from ? `&from=${from}` : ""}${to ? `&to=${to}` : ""}`, `${provider}.csv`)}
+              onClick={() => downloadFile(`/reports/trips.csv?facturables=1${verFacturados ? "&incluirFacturados=1" : ""}&provider=${encodeURIComponent(provider)}${from ? `&from=${from}` : ""}${to ? `&to=${to}` : ""}`, `${provider}.csv`)}
             >
               ⬇ Exportar Excel
             </Button>

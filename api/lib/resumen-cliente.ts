@@ -95,8 +95,13 @@ export function viajesAFacturar<T extends ViajeDelResumen>(
   trips: T[],
   opts: { incluirFacturados?: boolean } = {},
 ): T[] {
+  // SÓLO LOS COMPLETADOS. Antes entraban también los viajes en curso, y se podían facturar con
+  // el chofer todavía en la ruta: después agregaba cargas o completaba cantidades en un viaje
+  // ya facturado, y eso no se volvía a cobrar nunca. Los que nacen con cargas fijas (Agencia,
+  // Manassi) aparecían desde el primer minuto, con la cantidad vacía. Un viaje en curso entra
+  // al resumen cuando se cierra.
   return trips.filter(
-    (t) => t.status !== TRIP_STATUS.CANCELADO && (opts.incluirFacturados || !t.factura_numero),
+    (t) => t.status === TRIP_STATUS.COMPLETADO && (opts.incluirFacturados || !t.factura_numero),
   );
 }
 

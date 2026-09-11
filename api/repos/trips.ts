@@ -309,10 +309,14 @@ export async function completarCobrosPendientes(
   db: D1Database,
   reglas: CobroRegla[],
 ): Promise<number> {
-  const trips = await listTrips(db, {});
+  // Con la marca de factura, y los facturados se saltean: una regla nueva no puede reescribir
+  // una factura ya emitida. Antes recorría TODOS los viajes, y a una carga que había salido
+  // pendiente en un viaje facturado le escribía hoy el cobro, sin dejar rastro.
+  const trips = await listTripsFacturables(db, {});
   let destrabadas = 0;
 
   for (const t of trips) {
+    if (t.factura_numero) continue;
     if (!t.segments.some((s) => !s.cobro_tipo && !s.cobro_manual)) continue;
 
     const actualizados = completarPendientes(reglas, t.segments);
@@ -475,7 +479,7 @@ export async function marcarFacturados(
       .prepare(
         `UPDATE trips SET factura_numero=?, facturado_at=?, facturado_by=?
           WHERE id IN (${tanda.map(() => "?").join(",")})
-            AND factura_numero IS NULL AND status <> 'CANCELADO'`,
+            AND factura_numero IS NULL AND status = 'COMPLETADO'`,
       )
       .bind(numero, quien.when, quien.userId, ...tanda),
   );
