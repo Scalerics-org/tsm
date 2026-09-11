@@ -164,9 +164,30 @@ export async function createTemplate(db: D1Database, t: TemplateInput): Promise<
   return res.meta.last_row_id as number;
 }
 
+/**
+ * Guarda la plantilla, y si cambió de cliente, sus viajes van con ella.
+ *
+ * `trips.provider_name` se copia al crear el viaje, así que mover una plantilla a otro cliente
+ * dejaba sus viajes viejos en el anterior. Pasó el 10/9 al mover el Mdeo–BU al grupo
+ * "Montevideo - BU": 11 viajes quedaron como "Otros Viajes" y 3 como "Montevideo - BU", y la
+ * facturación —que filtra por ese nombre— mostraba 3 de 14.
+ *
+ * Los ya facturados NO se mueven: están en una factura emitida con el cliente que tenían. Va en
+ * un batch con la edición para que no pueda quedar la plantilla movida y los viajes no. Si el
+ * cliente no cambió, el UPDATE no encuentra nada que tocar.
+ */
 export async function updateTemplate(db: D1Database, id: number, t: TemplateInput): Promise<void> {
   const { sql, binds } = sqlDeEdicion(t);
-  await db.prepare(sql).bind(...binds, id).run();
+  await db.batch([
+    db.prepare(sql).bind(...binds, id),
+    db
+      .prepare(
+        `UPDATE trips SET provider_name = (SELECT name FROM providers WHERE id = ?)
+          WHERE template_id = ? AND factura_numero IS NULL
+            AND provider_name IS NOT (SELECT name FROM providers WHERE id = ?)`,
+      )
+      .bind(t.provider_id, id, t.provider_id),
+  ]);
 }
 
 /** Camiones que ven la plantilla. Lista vacía = la ven todos. */
