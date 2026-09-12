@@ -82,6 +82,9 @@ libreta.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
     agrupador: b.agrupador,
     estado: b.estado as typeof LIBRETA_ESTADO.CONFIRMADO | undefined,
   });
+  // Las cargas ya registradas guardan el nombre copiado: sin esto, el Excel y el resumen del
+  // cliente seguían saliendo con el nombre viejo después de corregirlo acá.
+  if (b.nombre != null) await repo.renombrarEnCargas(c.env.DB, id, b.nombre);
   return ok(c, await repo.getEntry(c.env.DB, id));
 });
 

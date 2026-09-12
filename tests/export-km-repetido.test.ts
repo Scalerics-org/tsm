@@ -102,7 +102,9 @@ describe("los km del viaje no se repiten por carga", () => {
       [],
     );
     expect(filas.map((f) => f[idx("Lugar de carga")])).toEqual(["TIMBER", "ONTIL"]);
-    expect(filas.map((f) => f[idx("Cantidad")])).toEqual([6, 4]);
+    // La cantidad va en la columna de SU unidad: las dos cargas son pallets.
+    expect(filas.map((f) => f[idx("Pallets")])).toEqual([6, 4]);
+    expect(filas.map((f) => f[idx("Kilos de la carga")])).toEqual(["", ""]);
   });
 
   it("el chofer y el camión SÍ se repiten: no se suman, y ayudan a leer la fila suelta", () => {

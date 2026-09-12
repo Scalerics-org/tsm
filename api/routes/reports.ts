@@ -102,7 +102,9 @@ reports.get("/summary", async (c) => {
     const p = provMap.get(t.provider_name) ?? { trips: 0, completed: 0, tons: 0 };
     p.trips += 1;
     if (t.status === TRIP_STATUS.COMPLETADO) p.completed += 1;
-    p.tons += t.kilos_carga ?? 0;
+    // Un viaje cancelado no llevó nada. La tabla de al lado, "Por camión", ya los descontaba:
+    // el mismo período mostraba dos totales de kilos distintos según qué tabla se mirara.
+    if (t.status !== TRIP_STATUS.CANCELADO) p.tons += t.kilos_carga ?? 0;
     provMap.set(t.provider_name, p);
   }
   const byProvider = [...provMap.entries()]
@@ -368,14 +370,25 @@ reports.get("/cliente.csv", async (c) => {
     listTrips(c.env.DB, { from: q.from, to: q.to, provider: q.provider }),
     listTemplates(c.env.DB),
   ]);
-  const campos = columnasDeCampos(trips, templates);
-  return csvResponse(`resumen-${q.provider}.csv`, resumenParaElCliente(trips, campos));
+  // Sólo lo ENTREGADO. Este papel se le manda al cliente y no lleva columna Estado —a
+  // propósito—, así que un viaje todavía en la ruta entraba como si estuviera entregado y el
+  // cliente no tenía cómo distinguirlo. Hoy son 4, uno con 560 pallets.
+  //
+  // Los ya facturados sí van: es el resumen de lo que se le llevó en el período, no la lista
+  // de lo que falta cobrar. Los cancelados los saca `resumenParaElCliente`.
+  const entregados = trips.filter((t) => t.status !== TRIP_STATUS.EN_CURSO);
+  const campos = columnasDeCampos(entregados, templates);
+  return csvResponse(`resumen-${q.provider}.csv`, resumenParaElCliente(entregados, campos));
 });
 
 // Cargas sin regla de facturación: el único trabajo manual que queda, y es una vez
 // por combinación nueva, no por viaje.
 reports.get("/pendientes-cobro", async (c) => {
-  const trips = await listTrips(c.env.DB, {});
+  // Mismo criterio que el resumen para facturar: un viaje cancelado no se cobra, y a uno ya
+  // facturado no le sirve una regla nueva. Contarlos empuja a la oficina a definir reglas para
+  // plata que no existe, e infla el número que mide si el módulo está al día.
+  const todos = await listTripsFacturables(c.env.DB, {});
+  const trips = viajesAFacturar(todos);
   const pendientes: PendienteCobro[] = trips.flatMap((t) =>
     t.segments
       .map((s, idx) => ({ ...s, idx, trip_id: t.id, fecha: t.started_at.slice(0, 10), cliente: t.provider_name }))

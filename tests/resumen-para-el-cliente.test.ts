@@ -108,10 +108,23 @@ describe("el resumen para el cliente", () => {
       ] as unknown as Trip["segments"],
     });
     const [encabezado, ...filas] = resumen([combinado], []);
-    expect(encabezado).toEqual(["Fecha", "Destino", "Clientes de la carga", "Cantidad", "Unidad", "N° remito"]);
+    /**
+     * Una columna por unidad, y sólo las que tienen dato. Antes eran "Cantidad" y "Unidad": el
+     * cliente arrastraba la columna Cantidad y sumaba pallets con kilos. "bultos" no es una de
+     * las dos unidades de la app, así que cae en la columna de las que no tienen unidad — el
+     * número sale igual, pero no suma con los pallets.
+     */
+    expect(encabezado).toEqual([
+      "Fecha",
+      "Destino",
+      "Clientes de la carga",
+      "Pallets",
+      "Cantidad (sin unidad)",
+      "N° remito",
+    ]);
     expect(filas).toEqual([
-      ["2026-08-28", "Bella Unión", "Jair / Agronorte", 12, "pallets", "114586"],
-      ["2026-08-28", "Bella Unión", "Armco", 4, "bultos", "114590"],
+      ["2026-08-28", "Bella Unión", "Jair / Agronorte", 12, "", "114586"],
+      ["2026-08-28", "Bella Unión", "Armco", "", 4, "114590"],
     ]);
   });
 

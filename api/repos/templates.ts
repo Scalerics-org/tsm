@@ -199,6 +199,24 @@ export async function setTemplateTrucks(db: D1Database, id: number, truckIds: nu
   await db.batch(stmts);
 }
 
+/**
+ * Cuántos viajes de esa plantilla quedan sin facturar.
+ *
+ * El resumen por cliente arma sus columnas —remito, toneladas, hoja de ruta— con las plantillas
+ * de ese cliente. Borrar la plantilla no borra los viajes (la FK es ON DELETE SET NULL) pero se
+ * lleva puestas las columnas y los totales, y la oficina se queda sin los números para armar la
+ * factura de viajes que ya hizo.
+ */
+export async function viajesSinFacturarDe(db: D1Database, templateId: number): Promise<number> {
+  const row = await db
+    .prepare(
+      "SELECT COUNT(*) AS n FROM trips WHERE template_id = ? AND factura_numero IS NULL AND status != 'CANCELADO'",
+    )
+    .bind(templateId)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
 export async function deleteTemplate(db: D1Database, id: number): Promise<void> {
   await db.prepare("DELETE FROM trip_templates WHERE id=?").bind(id).run();
 }

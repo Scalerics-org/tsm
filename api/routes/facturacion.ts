@@ -3,7 +3,12 @@ import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { ROLES } from "../../shared/domain";
-import { listTripsFacturables, marcarFacturados, desmarcarFacturados } from "../repos/trips";
+import {
+  listTripsFacturables,
+  marcarFacturados,
+  desmarcarFacturados,
+  sinFacturarAntesDe,
+} from "../repos/trips";
 import { listTemplates } from "../repos/templates";
 import { resumenCliente } from "../lib/resumen-cliente";
 
@@ -43,19 +48,23 @@ facturacion.get("/resumen", async (c) => {
   const provider = q.provider?.trim();
   if (!provider) return fail(c, "Elegí el cliente", 400);
 
-  const [trips, templates] = await Promise.all([
+  const [trips, templates, anteriores] = await Promise.all([
     listTripsFacturables(c.env.DB, { provider, from: q.from, to: q.to }),
     listTemplates(c.env.DB),
+    // Lo que quedó afuera por la fecha de arriba. La pantalla abre en el 1° del mes, así que
+    // sin esto los viajes viejos sin facturar no los nombra nadie: hoy son 82.
+    q.from ? sinFacturarAntesDe(c.env.DB, provider, q.from) : Promise.resolve(0),
   ]);
 
   return ok(c, {
     provider,
     desde: q.from ?? null,
     hasta: q.to ?? null,
+    anteriores_sin_facturar: anteriores,
     ...resumenCliente(
       trips,
       templates.filter((t) => t.provider_name === provider),
-      { porDestino: q.porDestino === "1", incluirFacturados: q.incluirFacturados === "1" },
+      { porDestino: q.porDestino === "1", incluirFacturados: q.incluirFacturados === "1", cliente: provider },
     ),
   });
 });

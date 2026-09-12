@@ -1,4 +1,4 @@
-import { TRIP_STATUS, type Trip, type TripTemplate } from "../../shared/domain";
+import { TRIP_STATUS, UNIDAD, type Trip, type TripTemplate } from "../../shared/domain";
 import { columnasDe } from "./resumen-cliente";
 
 /**
@@ -23,6 +23,23 @@ export interface ColumnaCampo {
 }
 
 /** Lo que va antes de los campos de la plantilla: el viaje y la carga. */
+/**
+ * La cantidad va en una columna POR UNIDAD.
+ *
+ * Antes eran dos columnas, "Cantidad" y "Unidad": arrastrar la columna Cantidad en el Excel
+ * sumaba 792 pallets con 150.472 kilos y daba 151.264 de nada. Y esa misma columna va en el
+ * resumen que se le manda al cliente, donde el cliente hace exactamente esa cuenta.
+ *
+ * Las unidades son las dos que existen (`UNIDAD`), más una tercera para la carga a la que
+ * nadie le puso unidad: el número igual tiene que salir, pero aparte.
+ */
+export const COLUMNA_CANTIDAD: Record<string, string> = {
+  [UNIDAD.KILOS]: "Kilos de la carga",
+  [UNIDAD.PALLETS]: "Pallets",
+};
+export const COLUMNA_CANTIDAD_SIN_UNIDAD = "Cantidad (sin unidad)";
+const COLUMNAS_CANTIDAD = [...Object.values(COLUMNA_CANTIDAD), COLUMNA_CANTIDAD_SIN_UNIDAD];
+
 export const COLUMNAS_ANTES = [
   "ID viaje",
   "Fecha",
@@ -31,14 +48,19 @@ export const COLUMNAS_ANTES = [
   "Destino",
   "Lugar de carga",
   "Clientes de la carga",
-  "Cantidad",
-  "Unidad",
+  ...COLUMNAS_CANTIDAD,
   "N° remito",
   "Se cobra a",
   "Tipo",
   "Kilos",
   "Km",
 ];
+
+/** La cantidad de la carga, en la celda de su unidad y vacía en las demás. */
+function celdasDeCantidad(cantidad: number | null, unidad: string | null): Celda[] {
+  const titulo = unidad ? (COLUMNA_CANTIDAD[unidad] ?? COLUMNA_CANTIDAD_SIN_UNIDAD) : COLUMNA_CANTIDAD_SIN_UNIDAD;
+  return COLUMNAS_CANTIDAD.map((c) => (c === titulo && cantidad != null ? cantidad : ""));
+}
 
 /** Y lo que va después: quién lo hizo y cómo terminó. */
 export const COLUMNAS_DESPUES = ["Chofer", "Camión", "Estado", "Inicio", "Fin", "Observaciones"];
@@ -164,7 +186,18 @@ export function filasDeViaje(t: Trip, campos: ColumnaCampo[]): Celda[][] {
   // sería esconder trabajo hecho.
   if (!t.segments.length) {
     return [
-      [...comunes, t.origin, t.destination, t.remite ?? "", t.destinatario ?? "", "", "", "", "", "", ...cola],
+      [
+        ...comunes,
+        t.origin,
+        t.destination,
+        t.remite ?? "",
+        t.destinatario ?? "",
+        ...COLUMNAS_CANTIDAD.map(() => "" as Celda),
+        "",
+        "",
+        "",
+        ...cola,
+      ],
     ];
   }
 
@@ -175,8 +208,7 @@ export function filasDeViaje(t: Trip, campos: ColumnaCampo[]): Celda[][] {
     s.destino ?? t.destination,
     s.remitente,
     s.clientes.join(" / "),
-    s.cantidad ?? "",
-    s.unidad ?? "",
+    ...celdasDeCantidad(s.cantidad, s.unidad),
     s.remito ?? "",
     s.cobro_a ?? "",
     s.cobro_tipo ?? "",
@@ -191,7 +223,7 @@ export const COLUMNAS_CLIENTE = ["Fecha", "Destino", "Clientes de la carga"];
  * Lo que va sólo si en el período alguien lo llenó: los números con los que el cliente cruza
  * contra sus propios papeles. A esto se le suman los campos propios de sus plantillas.
  */
-export const COLUMNAS_CLIENTE_SI_HAY_DATO = ["Cantidad", "Unidad", "N° remito", "Kilos"];
+export const COLUMNAS_CLIENTE_SI_HAY_DATO = [...COLUMNAS_CANTIDAD, "N° remito", "Kilos"];
 
 /**
  * El resumen para mandarle al cliente.

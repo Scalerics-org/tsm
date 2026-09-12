@@ -184,7 +184,17 @@ templates.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
 });
 
 templates.delete("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
-  await repo.deleteTemplate(c.env.DB, Number(c.req.param("id")));
+  const id = Number(c.req.param("id"));
+  // Los proveedores tenían freno para esto desde que existe la pantalla; las plantillas no.
+  const sinFacturar = await repo.viajesSinFacturarDe(c.env.DB, id);
+  if (sinFacturar > 0) {
+    return fail(
+      c,
+      `No se puede borrar: tiene ${sinFacturar} viaje(s) sin facturar. El resumen de ese cliente arma sus columnas con esta plantilla, y sin ella se van el remito, los kilos y los totales con los que se hace la factura. Si ya no se usa, desactivala.`,
+      409,
+    );
+  }
+  await repo.deleteTemplate(c.env.DB, id);
   return ok(c, { deleted: true });
 });
 

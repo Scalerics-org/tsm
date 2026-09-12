@@ -22,7 +22,13 @@ interface Fila {
   camion: string;
   estado: string;
   valores: Record<string, string>;
-  cargas: { remitente: string; clientes: string; cantidad: number | null; unidad: string | null }[];
+  cargas: {
+    remitente: string;
+    clientes: string;
+    cantidad: number | null;
+    unidad: string | null;
+    cobro_a: string | null;
+  }[];
   factura_numero: string | null;
   factura_quitada: string | null;
 }
@@ -32,6 +38,7 @@ interface Grupo {
   filas: Fila[];
   viajes: number;
   totales: Record<string, number>;
+  cantidades: Record<string, number>;
 }
 
 interface Resumen {
@@ -40,7 +47,15 @@ interface Resumen {
   grupos: Grupo[];
   viajes: number;
   totales: Record<string, number>;
+  /** Lo que suman las cargas, por unidad. Para los clientes que no tienen campos propios. */
+  cantidades: Record<string, number>;
   facturados: number;
+  /** Cargas que la regla manda cobrarle a otro. */
+  cobros_ajenos: { cobro_a: string; cargas: number }[];
+  /** Viajes del período todavía abiertos: no entran al resumen, pero hay que saber que están. */
+  en_curso: number;
+  /** Viajes sin facturar anteriores al "Desde" de arriba. */
+  anteriores_sin_facturar: number;
 }
 
 /** El primer día del mes en curso. Es sólo un punto de partida: el corte de verdad lo define
@@ -282,6 +297,11 @@ export function ResumenClientePage() {
                     valor={(data.totales[c.key] ?? 0).toLocaleString("es-UY")}
                   />
                 ))}
+              {/* Los clientes sin campos propios ponen la cantidad en cada carga: sin esto la
+                  pantalla mostraba sólo "Viajes: 13" y había que sumar a mano para facturar. */}
+              {Object.entries(data.cantidades).map(([unidad, total]) => (
+                <Total key={unidad} etiqueta={unidad} valor={total.toLocaleString("es-UY")} />
+              ))}
             </div>
             <Button
               variant="secondary"
@@ -290,6 +310,33 @@ export function ResumenClientePage() {
               ⬇ Exportar Excel
             </Button>
           </div>
+
+          {/* La regla de cobro dice otra cosa que el cliente del viaje. Cambiar el resumen para
+              que se arme por quién paga es una decisión del cliente; mientras tanto, que esté
+              a la vista antes de emitir la factura. */}
+          {data.cobros_ajenos.length > 0 && (
+            <p className="border-l-4 border-st-amberDot bg-st-amberBg px-3 py-2 text-sm text-st-amberTx">
+              Ojo: hay cargas acá adentro que la regla manda cobrarle a otro —{" "}
+              {data.cobros_ajenos.map((c) => `${c.cobro_a} (${c.cargas})`).join(", ")}. Si facturás
+              todo a {provider}, eso se le cobra al que no es.
+            </p>
+          )}
+
+          {data.en_curso > 0 && (
+            <p className="border-l-4 border-st-amberDot bg-st-amberBg px-3 py-2 text-sm text-st-amberTx">
+              {data.en_curso} viaje{data.en_curso === 1 ? "" : "s"} de {provider} en este período
+              {data.en_curso === 1 ? " sigue abierto" : " siguen abiertos"} y no
+              {data.en_curso === 1 ? " entra" : " entran"} al resumen. Si ya
+              {data.en_curso === 1 ? " se entregó" : " se entregaron"}, cerralos antes de facturar.
+            </p>
+          )}
+
+          {data.anteriores_sin_facturar > 0 && (
+            <p className="text-sm text-ink/55">
+              Hay {data.anteriores_sin_facturar} viaje{data.anteriores_sin_facturar === 1 ? "" : "s"} de{" "}
+              {provider} sin facturar anteriores al {fmtDate(from)}. Corré la fecha "Desde" para verlos.
+            </p>
+          )}
 
           {data.facturados > 0 && !verFacturados && (
             <p className="text-sm text-ink/55">
@@ -396,6 +443,11 @@ function GrupoTabla({
             {columnas
               .filter((c) => c.totaliza && grupo.totales[c.key])
               .map((c) => ` · ${grupo.totales[c.key].toLocaleString("es-UY")} ${c.label.toLowerCase()}`)
+              .join("")}
+            {/* Y lo que suman las cargas del grupo: en Cañuelas agrupado por destino, es la
+                cuenta que se le factura a cada lado. */}
+            {Object.entries(grupo.cantidades)
+              .map(([unidad, total]) => ` · ${total.toLocaleString("es-UY")} ${unidad}`)
               .join("")}
           </span>
         </div>

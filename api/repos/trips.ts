@@ -529,6 +529,23 @@ export async function marcarFacturados(
   return cambios(await db.batch(stmts));
 }
 
+/**
+ * Cuántos viajes de ese cliente quedaron sin facturar ANTES de la fecha desde la que se está
+ * mirando. La pantalla abre en el 1° del mes; sin este número, el trabajo viejo sin facturar no
+ * aparece en ningún lado y nadie se acuerda de que existe.
+ */
+export async function sinFacturarAntesDe(db: D1Database, provider: string, desde: string): Promise<number> {
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM trips
+        WHERE provider_name = ? AND status = 'COMPLETADO' AND factura_numero IS NULL
+          AND date(started_at) < date(?)`,
+    )
+    .bind(provider, desde)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
 /** Saca la marca: "se va a equivocar alguna vez" y el viaje tiene que poder volver al resumen. */
 export async function desmarcarFacturados(db: D1Database, ids: number[]): Promise<number> {
   if (!ids.length) return 0;

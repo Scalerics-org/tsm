@@ -184,11 +184,73 @@ export async function reglasQueDependen(db: D1Database, id: number): Promise<num
 }
 
 /**
- * Fusiona `id` dentro de `intoId`: mueve las reglas de cobro que no colisionen,
- * suma los usos y borra el duplicado. Es lo que mantiene los reportes limpios.
+ * Las cargas ya registradas que nombran a esta entrada de la libreta.
+ *
+ * `trips.segments` es JSON y guarda los ids Y los nombres, copiados en el momento de crear la
+ * carga. Renombrar o fusionar tocaba la libreta y las reglas, pero dejaba las cargas como
+ * estaban: después de una fusión seguían apuntando al id borrado —ninguna regla las alcanza y
+ * la tarjeta de pendientes ofrecía definir una regla contra un id que ya no existe— y después
+ * de un renombre el Excel seguía saliendo con el nombre viejo.
+ *
+ * Se hace en JS y no en SQL porque hay que recorrer un array adentro de cada JSON, y son
+ * poco más de cien viajes: una consulta, un map, y sólo se reescriben los que cambian.
+ */
+async function reapuntarCargas(
+  db: D1Database,
+  deId: number,
+  a: { id: number; nombre: string },
+): Promise<void> {
+  const { results } = await db
+    .prepare("SELECT id, segments FROM trips WHERE segments IS NOT NULL AND segments != '[]'")
+    .all<{ id: number; segments: string }>();
+
+  const cambios: { id: number; segments: string }[] = [];
+  for (const fila of results ?? []) {
+    let cargas: any[];
+    try {
+      cargas = JSON.parse(fila.segments);
+    } catch {
+      continue; // Un JSON roto no se pisa a ciegas: se deja como está.
+    }
+    if (!Array.isArray(cargas)) continue;
+    let tocado = false;
+    for (const c of cargas) {
+      if (c?.remitente_id === deId) {
+        c.remitente_id = a.id;
+        c.remitente = a.nombre;
+        tocado = true;
+      }
+      if (Array.isArray(c?.cliente_ids)) {
+        c.cliente_ids.forEach((cid: number | null, i: number) => {
+          if (cid !== deId) return;
+          c.cliente_ids[i] = a.id;
+          if (Array.isArray(c.clientes) && c.clientes[i] != null) c.clientes[i] = a.nombre;
+          tocado = true;
+        });
+      }
+    }
+    if (tocado) cambios.push({ id: fila.id, segments: JSON.stringify(cargas) });
+  }
+  if (!cambios.length) return;
+  await db.batch(
+    cambios.map((v) => db.prepare("UPDATE trips SET segments = ? WHERE id = ?").bind(v.segments, v.id)),
+  );
+}
+
+/** Renombrar arrastra el nombre a las cargas ya registradas: el Excel salía con el viejo. */
+export async function renombrarEnCargas(db: D1Database, id: number, nombre: string): Promise<void> {
+  await reapuntarCargas(db, id, { id, nombre: nombre.trim() });
+}
+
+/**
+ * Fusiona `id` dentro de `intoId`: mueve las reglas de cobro que no colisionen, reapunta las
+ * cargas ya registradas, suma los usos y borra el duplicado. Es lo que mantiene los reportes
+ * limpios.
  */
 export async function mergeEntries(db: D1Database, id: number, intoId: number): Promise<void> {
   if (id === intoId) return;
+  const destino = await getEntry(db, intoId);
+  if (destino) await reapuntarCargas(db, id, { id: intoId, nombre: destino.nombre });
   await db.batch([
     db.prepare("UPDATE OR IGNORE cobro_reglas SET remitente_id = ? WHERE remitente_id = ?").bind(intoId, id),
     db.prepare("UPDATE OR IGNORE cobro_reglas SET destinatario_id = ? WHERE destinatario_id = ?").bind(intoId, id),
@@ -200,8 +262,11 @@ export async function mergeEntries(db: D1Database, id: number, intoId: number): 
 // ── Reglas de facturación ──
 
 export async function listReglas(db: D1Database): Promise<CobroRegla[]> {
+  // El ORDER BY no es cosmético: `resolveCobro` se queda con la primera regla que matchea, así
+  // que sin un orden fijo el cobro dependía del orden en que la base devolviera las filas. La
+  // más nueva primero: si por lo que sea quedaron dos, manda la última que definió la oficina.
   const { results } = await db
-    .prepare("SELECT id, remitente_id, destinatario_id, cobro_tipo, cobro_a FROM cobro_reglas")
+    .prepare("SELECT id, remitente_id, destinatario_id, cobro_tipo, cobro_a FROM cobro_reglas ORDER BY id DESC")
     .all<CobroRegla>();
   return results ?? [];
 }
@@ -213,13 +278,22 @@ export interface ReglaInput {
   cobro_a: string;
 }
 
-/** Upsert por (remitente, destinatario): re-definir una combinación pisa la anterior. */
+/**
+ * Upsert por (remitente, destinatario): re-definir una combinación pisa la anterior.
+ *
+ * La regla general —"cualquier destino", `destinatario_id` NULL— necesita su propio ON CONFLICT.
+ * En SQLite dos NULL no son iguales dentro de un índice único, así que el de la tabla nunca
+ * disparaba para ella: redefinirla insertaba una segunda fila y seguía ganando la vieja. El
+ * índice parcial de la migración 0044 es contra lo que choca ahora.
+ */
 export async function upsertRegla(db: D1Database, r: ReglaInput): Promise<void> {
+  const conflicto =
+    r.destinatario_id == null ? "(remitente_id) WHERE destinatario_id IS NULL" : "(remitente_id, destinatario_id)";
   await db
     .prepare(
       `INSERT INTO cobro_reglas (remitente_id, destinatario_id, cobro_tipo, cobro_a)
        VALUES (?, ?, ?, ?)
-       ON CONFLICT(remitente_id, destinatario_id)
+       ON CONFLICT ${conflicto}
        DO UPDATE SET cobro_tipo = excluded.cobro_tipo, cobro_a = excluded.cobro_a`,
     )
     .bind(r.remitente_id, r.destinatario_id, r.cobro_tipo, r.cobro_a)

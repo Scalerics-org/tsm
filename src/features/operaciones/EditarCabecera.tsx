@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { DRIVER_STATUS, TRIP_STATUS, type Driver, type Trip, type Truck } from "@shared/domain";
+import { DRIVER_STATUS, TRIP_STATUS, pesoSospechoso, type Driver, type Trip, type Truck } from "@shared/domain";
 import { api, ApiError, mensajeDe } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
 
@@ -157,6 +157,16 @@ export function EditarCabecera({ trip, recorridoPorCargas, onGuardado, onCancela
             onChange={set("kilos_carga")}
             placeholder="Ej: 29000"
           />
+          {/* El mismo aviso que tiene el campo del chofer, que acá faltaba. Es la columna con la
+              que se factura: en producción ya hay un viaje con 31,21 donde van 31.210 kilos, y
+              otro con 14, que son los 14 pallets. Avisa, no corrige: si alguien escribe 29 no
+              hay forma de saber si son 29 kilos o 29 toneladas. */}
+          {pesoSospechoso(Number(form.kilos_carga)) && (
+            <p className="mt-1 text-sm text-st-amberTx">
+              ¿{Number(form.kilos_carga).toLocaleString("es-UY")} kilos? Si son toneladas, poné el
+              número en kilos; si son pallets, van en la carga, no acá.
+            </p>
+          )}
         </Field>
 
         <Field label="Kilómetros del recorrido">

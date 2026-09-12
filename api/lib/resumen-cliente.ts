@@ -40,7 +40,15 @@ export interface FilaResumen {
   /** Los campos propios de la plantilla de ese cliente. */
   valores: Record<string, string>;
   /** Cargas del viaje, para los combinados. Vacío en los de un solo tramo. */
-  cargas: { remitente: string; clientes: string; cantidad: number | null; unidad: string | null; remito: string | null }[];
+  cargas: {
+    remitente: string;
+    clientes: string;
+    cantidad: number | null;
+    unidad: string | null;
+    remito: string | null;
+    /** A quién dice la regla que se le cobra ESTA carga. Puede no ser el cliente del viaje. */
+    cobro_a: string | null;
+  }[];
   /** El número de la factura en la que ya salió. `null` = todavía está para facturar. */
   factura_numero: string | null;
   /** El número que TUVO y le sacaron: avisa que este viaje ya salió una vez en una factura. */
@@ -53,6 +61,8 @@ export interface GrupoResumen {
   filas: FilaResumen[];
   viajes: number;
   totales: Record<string, number>;
+  /** Lo que suman las cargas, por unidad: los clientes sin campos de plantilla viven de esto. */
+  cantidades: Record<string, number>;
 }
 
 /**
@@ -65,7 +75,17 @@ export function columnasDe(templates: TripTemplate[]): ColumnaResumen[] {
   const vistas = new Map<string, ColumnaResumen>();
   for (const tpl of templates) {
     for (const f of tpl.fields) {
-      if (vistas.has(f.key)) continue;
+      const yaEsta = vistas.get(f.key);
+      if (yaEsta) {
+        // DOS PLANTILLAS, LA MISMA KEY, DISTINTA ETIQUETA. Las dos de Molino Cañuelas usan
+        // `pallets`: en Reparto son los pallets entregados y en Devoluciones los de madera que
+        // vuelven vacíos. Antes ganaba la primera por orden alfabético, así que los 188
+        // entregados se totalizaban bajo el título "Cantidad de pallet de madera". El total es
+        // uno solo —comparten la key, y eso es un tema de las plantillas, no del resumen—,
+        // pero el título deja de mentir: se nombran las dos.
+        if (!yaEsta.label.includes(f.label)) yaEsta.label = `${yaEsta.label} / ${f.label}`;
+        continue;
+      }
       // El peso siempre se totaliza. Los demás numéricos también, salvo que el nombre
       // delate que es un identificador: sumar remitos o números de MIC no significa nada.
       const esIdentificador = /remito|rto|mic|hoja|boleta|n[°º]|nro|numero|número/i.test(f.label);
@@ -143,11 +163,56 @@ function fila(t: ViajeDelResumen, pesos: Set<string>): FilaResumen {
       cantidad: s.cantidad,
       unidad: s.unidad,
       remito: s.remito,
+      cobro_a: s.cobro_a ?? null,
     })),
     factura_numero: t.factura_numero ?? null,
     // Para que al volver a facturarlo se vea que ese viaje ya salió una vez en otra factura.
     factura_quitada: t.factura_quitada ?? null,
   };
+}
+
+/**
+ * Lo que suman las CARGAS, por unidad.
+ *
+ * Los totales de arriba salen de los campos de la plantilla, y hay clientes que no tienen
+ * ninguno: Montevideo - BU, Otros Viajes, UAM, Agencia y Manassi ponen la cantidad en cada
+ * carga. Para ésos la pantalla mostraba sólo "Viajes: 13" y la cantidad quedaba como texto gris
+ * abajo de cada viaje — 61.758 kg y 145 pallets que había que sumar a mano para facturar.
+ *
+ * Cada unidad va por su lado, a propósito: sumar pallets con kilos no da nada.
+ */
+export function cantidadesDeCargas(filas: FilaResumen[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const f of filas) {
+    for (const c of f.cargas) {
+      if (c.cantidad == null || !Number.isFinite(c.cantidad)) continue;
+      const unidad = c.unidad ?? "sin unidad";
+      out[unidad] = Math.round(((out[unidad] ?? 0) + c.cantidad) * 100) / 100;
+    }
+  }
+  return out;
+}
+
+/**
+ * Las cargas que la regla manda cobrarle a OTRO, no al cliente del resumen.
+ *
+ * El resumen se arma por el cliente del viaje (`trips.provider_name`), que es el nombre del
+ * viaje —"Montevideo - BU", "UAM"— y no siempre es quien paga: las reglas de cobro dicen otra
+ * cosa para 15 de las 23 cargas resueltas. Cambiar el resumen para que se arme por `cobro_a` es
+ * una decisión del cliente, no una corrección; mientras tanto, esto lo pone a la vista antes de
+ * emitir la factura, que es donde el error cuesta plata.
+ */
+export function cobrosAjenos(filas: FilaResumen[], cliente: string): { cobro_a: string; cargas: number }[] {
+  const cuenta = new Map<string, number>();
+  for (const f of filas) {
+    for (const c of f.cargas) {
+      if (!c.cobro_a || c.cobro_a === cliente) continue;
+      cuenta.set(c.cobro_a, (cuenta.get(c.cobro_a) ?? 0) + 1);
+    }
+  }
+  return [...cuenta.entries()]
+    .map(([cobro_a, cargas]) => ({ cobro_a, cargas }))
+    .sort((a, b) => b.cargas - a.cargas);
 }
 
 function totalizar(filas: FilaResumen[], columnas: ColumnaResumen[]): Record<string, number> {
@@ -174,14 +239,22 @@ function totalizar(filas: FilaResumen[], columnas: ColumnaResumen[]): Record<str
 export function resumenCliente(
   trips: ViajeDelResumen[],
   templates: TripTemplate[],
-  opts: { porDestino?: boolean; incluirFacturados?: boolean } = {},
+  opts: { porDestino?: boolean; incluirFacturados?: boolean; cliente?: string } = {},
 ): {
   columnas: ColumnaResumen[];
   grupos: GrupoResumen[];
   viajes: number;
   totales: Record<string, number>;
+  cantidades: Record<string, number>;
   /** Cuántos quedaron escondidos por estar facturados, para poder ofrecer verlos. */
   facturados: number;
+  /** Cargas que la regla manda cobrarle a otro. Vacío = todo se le cobra a este cliente. */
+  cobros_ajenos: { cobro_a: string; cargas: number }[];
+  /**
+   * Viajes del período que siguen abiertos. No entran al resumen —se factura lo cerrado— pero
+   * si nadie los nombra, se factura el mes y esa plata queda afuera sin que nadie se entere.
+   */
+  en_curso: number;
 } {
   const columnas = columnasDe(templates);
   const aFacturar = viajesAFacturar(trips, opts);
@@ -203,11 +276,32 @@ export function resumenCliente(
       else porDestino.set(clave, [f]);
     }
     for (const [titulo, suyas] of [...porDestino.entries()].sort((a, b) => b[1].length - a[1].length)) {
-      grupos.push({ titulo, filas: suyas, viajes: suyas.length, totales: totalizar(suyas, columnas) });
+      grupos.push({
+        titulo,
+        filas: suyas,
+        viajes: suyas.length,
+        totales: totalizar(suyas, columnas),
+        cantidades: cantidadesDeCargas(suyas),
+      });
     }
   } else {
-    grupos.push({ titulo: "", filas, viajes: filas.length, totales: totalizar(filas, columnas) });
+    grupos.push({
+      titulo: "",
+      filas,
+      viajes: filas.length,
+      totales: totalizar(filas, columnas),
+      cantidades: cantidadesDeCargas(filas),
+    });
   }
 
-  return { columnas, grupos, viajes: filas.length, totales: totalizar(filas, columnas), facturados };
+  return {
+    columnas,
+    grupos,
+    viajes: filas.length,
+    totales: totalizar(filas, columnas),
+    cantidades: cantidadesDeCargas(filas),
+    facturados,
+    cobros_ajenos: opts.cliente ? cobrosAjenos(filas, opts.cliente) : [],
+    en_curso: trips.filter((t) => t.status === TRIP_STATUS.EN_CURSO).length,
+  };
 }
