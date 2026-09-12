@@ -26,10 +26,19 @@ export interface AtadoAlCamion {
   viajes: number;
   surtidas: number;
   lecturas: number;
+  /** Choferes que entran a la app con la patente de este camión. */
+  choferes: number;
 }
 
 /** Por qué no se puede borrar este camión, o `null` si se puede. */
 export function motivoParaNoBorrarCamion(a: AtadoAlCamion): string | null {
+  // El chofer entra con la patente de SU camión, y `drivers.default_truck_id` es ON DELETE SET
+  // NULL: borrar el camión le saca el camión sin avisarle a nadie, y a la mañana siguiente no
+  // puede entrar —la app le dice "Patente o PIN incorrectos"— sin que nada explique por qué.
+  if (a.choferes > 0) {
+    return `No se puede borrar: ${plural(a.choferes, "un chofer entra", "choferes entran")} a la app con esta patente. Asignale otro camión primero, en Choferes.`;
+  }
+
   const partes: string[] = [];
   if (a.viajes > 0) partes.push(plural(a.viajes, "viaje", "viajes"));
   if (a.surtidas > 0) partes.push(plural(a.surtidas, "surtida", "surtidas"));

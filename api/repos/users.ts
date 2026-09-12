@@ -14,6 +14,22 @@ export async function findUserByEmail(db: D1Database, email: string): Promise<Us
   return row ?? null;
 }
 
+/**
+ * ¿El usuario de oficina sigue existiendo?
+ *
+ * Se pregunta en cada pedido por lo mismo que el chofer: el token dura una semana, así que
+ * borrar al encargado que se fue de la empresa no le cortaba nada —seguía leyendo y cambiando
+ * todo desde su teléfono— hasta que venciera.
+ *
+ * Sólo la existencia, no el rol: el rol sigue saliendo del token hasta que vuelva a entrar.
+ * Cambiarlo acá haría que un permiso dependa de dos fuentes a la vez, y lo que resuelve el
+ * agujero es la baja, que es lo que la oficina realmente hace.
+ */
+export async function existeUsuario(db: D1Database, id: number): Promise<boolean> {
+  const row = await db.prepare("SELECT id FROM users WHERE id = ?").bind(id).first<{ id: number }>();
+  return row != null;
+}
+
 export async function listUsers(db: D1Database): Promise<AuthUser[]> {
   const { results } = await db
     .prepare("SELECT id, email, name, role, driver_id, NULL AS truck_id FROM users ORDER BY id")

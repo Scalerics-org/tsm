@@ -58,12 +58,17 @@ export function StartTripPage() {
   }, [templateId]);
 
   // Camión asignado por defecto; el chofer puede cambiarlo si hoy maneja otro.
+  //
+  // Si NO tiene camión asignado no se elige uno por él: antes quedaba puesto el primero de la
+  // flota por orden de patente, sin nada que dijera que ése no era el suyo, y el texto de abajo
+  // le pide justamente que no lo toque. El viaje, sus kilómetros y sus surtidas terminaban
+  // cargados a un camión que no se movió.
   useEffect(() => {
     api
       .get<TruckOption[]>("/trucks/options")
       .then((list) => {
         setTrucks(list);
-        setTruckId(String(user?.truck_id ?? list[0]?.id ?? ""));
+        setTruckId(user?.truck_id != null ? String(user.truck_id) : "");
       })
       .catch(() => {});
   }, [user?.truck_id]);
@@ -184,6 +189,7 @@ export function StartTripPage() {
       <Card className="space-y-4">
         <Field label="Camión">
           <select className="input" value={truckId} onChange={(e) => setTruckId(e.target.value)}>
+            {user?.truck_id == null && <option value="">Elegí el camión…</option>}
             {trucks.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.plate}
@@ -191,7 +197,11 @@ export function StartTripPage() {
               </option>
             ))}
           </select>
-          <p className="mt-1 text-xs text-ink/50">Cambialo solo si hoy manejás otro camión.</p>
+          <p className="mt-1 text-xs text-ink/50">
+            {user?.truck_id == null
+              ? "No tenés camión asignado: elegí con cuál estás saliendo."
+              : "Cambialo solo si hoy manejás otro camión."}
+          </p>
         </Field>
         {/* La lista de viajes se arma con el camión asignado, pero acá lo puede cambiar. Si
             el que eligió no hace este viaje conviene decírselo ahora y no después de llenar

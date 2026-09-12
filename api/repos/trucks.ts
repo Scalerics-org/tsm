@@ -62,11 +62,12 @@ export async function loAtadoAlCamion(db: D1Database, id: number): Promise<Atado
     .prepare(
       `SELECT (SELECT COUNT(*) FROM trips WHERE truck_id = ?)             AS viajes,
               (SELECT COUNT(*) FROM fuel_logs WHERE truck_id = ?)         AS surtidas,
-              (SELECT COUNT(*) FROM lecturas_odometro WHERE truck_id = ?) AS lecturas`,
+              (SELECT COUNT(*) FROM lecturas_odometro WHERE truck_id = ?) AS lecturas,
+              (SELECT COUNT(*) FROM drivers WHERE default_truck_id = ?)   AS choferes`,
     )
-    .bind(id, id, id)
+    .bind(id, id, id, id)
     .first<AtadoAlCamion>();
-  return row ?? { viajes: 0, surtidas: 0, lecturas: 0 };
+  return row ?? { viajes: 0, surtidas: 0, lecturas: 0, choferes: 0 };
 }
 
 export async function deleteTruck(db: D1Database, id: number): Promise<void> {

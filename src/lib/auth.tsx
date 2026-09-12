@@ -1,6 +1,15 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { AuthUser } from "@shared/domain";
-import { api, ApiError, getToken, setToken, clearToken, getCachedUser, setCachedUser } from "./api";
+import {
+  api,
+  ApiError,
+  getToken,
+  setToken,
+  clearToken,
+  getCachedUser,
+  setCachedUser,
+  SESION_CAIDA,
+} from "./api";
 
 interface AuthState {
   user: AuthUser | null;
@@ -35,6 +44,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!(e instanceof ApiError && e.status === 401)) setUser(getCachedUser());
       })
       .finally(() => setLoading(false));
+  }, []);
+
+  // Cualquier pedido que vuelva con 401 —token vencido, o la oficina dio de baja al chofer—
+  // devuelve la app a la pantalla de entrar, en vez de dejarla mostrando errores.
+  useEffect(() => {
+    const caida = () => setUser(null);
+    window.addEventListener(SESION_CAIDA, caida);
+    return () => window.removeEventListener(SESION_CAIDA, caida);
   }, []);
 
   async function loginOffice(email: string, password: string) {

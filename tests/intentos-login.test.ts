@@ -75,6 +75,10 @@ function fakeDB(hash: string, opts: { sinTabla?: boolean } = {}) {
           return null;
         },
         all: async () => {
+          if (s.includes("from drivers"))
+            return {
+              results: [{ id: 3, name: "Charlie Rosano", pin_hash: hash, default_truck_id: 5, status: "activo" }],
+            };
           if (!s.includes("intentos_login")) return { results: [] };
           if (opts.sinTabla) rompe();
           return { results: binds.map((k) => intentos.get(k as string)).filter(Boolean) };

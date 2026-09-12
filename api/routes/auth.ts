@@ -3,7 +3,8 @@ import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
 import { verifyPassword, signToken } from "../lib/crypto";
 import { findUserByEmail } from "../repos/users";
-import { findDriverByPlate } from "../repos/drivers";
+import { choferesDeLaPatente } from "../repos/drivers";
+import { quienEntra } from "../lib/ingreso-chofer";
 import { requireAuth } from "../middleware/auth";
 import { ROLES, type AuthUser } from "../../shared/domain";
 import {
@@ -66,11 +67,21 @@ auth.post("/driver-login", async (c) => {
   const espera = await minutosBloqueado(c.env.DB, claves, ahora);
   if (espera) return fail(c, mensajeDeBloqueo(espera), 429);
 
-  const driver = await findDriverByPlate(c.env.DB, b.plate);
-  if (!driver || !driver.pin_hash || !(await verifyPassword(b.pin, driver.pin_hash))) {
+  const candidatos = await choferesDeLaPatente(c.env.DB, b.plate);
+  const pin = b.pin;
+  const quien = await quienEntra(candidatos, (hash) => verifyPassword(pin, hash));
+
+  // El PIN correcto de alguien dado de baja no es un intento fallido: es una persona que no
+  // sabe que la dieron de baja. Contarlo bloquearía la patente 15 minutos y dejaría afuera
+  // también al chofer activo de ese camión.
+  if (quien.tipo === "inactivo") {
+    return fail(c, "Tu usuario está dado de baja. Hablá con la oficina.", 403);
+  }
+  if (quien.tipo === "no") {
     await anotarFallo(c.env.DB, claves, ahora);
     return fail(c, "Patente o PIN incorrectos", 401);
   }
+  const driver = candidatos.find((d) => d.id === quien.id)!;
   await olvidarFallos(c.env.DB, claves[0][0]);
   const authUser: AuthUser = {
     id: driver.id,

@@ -187,7 +187,10 @@ function fakeDB(updates: { sql: string; binds: unknown[] }[]) {
           return stmt;
         },
         // El middleware relee el camión del chofer antes de rebotarlo por rol.
-        first: async () => (/from drivers/i.test(sql) ? { default_truck_id: 1 } : null),
+        first: async () => {
+          if (/from users/i.test(sql)) return { id: 3 };
+          return /from drivers/i.test(sql) ? { default_truck_id: 1, status: "activo" } : null;
+        },
         all: async () => ({ results: [] }),
         run: async () => ({ meta: { changes: 0 } }),
       };

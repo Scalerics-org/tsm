@@ -115,6 +115,16 @@ export function AdminDriversPage() {
                   <span className={d.status === DRIVER_STATUS.ACTIVO ? "text-st-greenTx" : "text-ink/45"}>
                     {d.status}
                   </span>
+                  {/* Darlo de baja ahora le corta la app en el acto, así que conviene ver de
+                      un vistazo quién está a mitad de un viaje. */}
+                  {d.viaje_en_curso != null && (
+                    <Link
+                      to={`/panel/viajes/${d.viaje_en_curso}`}
+                      className="ml-2 text-xs text-brand-700 hover:underline"
+                    >
+                      en viaje
+                    </Link>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-right">
                   <Link to={`/panel/chofer/${d.id}`} className="mr-3 text-brand-700 hover:underline">
@@ -194,6 +204,18 @@ function DriverForm({
       otroEnEseCamion &&
       !confirm(
         `${otroEnEseCamion.name} ya entra con esa patente. Si quedan los dos en el mismo camión, uno de los dos no va a poder entrar. ¿Guardar igual?`,
+      )
+    ) {
+      return;
+    }
+    // Dar de baja corta la sesión en el próximo pedido, así que si está a mitad de un viaje
+    // no lo va a poder cerrar, y la oficina desde el panel sólo puede cancelarlo.
+    if (
+      driver?.viaje_en_curso != null &&
+      f.status === DRIVER_STATUS.INACTIVO &&
+      driver.status !== DRIVER_STATUS.INACTIVO &&
+      !confirm(
+        `${driver.name} tiene el viaje ${driver.viaje_en_curso} en curso. Si lo dejás Inactivo pierde el acceso y no va a poder cerrarlo. ¿Guardar igual?`,
       )
     ) {
       return;

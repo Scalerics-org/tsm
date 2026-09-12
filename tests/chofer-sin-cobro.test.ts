@@ -73,7 +73,9 @@ const VIAJE = {
 function fakeDB() {
   const responder = (sql: string) => {
     const s = sql.toLowerCase();
-    if (s.includes("from drivers") && s.includes("default_truck_id")) return { default_truck_id: 1 };
+    if (s.includes("from users")) return { id: 1 };
+    if (s.includes("from drivers") && s.includes("default_truck_id"))
+      return { default_truck_id: 1, status: "activo" };
     if (s.includes("from trips")) return VIAJE;
     if (s.includes("from trip_photos")) return null;
     if (s.includes("from trip_templates")) return null;

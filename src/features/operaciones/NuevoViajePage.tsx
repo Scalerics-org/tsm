@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
+  DRIVER_STATUS,
   FIELD_STAGE,
   UNIDAD,
   missingField,
@@ -205,9 +206,12 @@ export function NuevoViajePage() {
           <Field label="Chofer">
             <select className="input" value={driverId} onChange={(e) => setDriverId(e.target.value)}>
               <option value="">Elegí…</option>
+              {/* Los inactivos siguen en la lista —un viaje viejo lo hizo quien lo hizo— pero
+                  marcados, para no elegir por error a alguien que ya no trabaja acá. */}
               {drivers.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
+                  {d.status === DRIVER_STATUS.INACTIVO ? " (inactivo)" : ""}
                 </option>
               ))}
             </select>

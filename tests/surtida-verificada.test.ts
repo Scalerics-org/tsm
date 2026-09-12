@@ -50,7 +50,15 @@ function fakeDB(escrituras: { sql: string; binds: unknown[] }[], surtida: unknow
           binds = b;
           return stmt;
         },
-        first: async () => (sql.toLowerCase().includes("from fuel_logs") ? surtida : null),
+        first: async () => {
+          const q = sql.toLowerCase();
+          if (q.includes("from users")) return { id: 2 };
+          if (q.includes("from fuel_logs")) return surtida;
+          // El chofer se relee en cada pedido para saber si sigue activo; sin esta fila, lo
+          // que frena al chofer sería la baja y no el permiso, que es lo que se está probando.
+          if (q.includes("from drivers")) return { status: "activo", default_truck_id: 1 };
+          return null;
+        },
         all: async () => ({ results: surtida ? [surtida] : [] }),
         run: async () => {
           escrituras.push({ sql: sql.replace(/\s+/g, " ").trim().toLowerCase(), binds });

@@ -8,6 +8,7 @@ import {
   setCachedUser,
   setToken,
   getToken,
+  SESION_CAIDA,
 } from "../src/lib/api";
 
 /**
@@ -77,10 +78,15 @@ describe("la sesión", () => {
       "fetch",
       vi.fn().mockResolvedValue({ status: 401, json: async () => ({ success: false, error: "Sesión vencida" }) }),
     );
+    const avisos: string[] = [];
+    vi.stubGlobal("window", { dispatchEvent: (ev: Event) => void avisos.push(ev.type) });
     const e = await api.get("/auth/me").catch((x) => x);
     expect(e.status).toBe(401);
     expect(getToken()).toBeNull();
     expect(getCachedUser()).toBeNull();
+    // Y avisa, para que la app vuelva a la pantalla de entrar en vez de quedarse mostrando
+    // "No autenticado" en cada cosa que se toque.
+    expect(avisos).toEqual([SESION_CAIDA]);
   });
 
   it("un usuario guardado roto no rompe nada: vuelve null", () => {

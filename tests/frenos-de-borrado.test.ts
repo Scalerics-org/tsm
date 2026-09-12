@@ -13,23 +13,31 @@ import { motivoParaNoBorrarCamion, motivoParaNoBorrarChofer } from "../api/lib/f
 
 describe("cuándo NO se puede borrar un camión", () => {
   it("deja borrar el que no tiene nada: el que se dio de alta por error", () => {
-    expect(motivoParaNoBorrarCamion({ viajes: 0, surtidas: 0, lecturas: 0 })).toBeNull();
+    expect(motivoParaNoBorrarCamion({ viajes: 0, surtidas: 0, lecturas: 0, choferes: 0 })).toBeNull();
   });
 
   it("frena si tiene viajes, y dice cuántos", () => {
-    expect(motivoParaNoBorrarCamion({ viajes: 42, surtidas: 0, lecturas: 0 })).toContain("42 viajes");
+    expect(motivoParaNoBorrarCamion({ viajes: 42, surtidas: 0, lecturas: 0, choferes: 0 })).toContain("42 viajes");
   });
 
   it("frena si sólo tiene surtidas: la base se las llevaría puestas", () => {
-    expect(motivoParaNoBorrarCamion({ viajes: 0, surtidas: 1, lecturas: 0 })).toContain("1 surtida");
+    expect(motivoParaNoBorrarCamion({ viajes: 0, surtidas: 1, lecturas: 0, choferes: 0 })).toContain("1 surtida");
   });
 
   it("frena si sólo tiene lecturas del tacógrafo", () => {
-    expect(motivoParaNoBorrarCamion({ viajes: 0, surtidas: 0, lecturas: 3 })).toContain("3 lecturas");
+    expect(motivoParaNoBorrarCamion({ viajes: 0, surtidas: 0, lecturas: 3, choferes: 0 })).toContain("3 lecturas");
+  });
+
+  it("frena si un chofer entra con esa patente, aunque el camión esté sin estrenar", () => {
+    // El caso real: un camión recién dado de alta, sin viajes ni surtidas, con su chofer ya
+    // asignado. Borrarlo lo dejaba sin camión y sin poder entrar a la mañana siguiente.
+    const m = motivoParaNoBorrarCamion({ viajes: 0, surtidas: 0, lecturas: 0, choferes: 1 }) ?? "";
+    expect(m).toContain("un chofer entra");
+    expect(m).toContain("Choferes");
   });
 
   it("cuando hay de todo, nombra todo", () => {
-    const m = motivoParaNoBorrarCamion({ viajes: 42, surtidas: 17, lecturas: 3 }) ?? "";
+    const m = motivoParaNoBorrarCamion({ viajes: 42, surtidas: 17, lecturas: 3, choferes: 0 }) ?? "";
     expect(m).toContain("42 viajes, 17 surtidas y 3 lecturas del tacógrafo");
   });
 });

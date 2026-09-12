@@ -58,9 +58,10 @@ const FOTO = { id: 9, trip_id: 1, r2_key: "trips/1/carga-1.jpg", kind: "carga", 
 function fakeDB(trip: ReturnType<typeof viaje>, escrituras: string[]) {
   const responder = (sql: string) => {
     const s = sql.toLowerCase();
+    if (s.includes("from users")) return { id: 2 };
     if (s.includes("from trip_photos")) return FOTO;
     if (s.includes("from trips")) return trip;
-    if (s.includes("from drivers")) return { id: 1, name: "Carlos Méndez" };
+    if (s.includes("from drivers")) return { id: 1, name: "Carlos Méndez", status: "activo", default_truck_id: 1 };
     if (s.includes("from trucks")) return { id: 1, plate: "STZ 4821" };
     return null;
   };

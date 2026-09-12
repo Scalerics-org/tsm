@@ -31,7 +31,8 @@ function fakeDB(registro: Consulta[]) {
           consulta.binds = b;
           return stmt;
         },
-        first: async () => null,
+        // El middleware comprueba en cada pedido que el usuario de oficina siga existiendo.
+        first: async () => (/from users/i.test(sql) ? { id: 2 } : null),
         all: async () => ({ results: [] }),
         run: async () => ({ meta: {} }),
       };

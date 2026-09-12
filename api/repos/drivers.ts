@@ -2,7 +2,10 @@ import type { Driver } from "../../shared/domain";
 import type { AtadoAlChofer } from "../lib/frenos-de-borrado";
 
 const SELECT = `
-  SELECT d.*, t.plate AS default_truck_plate
+  SELECT d.*, t.plate AS default_truck_plate,
+         (SELECT tr.id FROM trips tr
+           WHERE tr.driver_id = d.id AND tr.status = 'EN_CURSO'
+           ORDER BY tr.started_at LIMIT 1) AS viaje_en_curso
   FROM drivers d LEFT JOIN trucks t ON t.id = d.default_truck_id
 `;
 
@@ -19,7 +22,6 @@ export interface DriverRowWithPin extends Driver {
   pin_hash: string | null;
 }
 
-/** Busca al chofer por la patente de su camión habitual (para login). */
 /**
  * El camión que la oficina tiene asignado al chofer, ahora.
  *
@@ -35,19 +37,49 @@ export async function currentTruckId(db: D1Database, driverId: number): Promise<
   return r?.default_truck_id ?? null;
 }
 
-export async function findDriverByPlate(
+/**
+ * Todos los choferes que cuelgan de esa patente, los activos primero.
+ *
+ * Antes esto traía UNA fila y sólo de los activos. La patente no identifica a una persona sino
+ * a un camión, así que con dos choferes en el mismo camión entraba el que la base devolviera
+ * primero —no hay ORDER BY que lo decida— y el otro leía "PIN incorrecto" con su PIN bien
+ * puesto. Y el dado de baja leía lo mismo, sin enterarse de que lo dieron de baja.
+ *
+ * `status` ordena solo: 'activo' va antes que 'inactivo' por alfabeto.
+ */
+export async function choferesDeLaPatente(
   db: D1Database,
   plate: string,
-): Promise<DriverRowWithPin | null> {
-  const row = await db
+): Promise<DriverRowWithPin[]> {
+  const { results } = await db
     .prepare(
       `SELECT d.*, t.plate AS default_truck_plate
        FROM drivers d JOIN trucks t ON t.id = d.default_truck_id
-       WHERE UPPER(REPLACE(t.plate,' ','')) = UPPER(REPLACE(?,' ','')) AND d.status = 'activo'`,
+       WHERE UPPER(REPLACE(t.plate,' ','')) = UPPER(REPLACE(?,' ',''))
+       ORDER BY d.status, d.id`,
     )
     .bind(plate)
-    .first<DriverRowWithPin>();
-  return row ?? null;
+    .all<DriverRowWithPin>();
+  return results ?? [];
+}
+
+/**
+ * El estado del chofer y su camión, para cada pedido que llega con su token.
+ *
+ * El token dura una semana, así que sin esto la baja de un chofer no le cortaba nada: seguía
+ * usando la app hasta que el token venciera. Es el mismo SELECT que ya se hacía para releer el
+ * camión, con una columna más.
+ */
+export async function sesionDelChofer(
+  db: D1Database,
+  driverId: number,
+): Promise<{ status: string; default_truck_id: number | null } | null> {
+  return (
+    (await db
+      .prepare("SELECT status, default_truck_id FROM drivers WHERE id = ?")
+      .bind(driverId)
+      .first<{ status: string; default_truck_id: number | null }>()) ?? null
+  );
 }
 
 export interface DriverInput {

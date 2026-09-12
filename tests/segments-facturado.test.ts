@@ -50,7 +50,8 @@ function fakeDB(trip: ReturnType<typeof viaje>) {
     const s = sql.toLowerCase();
     if (s.includes("from trips")) return trip;
     // La corrección de cabecera valida contra la base que el chofer y el camión existan.
-    if (s.includes("from drivers")) return { id: 1, name: "Carlos Méndez" };
+    if (s.includes("from users")) return { id: 2 };
+    if (s.includes("from drivers")) return { id: 1, name: "Carlos Méndez", status: "activo", default_truck_id: 1 };
     if (s.includes("from trucks")) return { id: 1, plate: "STZ 4821" };
     return null;
   };

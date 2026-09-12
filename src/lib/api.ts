@@ -43,6 +43,9 @@ export const ESPERA_MS = 30_000;
 export const ESPERA_SUBIDA_MS = 120_000;
 export const SIN_SENAL = "Sin conexión: no llegó respuesta del servidor. Revisá la señal y probá de nuevo.";
 
+/** El servidor rechazó el token: hay que volver a entrar. Lo escucha `AuthProvider`. */
+export const SESION_CAIDA = "tsm:sesion-caida";
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -92,6 +95,12 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
 
   if (res.status === 401) {
     clearToken();
+    // Y se avisa, para volver a la pantalla de entrar. Borrar el token no alcanzaba: la
+    // pantalla seguía ahí con el usuario que tenía en memoria, y cada cosa que se tocara
+    // devolvía "No autenticado". Pasa cuando vence el token de una semana y ahora también
+    // cuando la oficina da de baja al chofer.
+    // `typeof window`: esto también corre en los tests, que no tienen ventana.
+    if (typeof window !== "undefined") window.dispatchEvent(new Event(SESION_CAIDA));
   }
 
   if (!json) throw new ApiError("Respuesta inválida del servidor", res.status);

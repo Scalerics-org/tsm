@@ -103,6 +103,8 @@ export interface Driver {
   status: DriverStatus;
   default_truck_id: number | null;
   default_truck_plate?: string; // join
+  /** El viaje que tiene abierto ahora, si tiene. Join: sirve para no darlo de baja a mitad. */
+  viaje_en_curso?: number | null; // join
 }
 
 export interface Provider {

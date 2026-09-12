@@ -6,6 +6,7 @@ import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
 import {
+  DRIVER_STATUS,
   ROLES,
   TRIP_STATUS,
   consumoDelPeriodo,
@@ -187,7 +188,8 @@ reports.get("/alerts", async (c) => {
 
   const DAY = 86_400_000;
   const expiringLicenses = drivers
-    .filter((d) => d.license_expiry)
+    // La licencia de alguien que ya no trabaja acá no es una alerta, es ruido en Control.
+    .filter((d) => d.status === DRIVER_STATUS.ACTIVO && d.license_expiry)
     .map((d) => {
       const exp = Date.parse(d.license_expiry + "T00:00:00Z");
       const days = isNaN(exp) ? 999 : Math.floor((exp - now) / DAY);
