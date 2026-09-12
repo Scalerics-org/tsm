@@ -19,11 +19,14 @@ export function AdminDriversPage() {
       .get<Driver[]>("/drivers")
       .then(setDrivers)
       .catch((e) => setFalló(mensajeDe(e)));
+    // Los camiones son el desplegable con el que se elige la patente de ingreso: sin ellos no
+    // se puede dar de alta a nadie, así que su error tampoco puede quedar callado.
+    api
+      .get<Truck[]>("/trucks")
+      .then(setTrucks)
+      .catch((e) => setFalló(mensajeDe(e)));
   }
-  useEffect(() => {
-    load();
-    api.get<Truck[]>("/trucks").then(setTrucks).catch(() => {});
-  }, []);
+  useEffect(load, []);
 
   // Un chofer con viajes no se puede borrar y el servidor dice por qué. Sin el `catch`, se
   // apretaba Eliminar y no pasaba nada.
@@ -46,6 +49,16 @@ export function AdminDriversPage() {
     );
   }
 
+  /**
+   * Los camiones que no tienen a nadie que pueda entrar con su patente.
+   *
+   * "Quiero ingresar al usuario del último camión y no puedo": la GTP 4267 estaba dada de alta
+   * como camión pero sin chofer, y desde la app eso se ve igual que un PIN equivocado.
+   */
+  const sinChofer = trucks.filter(
+    (t) => !drivers.some((d) => d.status === DRIVER_STATUS.ACTIVO && d.default_truck_id === t.id),
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -58,9 +71,18 @@ export function AdminDriversPage() {
       )}
       <ErrorText>{error}</ErrorText>
 
+      {sinChofer.length > 0 && (
+        <p className="border-l-4 border-st-amberDot bg-st-amberBg px-3 py-2 text-sm text-st-amberTx">
+          {sinChofer.length === 1 ? "Este camión no tiene chofer" : "Estos camiones no tienen chofer"}:{" "}
+          {sinChofer.map((t) => t.plate).join(", ")}. Nadie puede entrar a la app con{" "}
+          {sinChofer.length === 1 ? "esa patente" : "esas patentes"}.
+        </p>
+      )}
+
       {editing && (
         <DriverForm
           trucks={trucks}
+          drivers={drivers}
           driver={editing === "new" ? null : editing}
           onClose={() => setEditing(null)}
           onSaved={() => {
@@ -116,11 +138,13 @@ export function AdminDriversPage() {
 
 function DriverForm({
   trucks,
+  drivers,
   driver,
   onClose,
   onSaved,
 }: {
   trucks: Truck[];
+  drivers: Driver[];
   driver: Driver | null;
   onClose: () => void;
   onSaved: () => void;
@@ -137,11 +161,44 @@ function DriverForm({
     pin: "",
   });
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setF({ ...f, [k]: e.target.value });
 
+  /**
+   * El chofer que ya entra con esa misma patente.
+   *
+   * Se entra con la patente del camión, así que dos choferes activos en el mismo camión se
+   * pisan: `findDriverByPlate` devuelve una sola fila y la otra persona no puede entrar.
+   */
+  const otroEnEseCamion = drivers.find(
+    (d) =>
+      d.id !== driver?.id &&
+      d.status === DRIVER_STATUS.ACTIVO &&
+      f.default_truck_id !== "" &&
+      d.default_truck_id === Number(f.default_truck_id),
+  );
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    // Sin camión no hay con qué entrar, y sin este aviso el chofer quedaba creado pero afuera.
+    if (
+      !f.default_truck_id &&
+      !confirm(
+        "Sin camión asignado este chofer no va a poder entrar a la app: se entra con la patente del camión. ¿Guardar igual?",
+      )
+    ) {
+      return;
+    }
+    if (
+      otroEnEseCamion &&
+      !confirm(
+        `${otroEnEseCamion.name} ya entra con esa patente. Si quedan los dos en el mismo camión, uno de los dos no va a poder entrar. ¿Guardar igual?`,
+      )
+    ) {
+      return;
+    }
+    setError("");
     setBusy(true);
     const payload = {
       name: f.name,
@@ -158,6 +215,10 @@ function DriverForm({
       if (driver) await api.put(`/drivers/${driver.id}`, payload);
       else await api.post("/drivers", payload);
       onSaved();
+    } catch (err) {
+      // Antes no había `catch`: el servidor rechazaba el alta sin PIN y la pantalla no decía
+      // nada. "Yo tenía para ponerles las contraseñas y ahora no puedo."
+      setError(mensajeDe(err, "No se pudo guardar el chofer."));
     } finally {
       setBusy(false);
     }
@@ -172,7 +233,7 @@ function DriverForm({
         <Field label="Documento / cédula">
           <input className="input" value={f.document} onChange={set("document")} required />
         </Field>
-        <Field label="Camión habitual (patente para login)">
+        <Field label="Camión habitual (con esta patente entra a la app)">
           <select className="input" value={f.default_truck_id} onChange={set("default_truck_id")}>
             <option value="">Sin asignar</option>
             {trucks.map((t) => (
@@ -183,7 +244,18 @@ function DriverForm({
           </select>
         </Field>
         <Field label={driver ? "PIN nuevo (dejar vacío para no cambiar)" : "PIN (4+ dígitos)"}>
-          <input className="input" type="text" inputMode="numeric" value={f.pin} onChange={set("pin")} placeholder="1234" />
+          <input
+            className="input"
+            type="text"
+            inputMode="numeric"
+            value={f.pin}
+            onChange={set("pin")}
+            placeholder="1234"
+            /* Obligatorio al crear: es lo que el servidor exige, y sin marcarlo el formulario
+               se mandaba vacío y el rechazo no se veía. */
+            required={!driver}
+            minLength={driver ? undefined : 4}
+          />
         </Field>
         <Field label="N° de licencia">
           <input className="input" value={f.license_number} onChange={set("license_number")} />
@@ -203,6 +275,14 @@ function DriverForm({
             <option value={DRIVER_STATUS.INACTIVO}>Inactivo</option>
           </select>
         </Field>
+        <div className="col-span-full">
+          {otroEnEseCamion && (
+            <p className="text-sm text-st-amberTx">
+              Ojo: {otroEnEseCamion.name} ya entra con esa patente.
+            </p>
+          )}
+          <ErrorText>{error}</ErrorText>
+        </div>
         <div className="col-span-full flex gap-2">
           <Button type="submit" loading={busy}>
             Guardar

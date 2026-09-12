@@ -32,7 +32,12 @@ drivers.post("/", requireRole(ROLES.ADMIN), async (c) => {
   const b = await c.req.json<any>().catch(() => null);
   const input = parse(b);
   if (!input) return fail(c, "Nombre y documento son obligatorios", 400);
-  if (!b.pin || String(b.pin).length < 4) return fail(c, "El PIN debe tener al menos 4 dígitos", 400);
+  // El chofer entra con la patente de su camión y este PIN: sin PIN no tiene con qué entrar.
+  // El mensaje lo dice porque el formulario no marcaba el campo como obligatorio y el rechazo
+  // no se veía en pantalla — "no puedo dar de alta al chofer del último camión".
+  if (!b.pin || String(b.pin).length < 4) {
+    return fail(c, "Sin PIN el chofer no puede entrar: poné uno de 4 dígitos o más.", 400);
+  }
   const pinHash = await hashPassword(String(b.pin));
   const id = await repo.createDriver(c.env.DB, input, pinHash);
   return ok(c, await repo.getDriver(c.env.DB, id), 201);
@@ -43,10 +48,14 @@ drivers.put("/:id", requireRole(ROLES.ADMIN), async (c) => {
   const b = await c.req.json<any>().catch(() => null);
   const input = parse(b);
   if (!input) return fail(c, "Nombre y documento son obligatorios", 400);
-  await repo.updateDriver(c.env.DB, id, input);
-  if (b.pin && String(b.pin).length >= 4) {
-    await repo.setPin(c.env.DB, id, await hashPassword(String(b.pin)));
+  // Vacío significa "dejá el PIN como está". Un PIN corto NO es eso: antes se ignoraba en
+  // silencio y la oficina se quedaba creyendo que lo había cambiado.
+  const pin = b.pin == null ? "" : String(b.pin);
+  if (pin !== "" && pin.length < 4) {
+    return fail(c, "El PIN nuevo tiene que tener 4 dígitos o más. Dejalo vacío para no cambiarlo.", 400);
   }
+  await repo.updateDriver(c.env.DB, id, input);
+  if (pin !== "") await repo.setPin(c.env.DB, id, await hashPassword(pin));
   return ok(c, await repo.getDriver(c.env.DB, id));
 });
 

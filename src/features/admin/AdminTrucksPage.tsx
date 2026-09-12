@@ -151,16 +151,22 @@ function TruckForm({
 }) {
   const [f, setF] = useState(initial);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const set = (k: keyof typeof f, num = false) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setF({ ...f, [k]: num ? Number(e.target.value) : e.target.value });
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
     setBusy(true);
     try {
       if (id) await api.put(`/trucks/${id}`, f);
       else await api.post("/trucks", f);
       onSaved();
+    } catch (err) {
+      // Sin esto, un rechazo del servidor dejaba el formulario abierto y quieto, como si el
+      // botón no anduviera.
+      setError(mensajeDe(err, "No se pudo guardar el camión."));
     } finally {
       setBusy(false);
     }
@@ -202,6 +208,9 @@ function TruckForm({
             ))}
           </select>
         </Field>
+        <div className="col-span-full">
+          <ErrorText>{error}</ErrorText>
+        </div>
         <div className="col-span-full flex gap-2">
           <Button type="submit" loading={busy}>
             Guardar
