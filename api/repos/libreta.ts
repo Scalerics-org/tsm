@@ -200,8 +200,14 @@ async function reapuntarCargas(
   deId: number,
   a: { id: number; nombre: string },
 ): Promise<void> {
+  // Los facturados NO: sus cargas son el respaldo de una factura ya emitida, y todas las
+  // otras vías de escritura las frenan con un 409. Que un renombre en la libreta las cambiara
+  // por la ventana dejaba el Excel de esa factura distinto de la factura.
   const { results } = await db
-    .prepare("SELECT id, segments FROM trips WHERE segments IS NOT NULL AND segments != '[]'")
+    .prepare(
+      `SELECT id, segments FROM trips
+        WHERE segments IS NOT NULL AND segments != '[]' AND factura_numero IS NULL`,
+    )
     .all<{ id: number; segments: string }>();
 
   const cambios: { id: number; segments: string }[] = [];

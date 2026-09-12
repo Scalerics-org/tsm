@@ -163,10 +163,7 @@ libreta.post("/enganchar", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
   for (const v of cambios) await tripsRepo.updateSegments(c.env.DB, v.id, v.segments);
 
   const cargas = cambios.reduce((n, v) => n + v.cargas, 0);
-  const conCobro = cambios.reduce(
-    (n, v) => n + v.segments.filter((s) => s.remitente_id === entrada.id && s.cobro_a).length,
-    0,
-  );
+  const conCobro = cambios.reduce((n, v) => n + v.con_cobro, 0);
   return ok(c, { viajes: cambios.length, cargas, con_cobro: conCobro, nombre: entrada.nombre });
 });
 
@@ -196,11 +193,13 @@ libreta.post("/reglas", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => 
 
   // La regla vale también para lo ya cargado: si no, el pendiente nunca se limpia y
   // definir la regla dejaría de resolver el problema que la oficina vino a resolver.
-  const destrabadas = await tripsRepo.completarCobrosPendientes(
-    c.env.DB,
-    await repo.listReglas(c.env.DB),
-  );
-  return ok(c, { saved: true, destrabadas }, 201);
+  const reglas = await repo.listReglas(c.env.DB);
+  const destrabadas = await tripsRepo.completarCobrosPendientes(c.env.DB, reglas);
+  // Y si lo que hizo fue CORREGIR una regla que ya existía, las cargas que esa regla ya había
+  // resuelto pasan a decir lo nuevo: arreglar la fila y dejar el resumen mostrando el pagador
+  // viejo era el mismo error de antes, corrido un paso.
+  const corregidas = await tripsRepo.restamparCobros(c.env.DB, reglas, Number(b.remitente_id));
+  return ok(c, { saved: true, destrabadas, corregidas }, 201);
 });
 
 libreta.delete("/reglas/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {

@@ -118,7 +118,7 @@ describe("el resumen para el cliente", () => {
       "Fecha",
       "Destino",
       "Clientes de la carga",
-      "Pallets",
+      "Cantidad (pallets)",
       "Cantidad (sin unidad)",
       "N° remito",
     ]);

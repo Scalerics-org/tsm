@@ -33,9 +33,15 @@ export interface ColumnaCampo {
  * Las unidades son las dos que existen (`UNIDAD`), más una tercera para la carga a la que
  * nadie le puso unidad: el número igual tiene que salir, pero aparte.
  */
+/**
+ * "Cantidad (kilos)" y no "Kilos de la carga": la columna "Kilos" de más abajo ya existe y es
+ * OTRO hecho —`trips.kilos`, el peso del viaje, una vez por viaje y normalizado—. Dos títulos
+ * casi iguales, los dos sumables y con números distintos, es la trampa que este archivo ya
+ * había desarmado una vez ("un hecho, una columna").
+ */
 export const COLUMNA_CANTIDAD: Record<string, string> = {
-  [UNIDAD.KILOS]: "Kilos de la carga",
-  [UNIDAD.PALLETS]: "Pallets",
+  [UNIDAD.KILOS]: "Cantidad (kilos)",
+  [UNIDAD.PALLETS]: "Cantidad (pallets)",
 };
 export const COLUMNA_CANTIDAD_SIN_UNIDAD = "Cantidad (sin unidad)";
 const COLUMNAS_CANTIDAD = [...Object.values(COLUMNA_CANTIDAD), COLUMNA_CANTIDAD_SIN_UNIDAD];
@@ -56,10 +62,21 @@ export const COLUMNAS_ANTES = [
   "Km",
 ];
 
-/** La cantidad de la carga, en la celda de su unidad y vacía en las demás. */
+/**
+ * La cantidad de la carga, en la celda de su unidad y vacía en las demás.
+ *
+ * La carga que tiene unidad pero no cantidad dice "sin cantidad" en la columna de su unidad.
+ * Antes eso se veía solo —la columna "Unidad" mostraba "pallets" y la de al lado vacía— y era
+ * la señal de "esta carga se mide en pallets y nadie puso el número"; hoy son 34 renglones. El
+ * texto no rompe la suma: Excel ignora lo que no es número.
+ */
 function celdasDeCantidad(cantidad: number | null, unidad: string | null): Celda[] {
   const titulo = unidad ? (COLUMNA_CANTIDAD[unidad] ?? COLUMNA_CANTIDAD_SIN_UNIDAD) : COLUMNA_CANTIDAD_SIN_UNIDAD;
-  return COLUMNAS_CANTIDAD.map((c) => (c === titulo && cantidad != null ? cantidad : ""));
+  return COLUMNAS_CANTIDAD.map((c) => {
+    if (c !== titulo) return "";
+    if (cantidad != null) return cantidad;
+    return unidad ? "sin cantidad" : "";
+  });
 }
 
 /** Y lo que va después: quién lo hizo y cómo terminó. */

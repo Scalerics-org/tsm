@@ -84,6 +84,43 @@ describe("enganchar una carga suelta a la libreta", () => {
     expect(engancharEnViajes([v], REGLAS, { texto: "AGENCIA", libreta_id: 2, nombre: "Agencia" })).toEqual([]);
   });
 
+  /**
+   * El enganche toca SÓLO la carga que engancha. Pasar el viaje entero por `aplicarCobro` le
+   * recalculaba el cobro a las hermanas contra las reglas de hoy: una que ya estaba resuelta
+   * podía cambiar de pagador —o quedarse sin ninguno— sin que nadie lo hubiera pedido.
+   */
+  it("no le toca el cobro a las otras cargas del mismo viaje", () => {
+    const hermana = { ...carga("TIMBER", 44), cobro_a: "Casarone", cobro_tipo: "cliente" };
+    const r = engancharEnViajes([viaje(1, [carga("AGENCIA"), hermana])], REGLAS, {
+      texto: "AGENCIA",
+      libreta_id: 2,
+      nombre: "Agencia",
+    });
+    expect(r[0].segments[1].cobro_a).toBe("Casarone");
+    expect(r[0].cargas).toBe(1);
+  });
+
+  it("cuenta como destrabada sólo la que se enganchó y quedó con cobro", () => {
+    const hermana = { ...carga("TIMBER", 44), cobro_a: "Casarone", cobro_tipo: "cliente" };
+    const r = engancharEnViajes([viaje(1, [carga("AGENCIA"), hermana])], REGLAS, {
+      texto: "AGENCIA",
+      libreta_id: 2,
+      nombre: "Agencia",
+    });
+    expect(r[0].con_cobro).toBe(1);
+  });
+
+  it("respeta el cobro que la oficina fijó a mano en la carga que engancha", () => {
+    const aMano = { ...carga("AGENCIA"), cobro_a: "Otro", cobro_tipo: "cliente", cobro_manual: true };
+    const r = engancharEnViajes([viaje(1, [aMano])], REGLAS, {
+      texto: "AGENCIA",
+      libreta_id: 2,
+      nombre: "Agencia",
+    });
+    expect(r[0].segments[0].remitente_id).toBe(2);
+    expect(r[0].segments[0].cobro_a).toBe("Otro");
+  });
+
   it("devuelve sólo los viajes que cambian", () => {
     const r = engancharEnViajes(
       [viaje(1, [carga("ISUSA")]), viaje(2, [carga("OTRA COSA")]), viaje(3, [carga("isusa"), carga("ISUSA")])],

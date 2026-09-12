@@ -7,10 +7,19 @@ import { LibretaPicker } from "../../components/LibretaPicker";
 import { agruparPendientes, type PendienteGrupo } from "../../lib/libreta-view";
 import { ReglaCobroForm } from "./ReglaCobroForm";
 
+export interface EngancheHecho {
+  cargas: number;
+  viajes: number;
+  con_cobro: number;
+  nombre: string;
+}
+
 interface Props {
   pendientes: PendienteCobro[];
   destinatarios: LibretaEntry[];
   onReglaCreada: (destrabadas: number) => void;
+  /** Enganchar no guarda una regla: tiene su propio aviso. */
+  onEnganchado: (r: EngancheHecho) => void;
 }
 
 /**
@@ -20,7 +29,7 @@ interface Props {
  * cargas que la usan. Listar renglón por renglón haría parecer trabajo diario a algo
  * que se hace una vez por combinación nueva.
  */
-export function PendientesCobroCard({ pendientes, destinatarios, onReglaCreada }: Props) {
+export function PendientesCobroCard({ pendientes, destinatarios, onReglaCreada, onEnganchado }: Props) {
   const grupos = agruparPendientes(pendientes);
   const [abierto, setAbierto] = useState<string | null>(null);
 
@@ -58,6 +67,10 @@ export function PendientesCobroCard({ pendientes, destinatarios, onReglaCreada }
                 setAbierto(null);
                 onReglaCreada(destrabadas);
               }}
+              onEnganchado={(r) => {
+                setAbierto(null);
+                onEnganchado(r);
+              }}
             />
           </li>
         ))}
@@ -72,12 +85,14 @@ function GrupoPendiente({
   abierto,
   onToggle,
   onReglaCreada,
+  onEnganchado,
 }: {
   grupo: PendienteGrupo;
   destinatarios: LibretaEntry[];
   abierto: boolean;
   onToggle: () => void;
   onReglaCreada: (destrabadas: number) => void;
+  onEnganchado: (r: EngancheHecho) => void;
 }) {
   return (
     <>
@@ -118,7 +133,7 @@ function GrupoPendiente({
         <EngancharLugar
           texto={grupo.remitente}
           cargas={grupo.cargas}
-          onEnganchado={onReglaCreada}
+          onEnganchado={onEnganchado}
           onCancel={onToggle}
         />
       )}
@@ -152,7 +167,7 @@ function EngancharLugar({
 }: {
   texto: string;
   cargas: number;
-  onEnganchado: (destrabadas: number) => void;
+  onEnganchado: (r: EngancheHecho) => void;
   onCancel: () => void;
 }) {
   const [elegido, setElegido] = useState<LibretaEntry | null>(null);
@@ -164,11 +179,11 @@ function EngancharLugar({
     setError("");
     setBusy(true);
     try {
-      const r = await api.post<{ viajes: number; cargas: number; con_cobro: number }>("/libreta/enganchar", {
+      const r = await api.post<EngancheHecho>("/libreta/enganchar", {
         remitente: texto,
         libreta_id: elegido.id,
       });
-      onEnganchado(r.con_cobro);
+      onEnganchado(r);
     } catch (e) {
       setError(mensajeDe(e, "No se pudo enganchar."));
     } finally {
@@ -182,11 +197,15 @@ function EngancharLugar({
         "{texto}" está escrito a mano en {cargas} carga(s) y no figura en la libreta, así que
         ninguna regla lo alcanza. Elegí con qué lugar de carga se corresponde:
       </p>
+      {/* `soloSeleccionables`: "Varios", "Productores" y demás agrupadores no son un lugar de
+          carga, y el servidor los rechaza igual. Ofrecerlos era mandar a la persona contra una
+          pared. */}
       <LibretaPicker
         tipo={LIBRETA_TIPO.REMITENTE}
         label="Lugar de carga"
         value={elegido}
         onChange={setElegido}
+        soloSeleccionables
         permiteAlta
       />
       <ErrorText>{error}</ErrorText>

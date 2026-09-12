@@ -1,4 +1,4 @@
-import { TRIP_STATUS, aplicarCobro, type CobroRegla, type Trip, type TripSegment } from "../../shared/domain";
+import { TRIP_STATUS, completarPendientes, type CobroRegla, type Trip, type TripSegment } from "../../shared/domain";
 
 /**
  * Engancharle a una carga vieja el lugar de carga de la libreta.
@@ -37,7 +37,10 @@ export interface Enganche {
 export interface ViajeConCargasNuevas {
   id: number;
   segments: TripSegment[];
+  /** Cuántas cargas se engancharon en este viaje. */
   cargas: number;
+  /** Cuántas de ésas quedaron con cobro resuelto por una regla que ya existía. */
+  con_cobro: number;
 }
 
 /**
@@ -61,12 +64,19 @@ export function engancharEnViajes(
     const nuevas = v.segments.map((s) => {
       if (s.remitente_id != null || normalizar(s.remitente) !== buscado) return s;
       cargas += 1;
-      return { ...s, remitente: e.nombre, remitente_id: e.libreta_id };
+      // Con el id puesto, la regla que ya existía resuelve el cobro sola. Se resuelve carga por
+      // carga y sólo la que se enganchó: pasar el viaje entero por `aplicarCobro` le volvía a
+      // calcular el cobro a las hermanas, y una que ya estaba resuelta podía cambiar de
+      // pagador —o quedarse sin ninguno— sin que nadie lo hubiera pedido.
+      return completarPendientes(reglas, [{ ...s, remitente: e.nombre, remitente_id: e.libreta_id }])[0];
     });
     if (!cargas) continue;
-    // Con el id puesto, la regla que ya existía se aplica sola. `aplicarCobro` respeta lo que
-    // la oficina haya fijado a mano (`cobro_manual`).
-    out.push({ id: v.id, segments: aplicarCobro(reglas, nuevas), cargas });
+    // Sólo las que se acaban de enganchar: contar todas las del viaje que apunten a esta
+    // entrada inflaba el número con cargas que ya estaban resueltas desde antes.
+    const conCobro = nuevas.filter(
+      (s, i) => s.remitente_id === e.libreta_id && v.segments[i].remitente_id == null && s.cobro_a,
+    ).length;
+    out.push({ id: v.id, segments: nuevas, cargas, con_cobro: conCobro });
   }
   return out;
 }

@@ -85,6 +85,16 @@ describe("los km del viaje no se repiten por carga", () => {
     expect(filas[0][idx("Kilos")]).toBe(12000);
   });
 
+  /**
+   * La carga que tiene unidad y no tiene número: antes se veía sola —"Unidad: pallets" con la
+   * cantidad vacía— y era la señal de que faltaba completarla. Hoy son 34 renglones.
+   */
+  it("la carga con unidad y sin cantidad lo dice, en vez de salir vacía", () => {
+    const filas = filasDeViaje(viaje({ segments: [carga({ cantidad: null, unidad: "pallets" })] }), []);
+    expect(filas[0][idx("Cantidad (pallets)")]).toBe("sin cantidad");
+    expect(filas[0][idx("Cantidad (kilos)")]).toBe("");
+  });
+
   it("un viaje sin cargas sigue trayendo todo: existió y tiene kilómetros", () => {
     const filas = filasDeViaje(viaje({ segments: [] }), []);
     expect(filas).toHaveLength(1);
@@ -103,8 +113,8 @@ describe("los km del viaje no se repiten por carga", () => {
     );
     expect(filas.map((f) => f[idx("Lugar de carga")])).toEqual(["TIMBER", "ONTIL"]);
     // La cantidad va en la columna de SU unidad: las dos cargas son pallets.
-    expect(filas.map((f) => f[idx("Pallets")])).toEqual([6, 4]);
-    expect(filas.map((f) => f[idx("Kilos de la carga")])).toEqual(["", ""]);
+    expect(filas.map((f) => f[idx("Cantidad (pallets)")])).toEqual([6, 4]);
+    expect(filas.map((f) => f[idx("Cantidad (kilos)")])).toEqual(["", ""]);
   });
 
   it("el chofer y el camión SÍ se repiten: no se suman, y ayudan a leer la fila suelta", () => {

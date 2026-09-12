@@ -178,18 +178,19 @@ export function ResumenClientePage() {
    * cliente queda cobrado dos veces. El número viejo queda guardado y se ve en la fila.
    */
   const desmarcar = () => {
-    const numeros = [
-      ...new Set(
-        (data?.grupos ?? [])
-          .flatMap((g) => g.filas)
-          .filter((f) => seleccion.includes(f.trip_id) && f.factura_numero)
-          .map((f) => f.factura_numero as string),
-      ),
-    ];
-    const cuales = numeros.length ? ` (${numeros.join(", ")})` : "";
+    // Los que de verdad tienen factura: el resto de la selección no se toca, así que contarlos
+    // en la pregunta era prometer algo que no iba a pasar.
+    const conFactura = (data?.grupos ?? [])
+      .flatMap((g) => g.filas)
+      .filter((f) => seleccion.includes(f.trip_id) && f.factura_numero);
+    if (conFactura.length === 0) {
+      setError("Ninguno de los viajes que marcaste tiene factura puesta.");
+      return;
+    }
+    const numeros = [...new Set(conFactura.map((f) => f.factura_numero as string))];
     if (
       !confirm(
-        `Les vas a sacar la factura${cuales} a ${seleccion.length} viaje(s). Vuelven al resumen y se pueden volver a facturar: si les ponés otro número, en DGI van a quedar las dos. ¿Seguir?`,
+        `Les vas a sacar la factura (${numeros.join(", ")}) a ${conFactura.length} viaje(s). Vuelven al resumen y se pueden volver a facturar: si les ponés otro número, en DGI van a quedar las dos. ¿Seguir?`,
       )
     ) {
       return;
@@ -273,11 +274,45 @@ export function ResumenClientePage() {
           onReintentar={() => setRecarga((n) => n + 1)}
         />
       )}
+      {/* Los avisos van ACÁ AFUERA, no adentro del bloque de la tabla: cuando el período no
+          tiene nada para facturar es justamente cuando hay que leerlos —el "no hay viajes"
+          los tapaba, y era lo único que explicaba por qué la lista está vacía. */}
+      {provider && !cargando && data && (
+        <>
+          {/* La regla de cobro dice otra cosa que el cliente del viaje. Cambiar el resumen para
+              que se arme por quién paga es una decisión del cliente; mientras tanto, que esté a
+              la vista antes de emitir la factura. */}
+          {data.cobros_ajenos.length > 0 && (
+            <p className="border-l-4 border-st-amberDot bg-st-amberBg px-3 py-2 text-sm text-st-amberTx">
+              Ojo: hay cargas acá adentro que la regla manda cobrarle a otro —{" "}
+              {data.cobros_ajenos.map((c) => `${c.cobro_a} (${c.cargas})`).join(", ")}. Si facturás
+              todo a {provider}, eso se le cobra al que no es.
+            </p>
+          )}
+
+          {data.en_curso > 0 && (
+            <p className="border-l-4 border-st-amberDot bg-st-amberBg px-3 py-2 text-sm text-st-amberTx">
+              {data.en_curso} viaje{data.en_curso === 1 ? "" : "s"} de {provider} en este período
+              {data.en_curso === 1 ? " sigue abierto" : " siguen abiertos"} y no
+              {data.en_curso === 1 ? " entra" : " entran"} al resumen. Si ya
+              {data.en_curso === 1 ? " se entregó" : " se entregaron"}, cerralos antes de facturar.
+            </p>
+          )}
+
+          {data.anteriores_sin_facturar > 0 && (
+            <p className="text-sm text-ink/55">
+              Hay {data.anteriores_sin_facturar} viaje{data.anteriores_sin_facturar === 1 ? "" : "s"} de{" "}
+              {provider} sin facturar anteriores al {fmtDate(from)}. Corré la fecha "Desde" para verlos.
+            </p>
+          )}
+        </>
+      )}
+
       {provider && !cargando && data && data.viajes === 0 && (
         <Empty>
           {data.facturados > 0
             ? `No queda nada por facturar de ${provider} en ese período. Hay ${data.facturados} viaje${data.facturados === 1 ? " ya facturado" : "s ya facturados"}: marcá "Mostrarlos" para verlos.`
-            : `No hay viajes de ${provider} en ese período.`}
+            : `No hay viajes para facturar de ${provider} en ese período.`}
         </Empty>
       )}
 
@@ -310,33 +345,6 @@ export function ResumenClientePage() {
               ⬇ Exportar Excel
             </Button>
           </div>
-
-          {/* La regla de cobro dice otra cosa que el cliente del viaje. Cambiar el resumen para
-              que se arme por quién paga es una decisión del cliente; mientras tanto, que esté
-              a la vista antes de emitir la factura. */}
-          {data.cobros_ajenos.length > 0 && (
-            <p className="border-l-4 border-st-amberDot bg-st-amberBg px-3 py-2 text-sm text-st-amberTx">
-              Ojo: hay cargas acá adentro que la regla manda cobrarle a otro —{" "}
-              {data.cobros_ajenos.map((c) => `${c.cobro_a} (${c.cargas})`).join(", ")}. Si facturás
-              todo a {provider}, eso se le cobra al que no es.
-            </p>
-          )}
-
-          {data.en_curso > 0 && (
-            <p className="border-l-4 border-st-amberDot bg-st-amberBg px-3 py-2 text-sm text-st-amberTx">
-              {data.en_curso} viaje{data.en_curso === 1 ? "" : "s"} de {provider} en este período
-              {data.en_curso === 1 ? " sigue abierto" : " siguen abiertos"} y no
-              {data.en_curso === 1 ? " entra" : " entran"} al resumen. Si ya
-              {data.en_curso === 1 ? " se entregó" : " se entregaron"}, cerralos antes de facturar.
-            </p>
-          )}
-
-          {data.anteriores_sin_facturar > 0 && (
-            <p className="text-sm text-ink/55">
-              Hay {data.anteriores_sin_facturar} viaje{data.anteriores_sin_facturar === 1 ? "" : "s"} de{" "}
-              {provider} sin facturar anteriores al {fmtDate(from)}. Corré la fecha "Desde" para verlos.
-            </p>
-          )}
 
           {data.facturados > 0 && !verFacturados && (
             <p className="text-sm text-ink/55">

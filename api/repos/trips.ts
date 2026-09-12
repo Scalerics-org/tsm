@@ -1,4 +1,6 @@
 import {
+  TRIP_STATUS,
+  aplicarCobro,
   completarPendientes,
   type CobroRegla,
   type Trip,
@@ -322,6 +324,43 @@ export async function updateSegments(
  * Corre cuando la oficina define una regla: es lo que hace que definirla una vez alcance para
  * todas las cargas que ya la estaban esperando. No toca las que ya tenían cobro ni las manuales.
  */
+/**
+ * Vuelve a resolver el cobro de las cargas de un lugar de carga, con las reglas de ahora.
+ *
+ * `completarCobrosPendientes` sólo rellena las cargas vacías, y está bien que así sea: una
+ * regla nueva no tiene por qué reescribir lo que ya estaba resuelto. Pero CORREGIR una regla sí
+ * es eso — la oficina está diciendo "esto se le cobra a otro"—, y sin esto arreglaba la fila de
+ * la regla y las cargas seguían saliendo en el resumen con el pagador viejo.
+ *
+ * No toca lo facturado (esas cargas respaldan una factura emitida) ni lo que la oficina fijó a
+ * mano (`cobro_manual`), que es una decisión más fuerte que cualquier regla.
+ */
+export async function restamparCobros(
+  db: D1Database,
+  reglas: CobroRegla[],
+  remitenteId: number,
+): Promise<number> {
+  const trips = await listTripsFacturables(db, {});
+  let cambiadas = 0;
+
+  for (const t of trips) {
+    if (t.factura_numero || t.status === TRIP_STATUS.CANCELADO) continue;
+    if (!t.segments.some((s) => s.remitente_id === remitenteId && !s.cobro_manual)) continue;
+
+    const actualizados = t.segments.map((s) =>
+      s.remitente_id === remitenteId && !s.cobro_manual ? aplicarCobro(reglas, [s])[0] : s,
+    );
+    const distintas = actualizados.filter(
+      (s, i) => s.cobro_a !== t.segments[i].cobro_a || s.cobro_tipo !== t.segments[i].cobro_tipo,
+    ).length;
+    if (!distintas) continue;
+
+    await updateSegments(db, t.id, actualizados);
+    cambiadas += distintas;
+  }
+  return cambiadas;
+}
+
 export async function completarCobrosPendientes(
   db: D1Database,
   reglas: CobroRegla[],

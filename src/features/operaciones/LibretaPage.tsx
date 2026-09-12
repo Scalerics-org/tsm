@@ -142,6 +142,20 @@ export function LibretaPage({ tipos, titulo, bajada }: LibretaPageProps = {}) {
     load();
   };
 
+  /**
+   * Enganchar no guarda ninguna regla: le pone el lugar de carga a cargas viejas. Si ese lugar
+   * ya tenía regla, el cobro se resuelve solo; si no, la carga sigue pendiente y ahora sí se le
+   * puede definir una. Reusar el aviso de "Regla guardada" decía algo que no había pasado.
+   */
+  const enganchado = (r: { cargas: number; viajes: number; con_cobro: number; nombre: string }) => {
+    const resueltas =
+      r.con_cobro > 0
+        ? ` ${r.con_cobro} quedaron con cobro por la regla que ya existía.`
+        : " Ahora podés definirles la regla de cobro.";
+    setAviso(`${r.cargas} carga(s) de ${r.viajes} viaje(s) quedaron con el lugar "${r.nombre}".${resueltas}`);
+    load();
+  };
+
   if (!entries) {
     return entriesFalló ? (
       <ErrorDeCarga titulo="No se pudo cargar la libreta." mensaje={entriesFalló} onReintentar={load} />
@@ -230,6 +244,7 @@ export function LibretaPage({ tipos, titulo, bajada }: LibretaPageProps = {}) {
           pendientes={pendientes}
           destinatarios={destinatarios}
           onReglaCreada={reglaCreada}
+          onEnganchado={enganchado}
         />
       )}
 
