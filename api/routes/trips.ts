@@ -242,7 +242,12 @@ trips.post("/", async (c) => {
   }
 
   const truckId = b.truck_id ? Number(b.truck_id) : user.truck_id;
-  if (!truckId) return fail(c, "No tenés un camión asignado", 400);
+  // La oficina nunca tiene camión propio, así que "no tenés un camión asignado" no le decía
+  // nada: lo que le falta es elegirlo.
+  if (!truckId) {
+    const suyo = user.role === ROLES.CHOFER;
+    return fail(c, suyo ? "No tenés un camión asignado" : "Elegí el camión del viaje", 400);
+  }
 
   // La foto del tacógrafo del mes, antes de salir.
   //

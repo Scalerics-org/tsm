@@ -110,6 +110,18 @@ photos.get("/*", async (c) => {
   const key = decodeURIComponent(url.pathname.replace(/^\/api\/photos\//, ""));
   if (!key) return fail(c, "Falta la key", 400);
 
+  // El chofer sólo ve lo suyo. La oficina ve todo: es su trabajo mirar los remitos y las
+  // boletas. Sin esto, con la sesión de un chofer se leían las fotos de los demás probando
+  // claves, que encima son adivinables: `trips/<id>/carga-…`.
+  const user = c.get("user");
+  if (user.role === ROLES.CHOFER) {
+    const dueno = await photosRepo.choferDeLaFoto(c.env.DB, key);
+    if (!dueno || dueno.driver_id !== user.driver_id) {
+      // Mismo "no existe" que una clave inventada: quién tiene qué foto tampoco se cuenta.
+      return c.notFound();
+    }
+  }
+
   const obj = await c.env.FOTOS.get(key);
   if (!obj) return c.notFound();
 

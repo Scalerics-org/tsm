@@ -4,6 +4,7 @@ import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
 import {
+  DRIVER_STATUS,
   ROLES,
   TRIP_STATUS,
   KM_SIN_JUSTIFICAR_ALERTA,
@@ -20,7 +21,7 @@ import { DESVIO_SURTIDA } from "../../shared/rango-surtidas";
 import { claveMovida, esPeriodo, fechaDeFoto, moverLectura } from "../lib/lectura-periodo";
 import * as repo from "../repos/lecturas";
 import { listTrips } from "../repos/trips";
-import { currentTruckId } from "../repos/drivers";
+import { currentTruckId, listDrivers } from "../repos/drivers";
 import { listTrucks, getTruck } from "../repos/trucks";
 import { listTemplates } from "../repos/templates";
 import { listFuelLogs } from "../repos/fuel";
@@ -194,7 +195,7 @@ lecturas.get("/auditoria", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
   if (!esPeriodo(mes)) return fail(c, "El mes va como 2026-01", 400);
   const previo = periodoAnterior(mes);
 
-  const [camiones, delMes, delPrevio, viajes, plantillas, surtidas] = await Promise.all([
+  const [camiones, delMes, delPrevio, viajes, plantillas, surtidas, choferes] = await Promise.all([
     listTrucks(c.env.DB),
     repo.listLecturas(c.env.DB, { periodo: mes }),
     repo.listLecturas(c.env.DB, { periodo: previo }),
@@ -208,7 +209,14 @@ lecturas.get("/auditoria", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
     // mide una surtida es el rendimiento histórico de SU camión, y recortada al mes no habría
     // tramos suficientes para que la mediana diga nada. Se filtra al final, no al principio.
     listFuelLogs(c.env.DB),
+    // Para saber a qué camión no le va a pedir la foto nadie: la app se la pide al chofer que
+    // lo tiene asignado, así que un camión sin chofer sale "falta la lectura" todos los meses
+    // y la única forma de que entre es que la cargue la oficina.
+    listDrivers(c.env.DB),
   ]);
+  const camionesConChofer = new Set(
+    choferes.filter((d) => d.status === DRIVER_STATUS.ACTIVO).map((d) => d.default_truck_id),
+  );
 
   // Un viaje cancelado no recorrió nada que haya que justificar.
   const delPeriodo = viajes.filter((t) => t.status !== TRIP_STATUS.CANCELADO);
@@ -274,6 +282,7 @@ lecturas.get("/auditoria", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
       return {
         truck_id: camion.id,
         plate: camion.plate,
+        sin_chofer: !camionesConChofer.has(camion.id),
         lectura,
         lectura_previa: previa,
         auditoria,

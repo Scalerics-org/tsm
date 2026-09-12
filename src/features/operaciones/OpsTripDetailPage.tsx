@@ -6,8 +6,8 @@ import {
   type Trip,
   type TripPhoto,
 } from "@shared/domain";
-import { api, ApiError } from "../../lib/api";
-import { Button, Card, ErrorText, Spinner, StatusBadge } from "../../components/ui";
+import { api, ApiError, mensajeDe } from "../../lib/api";
+import { Button, Card, ErrorDeCarga, ErrorText, Spinner, StatusBadge } from "../../components/ui";
 import { fmtDateTime } from "../../lib/format";
 import { fmtKilos } from "@shared/domain";
 import { CargasDelViaje } from "./CargasDelViaje";
@@ -36,16 +36,27 @@ export function OpsTripDetailPage() {
   // la oficina tiene que mirar —los km que quedaron de un recorrido que ya no es ése—.
   const [avisos, setAvisos] = useState<string[]>([]);
 
+  // Dos errores distintos, a propósito. Antes eran el mismo, y como la pantalla arrancaba con
+  // `if (error) return <ErrorText/>`, un rechazo al cancelar o al corregir la fecha —el
+  // servidor frena el viaje ya facturado, por ejemplo— se llevaba puesta la ficha entera y
+  // dejaba una línea roja sola, sin viaje, sin fotos y sin botón para volver a intentar.
+  const [cargaFalló, setCargaFalló] = useState<string | null>(null);
   const load = useCallback(() => {
+    setCargaFalló(null);
     api
       .get<Detail>(`/trips/${id}`)
       .then(setData)
-      .catch((e) => setError(e instanceof ApiError ? e.message : "Error al cargar"));
+      .catch((e) => setCargaFalló(mensajeDe(e, "Error al cargar")));
   }, [id]);
   useEffect(load, [load]);
 
-  if (error) return <ErrorText>{error}</ErrorText>;
-  if (!data) return <Spinner size={28} />;
+  if (!data) {
+    return cargaFalló ? (
+      <ErrorDeCarga titulo="No se pudo cargar el viaje." mensaje={cargaFalló} onReintentar={load} />
+    ) : (
+      <Spinner size={28} />
+    );
+  }
   const { trip, photos } = data;
   const fields = trip.fields ?? [];
 
@@ -55,7 +66,7 @@ export function OpsTripDetailPage() {
       await api.post(`/trips/${trip.id}/cancel`, {});
       load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "No se pudo cancelar el viaje");
+      setError(mensajeDe(e, "No se pudo cancelar el viaje"));
     }
   }
 
@@ -88,7 +99,7 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
       await api.del(`/trips/${trip.id}`);
       navigate("/panel/viajes");
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "No se pudo borrar el viaje");
+      setError(mensajeDe(e, "No se pudo borrar el viaje"));
       setBorrando(false);
     }
   }
@@ -106,7 +117,7 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
       await api.patch(`/trips/${trip.id}/fecha`, { fecha });
       load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "No se pudo cambiar la fecha");
+      setError(mensajeDe(e, "No se pudo cambiar la fecha"));
     } finally {
       setGuardandoFecha(false);
     }
@@ -117,6 +128,16 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
       <Link to="/panel/viajes" className="text-sm text-ink/60 hover:text-ink">
         ← Viajes
       </Link>
+
+      {/* Lo que falló al cancelar, borrar o corregir: se lee acá arriba y la ficha sigue. */}
+      <ErrorText>{error}</ErrorText>
+      {cargaFalló && (
+        <ErrorDeCarga
+          titulo="No se pudo actualizar el viaje: lo de abajo puede estar viejo."
+          mensaje={cargaFalló}
+          onReintentar={load}
+        />
+      )}
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>

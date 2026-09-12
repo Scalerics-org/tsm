@@ -46,11 +46,14 @@ export function FuelPage() {
   const [logsPrevios, setLogsPrevios] = useState<FuelLog[]>([]);
   const [kmInicialManual, setKmInicialManual] = useState("");
   useEffect(() => {
-    if (user?.truck_id == null) return setInicial(SIN_DATO);
-    Promise.all([
-      api.get<FuelLog[]>(`/fuel?truck=${user.truck_id}`),
-      api.get<KmInicial>("/fuel/inicial"),
-    ])
+    // Se pregunta igual aunque no tenga camión asignado: el servidor lo resuelve por el viaje
+    // que tiene abierto (`/fuel/inicial`). Antes esta pantalla cortaba antes de preguntar y le
+    // hacía tipear a mano el número con el que arranca la cadena de consumo del camión.
+    const previas =
+      user?.truck_id != null
+        ? api.get<FuelLog[]>(`/fuel?truck=${user.truck_id}`)
+        : Promise.resolve([] as FuelLog[]);
+    Promise.all([previas, api.get<KmInicial>("/fuel/inicial")])
       .then(([logs, ini]) => {
         setLogsPrevios(logs);
         setInicial(ini);

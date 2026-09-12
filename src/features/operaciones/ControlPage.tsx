@@ -90,6 +90,8 @@ const Row = ({ to, left, right }: { to?: string; left: React.ReactNode; right: R
 interface AuditoriaCamion {
   truck_id: number;
   plate: string;
+  /** Nadie le va a sacar la foto del tacógrafo: la app se la pide al chofer asignado. */
+  sin_chofer: boolean;
   auditoria: {
     km_periodo: number | null;
     km_cargados: number;
@@ -305,7 +307,19 @@ export function ControlPage() {
                 <Row
                   key={c.truck_id}
                   to={`/panel/camion/${c.truck_id}`}
-                  left={c.plate}
+                  left={
+                    <span className="block">
+                      <span className="block text-ink">{c.plate}</span>
+                      {/* La foto se la pide la app al chofer que tiene el camión asignado. Sin
+                          chofer no se la pide nadie, y el camión salía acá todos los meses sin
+                          que nada dijera que la tiene que cargar la oficina. */}
+                      {c.sin_chofer && (
+                        <span className="block font-cond text-xs uppercase tracking-[0.05em] text-st-amberTx">
+                          sin chofer: la foto la tiene que cargar la oficina
+                        </span>
+                      )}
+                    </span>
+                  }
                   right={c.senal.motivo}
                 />
               ))}

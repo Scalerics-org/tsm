@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  DRIVER_STATUS,
   TRIP_STATUS,
   TRIP_STATUS_LABEL,
   type Driver,
@@ -10,7 +11,7 @@ import {
   type Truck,
 } from "@shared/domain";
 import { api, downloadFile, mensajeDe } from "../../lib/api";
-import { Button, Card, Empty, ErrorDeCarga, Spinner } from "../../components/ui";
+import { Button, Card, Empty, ErrorDeCarga, ErrorText, Spinner } from "../../components/ui";
 import { FilaViaje } from "./FilaViaje";
 import { FechaInput } from "../../components/FechaInput";
 
@@ -24,10 +25,15 @@ export function OpsTripsPage() {
   // fecha puede sacar al viaje del filtro que está puesto, y dejarlo ahí sería mentira.
   const [version, setVersion] = useState(0);
 
+  // Los tres desplegables de filtros. Si no llegan quedan vacíos, y un filtro vacío se lee
+  // como "no hay choferes" en vez de "no cargó".
+  const [filtrosFalló, setFiltrosFalló] = useState("");
   useEffect(() => {
-    api.get<Driver[]>("/drivers").then(setDrivers).catch(() => {});
-    api.get<Truck[]>("/trucks").then(setTrucks).catch(() => {});
-    api.get<Provider[]>("/providers").then(setProviders).catch(() => {});
+    const falla = (e: unknown) =>
+      setFiltrosFalló(mensajeDe(e, "No se pudieron cargar las opciones de los filtros."));
+    api.get<Driver[]>("/drivers").then(setDrivers).catch(falla);
+    api.get<Truck[]>("/trucks").then(setTrucks).catch(falla);
+    api.get<Provider[]>("/providers").then(setProviders).catch(falla);
   }, []);
 
   const query = useMemo(() => {
@@ -91,9 +97,12 @@ export function OpsTripsPage() {
         </select>
         <select className="input" value={f.driver} onChange={(e) => setF({ ...f, driver: e.target.value })}>
           <option value="">Todos los choferes</option>
+          {/* Los inactivos siguen acá: sus viejos viajes se filtran por chofer igual que los
+              demás. Sólo se los marca, para saber a quién se está filtrando. */}
           {drivers.map((d) => (
             <option key={d.id} value={d.id}>
               {d.name}
+              {d.status === DRIVER_STATUS.INACTIVO ? " (inactivo)" : ""}
             </option>
           ))}
         </select>
@@ -116,6 +125,8 @@ export function OpsTripsPage() {
         <FechaInput value={f.from} onChange={(iso) => setF({ ...f, from: iso })} />
         <FechaInput value={f.to} onChange={(iso) => setF({ ...f, to: iso })} />
       </Card>
+
+      <ErrorText>{filtrosFalló}</ErrorText>
 
       {falló ? (
         <ErrorDeCarga

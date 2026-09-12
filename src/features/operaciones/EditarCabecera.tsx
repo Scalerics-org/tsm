@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { TRIP_STATUS, type Driver, type Trip, type Truck } from "@shared/domain";
-import { api, ApiError } from "../../lib/api";
+import { api, ApiError, mensajeDe } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
 
 /**
@@ -80,9 +80,14 @@ export function EditarCabecera({ trip, recorridoPorCargas, onGuardado, onCancela
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
 
+  // Si no llegan, los desplegables quedan vacíos: sin esto parecía que la empresa no tiene
+  // choferes ni camiones, y la corrección se guardaba con lo que hubiera.
+  const [listasFalló, setListasFalló] = useState("");
   useEffect(() => {
-    api.get<Driver[]>("/drivers").then(setDrivers).catch(() => setDrivers([]));
-    api.get<Truck[]>("/trucks").then(setTrucks).catch(() => setTrucks([]));
+    const falla = (e: unknown) =>
+      setListasFalló(mensajeDe(e, "No se pudieron cargar los choferes y los camiones."));
+    api.get<Driver[]>("/drivers").then(setDrivers).catch(falla);
+    api.get<Truck[]>("/trucks").then(setTrucks).catch(falla);
   }, []);
 
   const set = (k: keyof Formulario) => (e: { target: { value: string } }) =>
@@ -216,6 +221,7 @@ export function EditarCabecera({ trip, recorridoPorCargas, onGuardado, onCancela
           </p>
         )}
 
+      <ErrorText>{listasFalló}</ErrorText>
       <ErrorText>{error}</ErrorText>
 
       <div className="flex items-center gap-2">

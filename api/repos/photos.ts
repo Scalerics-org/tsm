@@ -100,3 +100,32 @@ export async function getPhoto(db: D1Database, id: number): Promise<TripPhoto | 
 export async function deletePhoto(db: D1Database, id: number): Promise<void> {
   await db.prepare("DELETE FROM trip_photos WHERE id = ?").bind(id).run();
 }
+
+/**
+ * De qué chofer es esta foto, buscándola por su clave en R2.
+ *
+ * `GET /api/photos/<key>` servía cualquier objeto del bucket a cualquier token válido: con la
+ * sesión de un chofer se podían leer las fotos de los viajes de los demás —remitos, boletas de
+ * combustible, tacógrafos— probando claves, que además son adivinables (`trips/<id>/carga-…`).
+ *
+ * Devuelve `undefined` si la clave no figura en ninguna tabla (un objeto huérfano), y
+ * `{ driver_id: null }` si figura pero sin chofer (una lectura vieja, por ejemplo).
+ */
+export async function choferDeLaFoto(
+  db: D1Database,
+  key: string,
+): Promise<{ driver_id: number | null } | undefined> {
+  const row = await db
+    .prepare(
+      `SELECT t.driver_id AS driver_id
+         FROM trip_photos p JOIN trips t ON t.id = p.trip_id
+        WHERE p.r2_key = ?
+       UNION ALL
+       SELECT f.driver_id FROM fuel_logs f WHERE f.r2_key = ? OR f.r2_key_boleta = ?
+       UNION ALL
+       SELECT l.driver_id FROM lecturas_odometro l WHERE l.r2_key = ?`,
+    )
+    .bind(key, key, key, key)
+    .first<{ driver_id: number | null }>();
+  return row ?? undefined;
+}
