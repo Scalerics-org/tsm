@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   fmtConsumo,
@@ -10,15 +10,13 @@ import {
   type FuelLog,
   type KmInicial,
 } from "@shared/domain";
-import { api, ApiError } from "../../lib/api";
+import { api, ApiError, mensajeDe } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
-import { Button, Card, Corners, ErrorText, Field, Spinner } from "../../components/ui";
+import { Button, Card, Corners, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
 import { compressImage } from "../../lib/image";
 
 /** Cuando no hay de dónde sacar el km de arranque, lo tipea el chofer. */
-const SIN_DATO: KmInicial = { km: 0, origen: "sin-dato", fecha: null };
-
 /**
  * Registrar surtida.
  *
@@ -45,10 +43,20 @@ export function FuelPage() {
   const [inicial, setInicial] = useState<KmInicial | null>(null);
   const [logsPrevios, setLogsPrevios] = useState<FuelLog[]>([]);
   const [kmInicialManual, setKmInicialManual] = useState("");
-  useEffect(() => {
-    // Se pregunta igual aunque no tenga camión asignado: el servidor lo resuelve por el viaje
-    // que tiene abierto (`/fuel/inicial`). Antes esta pantalla cortaba antes de preguntar y le
-    // hacía tipear a mano el número con el que arranca la cadena de consumo del camión.
+  /**
+   * "Sin dato" lo dice el SERVIDOR, no el error.
+   *
+   * Antes cualquier falla —y en la ruta la falla normal es que no haya señal— se traducía al
+   * "sin dato" que la pantalla usa para pedirle el número a mano: le afirmaba al chofer "este
+   * camión no tiene kilometraje cargado: poné el de arranque", y ese número inventado quedaba
+   * de base de toda la cadena de consumo del camión. Ahora un corte se muestra como corte.
+   *
+   * Se pregunta igual aunque no tenga camión asignado: el servidor lo resuelve por el viaje
+   * que tiene abierto.
+   */
+  const [iniciaFalló, setIniciaFalló] = useState<string | null>(null);
+  const cargarInicial = useCallback(() => {
+    setIniciaFalló(null);
     const previas =
       user?.truck_id != null
         ? api.get<FuelLog[]>(`/fuel?truck=${user.truck_id}`)
@@ -58,8 +66,9 @@ export function FuelPage() {
         setLogsPrevios(logs);
         setInicial(ini);
       })
-      .catch(() => setInicial(SIN_DATO));
+      .catch((e) => setIniciaFalló(mensajeDe(e)));
   }, [user?.truck_id]);
+  useEffect(cargarInicial, [cargarInicial]);
 
   // Sólo se tipea cuando no hay de dónde sacarlo: ni surtidas ni odómetro en la ficha.
   const seTipea = inicial?.origen === "sin-dato";
@@ -144,7 +153,17 @@ export function FuelPage() {
   }
 
   if (result) return <ResultView r={result} onDone={() => navigate("/")} />;
-  if (inicial === null) return <Spinner size={28} />;
+  if (inicial === null) {
+    return iniciaFalló ? (
+      <ErrorDeCarga
+        titulo="No se pudo traer el kilometraje del camión."
+        mensaje={iniciaFalló}
+        onReintentar={cargarInicial}
+      />
+    ) : (
+      <Spinner size={28} />
+    );
+  }
 
   return (
     <div className="space-y-5">

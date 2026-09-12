@@ -234,7 +234,9 @@ export function EditarCabecera({ trip, recorridoPorCargas, onGuardado, onCancela
         <Button variant="ghost" onClick={onCancelar} disabled={guardando}>
           Cancelar
         </Button>
-        {!drivers.length && !trucks.length && <Spinner size={16} />}
+        {/* El spinner es "todavía están llegando". Si fallaron, lo que corresponde es el
+            error de arriba: girando para siempre parecía que la pantalla estaba pensando. */}
+        {!drivers.length && !trucks.length && !listasFalló && <Spinner size={16} />}
       </div>
     </Card>
   );

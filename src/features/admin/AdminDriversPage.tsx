@@ -176,10 +176,11 @@ function DriverForm({
     setF({ ...f, [k]: e.target.value });
 
   /**
-   * El chofer que ya entra con esa misma patente.
+   * El otro chofer que ya entra con esa misma patente.
    *
-   * Se entra con la patente del camión, así que dos choferes activos en el mismo camión se
-   * pisan: `findDriverByPlate` devuelve una sola fila y la otra persona no puede entrar.
+   * Se entra con la patente del camión, así que dos choferes en el mismo camión comparten la
+   * puerta: entra cada uno con su PIN (`quienEntra` los prueba a todos), pero si los dos
+   * tienen el MISMO PIN no hay con qué distinguirlos y entra siempre el mismo.
    */
   const otroEnEseCamion = drivers.find(
     (d) =>
@@ -203,7 +204,7 @@ function DriverForm({
     if (
       otroEnEseCamion &&
       !confirm(
-        `${otroEnEseCamion.name} ya entra con esa patente. Si quedan los dos en el mismo camión, uno de los dos no va a poder entrar. ¿Guardar igual?`,
+        `${otroEnEseCamion.name} ya entra con esa patente. Los dos pueden usarla, cada uno con su PIN, pero tienen que ser PINes distintos. ¿Guardar igual?`,
       )
     ) {
       return;
@@ -300,7 +301,7 @@ function DriverForm({
         <div className="col-span-full">
           {otroEnEseCamion && (
             <p className="text-sm text-st-amberTx">
-              Ojo: {otroEnEseCamion.name} ya entra con esa patente.
+              {otroEnEseCamion.name} ya entra con esa patente: poneles PINes distintos.
             </p>
           )}
           <ErrorText>{error}</ErrorText>

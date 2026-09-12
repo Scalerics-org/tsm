@@ -1,12 +1,24 @@
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requireRole } from "../middleware/auth";
+import { ROLES } from "../../shared/domain";
 import * as repo from "../repos/push";
 import { enviarPush } from "../lib/webpush";
 
 const push = new Hono<{ Bindings: Env; Variables: Vars }>();
 push.use("*", requireAuth);
+/**
+ * Sólo la oficina.
+ *
+ * Los avisos son para la oficina —cada viaje cerrado, cada surtida, con chofer, patente y
+ * cantidades— y el reparto sale de `JOIN users u ON u.id = ps.user_id`. Pero el id que se
+ * guardaba es el del token, y para un chofer ése es `drivers.id`, que corre por su propio
+ * autoincremental: hoy mismo el chofer 2 y el usuario de oficina 2 son personas distintas.
+ * Un chofer que llamara a esta ruta quedaba enganchado a los avisos de la oficina, y darlo de
+ * baja no lo desenganchaba, porque el envío no pasa por ningún pedido suyo.
+ */
+push.use("*", requireRole(ROLES.ENCARGADO, ROLES.ADMIN));
 
 /** Sin las claves VAPID cargadas no hay nada que hacer: se avisa en vez de fallar raro. */
 function claves(c: { env: Env }) {

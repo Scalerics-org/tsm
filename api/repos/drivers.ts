@@ -1,8 +1,12 @@
 import type { Driver } from "../../shared/domain";
 import type { AtadoAlChofer } from "../lib/frenos-de-borrado";
 
+// Las columnas, una por una: `d.*` mandaba `pin_hash` al navegador en cada GET /api/drivers.
+// Es el hash del PIN de cada chofer, y la pantalla de Choferes lo tenía a mano en el JSON.
 const SELECT = `
-  SELECT d.*, t.plate AS default_truck_plate,
+  SELECT d.id, d.name, d.document, d.license_number, d.license_category, d.license_expiry,
+         d.phone, d.status, d.default_truck_id,
+         t.plate AS default_truck_plate,
          (SELECT tr.id FROM trips tr
            WHERE tr.driver_id = d.id AND tr.status = 'EN_CURSO'
            ORDER BY tr.started_at LIMIT 1) AS viaje_en_curso
@@ -20,21 +24,6 @@ export async function getDriver(db: D1Database, id: number): Promise<Driver | nu
 
 export interface DriverRowWithPin extends Driver {
   pin_hash: string | null;
-}
-
-/**
- * El camión que la oficina tiene asignado al chofer, ahora.
- *
- * El token lo lleva adentro y dura una semana: si la oficina lo reasigna, todo lo que se
- * apoye en ese dato —qué viajes ve, a qué camión se le carga la surtida— seguiría hablando
- * del camión anterior hasta que el chofer vuelva a entrar.
- */
-export async function currentTruckId(db: D1Database, driverId: number): Promise<number | null> {
-  const r = await db
-    .prepare("SELECT default_truck_id FROM drivers WHERE id = ? AND status = 'activo'")
-    .bind(driverId)
-    .first<{ default_truck_id: number | null }>();
-  return r?.default_truck_id ?? null;
 }
 
 /**

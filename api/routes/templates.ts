@@ -15,7 +15,6 @@ import {
   type RenglonFijo,
 } from "../../shared/domain";
 import * as repo from "../repos/templates";
-import { currentTruckId } from "../repos/drivers";
 
 const templates = new Hono<{ Bindings: Env; Variables: Vars }>();
 templates.use("*", requireAuth);
@@ -31,14 +30,11 @@ templates.get("/", async (c) => {
   // asignados y el suyo no está, no se la ofrecemos. Sin asignación, la ven todos.
   // El camión puede venir por query (el chofer eligió otro al iniciar el viaje).
   //
-  // El asignado sale de la BASE y no del token. El token dura una semana: si la oficina
-  // reasigna un camión, el chofer seguía viendo la lista de viajes del camión anterior hasta
-  // que volviera a entrar — y los viajes de un cliente que ya no le tocan, o ninguno de los
-  // que sí. Mismo motivo por el que la lectura del tacógrafo también lo lee de la base.
+  // El asignado sale de la BASE y no del token: lo relee `requireAuth` en cada pedido, así que
+  // `user.truck_id` ya viene actualizado. Sin eso, si la oficina reasigna un camión el chofer
+  // seguiría viendo los viajes del anterior durante toda la semana que dura el token.
   const q = c.req.query("truck");
-  const truckId = q
-    ? Number(q)
-    : ((await currentTruckId(c.env.DB, user.driver_id ?? 0)) ?? user.truck_id);
+  const truckId = q ? Number(q) : user.truck_id;
   return ok(c, todas.filter((t) => plantillaHabilitada(t, truckId)));
 });
 

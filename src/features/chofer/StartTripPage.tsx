@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   CAMPO_MODO,
@@ -11,9 +11,9 @@ import {
   type Trip,
   type TripTemplate,
 } from "@shared/domain";
-import { api, ApiError } from "../../lib/api";
+import { api, ApiError, mensajeDe } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
-import { Button, Card, Corners, ErrorText, Field, Spinner } from "../../components/ui";
+import { Button, Card, Corners, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
 import { LibretaPicker } from "../../components/LibretaPicker";
 import { CampoDePlantilla } from "../../components/CampoDePlantilla";
@@ -50,12 +50,22 @@ export function StartTripPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  // Sin esto, un corte de señal dejaba el spinner girando para siempre: `tpl` quedaba en null
+  // y no había ni error ni forma de reintentar. El chofer no podía salir de viaje y lo único
+  // que le quedaba era cerrar la app y volver a abrirla.
+  const [tplFalló, setTplFalló] = useState<string | null>(null);
+  const cargarPlantilla = useCallback(() => {
+    setTplFalló(null);
     api
       .get<TripTemplate[]>("/templates")
-      .then((list) => setTpl(list.find((t) => t.id === Number(templateId)) ?? null))
-      .catch(() => setTpl(null));
+      .then((list) => {
+        const suya = list.find((t) => t.id === Number(templateId));
+        if (suya) setTpl(suya);
+        else setTplFalló("Este viaje ya no está en tu lista. Volvé y elegilo de nuevo.");
+      })
+      .catch((e) => setTplFalló(mensajeDe(e)));
   }, [templateId]);
+  useEffect(cargarPlantilla, [cargarPlantilla]);
 
   // Camión asignado por defecto; el chofer puede cambiarlo si hoy maneja otro.
   //
@@ -73,7 +83,13 @@ export function StartTripPage() {
       .catch(() => {});
   }, [user?.truck_id]);
 
-  if (!tpl) return <Spinner size={28} />;
+  if (!tpl) {
+    return tplFalló ? (
+      <ErrorDeCarga titulo="No se pudo cargar el viaje." mensaje={tplFalló} onReintentar={cargarPlantilla} />
+    ) : (
+      <Spinner size={28} />
+    );
+  }
 
   const cargaFields = tpl.fields.filter((f) => f.stage === FIELD_STAGE.CARGA);
   const cu = tpl.campos_ubicacion ?? {};
@@ -124,6 +140,9 @@ export function StartTripPage() {
 
   async function confirm() {
     setError("");
+    // El desplegable arranca vacío cuando no tiene camión asignado: sin esto el servidor
+    // contesta con el mensaje del camión, que no dice qué hacer.
+    if (!truckId) return setError("Elegí con qué camión salís.");
     // Los de texto se validan igual que los de lista: si son obligatorios, no pasan vacios.
     if (cu.origen && cu.origen.modo !== CAMPO_MODO.FIJO && cu.origen.requerido !== false && !origenFinal) {
       return setError("Elegí el origen.");

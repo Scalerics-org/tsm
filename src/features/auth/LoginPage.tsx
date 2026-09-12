@@ -7,14 +7,16 @@ import { TruckMark } from "../../components/AppShell";
 type Mode = "chofer" | "oficina";
 
 export function LoginPage() {
-  const { loginDriver, loginOffice } = useAuth();
+  const { loginDriver, loginOffice, motivoDeSalida } = useAuth();
   const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>("chofer");
   const [plate, setPlate] = useState("");
   const [pin, setPin] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  // Arranca con el motivo por el que se cerró la sesión, si se cerró sola: "tu usuario está
+  // dado de baja", "se cerró tu sesión". Sin eso, al chofer lo devolvía acá sin explicación.
+  const [error, setError] = useState(motivoDeSalida);
   const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {

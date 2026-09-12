@@ -46,6 +46,19 @@ export const SIN_SENAL = "Sin conexión: no llegó respuesta del servidor. Revis
 /** El servidor rechazó el token: hay que volver a entrar. Lo escucha `AuthProvider`. */
 export const SESION_CAIDA = "tsm:sesion-caida";
 
+/**
+ * Cierra la sesión cuando el servidor rechaza el token, y dice por qué.
+ *
+ * `tokenUsado`: sólo se cierra si el token que rebotó sigue siendo el de la sesión. Un pedido
+ * lento que vuelve 401 justo después de que alguien volvió a entrar echaría a la sesión nueva.
+ */
+function sesionRechazada(tokenUsado: string | null, motivo?: string): void {
+  if (getToken() !== tokenUsado) return;
+  clearToken();
+  if (typeof window === "undefined") return; // los tests no tienen ventana
+  window.dispatchEvent(new CustomEvent(SESION_CAIDA, { detail: { motivo } }));
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -93,15 +106,11 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     clearTimeout(espera);
   }
 
-  if (res.status === 401) {
-    clearToken();
-    // Y se avisa, para volver a la pantalla de entrar. Borrar el token no alcanzaba: la
-    // pantalla seguía ahí con el usuario que tenía en memoria, y cada cosa que se tocara
-    // devolvía "No autenticado". Pasa cuando vence el token de una semana y ahora también
-    // cuando la oficina da de baja al chofer.
-    // `typeof window`: esto también corre en los tests, que no tienen ventana.
-    if (typeof window !== "undefined") window.dispatchEvent(new Event(SESION_CAIDA));
-  }
+  // Volver a la pantalla de entrar, con el motivo. Borrar el token no alcanzaba: la pantalla
+  // seguía ahí con el usuario que tenía en memoria y cada cosa que se tocara devolvía "No
+  // autenticado". Pasa cuando vence el token de una semana, y ahora también cuando la oficina
+  // da de baja al chofer o borra al usuario.
+  if (res.status === 401) sesionRechazada(token, json?.success === false ? json.error : undefined);
 
   if (!json) throw new ApiError("Respuesta inválida del servidor", res.status);
   if (!json.success) throw new ApiError(json.error, res.status);
@@ -139,6 +148,8 @@ export async function downloadFile(path: string, filename: string): Promise<void
   }
   if (!res.ok) {
     const json = (await res.json().catch(() => null)) as { error?: string } | null;
+    // Descargar no pasa por `request`, así que el 401 hay que atenderlo acá también.
+    if (res.status === 401) sesionRechazada(token, json?.error);
     alert(`No se pudo descargar. ${json?.error ?? `El servidor respondió ${res.status}.`}`);
     return;
   }
@@ -159,6 +170,7 @@ export async function fetchPhotoUrl(r2Key: string): Promise<string | null> {
   const res = await fetch(`/api/photos/${r2Key}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
+  if (res.status === 401) sesionRechazada(token);
   if (!res.ok) return null;
   const blob = await res.blob();
   return URL.createObjectURL(blob);

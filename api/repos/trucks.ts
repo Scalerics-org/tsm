@@ -63,7 +63,8 @@ export async function loAtadoAlCamion(db: D1Database, id: number): Promise<Atado
       `SELECT (SELECT COUNT(*) FROM trips WHERE truck_id = ?)             AS viajes,
               (SELECT COUNT(*) FROM fuel_logs WHERE truck_id = ?)         AS surtidas,
               (SELECT COUNT(*) FROM lecturas_odometro WHERE truck_id = ?) AS lecturas,
-              (SELECT COUNT(*) FROM drivers WHERE default_truck_id = ?)   AS choferes`,
+              (SELECT COUNT(*) FROM drivers
+                 WHERE default_truck_id = ? AND status = 'activo')          AS choferes`,
     )
     .bind(id, id, id, id)
     .first<AtadoAlCamion>();

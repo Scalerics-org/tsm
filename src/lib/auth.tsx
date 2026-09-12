@@ -14,6 +14,8 @@ import {
 interface AuthState {
   user: AuthUser | null;
   loading: boolean;
+  /** Por qué se cerró la sesión sola, para que la pantalla de entrar lo diga. */
+  motivoDeSalida: string;
   loginOffice: (email: string, password: string) => Promise<void>;
   loginDriver: (plate: string, pin: string) => Promise<void>;
   logout: () => void;
@@ -24,6 +26,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [motivoDeSalida, setMotivoDeSalida] = useState("");
 
   useEffect(() => {
     if (!getToken()) {
@@ -47,9 +50,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Cualquier pedido que vuelva con 401 —token vencido, o la oficina dio de baja al chofer—
-  // devuelve la app a la pantalla de entrar, en vez de dejarla mostrando errores.
+  // devuelve la app a la pantalla de entrar, en vez de dejarla mostrando errores. Con el
+  // motivo: "te echó y no sé por qué" es lo que termina en un llamado a la oficina.
   useEffect(() => {
-    const caida = () => setUser(null);
+    const caida = (e: Event) => {
+      const motivo = (e as CustomEvent<{ motivo?: string }>).detail?.motivo;
+      setMotivoDeSalida(motivo || "Se cerró tu sesión. Entrá de nuevo.");
+      setUser(null);
+    };
     window.addEventListener(SESION_CAIDA, caida);
     return () => window.removeEventListener(SESION_CAIDA, caida);
   }, []);
@@ -76,11 +84,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function logout() {
     clearToken();
+    setMotivoDeSalida("");
     setUser(null);
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginOffice, loginDriver, logout }}>
+    <AuthContext.Provider value={{ user, loading, motivoDeSalida, loginOffice, loginDriver, logout }}>
       {children}
     </AuthContext.Provider>
   );

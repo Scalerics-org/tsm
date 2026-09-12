@@ -21,7 +21,7 @@ import { DESVIO_SURTIDA } from "../../shared/rango-surtidas";
 import { claveMovida, esPeriodo, fechaDeFoto, moverLectura } from "../lib/lectura-periodo";
 import * as repo from "../repos/lecturas";
 import { listTrips } from "../repos/trips";
-import { currentTruckId, listDrivers } from "../repos/drivers";
+import { listDrivers } from "../repos/drivers";
 import { listTrucks, getTruck } from "../repos/trucks";
 import { listTemplates } from "../repos/templates";
 import { listFuelLogs } from "../repos/fuel";
@@ -47,11 +47,12 @@ lecturas.use("*", requireAuth);
  * el mes a otro.
  *
  * Sale de la base y no del token: el token dura una semana, así que un chofer reasignado
- * seguiría trayendo la foto del camión anterior hasta que volviera a entrar.
+ * seguiría trayendo la foto del camión anterior hasta que volviera a entrar. Quien lo relee es
+ * `requireAuth`, en cada pedido: `user.truck_id` ya es el de la base, no el que vino firmado.
  */
-async function camionDelChofer(db: D1Database, user: AuthUser): Promise<number | null> {
+function camionDelChofer(user: AuthUser): number | null {
   if (user.role !== ROLES.CHOFER || user.driver_id == null) return null;
-  return (await currentTruckId(db, user.driver_id)) ?? user.truck_id;
+  return user.truck_id;
 }
 
 /**
@@ -66,7 +67,7 @@ lecturas.get("/pendiente", async (c) => {
   const periodo = q.mes && esPeriodo(q.mes) ? q.mes : periodoDeHoy();
   const truckId =
     user.role === ROLES.CHOFER
-      ? await camionDelChofer(c.env.DB, user)
+      ? camionDelChofer(user)
       : q.truck
         ? Number(q.truck)
         : null;
@@ -102,7 +103,7 @@ lecturas.post("/", async (c) => {
 
   const truckId =
     user.role === ROLES.CHOFER
-      ? await camionDelChofer(c.env.DB, user)
+      ? camionDelChofer(user)
       : form.get("truck_id")
         ? Number(form.get("truck_id"))
         : null;

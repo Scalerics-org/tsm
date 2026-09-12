@@ -265,7 +265,8 @@ trips.post("/", async (c) => {
     // le ofrece cargar ninguna foto —para ella no tiene camión— y bloquearlo por el que
     // agarró hoy lo dejaba sin ninguna acción posible en la app, esperando un llamado a la
     // oficina. `bloqueaSalidaPorLectura` con null no bloquea, y es a propósito.
-    const suyo = await driversRepo.currentTruckId(c.env.DB, driverId);
+    // El asignado ya lo releyó `requireAuth` de la base para este pedido.
+    const suyo = user.truck_id;
     const lectura = suyo == null ? null : await lecturasRepo.getLectura(c.env.DB, suyo, periodoDeHoy());
     if (bloqueaSalidaPorLectura(suyo, lectura != null)) {
       return fail(c, MENSAJE_LECTURA_PENDIENTE, 409);
