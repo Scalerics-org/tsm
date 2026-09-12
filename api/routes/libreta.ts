@@ -10,6 +10,7 @@ import {
   type CobroTipo,
   type LibretaTipo,
 } from "../../shared/domain";
+import { engancharEnViajes } from "../lib/enganchar-carga";
 import * as repo from "../repos/libreta";
 import * as tripsRepo from "../repos/trips";
 
@@ -124,6 +125,49 @@ libreta.delete("/:id", requireRole(ROLES.ADMIN), async (c) => {
 
   await repo.deleteEntry(c.env.DB, id);
   return ok(c, { deleted: true });
+});
+
+/**
+ * POST /api/libreta/enganchar  { remitente: "ISUSA", libreta_id: 5 }
+ *
+ * Le pone el lugar de carga de la libreta a las cargas viejas que lo tienen escrito a mano.
+ *
+ * Sin `remitente_id` no hay regla que las alcance —`resolveCobro` corta en seco— así que esas
+ * cargas no se pueden cobrar por regla nunca. Son las de "OTROS VIAJES" y las precargadas de
+ * Manassi: hoy 15, en viajes ya cerrados que ninguna pantalla podía tocar.
+ *
+ * Sólo la oficina, y nunca sobre un viaje facturado o cancelado.
+ */
+libreta.post("/enganchar", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+  const b = (await c.req.json().catch(() => ({}))) as { remitente?: string; libreta_id?: number };
+  const texto = (b.remitente ?? "").trim();
+  if (!texto || !b.libreta_id) return fail(c, "Falta el lugar de carga y a qué entrada engancharlo", 400);
+
+  const entrada = await repo.getEntry(c.env.DB, Number(b.libreta_id));
+  if (!entrada) return fail(c, "Esa entrada de la libreta no existe", 404);
+  // "Varios", "Productores": un agrupador no es un lugar de carga, y engancharle cargas sería
+  // grabar justo el dato que no se puede perder. Misma regla que ya frena al chofer.
+  if (entrada.agrupador) {
+    return fail(c, `"${entrada.nombre}" agrupa a varios: elegí el lugar de carga concreto.`, 400);
+  }
+
+  const [viajes, reglas] = await Promise.all([
+    tripsRepo.listTripsFacturables(c.env.DB, {}),
+    repo.listReglas(c.env.DB),
+  ]);
+  const cambios = engancharEnViajes(viajes, reglas, {
+    texto,
+    libreta_id: entrada.id,
+    nombre: entrada.nombre,
+  });
+  for (const v of cambios) await tripsRepo.updateSegments(c.env.DB, v.id, v.segments);
+
+  const cargas = cambios.reduce((n, v) => n + v.cargas, 0);
+  const conCobro = cambios.reduce(
+    (n, v) => n + v.segments.filter((s) => s.remitente_id === entrada.id && s.cobro_a).length,
+    0,
+  );
+  return ok(c, { viajes: cambios.length, cargas, con_cobro: conCobro, nombre: entrada.nombre });
 });
 
 // ── Reglas de facturación ──

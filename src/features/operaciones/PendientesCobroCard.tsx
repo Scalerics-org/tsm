@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import type { LibretaEntry, PendienteCobro } from "@shared/domain";
-import { Card } from "../../components/ui";
+import { LIBRETA_TIPO, type LibretaEntry, type PendienteCobro } from "@shared/domain";
+import { api, mensajeDe } from "../../lib/api";
+import { Button, Card, ErrorText } from "../../components/ui";
+import { LibretaPicker } from "../../components/LibretaPicker";
 import { agruparPendientes, type PendienteGrupo } from "../../lib/libreta-view";
 import { ReglaCobroForm } from "./ReglaCobroForm";
 
@@ -99,16 +101,27 @@ function GrupoPendiente({
         </div>
 
         {grupo.remitente_id == null ? (
-          // Sin id no hay a qué colgar la regla: primero hay que normalizar el nombre en la libreta.
-          <span className="flex-none text-xs text-ink/50">
-            El lugar de carga no está en la libreta
-          </span>
+          // Sin id no hay a qué colgar la regla. Antes esto era una calle sin salida: el aviso
+          // decía que había que normalizar el nombre y no había dónde hacerlo, porque estas
+          // cargas están en viajes cerrados y las rutas del chofer exigen viaje en curso.
+          <button className="flex-none text-sm text-brand-700 hover:underline" onClick={onToggle}>
+            {abierto ? "Cancelar" : "Identificar el lugar de carga"}
+          </button>
         ) : (
           <button className="flex-none text-sm text-brand-700 hover:underline" onClick={onToggle}>
             {abierto ? "Cancelar" : "Definir regla"}
           </button>
         )}
       </div>
+
+      {abierto && grupo.remitente_id == null && (
+        <EngancharLugar
+          texto={grupo.remitente}
+          cargas={grupo.cargas}
+          onEnganchado={onReglaCreada}
+          onCancel={onToggle}
+        />
+      )}
 
       {abierto && grupo.remitente_id != null && (
         <ReglaCobroForm
@@ -121,5 +134,70 @@ function GrupoPendiente({
         />
       )}
     </>
+  );
+}
+
+/**
+ * Engancha una carga vieja al lugar de carga de la libreta.
+ *
+ * El chofer escribió el lugar a mano —"ISUSA", "molino", "Las piedras"— y esa carga quedó sin
+ * id: ninguna regla la alcanza y no se puede cobrar por regla nunca. Con el id puesto, si ya
+ * hay una regla para ese lugar, el cobro se resuelve solo.
+ */
+function EngancharLugar({
+  texto,
+  cargas,
+  onEnganchado,
+  onCancel,
+}: {
+  texto: string;
+  cargas: number;
+  onEnganchado: (destrabadas: number) => void;
+  onCancel: () => void;
+}) {
+  const [elegido, setElegido] = useState<LibretaEntry | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function enganchar() {
+    if (!elegido) return setError("Elegí el lugar de carga.");
+    setError("");
+    setBusy(true);
+    try {
+      const r = await api.post<{ viajes: number; cargas: number; con_cobro: number }>("/libreta/enganchar", {
+        remitente: texto,
+        libreta_id: elegido.id,
+      });
+      onEnganchado(r.con_cobro);
+    } catch (e) {
+      setError(mensajeDe(e, "No se pudo enganchar."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 space-y-3 border-t border-ink/10 pt-3">
+      <p className="text-sm text-ink/70">
+        "{texto}" está escrito a mano en {cargas} carga(s) y no figura en la libreta, así que
+        ninguna regla lo alcanza. Elegí con qué lugar de carga se corresponde:
+      </p>
+      <LibretaPicker
+        tipo={LIBRETA_TIPO.REMITENTE}
+        label="Lugar de carga"
+        value={elegido}
+        onChange={setElegido}
+        permiteAlta
+      />
+      <ErrorText>{error}</ErrorText>
+      <div className="flex gap-2">
+        <Button onClick={enganchar} loading={busy}>
+          Enganchar
+        </Button>
+        <Button variant="ghost" onClick={onCancel} disabled={busy}>
+          Cancelar
+        </Button>
+      </div>
+    </div>
   );
 }
