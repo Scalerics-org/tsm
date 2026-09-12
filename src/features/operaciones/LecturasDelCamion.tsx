@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { LecturaOdometro } from "@shared/domain";
 import { api, ApiError, mensajeDe } from "../../lib/api";
+import { compressImage } from "../../lib/image";
 import { Button, Card, Corners, ErrorDeCarga, ErrorText, Spinner } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { VisorFotos } from "../../components/VisorFotos";
@@ -28,6 +29,7 @@ function nombreDelMes(periodo: string): string {
  * La foto NO se toca: es la evidencia contra la que se compara el número corregido.
  */
 export function LecturasDelCamion({ truckId }: { truckId: number }) {
+  const [cargando, setCargando] = useState(false);
   const [lecturas, setLecturas] = useState<LecturaOdometro[] | null>(null);
   // Si fallaba, decía "Todavía no hay ninguna foto del tacógrafo", que es justo lo que hace que
   // la oficina llame al chofer para que la saque de nuevo.
@@ -45,13 +47,30 @@ export function LecturasDelCamion({ truckId }: { truckId: number }) {
   return (
     <Card className="overflow-x-auto p-0">
       <Corners />
-      <div className="border-b border-ink/15 px-4 py-3">
-        <div className="font-cond text-lg font-semibold text-ink">Tacógrafo, mes a mes</div>
-        <p className="mt-0.5 text-xs text-ink/55">
-          De acá sale la auditoría de kilómetros. Si un número está mal, corregilo: el chofer
-          no puede volver a cargar el mes.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ink/15 px-4 py-3">
+        <div>
+          <div className="font-cond text-lg font-semibold text-ink">Tacógrafo, mes a mes</div>
+          <p className="mt-0.5 text-xs text-ink/55">
+            De acá sale la auditoría de kilómetros. Si un número está mal, corregilo: el chofer
+            no puede volver a cargar el mes.
+          </p>
+        </div>
+        {/* La app le pide la foto al chofer que tiene el camión asignado. Al camión sin chofer
+            no se la pide nadie, y salía en Control como "falta la lectura" todos los meses sin
+            que la oficina tuviera dónde cargarla — el servidor sí la aceptaba. */}
+        <Button variant="secondary" onClick={() => setCargando((v) => !v)}>
+          {cargando ? "Cancelar" : "+ Cargar lectura"}
+        </Button>
       </div>
+      {cargando && (
+        <NuevaLectura
+          truckId={truckId}
+          onListo={() => {
+            setCargando(false);
+            load();
+          }}
+        />
+      )}
       {falló && (
         <div className="p-3">
           <ErrorDeCarga titulo="No se pudieron cargar las lecturas." mensaje={falló} onReintentar={load} />
@@ -83,6 +102,77 @@ export function LecturasDelCamion({ truckId }: { truckId: number }) {
         </table>
       )}
     </Card>
+  );
+}
+
+/**
+ * Cargar a mano la lectura de un mes, desde la oficina.
+ *
+ * El mes se elige —es lo que el servidor sólo le permite a la oficina— porque estas lecturas
+ * casi siempre llegan tarde: la foto la manda alguien por teléfono y se carga después. La foto
+ * es obligatoria por la misma razón que al chofer: sin ella el número no verifica nada.
+ */
+function NuevaLectura({ truckId, onListo }: { truckId: number; onListo: () => void }) {
+  const [periodo, setPeriodo] = useState(new Date().toISOString().slice(0, 7));
+  const [km, setKm] = useState("");
+  const [foto, setFoto] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function guardar() {
+    setError("");
+    if (!/^\d{4}-\d{2}$/.test(periodo)) return setError("El mes va como 2026-09.");
+    if (!km.trim()) return setError("Poné el kilometraje que marca el tacógrafo.");
+    if (!foto) return setError("Falta la foto del tacógrafo.");
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("truck_id", String(truckId));
+      fd.append("periodo", periodo);
+      fd.append("kilometraje", km);
+      fd.append("file", await compressImage(foto));
+      await api.upload("/lecturas", fd);
+      onListo();
+    } catch (e) {
+      setError(mensajeDe(e, "No se pudo guardar la lectura."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3 border-b border-ink/15 bg-surface px-4 py-3">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="block">
+          <span className="label">Mes</span>
+          <input className="input" type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} />
+        </label>
+        <label className="block">
+          <span className="label">Kilometraje</span>
+          <input
+            className="input"
+            type="number"
+            inputMode="numeric"
+            value={km}
+            onChange={(e) => setKm(e.target.value)}
+            placeholder="395705"
+          />
+        </label>
+        <label className="block">
+          <span className="label">Foto del tacógrafo</span>
+          <input
+            className="input"
+            type="file"
+            accept="image/*"
+            onChange={(e) => setFoto(e.target.files?.[0] ?? null)}
+          />
+        </label>
+      </div>
+      <ErrorText>{error}</ErrorText>
+      <Button onClick={guardar} loading={busy}>
+        Guardar lectura
+      </Button>
+    </div>
   );
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { TRIP_STATUS, type Driver, type Trip, type Truck } from "@shared/domain";
+import { DRIVER_STATUS, TRIP_STATUS, type Driver, type Trip, type Truck } from "@shared/domain";
 import { api, ApiError, mensajeDe } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
 
@@ -172,9 +172,12 @@ export function EditarCabecera({ trip, recorridoPorCargas, onGuardado, onCancela
 
         <Field label="Chofer">
           <select className="input" value={form.driver_id} onChange={set("driver_id")} disabled={enCurso}>
+            {/* Marcados, no escondidos: un viaje viejo lo hizo quien lo hizo, y corregirlo
+                tiene que poder seguir apuntando a alguien que ya no trabaja acá. */}
             {drivers.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
+                {d.status === DRIVER_STATUS.INACTIVO ? " (inactivo)" : ""}
               </option>
             ))}
           </select>
