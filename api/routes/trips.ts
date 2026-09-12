@@ -632,6 +632,13 @@ trips.post("/:id/cancel", async (c) => {
     );
   }
 
+  // El chofer cancela lo que está haciendo —arrancó un viaje por error, que es para lo que
+  // existe el botón—, no lo que ya cerró. Un viaje COMPLETADO cancelado sale del resumen y no
+  // se cobra nunca: eso lo decide la oficina, que es la que mira la plata.
+  if (c.get("user").role === ROLES.CHOFER && s.trip.status !== TRIP_STATUS.EN_CURSO) {
+    return fail(c, "Ese viaje ya está cerrado. Si hay que anularlo, avisale a la oficina.", 409);
+  }
+
   const b = (await c.req.json().catch(() => ({}))) as { notes?: string };
   await tripsRepo.cancelTrip(c.env.DB, s.trip.id, b.notes ?? "");
   return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));

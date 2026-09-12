@@ -285,4 +285,16 @@ describe("la ruta de facturación", () => {
     expect(r.status).toBe(200);
     expect(updates[0].sql).toContain("factura_numero=NULL");
   });
+
+  /**
+   * El número que se saca queda guardado (migración 0043). Sin eso, un viaje desmarcado y
+   * vuelto a facturar con otro número sale dos veces en DGI y la app no tiene con qué avisarlo:
+   * el primer número no quedaba en ningún lado.
+   */
+  it("desmarcar guarda cuál era la factura, para que no se cobre dos veces", async () => {
+    const updates: { sql: string; binds: unknown[] }[] = [];
+    await pedir("/api/facturacion/desmarcar", ROLES.ENCARGADO, { trip_ids: [1] }, updates);
+    expect(updates[0].sql).toContain("factura_quitada = factura_numero");
+    expect(updates[0].sql).toContain("factura_quitada_at");
+  });
 });

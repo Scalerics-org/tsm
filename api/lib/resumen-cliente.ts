@@ -43,6 +43,8 @@ export interface FilaResumen {
   cargas: { remitente: string; clientes: string; cantidad: number | null; unidad: string | null; remito: string | null }[];
   /** El número de la factura en la que ya salió. `null` = todavía está para facturar. */
   factura_numero: string | null;
+  /** El número que TUVO y le sacaron: avisa que este viaje ya salió una vez en una factura. */
+  factura_quitada: string | null;
 }
 
 export interface GrupoResumen {
@@ -143,6 +145,8 @@ function fila(t: ViajeDelResumen, pesos: Set<string>): FilaResumen {
       remito: s.remito,
     })),
     factura_numero: t.factura_numero ?? null,
+    // Para que al volver a facturarlo se vea que ese viaje ya salió una vez en otra factura.
+    factura_quitada: t.factura_quitada ?? null,
   };
 }
 

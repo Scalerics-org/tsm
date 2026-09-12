@@ -24,6 +24,7 @@ interface Fila {
   valores: Record<string, string>;
   cargas: { remitente: string; clientes: string; cantidad: number | null; unidad: string | null }[];
   factura_numero: string | null;
+  factura_quitada: string | null;
 }
 
 interface Grupo {
@@ -156,11 +157,33 @@ export function ResumenClientePage() {
       return `${r.marcados} viaje${r.marcados === 1 ? "" : "s"} con la factura ${r.factura_numero}.${yaEstaban}`;
     });
 
-  const desmarcar = () =>
-    accion(async () => {
+  /**
+   * Sacar la factura vuelve el viaje al resumen para volver a facturarlo. Se pregunta antes y
+   * se nombran las facturas: si después se factura con otro número, en DGI quedan las dos y el
+   * cliente queda cobrado dos veces. El número viejo queda guardado y se ve en la fila.
+   */
+  const desmarcar = () => {
+    const numeros = [
+      ...new Set(
+        (data?.grupos ?? [])
+          .flatMap((g) => g.filas)
+          .filter((f) => seleccion.includes(f.trip_id) && f.factura_numero)
+          .map((f) => f.factura_numero as string),
+      ),
+    ];
+    const cuales = numeros.length ? ` (${numeros.join(", ")})` : "";
+    if (
+      !confirm(
+        `Les vas a sacar la factura${cuales} a ${seleccion.length} viaje(s). Vuelven al resumen y se pueden volver a facturar: si les ponés otro número, en DGI van a quedar las dos. ¿Seguir?`,
+      )
+    ) {
+      return;
+    }
+    return accion(async () => {
       const r = await api.post<{ desmarcados: number }>("/facturacion/desmarcar", { trip_ids: seleccion });
       return `Le sacamos la factura a ${r.desmarcados} viaje${r.desmarcados === 1 ? "" : "s"}. Vuelven al resumen.`;
     });
+  };
 
   return (
     <div className="space-y-4">
@@ -440,6 +463,13 @@ function GrupoTabla({
                 {f.factura_numero ? (
                   <span className="font-cond text-[12px] font-semibold uppercase tracking-[0.08em] text-ink">
                     ✓ {f.factura_numero}
+                  </span>
+                ) : f.factura_quitada ? (
+                  /* Ya salió una vez en una factura y se la sacaron. Si se factura de nuevo con
+                     otro número, en DGI quedan las dos: por eso se avisa acá, que es donde se
+                     decide. */
+                  <span className="font-cond text-[12px] font-semibold uppercase tracking-[0.08em] text-st-amberTx">
+                    tuvo la {f.factura_quitada}
                   </span>
                 ) : (
                   <span className="text-ink/35">Sin facturar</span>

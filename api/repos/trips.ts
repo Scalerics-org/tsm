@@ -31,6 +31,8 @@ interface TripRow {
   factura_numero: string | null;
   facturado_at: string | null;
   facturado_by: number | null;
+  factura_quitada: string | null;
+  factura_quitada_at: string | null;
   /** Lo calcula `NUMERADOS` con ROW_NUMBER; no es una columna de la tabla. */
   numero_mes: number;
   driver_name?: string;
@@ -51,6 +53,15 @@ export interface TripFacturacion {
   factura_numero: string | null;
   facturado_at: string | null;
   facturado_by: number | null;
+  /**
+   * El número que TUVO y le sacaron (migración 0043).
+   *
+   * Desmarcar devuelve el viaje al resumen para volver a facturarlo, y antes borraba el número
+   * sin dejar nada: si se facturaba de nuevo con otro número, en DGI quedaban las dos facturas
+   * y la app no tenía con qué darse cuenta. Esto es lo que la oficina ve al volver a facturarlo.
+   */
+  factura_quitada: string | null;
+  factura_quitada_at: string | null;
 }
 
 export type TripFacturable = Trip & TripFacturacion;
@@ -88,7 +99,8 @@ const SELECT = `
          t.driver_id, t.truck_id, t.cargo_type, t.kilos, t.field_values, t.status,
          t.started_at, t.finished_at, t.notes, t.created_at,
          t.segments, t.kilometros, t.edited_by, t.edited_at,
-         t.factura_numero, t.facturado_at, t.facturado_by, t.numero_mes,
+         t.factura_numero, t.facturado_at, t.facturado_by,
+         t.factura_quitada, t.factura_quitada_at, t.numero_mes,
          d.name AS driver_name, tr.plate AS truck_plate,
          -- Quién fue el último en corregirlo. El LEFT es porque el usuario puede haberse
          -- borrado, y un viaje no puede desaparecer de la lista por eso.
@@ -211,6 +223,8 @@ export async function listTripsFacturables(db: D1Database, f: TripFilters): Prom
     factura_numero: r.factura_numero,
     facturado_at: r.facturado_at,
     facturado_by: r.facturado_by,
+    factura_quitada: r.factura_quitada,
+    factura_quitada_at: r.factura_quitada_at,
   }));
 }
 
@@ -385,7 +399,14 @@ export async function updateCabecera(
 export async function getTripFacturable(db: D1Database, id: number): Promise<TripFacturable | null> {
   const r = await db.prepare(`${SELECT} WHERE t.id = ?`).bind(id).first<TripRow>();
   if (!r) return null;
-  return { ...toTrip(r), factura_numero: r.factura_numero, facturado_at: r.facturado_at, facturado_by: r.facturado_by };
+  return {
+    ...toTrip(r),
+    factura_numero: r.factura_numero,
+    facturado_at: r.facturado_at,
+    facturado_by: r.facturado_by,
+    factura_quitada: r.factura_quitada,
+    factura_quitada_at: r.factura_quitada_at,
+  };
 }
 
 export async function deleteTrip(db: D1Database, id: number): Promise<void> {
@@ -436,8 +457,27 @@ export async function setKilometros(db: D1Database, id: number, km: number | nul
   await db.prepare("UPDATE trips SET kilometros=? WHERE id=?").bind(km, id).run();
 }
 
+/**
+ * Cancelar NO borra lo que el chofer escribió.
+ *
+ * Las dos pantallas cancelan sin pedir motivo —mandan el cuerpo vacío— y esto guardaba esa
+ * cadena vacía en `notes`: se perdían las observaciones del viaje. Si viene un motivo, se
+ * agrega debajo de lo que ya había.
+ */
 export async function cancelTrip(db: D1Database, id: number, notes: string): Promise<void> {
-  await db.prepare("UPDATE trips SET status='CANCELADO', notes=? WHERE id=?").bind(notes, id).run();
+  if (notes.trim() === "") {
+    await db.prepare("UPDATE trips SET status='CANCELADO' WHERE id=?").bind(id).run();
+    return;
+  }
+  await db
+    .prepare(
+      `UPDATE trips
+          SET status='CANCELADO',
+              notes = TRIM(COALESCE(notes,'') || CASE WHEN COALESCE(notes,'') = '' THEN '' ELSE char(10) END || ?)
+        WHERE id=?`,
+    )
+    .bind(notes, id)
+    .run();
 }
 
 /**
@@ -495,7 +535,9 @@ export async function desmarcarFacturados(db: D1Database, ids: number[]): Promis
   const stmts = enTandas(ids).map((tanda) =>
     db
       .prepare(
-        `UPDATE trips SET factura_numero=NULL, facturado_at=NULL, facturado_by=NULL
+        `UPDATE trips SET factura_quitada = factura_numero,
+                          factura_quitada_at = datetime('now'),
+                          factura_numero=NULL, facturado_at=NULL, facturado_by=NULL
           WHERE id IN (${tanda.map(() => "?").join(",")}) AND factura_numero IS NOT NULL`,
       )
       .bind(...tanda),

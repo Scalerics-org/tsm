@@ -122,6 +122,72 @@ async function cancelar(trip: ReturnType<typeof viaje>) {
   return { status: res.status, json: (await res.json()) as any, escrituras };
 }
 
+/** Cancelar como lo hacen las dos pantallas: sin motivo, con el cuerpo vacío. */
+async function cancelarSinMotivo(trip: ReturnType<typeof viaje>, role: string) {
+  const sql: string[] = [];
+  const token = await signToken(
+    { id: 1, name: "X", role, driver_id: role === ROLES.CHOFER ? 1 : null, truck_id: 1, email: null } as any,
+    SECRET,
+  );
+  const db = {
+    prepare(q: string) {
+      const stmt: any = {
+        bind: () => stmt,
+        first: async () => {
+          const s = q.toLowerCase();
+          if (s.includes("from users")) return { id: 1 };
+          if (s.includes("from drivers")) return { id: 1, status: "activo", default_truck_id: 1 };
+          if (s.includes("from trips")) return trip;
+          return null;
+        },
+        all: async () => ({ results: [] }),
+        run: async () => {
+          sql.push(q);
+          return { meta: {} };
+        },
+      };
+      return stmt;
+    },
+    batch: async () => [],
+  } as unknown as D1Database;
+  const res = await app.request(
+    "/api/trips/1/cancel",
+    { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: "{}" },
+    { DB: db, JWT_SECRET: SECRET } as any,
+  );
+  return { status: res.status, json: (await res.json()) as any, sql };
+}
+
+/**
+ * Cancelar saca el viaje del resumen para siempre: `viajesAFacturar` filtra los CANCELADO. El
+ * botón del chofer existe para el viaje que arrancó por error, no para uno que ya cerró.
+ */
+describe("quién puede cancelar y qué se lleva puesto", () => {
+  it("el chofer no puede cancelar un viaje que ya cerró: eso lo decide la oficina", async () => {
+    const { status, json, sql } = await cancelarSinMotivo(viaje({ status: "COMPLETADO" }), ROLES.CHOFER);
+    expect(status).toBe(409);
+    expect(json.error).toMatch(/oficina/i);
+    expect(sql).toEqual([]);
+  });
+
+  it("el chofer sí puede cancelar el que está haciendo", async () => {
+    const { status } = await cancelarSinMotivo(viaje({ status: "EN_CURSO" }), ROLES.CHOFER);
+    expect(status).toBe(200);
+  });
+
+  it("la oficina puede cancelar uno cerrado: es la que mira la plata", async () => {
+    const { status } = await cancelarSinMotivo(viaje({ status: "COMPLETADO" }), ROLES.ENCARGADO);
+    expect(status).toBe(200);
+  });
+
+  it("cancelar sin motivo NO borra las observaciones del viaje", async () => {
+    const { sql } = await cancelarSinMotivo(viaje({ status: "EN_CURSO", notes: "quedó una bolsa rota" }), ROLES.CHOFER);
+    const update = sql.find((q) => /update trips/i.test(q)) ?? "";
+    expect(update).toContain("CANCELADO");
+    expect(update).not.toContain("notes");
+  });
+});
+
 async function borrarFoto(trip: ReturnType<typeof viaje>) {
   const escrituras: string[] = [];
   const borrados: string[] = [];
