@@ -19,8 +19,9 @@ export function OpsTripsPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
+  const [clientes, setClientes] = useState<{ nombre: string; cobra: boolean }[]>([]);
   const [trips, setTrips] = useState<Trip[] | null>(null);
-  const [f, setF] = useState({ provider: "", driver: "", truck: "", status: "", from: "", to: "" });
+  const [f, setF] = useState({ provider: "", cliente: "", driver: "", truck: "", status: "", from: "", to: "" });
   // Se incrementa cuando una fila cambia algo, para volver a pedir la lista: corregir una
   // fecha puede sacar al viaje del filtro que está puesto, y dejarlo ahí sería mentira.
   const [version, setVersion] = useState(0);
@@ -34,11 +35,13 @@ export function OpsTripsPage() {
     api.get<Driver[]>("/drivers").then(setDrivers).catch(falla);
     api.get<Truck[]>("/trucks").then(setTrucks).catch(falla);
     api.get<Provider[]>("/providers").then(setProviders).catch(falla);
+    api.get<{ nombre: string; cobra: boolean }[]>("/trips/clientes").then(setClientes).catch(falla);
   }, []);
 
   const query = useMemo(() => {
     const p = new URLSearchParams();
     if (f.provider) p.set("provider", f.provider);
+    if (f.cliente) p.set("cliente", f.cliente);
     if (f.driver) p.set("driver", f.driver);
     if (f.truck) p.set("truck", f.truck);
     if (f.status) p.set("status", f.status);
@@ -78,7 +81,10 @@ export function OpsTripsPage() {
         <Button
           variant="secondary"
           onClick={() =>
-            downloadFile(`/reports/trips.csv${query}`, f.provider ? `viajes-${f.provider}.csv` : "viajes.csv")
+            downloadFile(
+              `/reports/trips.csv${query}`,
+              f.cliente ? `viajes-${f.cliente}.csv` : f.provider ? `viajes-${f.provider}.csv` : "viajes.csv",
+            )
           }
         >
           ⬇ Exportar Excel
@@ -86,14 +92,36 @@ export function OpsTripsPage() {
         </div>
       </div>
 
-      <Card className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <Card className="grid gap-3 sm:grid-cols-3 lg:grid-cols-7">
+        {/* Éste lista los VIAJES ("Montevideo - BU", "UAM"). Decía "Todos los clientes" y por
+            eso Rodrigo buscaba ahí a Armco o a Agronorte, que van adentro de un viaje. */}
         <select className="input" value={f.provider} onChange={(e) => setF({ ...f, provider: e.target.value })}>
-          <option value="">Todos los clientes</option>
+          <option value="">Todos los viajes</option>
           {providers.map((p) => (
             <option key={p.id} value={p.name}>
               {p.name}
             </option>
           ))}
+        </select>
+        {/* "Todos los clientes que están en el viaje Mdeo–Bella Unión, esos son clientes a
+            cobrar, y no puedo filtrarlos." Busca adentro de las cargas: para quién va y a quién
+            se le cobra. */}
+        <select className="input" value={f.cliente} onChange={(e) => setF({ ...f, cliente: e.target.value })}>
+          <option value="">Todos los clientes</option>
+          <optgroup label="Se les cobra">
+            {clientes.filter((c) => c.cobra).map((c) => (
+              <option key={c.nombre} value={c.nombre}>
+                {c.nombre}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Clientes de las cargas">
+            {clientes.filter((c) => !c.cobra).map((c) => (
+              <option key={c.nombre} value={c.nombre}>
+                {c.nombre}
+              </option>
+            ))}
+          </optgroup>
         </select>
         <select className="input" value={f.driver} onChange={(e) => setF({ ...f, driver: e.target.value })}>
           <option value="">Todos los choferes</option>

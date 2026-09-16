@@ -159,6 +159,7 @@ trips.get("/", async (c) => {
     truckId: q.truck ? Number(q.truck) : undefined,
     status: (q.status as Trip["status"]) || undefined,
     provider: q.provider || undefined,
+    cliente: q.cliente || undefined,
     from: q.from || undefined,
     to: q.to || undefined,
   };
@@ -171,6 +172,12 @@ trips.get("/", async (c) => {
   const viajes = await tripsRepo.listTrips(c.env.DB, filters);
   return ok(c, user.role === ROLES.CHOFER ? viajes.map(sinCobro) : viajes);
 });
+
+// GET /api/trips/clientes — los clientes de las cargas, para filtrar Viajes. Sólo oficina: dice
+// a quién se le cobra, y eso no baja al chofer.
+trips.get("/clientes", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) =>
+  ok(c, await tripsRepo.listClientesDeCarga(c.env.DB)),
+);
 
 // GET /api/trips/active — viaje en curso del chofer
 trips.get("/active", async (c) => {

@@ -168,11 +168,33 @@ export interface TripFilters {
   status?: TripStatus;
   onlyDriverId?: number;
   provider?: string;
+  /**
+   * Cliente de alguna carga del viaje: para quién va (`clientes`) o a quién se le cobra
+   * (`cobro_a`). Distinto de `provider`, que es el nombre del viaje ("Montevideo - BU").
+   *
+   * Va aparte a propósito y no ensancha `provider`: ése lo usa también el resumen de
+   * facturación, que se arma por viaje, y cambiarlo movería lo que se factura.
+   */
+  cliente?: string;
   from?: string;
   to?: string;
 }
 
-/** El WHERE de los filtros, compartido por las dos lecturas de la lista. */
+/**
+ * Una carga coincide si el cliente está en sus `clientes` o es a quien se le cobra. Sin
+ * distinguir mayúsculas ni espacios de más: `cobro_a` se escribe a mano ("Armco" / "ARMCO").
+ */
+const SQL_CLIENTE_DE_CARGA = `EXISTS (
+    SELECT 1 FROM json_each(COALESCE(t.segments, '[]')) s
+     WHERE lower(trim(COALESCE(json_extract(s.value, '$.cobro_a'), ''))) = lower(trim(?))
+        OR EXISTS (SELECT 1 FROM json_each(COALESCE(json_extract(s.value, '$.clientes'), '[]')) c
+                    WHERE lower(trim(c.value)) = lower(trim(?))))`;
+
+/** El WHERE de los filtros, compartido por las dos lecturas de la lista. Exportado para los tests. */
+export function sqlFiltros(f: TripFilters): { sql: string; binds: unknown[] } {
+  return filtrar(f);
+}
+
 function filtrar(f: TripFilters): { sql: string; binds: unknown[] } {
   const where: string[] = [];
   const binds: unknown[] = [];
@@ -193,6 +215,10 @@ function filtrar(f: TripFilters): { sql: string; binds: unknown[] } {
     where.push("t.provider_name = ?");
     binds.push(f.provider);
   }
+  if (f.cliente) {
+    where.push(SQL_CLIENTE_DE_CARGA);
+    binds.push(f.cliente, f.cliente);
+  }
   if (f.from) {
     where.push("substr(t.started_at,1,10) >= ?");
     binds.push(f.from);
@@ -205,6 +231,46 @@ function filtrar(f: TripFilters): { sql: string; binds: unknown[] } {
     sql: SELECT + (where.length ? ` WHERE ${where.join(" AND ")}` : "") + " ORDER BY t.started_at DESC, t.id DESC",
     binds,
   };
+}
+
+/**
+ * Los clientes que aparecen en alguna carga —para quién va o a quién se cobra—, para el
+ * desplegable de Viajes. Sólo los que están en viajes: una opción que no trae nada confunde.
+ */
+export async function listClientesDeCarga(db: D1Database): Promise<ClienteDeCarga[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT json_extract(s.value, '$.cobro_a') AS nombre, 1 AS cobra
+         FROM trips t, json_each(COALESCE(t.segments, '[]')) s
+       UNION ALL
+       SELECT c.value AS nombre, 0 AS cobra
+         FROM trips t, json_each(COALESCE(t.segments, '[]')) s,
+              json_each(COALESCE(json_extract(s.value, '$.clientes'), '[]')) c`,
+    )
+    .all<{ nombre: string | null; cobra: number }>();
+  return clientesDeCarga(results ?? []);
+}
+
+export interface ClienteDeCarga {
+  nombre: string;
+  /** Alguna carga se le cobra a este cliente. */
+  cobra: boolean;
+}
+
+/**
+ * Junta los nombres sin repetir. SQLite no sabe pasar a minúsculas "Á" ni "Ñ", así que la
+ * deduplicación se hace acá. Queda la primera forma en que apareció escrito.
+ */
+export function clientesDeCarga(rows: { nombre: string | null; cobra: number }[]): ClienteDeCarga[] {
+  const porClave = new Map<string, ClienteDeCarga>();
+  for (const r of rows) {
+    const nombre = (r.nombre ?? "").trim();
+    if (!nombre) continue;
+    const clave = nombre.toLocaleLowerCase("es");
+    const previo = porClave.get(clave);
+    porClave.set(clave, { nombre: previo?.nombre ?? nombre, cobra: !!previo?.cobra || !!r.cobra });
+  }
+  return [...porClave.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" }));
 }
 
 export async function listTrips(db: D1Database, f: TripFilters): Promise<Trip[]> {
