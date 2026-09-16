@@ -111,9 +111,13 @@ export function OpsSummary() {
             <Stat label="Surtidas" value={s.totals.surtidas} accent="amber" />
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          {/* Uno debajo del otro y a todo el ancho, no lado a lado. "Por camión arriba, por
+              cliente abajo, y ver todos los datos en una pantalla" — el cliente. En dos
+              columnas cada tabla tenía la mitad del ancho y "A buscar carga" y km/L quedaban
+              escondidos detrás de un scroll horizontal que nadie usaba. */}
+          <div className="space-y-4">
             {/* Por camión */}
-            <Card className="overflow-x-auto p-0">
+            <Card className="overflow-x-auto overflow-y-hidden p-0">
               <Corners />
               <div className="border-b border-ink/15 px-4 py-3 font-cond text-lg font-semibold text-ink">Por camión</div>
               <table className="w-full min-w-[680px] text-sm">
@@ -170,7 +174,7 @@ export function OpsSummary() {
             </Card>
 
             {/* Por cliente */}
-            <Card className="overflow-x-auto p-0">
+            <Card className="overflow-x-auto overflow-y-hidden p-0">
               <Corners />
               <div className="border-b border-ink/15 px-4 py-3 font-cond text-lg font-semibold text-ink">Por cliente</div>
               <table className="w-full min-w-[520px] text-sm">
