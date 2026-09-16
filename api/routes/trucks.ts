@@ -41,14 +41,14 @@ function parseTruck(b: any): repo.TruckInput | null {
   };
 }
 
-trucks.post("/", requireRole(ROLES.ADMIN), async (c) => {
+trucks.post("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const input = parseTruck(await c.req.json().catch(() => null));
   if (!input) return fail(c, "La patente es obligatoria", 400);
   const id = await repo.createTruck(c.env.DB, input);
   return ok(c, await repo.getTruck(c.env.DB, id), 201);
 });
 
-trucks.put("/:id", requireRole(ROLES.ADMIN), async (c) => {
+trucks.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const id = Number(c.req.param("id"));
   const input = parseTruck(await c.req.json().catch(() => null));
   if (!input) return fail(c, "La patente es obligatoria", 400);

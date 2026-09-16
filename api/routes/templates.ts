@@ -165,7 +165,7 @@ function parse(b: any): repo.TemplateInput | null {
   };
 }
 
-templates.post("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+templates.post("/", requireRole(ROLES.ADMIN), async (c) => {
   const input = parse(await c.req.json().catch(() => null));
   if (!input) return fail(c, "Faltan campos (proveedor, nombre, origen)", 400);
   const id = await repo.createTemplate(c.env.DB, input);
@@ -174,7 +174,7 @@ templates.post("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   return ok(c, await repo.getTemplate(c.env.DB, id), 201);
 });
 
-templates.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+templates.put("/:id", requireRole(ROLES.ADMIN), async (c) => {
   const input = parse(await c.req.json().catch(() => null));
   if (!input) return fail(c, "Faltan campos (proveedor, nombre, origen)", 400);
   const id = Number(c.req.param("id"));
@@ -183,7 +183,7 @@ templates.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   return ok(c, await repo.getTemplate(c.env.DB, id));
 });
 
-templates.delete("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+templates.delete("/:id", requireRole(ROLES.ADMIN), async (c) => {
   const id = Number(c.req.param("id"));
   // Los proveedores tenían freno para esto desde que existe la pantalla; las plantillas no.
   const sinFacturar = await repo.viajesSinFacturarDe(c.env.DB, id);

@@ -28,7 +28,7 @@ function parse(b: any): repo.DriverInput | null {
   };
 }
 
-drivers.post("/", requireRole(ROLES.ADMIN), async (c) => {
+drivers.post("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const b = await c.req.json<any>().catch(() => null);
   const input = parse(b);
   if (!input) return fail(c, "Nombre y documento son obligatorios", 400);
@@ -43,7 +43,7 @@ drivers.post("/", requireRole(ROLES.ADMIN), async (c) => {
   return ok(c, await repo.getDriver(c.env.DB, id), 201);
 });
 
-drivers.put("/:id", requireRole(ROLES.ADMIN), async (c) => {
+drivers.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const id = Number(c.req.param("id"));
   const b = await c.req.json<any>().catch(() => null);
   const input = parse(b);

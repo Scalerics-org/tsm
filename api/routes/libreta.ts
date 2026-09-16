@@ -67,7 +67,7 @@ libreta.post("/", async (c) => {
   return ok(c, entry, 201);
 });
 
-libreta.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+libreta.put("/:id", requireRole(ROLES.ADMIN), async (c) => {
   const id = Number(c.req.param("id"));
   const b = (await c.req.json().catch(() => ({}))) as {
     nombre?: string;
@@ -90,7 +90,7 @@ libreta.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
 });
 
 // POST /api/libreta/:id/merge — fusiona un duplicado dentro de otra entrada.
-libreta.post("/:id/merge", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+libreta.post("/:id/merge", requireRole(ROLES.ADMIN), async (c) => {
   const id = Number(c.req.param("id"));
   const b = (await c.req.json().catch(() => ({}))) as { into_id?: number };
   if (!b.into_id) return fail(c, "Falta into_id (la entrada que queda)", 400);

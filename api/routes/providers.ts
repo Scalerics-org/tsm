@@ -23,7 +23,7 @@ providers.get("/uso", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) =>
   ok(c, await repo.listProvidersConUso(c.env.DB)),
 );
 
-providers.post("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+providers.post("/", requireRole(ROLES.ADMIN), async (c) => {
   const b = (await c.req.json().catch(() => ({}))) as { name?: string };
   const name = String(b.name ?? "").trim();
   if (!name) return fail(c, "El nombre es obligatorio", 400);
@@ -40,7 +40,7 @@ providers.post("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   return ok(c, { id }, 201);
 });
 
-providers.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+providers.put("/:id", requireRole(ROLES.ADMIN), async (c) => {
   const id = Number(c.req.param("id"));
   const b = (await c.req.json().catch(() => ({}))) as { name?: string };
   const name = String(b.name ?? "").trim();

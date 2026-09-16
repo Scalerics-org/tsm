@@ -48,15 +48,34 @@ interface NavGroup {
   items: NavItem[];
 }
 
-const OPS_NAV: NavGroup[] = [
-  {
-    items: [
+/** Lo del día: lo ven operaciones y admin. */
+const DIA: NavGroup = {
+  items: [
       { to: "/panel", label: "Resumen" },
       { to: "/panel/control", label: "Control" },
       { to: "/panel/viajes", label: "Viajes" },
       { to: "/panel/resumen-cliente", label: "Por cliente" },
+  ],
+};
+
+/**
+ * Qué ve operaciones (rol encargado), según el dibujo de Rodrigo del 16/9: "todo Resumen, más
+ * Choferes y Camiones". Plantillas, clientes, proveedores, lugares y usuarios quedan para admin:
+ * son los datos con los que se arma y se factura cada viaje.
+ */
+const OPS_NAV: NavGroup[] = [
+  DIA,
+  {
+    titulo: "Administración",
+    items: [
+      { to: "/admin/choferes", label: "Choferes" },
+      { to: "/admin/camiones", label: "Camiones" },
     ],
   },
+];
+
+const ADMIN_NAV: NavGroup[] = [
+  DIA,
   {
     titulo: "Datos",
     items: [
@@ -68,10 +87,6 @@ const OPS_NAV: NavGroup[] = [
       { to: "/panel/libreta", label: "Lugares" },
     ],
   },
-];
-
-const ADMIN_NAV: NavGroup[] = [
-  ...OPS_NAV,
   {
     titulo: "Administración",
     items: [

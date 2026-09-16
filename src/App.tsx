@@ -58,6 +58,9 @@ export default function App() {
 
   const OPS: Role[] = [ROLES.ENCARGADO, ROLES.ADMIN];
   const CH: Role[] = [ROLES.CHOFER];
+  // Plantillas, clientes, proveedores y lugares: sólo admin. Operaciones ve el día, choferes y
+  // camiones (Rodrigo, 16/9).
+  const ADM: Role[] = [ROLES.ADMIN];
 
   return (
     <AppShell>
@@ -81,14 +84,14 @@ export default function App() {
         <Route path="/panel/viajes/:id" element={<RequireRole roles={OPS}><OpsTripDetailPage /></RequireRole>} />
         <Route path="/panel/camion/:id" element={<RequireRole roles={OPS}><TruckDetailPage /></RequireRole>} />
         <Route path="/panel/chofer/:id" element={<RequireRole roles={OPS}><DriverDetailPage /></RequireRole>} />
-        <Route path="/panel/plantillas" element={<RequireRole roles={OPS}><TemplatesPage /></RequireRole>} />
+        <Route path="/panel/plantillas" element={<RequireRole roles={ADM}><TemplatesPage /></RequireRole>} />
         {/* Clientes y Proveedores son dos pantallas separadas: son dos cosas distintas y
             la palabra "cliente" venía significando las dos, que es lo que confundía.
             Clientes es la Libreta mostrando un solo tipo; Proveedores es su propia tabla. */}
         <Route
           path="/panel/clientes"
           element={
-            <RequireRole roles={OPS}>
+            <RequireRole roles={ADM}>
               <LibretaPage
                 tipos={[LIBRETA_TIPO.DESTINATARIO]}
                 titulo="Clientes"
@@ -97,11 +100,11 @@ export default function App() {
             </RequireRole>
           }
         />
-        <Route path="/panel/proveedores" element={<RequireRole roles={OPS}><ProveedoresPage /></RequireRole>} />
+        <Route path="/panel/proveedores" element={<RequireRole roles={ADM}><ProveedoresPage /></RequireRole>} />
         <Route
           path="/panel/libreta"
           element={
-            <RequireRole roles={OPS}>
+            <RequireRole roles={ADM}>
               <LibretaPage
                 tipos={[LIBRETA_TIPO.REMITENTE, LIBRETA_TIPO.LUGAR]}
                 titulo="Lugares"
@@ -112,8 +115,8 @@ export default function App() {
         />
 
         {/* Admin */}
-        <Route path="/admin/choferes" element={<RequireRole roles={[ROLES.ADMIN]}><AdminDriversPage /></RequireRole>} />
-        <Route path="/admin/camiones" element={<RequireRole roles={[ROLES.ADMIN]}><AdminTrucksPage /></RequireRole>} />
+        <Route path="/admin/choferes" element={<RequireRole roles={OPS}><AdminDriversPage /></RequireRole>} />
+        <Route path="/admin/camiones" element={<RequireRole roles={OPS}><AdminTrucksPage /></RequireRole>} />
         <Route path="/admin/usuarios" element={<RequireRole roles={[ROLES.ADMIN]}><AdminUsersPage /></RequireRole>} />
 
         <Route path="*" element={<Navigate to={homePath(user.role)} replace />} />
