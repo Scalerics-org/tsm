@@ -123,9 +123,11 @@ export async function choferDeLaFoto(
        UNION ALL
        SELECT f.driver_id FROM fuel_logs f WHERE f.r2_key = ? OR f.r2_key_boleta = ?
        UNION ALL
-       SELECT l.driver_id FROM lecturas_odometro l WHERE l.r2_key = ?`,
+       SELECT l.driver_id FROM lecturas_odometro l WHERE l.r2_key = ?
+       UNION ALL
+       SELECT s.driver_id FROM surtidas_frio s WHERE s.r2_key_boleta = ?`,
     )
-    .bind(key, key, key, key)
+    .bind(key, key, key, key, key)
     .first<{ driver_id: number | null }>();
   return row ?? undefined;
 }

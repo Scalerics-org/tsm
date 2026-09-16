@@ -116,10 +116,11 @@ export async function loAtadoAlChofer(db: D1Database, id: number): Promise<Atado
   const row = await db
     .prepare(
       `SELECT (SELECT COUNT(*) FROM trips WHERE driver_id = ?)     AS viajes,
-              (SELECT COUNT(*) FROM fuel_logs WHERE driver_id = ?) AS surtidas,
+              (SELECT COUNT(*) FROM fuel_logs WHERE driver_id = ?)
+                + (SELECT COUNT(*) FROM surtidas_frio WHERE driver_id = ?) AS surtidas,
               (SELECT COUNT(*) FROM libreta WHERE created_by = ?)  AS libreta`,
     )
-    .bind(id, id, id)
+    .bind(id, id, id, id)
     .first<AtadoAlChofer>();
   return row ?? { viajes: 0, surtidas: 0, libreta: 0 };
 }

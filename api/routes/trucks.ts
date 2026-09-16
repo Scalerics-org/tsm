@@ -36,6 +36,8 @@ function parseTruck(b: any): repo.TruckInput | null {
     odometer_km: Number(b.odometer_km ?? 0),
     avg_km_litro: Number(b.avg_km_litro ?? 0),
     status: STATUSES.includes(b.status) ? b.status : TRUCK_STATUS.DISPONIBLE,
+    // Si lleva cámara de frío: habilita la surtida de la cámara en el celular del chofer.
+    camara_frio: !!b.camara_frio,
   };
 }
 

@@ -9,6 +9,7 @@ import { ChoferClientePage } from "./features/chofer/ChoferClientePage";
 import { StartTripPage } from "./features/chofer/StartTripPage";
 import { ChoferTripPage } from "./features/chofer/ChoferTripPage";
 import { FuelPage } from "./features/chofer/FuelPage";
+import { FrioFuelPage } from "./features/chofer/FrioFuelPage";
 import { OpsSummary } from "./features/operaciones/OpsSummary";
 import { OpsTripsPage } from "./features/operaciones/OpsTripsPage";
 import { ResumenClientePage } from "./features/operaciones/ResumenClientePage";
@@ -69,6 +70,7 @@ export default function App() {
         <Route path="/viaje/nuevo/:templateId" element={<RequireRole roles={CH}><StartTripPage /></RequireRole>} />
         <Route path="/viaje/:id" element={<RequireRole roles={CH}><ChoferTripPage /></RequireRole>} />
         <Route path="/surtida" element={<RequireRole roles={CH}><FuelPage /></RequireRole>} />
+        <Route path="/surtida-frio" element={<RequireRole roles={CH}><FrioFuelPage /></RequireRole>} />
 
         {/* Oficina */}
         <Route path="/panel" element={<RequireRole roles={OPS}><OpsSummary /></RequireRole>} />

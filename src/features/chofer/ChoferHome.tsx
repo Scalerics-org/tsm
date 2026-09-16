@@ -29,6 +29,8 @@ export function ChoferHome() {
       });
   };
   const [lectura, setLectura] = useState<Pendiente | null>(null);
+  // Si el camión con el que anda lleva cámara de frío, la surtida se parte en dos botones.
+  const [camaraFrio, setCamaraFrio] = useState(false);
 
   useEffect(() => {
     api.get<Trip | null>("/trips/active").then(setActive).catch(() => setActive(null));
@@ -36,6 +38,11 @@ export function ChoferHome() {
     // Si esto falla no se bloquea a nadie: el backend igual lo va a frenar al salir, y dejar
     // al chofer sin poder cargar un viaje por un pedido que no respondió sería peor.
     api.get<Pendiente>("/lecturas/pendiente").then(setLectura).catch(() => setLectura(null));
+    // Si no responde, queda el botón de siempre: sin señal tampoco se podría guardar la surtida.
+    api
+      .get<{ camara_frio: boolean }>("/frio/estado")
+      .then((r) => setCamaraFrio(r.camara_frio))
+      .catch(() => setCamaraFrio(false));
   }, []);
 
   // Un card por cliente (proveedor).
@@ -162,9 +169,22 @@ export function ChoferHome() {
         </div>
       )}
 
-      <Link to="/surtida" className="btn btn-navy w-full py-4 text-lg">
-        ⛽ Registrar surtida
-      </Link>
+      {/* "Registrar surtida camión | Registrar surtida cámara frío" — el dibujo de Rodrigo. Sólo
+          en los camiones que la llevan; en el resto queda el botón de siempre. */}
+      {camaraFrio ? (
+        <div className="grid grid-cols-2 gap-2">
+          <Link to="/surtida" className="btn btn-navy py-4 text-base leading-tight">
+            ⛽ Registrar surtida camión
+          </Link>
+          <Link to="/surtida-frio" className="btn btn-navy py-4 text-base leading-tight">
+            ❄ Registrar surtida cámara frío
+          </Link>
+        </div>
+      ) : (
+        <Link to="/surtida" className="btn btn-navy w-full py-4 text-lg">
+          ⛽ Registrar surtida
+        </Link>
+      )}
     </div>
   );
 }

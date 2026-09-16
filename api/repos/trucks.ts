@@ -19,12 +19,12 @@ export type TruckInput = Omit<Truck, "id" | "odometer_at">;
 export async function createTruck(db: D1Database, t: TruckInput): Promise<number> {
   const res = await db
     .prepare(
-      `INSERT INTO trucks (plate, brand, model, year, type, capacity_kg, odometer_km, avg_km_litro, status, odometer_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? > 0 THEN datetime('now') END)`,
+      `INSERT INTO trucks (plate, brand, model, year, type, capacity_kg, odometer_km, avg_km_litro, status, camara_frio, odometer_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? > 0 THEN datetime('now') END)`,
     )
     .bind(
       t.plate, t.brand, t.model, t.year, t.type, t.capacity_kg, t.odometer_km, t.avg_km_litro,
-      t.status, t.odometer_km,
+      t.status, t.camara_frio ? 1 : 0, t.odometer_km,
     )
     .run();
   return res.meta.last_row_id as number;
@@ -46,12 +46,12 @@ export async function updateTruck(db: D1Database, id: number, t: TruckInput): Pr
       `UPDATE trucks
           SET plate=?, brand=?, model=?, year=?, type=?, capacity_kg=?,
               odometer_at = CASE WHEN odometer_km = ? THEN odometer_at ELSE datetime('now') END,
-              odometer_km=?, avg_km_litro=?, status=?
+              odometer_km=?, avg_km_litro=?, status=?, camara_frio=?
         WHERE id=?`,
     )
     .bind(
       t.plate, t.brand, t.model, t.year, t.type, t.capacity_kg,
-      t.odometer_km, t.odometer_km, t.avg_km_litro, t.status, id,
+      t.odometer_km, t.odometer_km, t.avg_km_litro, t.status, t.camara_frio ? 1 : 0, id,
     )
     .run();
 }
@@ -61,12 +61,13 @@ export async function loAtadoAlCamion(db: D1Database, id: number): Promise<Atado
   const row = await db
     .prepare(
       `SELECT (SELECT COUNT(*) FROM trips WHERE truck_id = ?)             AS viajes,
-              (SELECT COUNT(*) FROM fuel_logs WHERE truck_id = ?)         AS surtidas,
+              (SELECT COUNT(*) FROM fuel_logs WHERE truck_id = ?)
+                + (SELECT COUNT(*) FROM surtidas_frio WHERE truck_id = ?) AS surtidas,
               (SELECT COUNT(*) FROM lecturas_odometro WHERE truck_id = ?) AS lecturas,
               (SELECT COUNT(*) FROM drivers
                  WHERE default_truck_id = ? AND status = 'activo')          AS choferes`,
     )
-    .bind(id, id, id, id)
+    .bind(id, id, id, id, id)
     .first<AtadoAlCamion>();
   return row ?? { viajes: 0, surtidas: 0, lecturas: 0, choferes: 0 };
 }

@@ -109,6 +109,7 @@ export function AdminTrucksPage() {
                   >
                     {t.plate}
                   </Link>
+                  {!!t.camara_frio && <span className="ml-2 text-xs text-ink/50" title="Lleva cámara de frío">❄</span>}
                 </td>
                 <td className="px-4 py-3 text-ink/70">
                   {t.brand} {t.model} · {t.year}
@@ -208,6 +209,16 @@ function TruckForm({
             ))}
           </select>
         </Field>
+        {/* Habilita la surtida de la cámara de frío en el celular del chofer, y las horas del
+            equipo en la ficha. Si otro camión engancha el furgón, se tilda acá. */}
+        <label className="col-span-full flex items-center gap-2 text-sm text-ink">
+          <input
+            type="checkbox"
+            checked={!!f.camara_frio}
+            onChange={(e) => setF({ ...f, camara_frio: e.target.checked })}
+          />
+          Lleva cámara de frío
+        </label>
         <div className="col-span-full">
           <ErrorText>{error}</ErrorText>
         </div>

@@ -5,6 +5,7 @@ import { api, mensajeDe } from "../../lib/api";
 import { Card, Corners, ErrorDeCarga, Spinner, Stat, StatusBadge } from "../../components/ui";
 import { SurtidaRow } from "./SurtidaRow";
 import { LecturasDelCamion } from "./LecturasDelCamion";
+import { CamaraFrioDelCamion } from "./CamaraFrioDelCamion";
 import { fmtDateTime } from "../../lib/format";
 
 interface MonthRow {
@@ -225,6 +226,9 @@ export function TruckDetailPage() {
       </Card>
 
       <LecturasDelCamion truckId={Number(id)} />
+
+      {/* Sólo en los camiones que la llevan: el tilde está en Camiones. */}
+      {!!truck.camara_frio && <CamaraFrioDelCamion truckId={truck.id} />}
     </div>
   );
 }

@@ -90,6 +90,11 @@ export interface Truck {
    * permite a una corrección ganarle a una surtida vieja (ver `kmInicialTacografo`).
    */
   odometer_at?: string | null;
+  /**
+   * Si lleva cámara de frío (hoy GTP 4382 y 4383). Habilita la surtida de la cámara: el gasoil
+   * del equipo va aparte del camión, ver `shared/camara-frio.ts`. En la base es 0/1.
+   */
+  camara_frio?: boolean | number;
 }
 
 export interface Driver {
