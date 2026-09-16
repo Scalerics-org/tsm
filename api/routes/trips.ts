@@ -160,6 +160,7 @@ trips.get("/", async (c) => {
     status: (q.status as Trip["status"]) || undefined,
     provider: q.provider || undefined,
     cliente: q.cliente || undefined,
+    facturado: q.facturado === "si" || q.facturado === "no" ? q.facturado : undefined,
     from: q.from || undefined,
     to: q.to || undefined,
   };
@@ -169,8 +170,11 @@ trips.get("/", async (c) => {
   } else if (q.driver) {
     filters.driverId = Number(q.driver);
   }
-  const viajes = await tripsRepo.listTrips(c.env.DB, filters);
-  return ok(c, user.role === ROLES.CHOFER ? viajes.map(sinCobro) : viajes);
+  if (user.role === ROLES.CHOFER) {
+    return ok(c, (await tripsRepo.listTrips(c.env.DB, filters)).map(sinCobro));
+  }
+  // La oficina ve la marca de facturado en la lista: es donde filtra por mes y camión.
+  return ok(c, await tripsRepo.listTripsFacturables(c.env.DB, filters));
 });
 
 // GET /api/trips/clientes — los clientes de las cargas, para filtrar Viajes. Sólo oficina: dice

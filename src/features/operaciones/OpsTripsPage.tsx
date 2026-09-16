@@ -6,13 +6,12 @@ import {
   TRIP_STATUS_LABEL,
   type Driver,
   type Provider,
-  type Trip,
   type TripStatus,
   type Truck,
 } from "@shared/domain";
 import { api, downloadFile, mensajeDe } from "../../lib/api";
 import { Button, Card, Empty, ErrorDeCarga, ErrorText, Spinner } from "../../components/ui";
-import { FilaViaje } from "./FilaViaje";
+import { FilaViaje, type ViajeDeOficina } from "./FilaViaje";
 import { FechaInput } from "../../components/FechaInput";
 
 export function OpsTripsPage() {
@@ -20,8 +19,8 @@ export function OpsTripsPage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [clientes, setClientes] = useState<{ nombre: string; cobra: boolean }[]>([]);
-  const [trips, setTrips] = useState<Trip[] | null>(null);
-  const [f, setF] = useState({ provider: "", cliente: "", driver: "", truck: "", status: "", from: "", to: "" });
+  const [trips, setTrips] = useState<ViajeDeOficina[] | null>(null);
+  const [f, setF] = useState({ provider: "", cliente: "", facturado: "", driver: "", truck: "", status: "", from: "", to: "" });
   // Se incrementa cuando una fila cambia algo, para volver a pedir la lista: corregir una
   // fecha puede sacar al viaje del filtro que está puesto, y dejarlo ahí sería mentira.
   const [version, setVersion] = useState(0);
@@ -42,6 +41,7 @@ export function OpsTripsPage() {
     const p = new URLSearchParams();
     if (f.provider) p.set("provider", f.provider);
     if (f.cliente) p.set("cliente", f.cliente);
+    if (f.facturado) p.set("facturado", f.facturado);
     if (f.driver) p.set("driver", f.driver);
     if (f.truck) p.set("truck", f.truck);
     if (f.status) p.set("status", f.status);
@@ -59,7 +59,7 @@ export function OpsTripsPage() {
     setTrips(null);
     setFalló(null);
     api
-      .get<Trip[]>(`/trips${query}`)
+      .get<ViajeDeOficina[]>(`/trips${query}`)
       .then((t) => vigente && setTrips(t))
       .catch((e) => vigente && setFalló(mensajeDe(e)));
     return () => {
@@ -92,7 +92,7 @@ export function OpsTripsPage() {
         </div>
       </div>
 
-      <Card className="grid gap-3 sm:grid-cols-3 lg:grid-cols-7">
+      <Card className="grid gap-3 sm:grid-cols-4 lg:grid-cols-8">
         {/* Éste lista los VIAJES ("Montevideo - BU", "UAM"). Decía "Todos los clientes" y por
             eso Rodrigo buscaba ahí a Armco o a Agronorte, que van adentro de un viaje. */}
         <select className="input" value={f.provider} onChange={(e) => setF({ ...f, provider: e.target.value })}>
@@ -150,6 +150,11 @@ export function OpsTripsPage() {
             </option>
           ))}
         </select>
+        <select className="input" value={f.facturado} onChange={(e) => setF({ ...f, facturado: e.target.value })}>
+          <option value="">Facturados y no</option>
+          <option value="si">Facturados</option>
+          <option value="no">Sin facturar</option>
+        </select>
         <FechaInput value={f.from} onChange={(iso) => setF({ ...f, from: iso })} />
         <FechaInput value={f.to} onChange={(iso) => setF({ ...f, to: iso })} />
       </Card>
@@ -182,6 +187,7 @@ export function OpsTripsPage() {
                 <th className="px-4 py-3">Salida</th>
                 <th className="px-4 py-3">Descarga</th>
                 <th className="px-4 py-3">Estado</th>
+                <th className="px-4 py-3">Facturado</th>
                 <th className="px-4 py-3 text-right">Acciones</th>
               </tr>
             </thead>

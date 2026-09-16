@@ -176,6 +176,11 @@ export interface TripFilters {
    * facturación, que se arma por viaje, y cambiarlo movería lo que se factura.
    */
   cliente?: string;
+  /**
+   * "si" = ya tienen número de factura; "no" = completados que todavía no. Para que en Viajes,
+   * filtrando por mes y camión, se vea cuál está facturado y cuál no.
+   */
+  facturado?: "si" | "no";
   from?: string;
   to?: string;
 }
@@ -219,6 +224,9 @@ function filtrar(f: TripFilters): { sql: string; binds: unknown[] } {
     where.push(SQL_CLIENTE_DE_CARGA);
     binds.push(f.cliente, f.cliente);
   }
+  if (f.facturado === "si") where.push("t.factura_numero IS NOT NULL");
+  // Un viaje en curso o cancelado no está "sin facturar": no hay nada que facturar todavía.
+  if (f.facturado === "no") where.push("t.factura_numero IS NULL AND t.status = 'COMPLETADO'");
   if (f.from) {
     where.push("substr(t.started_at,1,10) >= ?");
     binds.push(f.from);

@@ -66,3 +66,25 @@ describe("clientesDeCarga — las opciones del desplegable", () => {
     expect(opciones.map((o) => o.nombre)).toEqual(["Nayna", "Ñandú", "Óptica"]);
   });
 });
+
+/**
+ * "Acá en la parte de viajes no tengo cómo poner un tick, color tipo Excel, a los facturados.
+ * Porque ahí yo filtro por mes, por camión, y ya sé qué viaje está facturado y cuál no." —
+ * Rodrigo, 16/9/2026.
+ */
+describe("sqlFiltros por facturación", () => {
+  it("facturados: los que tienen número de factura", () => {
+    const { sql, binds } = sqlFiltros({ facturado: "si" });
+    expect(sql).toContain("t.factura_numero IS NOT NULL");
+    expect(binds).toEqual([]);
+  });
+
+  it("sin facturar: completados y sin número (un cancelado no se factura)", () => {
+    const { sql } = sqlFiltros({ facturado: "no" });
+    expect(sql).toContain("t.factura_numero IS NULL AND t.status = 'COMPLETADO'");
+  });
+
+  it("sin el filtro no se toca nada", () => {
+    expect(sqlFiltros({}).sql).not.toContain("factura_numero IS");
+  });
+});

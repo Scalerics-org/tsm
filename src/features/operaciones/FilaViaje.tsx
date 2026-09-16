@@ -16,12 +16,56 @@ import { FechaInput } from "../../components/FechaInput";
  * La fecha no es un input siempre visible: con veinte viajes en pantalla, veinte casillas de
  * fecha tapan la lista. Se toca la fecha y ahí se vuelve editable.
  */
-export function FilaViaje({ t, onCambio }: { t: Trip; onCambio: () => void }) {
+/** Lo que la oficina recibe de más en la lista: la marca de facturado. */
+export type ViajeDeOficina = Trip & {
+  factura_numero?: string | null;
+  facturado_at?: string | null;
+  factura_quitada?: string | null;
+};
+
+/**
+ * El último número de factura que se usó, para no volver a tipearlo: una factura suele llevar
+ * varios viajes seguidos de la lista. Vive mientras la pestaña esté abierta.
+ */
+let ultimaFactura = "";
+
+export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => void }) {
   const [editandoFecha, setEditandoFecha] = useState(false);
   // Lo que se está tipeando, separado de lo que está guardado.
   const [borrador, setBorrador] = useState(t.started_at.slice(0, 10));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  /**
+   * El tilde de facturado. "No tengo cómo poner un tick, color tipo Excel, a los facturados."
+   *
+   * Es la MISMA marca que pone Resumen del cliente, con número de factura: si fueran dos
+   * marcas distintas, un viaje podría figurar facturado en una pantalla y pendiente en la otra.
+   * Por eso pide el número, que viene sugerido con el último que se usó.
+   */
+  async function alternarFacturado() {
+    const facturado = !!t.factura_numero;
+    let cuerpo: { trip_ids: number[]; factura_numero?: string };
+    if (facturado) {
+      if (!confirm(`¿Sacarle la factura ${t.factura_numero} a este viaje? Vuelve a quedar sin facturar.`)) return;
+      cuerpo = { trip_ids: [t.id] };
+    } else {
+      const numero = prompt("Número de la factura", ultimaFactura || t.factura_quitada || "")?.trim();
+      if (!numero) return;
+      ultimaFactura = numero;
+      cuerpo = { trip_ids: [t.id], factura_numero: numero };
+    }
+    setError("");
+    setBusy(true);
+    try {
+      await api.post(facturado ? "/facturacion/desmarcar" : "/facturacion/marcar", cuerpo);
+      onCambio();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudo guardar la factura");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function cambiarFecha(fecha: string) {
     // Una fecha a medio tipear llega como "" o como un año de dos dígitos: no se manda.
@@ -80,7 +124,8 @@ export function FilaViaje({ t, onCambio }: { t: Trip; onCambio: () => void }) {
   }
 
   return (
-    <tr className="border-b border-ink/10 hover:bg-surface">
+    // Verde tipo Excel en toda la fila: facturado se lee de lejos, sin buscar la columna.
+    <tr className={`border-b border-ink/10 ${t.factura_numero ? "bg-st-greenBg hover:bg-st-greenBg/70" : "hover:bg-surface"}`}>
       {/* El número del mes. Tabular para que las unidades queden alineadas entre filas, y
           apagado porque es una referencia: lo que se lee primero es el recorrido. */}
       <td className="px-3 py-3 text-right font-cond tabular-nums text-ink/45">
@@ -139,6 +184,30 @@ export function FilaViaje({ t, onCambio }: { t: Trip; onCambio: () => void }) {
       </td>
       <td className="px-4 py-3">
         <StatusBadge status={t.status} />
+      </td>
+      <td className="px-4 py-3">
+        {t.status === TRIP_STATUS.COMPLETADO || t.factura_numero ? (
+          <button
+            type="button"
+            onClick={alternarFacturado}
+            disabled={busy}
+            aria-pressed={!!t.factura_numero}
+            title={t.factura_numero ? `Factura ${t.factura_numero}. Tocá para sacarla.` : "Marcar como facturado"}
+            className={`flex h-6 w-6 items-center justify-center border transition disabled:opacity-40 ${
+              t.factura_numero
+                ? "border-st-greenDot bg-st-greenDot text-bg"
+                : "border-ink/25 text-transparent hover:border-brand hover:text-ink/25"
+            }`}
+          >
+            <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M3 8.5l3.5 3.5L13 4.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        ) : (
+          // En curso o cancelado: todavía no hay nada que facturar.
+          <span className="text-ink/30" title="Sólo se factura un viaje completado">—</span>
+        )}
+        {t.factura_numero && <div className="mt-1 text-[11px] text-st-greenTx">{t.factura_numero}</div>}
       </td>
       <td className="px-4 py-3 text-right">
         {/* Corregir va acá, en Acciones, y no sólo adentro de la ficha: la oficina revisa la
