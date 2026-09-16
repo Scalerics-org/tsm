@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   DRIVER_STATUS,
   TRIP_STATUS,
@@ -20,7 +20,35 @@ export function OpsTripsPage() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [clientes, setClientes] = useState<{ nombre: string; cobra: boolean }[]>([]);
   const [trips, setTrips] = useState<ViajeDeOficina[] | null>(null);
-  const [f, setF] = useState({ provider: "", cliente: "", facturado: "", driver: "", truck: "", status: "", from: "", to: "" });
+  /**
+   * Los filtros viven en la dirección de la página, no en memoria.
+   *
+   * "Cuando aplicás un filtro, entrás a mirar un viaje y salís para atrás, vuelve todo para
+   * atrás. Estaría bueno que te deje donde estabas trabajando." — Rodrigo, 16/9. En memoria se
+   * perdían al entrar al viaje; en la dirección, volver atrás los trae tal cual, y además una
+   * lista filtrada se puede recargar o mandar por link.
+   */
+  const [params, setParams] = useSearchParams();
+  const f = useMemo(() => {
+    const leer = (k: string) => params.get(k) ?? "";
+    return {
+      provider: leer("provider"),
+      cliente: leer("cliente"),
+      facturado: leer("facturado"),
+      driver: leer("driver"),
+      truck: leer("truck"),
+      status: leer("status"),
+      from: leer("from"),
+      to: leer("to"),
+    };
+  }, [params]);
+  // `replace`: cambiar un filtro no suma una entrada al historial, así "atrás" sale de Viajes
+  // en vez de ir deshaciendo filtro por filtro.
+  const setF = (nuevo: typeof f) =>
+    setParams(
+      Object.fromEntries(Object.entries(nuevo).filter(([, v]) => v !== "")),
+      { replace: true },
+    );
   // Se incrementa cuando una fila cambia algo, para volver a pedir la lista: corregir una
   // fecha puede sacar al viaje del filtro que está puesto, y dejarlo ahí sería mentira.
   const [version, setVersion] = useState(0);

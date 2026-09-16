@@ -136,7 +136,9 @@ export function CargasPanel({
             onClick={() => setAgregando(true)}
             className="mt-2 flex w-full items-center justify-center gap-2 border-2 border-dashed border-brand/40 bg-brand/[.06] py-3 font-cond text-[15px] font-semibold text-brand-700"
           >
-            <span className="text-lg leading-none">+</span> Agregar carga
+            {/* "Donde dice agregar otra, quiero que diga AGREGAR OTRA CARGA" — Rodrigo, 16/9. */}
+            <span className="text-lg leading-none">+</span>{" "}
+            {segments.length > 0 ? "Agregar otra carga" : "Agregar carga"}
           </button>
         ))}
     </div>
@@ -522,7 +524,7 @@ function NuevaCarga({
           tipo de fricción por la que se abandona la app. */}
       <div className="space-y-2">
         <Button loading={busy} onClick={() => guardar(true)} className="w-full py-4 text-lg">
-          Guardar y cargar otra
+          Guardar y agregar otra carga
         </Button>
         <div className="flex gap-2">
           <Button variant="secondary" loading={busy} onClick={() => guardar(false)} className="flex-1 py-3">

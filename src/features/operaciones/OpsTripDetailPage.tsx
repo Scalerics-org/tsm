@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   TRIP_STATUS,
   type TemplateField,
@@ -10,6 +10,7 @@ import { api, ApiError, mensajeDe } from "../../lib/api";
 import { Button, Card, ErrorDeCarga, ErrorText, Spinner, StatusBadge } from "../../components/ui";
 import { fmtDateTime } from "../../lib/format";
 import { fmtKilos } from "@shared/domain";
+import { AgregarCargaOficina } from "./AgregarCargaOficina";
 import { CargasDelViaje } from "./CargasDelViaje";
 import { EditarCabecera } from "./EditarCabecera";
 import { FechaInput } from "../../components/FechaInput";
@@ -19,11 +20,16 @@ interface Detail {
   photos: TripPhoto[];
   /** En estas plantillas el recorrido lo arman las cargas y no se corrige acá. */
   renglon_pide_ubicacion: boolean;
+  /** Del que salen los lugares de carga propios del viaje (los de Mdeo - BU, por ejemplo). */
+  provider_id: number | null;
 }
 
 export function OpsTripDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  // Volver a la lista con los filtros con los que se entró (los manda `FilaViaje`).
+  const filtrosDeLaLista = (useLocation().state as { viajes?: string } | null)?.viajes ?? "";
+  const aLaLista = `/panel/viajes${filtrosDeLaLista}`;
   const [data, setData] = useState<Detail | null>(null);
   const [error, setError] = useState("");
   const [borrando, setBorrando] = useState(false);
@@ -97,7 +103,7 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
     setBorrando(true);
     try {
       await api.del(`/trips/${trip.id}`);
-      navigate("/panel/viajes");
+      navigate(aLaLista);
     } catch (e) {
       setError(mensajeDe(e, "No se pudo borrar el viaje"));
       setBorrando(false);
@@ -125,7 +131,7 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
 
   return (
     <div className="space-y-5">
-      <Link to="/panel/viajes" className="text-sm text-ink/60 hover:text-ink">
+      <Link to={aLaLista} className="text-sm text-ink/60 hover:text-ink">
         ← Viajes
       </Link>
 
@@ -241,6 +247,10 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
       )}
 
       <CargasDelViaje segments={trip.segments} photos={photos} onChanged={load} />
+      {/* Un viaje cancelado no se factura: agregarle cargas no tiene sentido. */}
+      {trip.status !== TRIP_STATUS.CANCELADO && (
+        <AgregarCargaOficina tripId={trip.id} providerId={data.provider_id} segments={trip.segments} onAgregada={load} />
+      )}
     </div>
   );
 }

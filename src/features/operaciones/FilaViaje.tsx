@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { TRIP_STATUS, fmtKilos, type Trip } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { Spinner, StatusBadge } from "../../components/ui";
@@ -30,6 +30,9 @@ export type ViajeDeOficina = Trip & {
 let ultimaFactura = "";
 
 export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => void }) {
+  // Los filtros de la lista viajan al viaje, para que "← Viajes" vuelva con los mismos.
+  const { search } = useLocation();
+  const desde = { viajes: search };
   const [editandoFecha, setEditandoFecha] = useState(false);
   // Lo que se está tipeando, separado de lo que está guardado.
   const [borrador, setBorrador] = useState(t.started_at.slice(0, 10));
@@ -132,7 +135,7 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
         {t.numero_mes ?? "—"}
       </td>
       <td className="px-4 py-3">
-        <Link to={`/panel/viajes/${t.id}`} className="font-medium text-ink hover:text-brand-700">
+        <Link to={`/panel/viajes/${t.id}`} state={desde} className="font-medium text-ink hover:text-brand-700">
           {t.origin} → {t.destination}
         </Link>
         <div className="text-xs text-ink/50">{t.provider_name}</div>
@@ -217,6 +220,7 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
         <div className="flex items-center justify-end gap-3">
           <Link
             to={`/panel/viajes/${t.id}?editar=1`}
+            state={desde}
             className="text-sm text-brand-700 hover:underline"
           >
             Corregir

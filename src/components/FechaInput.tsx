@@ -48,6 +48,17 @@ export function FechaInput({
   const ancho = clases.filter((c) => /^w-/.test(c));
   const delInput = clases.filter((c) => !/^w-/.test(c));
 
+  const abrirCalendario = () => {
+    const el = calendario.current;
+    if (!el) return;
+    try {
+      if (typeof el.showPicker === "function") return el.showPicker();
+    } catch {
+      // Algunos navegadores lo rechazan fuera de un clic: queda el foco, navegable con teclado.
+    }
+    el.focus();
+  };
+
   const aplicar = (iso: string) => {
     ultimoIso.current = iso;
     setTexto(aTexto(iso));
@@ -60,11 +71,19 @@ export function FechaInput({
         {...rest}
         type="text"
         inputMode="numeric"
-        className={`${delInput.join(" ")} w-full pr-9`}
+        className={`${delInput.join(" ")} w-full pr-11`}
         placeholder={rest.placeholder ?? "dd/mm/aaaa"}
         maxLength={10}
         value={texto}
+        // "Le tengo que escribir toda la fecha manual" — Rodrigo, 16/9. Al entrar al campo queda
+        // toda seleccionada: se corrige tipeando los ocho números, sin borrar la vieja primero.
+        onFocus={(e) => {
+          e.currentTarget.select();
+          rest.onFocus?.(e);
+        }}
         onKeyDown={(e) => {
+          // Alt+↓ abre el calendario, como en un campo de fecha común.
+          if (e.altKey && e.key === "ArrowDown") abrirCalendario();
           borrandoRef.current = e.key === "Backspace" || e.key === "Delete";
           rest.onKeyDown?.(e);
         }}
@@ -84,13 +103,11 @@ export function FechaInput({
         tabIndex={-1}
         disabled={rest.disabled}
         aria-label="Abrir el calendario"
-        onClick={() => {
-          const el = calendario.current;
-          if (!el) return;
-          if (typeof el.showPicker === "function") el.showPicker();
-          else el.focus();
-        }}
-        className="absolute right-0 top-0 flex h-full w-9 items-center justify-center text-ink/40 hover:text-brand-700 disabled:opacity-40"
+        onClick={abrirCalendario}
+        title="Elegir en el calendario"
+        // Se ve como botón y no como un adorno gris: era fácil no darse cuenta de que estaba y
+        // terminar escribiendo la fecha entera a mano.
+        className="absolute inset-y-1 right-1 flex w-8 items-center justify-center border border-brand/30 bg-brand/[.08] text-brand-700 hover:bg-brand hover:text-bg disabled:opacity-40"
       >
         <CalendarioIcono />
       </button>
@@ -110,7 +127,7 @@ export function FechaInput({
 
 function CalendarioIcono() {
   return (
-    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <svg viewBox="0 0 20 20" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.6">
       <rect x="2.75" y="4.25" width="14.5" height="13" rx="1" />
       <path d="M2.75 8.25h14.5M6.75 2.75v3M13.25 2.75v3" strokeLinecap="round" />
     </svg>
