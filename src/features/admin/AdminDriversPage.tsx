@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { DRIVER_STATUS, type Driver, type Truck } from "@shared/domain";
+import { DRIVER_STATUS, ROLES, type Driver, type Truck } from "@shared/domain";
+import { useAuth } from "../../lib/auth";
 import { api, mensajeDe } from "../../lib/api";
 import { Button, Card, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
@@ -159,6 +160,7 @@ function DriverForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const esAdmin = useAuth().user?.role === ROLES.ADMIN;
   const [f, setF] = useState({
     name: driver?.name ?? "",
     document: driver?.document ?? "",
@@ -266,6 +268,8 @@ function DriverForm({
             ))}
           </select>
         </Field>
+        {/* El PIN de un chofer que ya existe lo cambia sólo un admin (el servidor lo frena). */}
+        {(!driver || esAdmin) && (
         <Field label={driver ? "PIN nuevo (dejar vacío para no cambiar)" : "PIN (4+ dígitos)"}>
           <input
             className="input"
@@ -280,6 +284,7 @@ function DriverForm({
             minLength={driver ? undefined : 4}
           />
         </Field>
+        )}
         <Field label="N° de licencia">
           <input className="input" value={f.license_number} onChange={set("license_number")} />
         </Field>

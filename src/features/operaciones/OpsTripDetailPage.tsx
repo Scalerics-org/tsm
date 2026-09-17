@@ -36,8 +36,15 @@ export function OpsTripDetailPage() {
   const [guardandoFecha, setGuardandoFecha] = useState(false);
   // Con `?editar=1` la ficha abre directo en la corrección: es como llega desde el botón
   // "Corregir" de la lista, para que no haya que buscarlo otra vez acá adentro.
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const [editando, setEditando] = useState(params.get("editar") === "1");
+  // Se saca `?editar=1` al salir: si no, recargar la página volvía a abrir la corrección.
+  // `state` se conserva para que "← Viajes" siga volviendo con los filtros.
+  const location = useLocation();
+  const salirDeEdicion = () => {
+    setEditando(false);
+    if (params.has("editar")) setParams({}, { replace: true, state: location.state });
+  };
   // Lo que el backend devuelve después de guardar: no son errores, son las consecuencias que
   // la oficina tiene que mirar —los km que quedaron de un recorrido que ya no es ése—.
   const [avisos, setAvisos] = useState<string[]>([]);
@@ -206,11 +213,11 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
           trip={trip}
           recorridoPorCargas={data.renglon_pide_ubicacion}
           onGuardado={(nuevos) => {
-            setEditando(false);
+            salirDeEdicion();
             setAvisos(nuevos);
             load();
           }}
-          onCancelar={() => setEditando(false)}
+          onCancelar={salirDeEdicion}
         />
       ) : (
       <Card>

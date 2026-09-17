@@ -54,6 +54,12 @@ drivers.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   if (pin !== "" && pin.length < 4) {
     return fail(c, "El PIN nuevo tiene que tener 4 dígitos o más. Dejalo vacío para no cambiarlo.", 400);
   }
+  // Cambiarle el PIN a un chofer que ya existe es entrar a la app como él: operaciones da de
+  // alta y corrige choferes, pero el PIN de uno que ya anda lo cambia un admin. Si no, cualquier
+  // encargado podía cargar viajes y km a nombre de otro sin que quedara rastro de quién fue.
+  if (pin !== "" && c.get("user").role !== ROLES.ADMIN) {
+    return fail(c, "Cambiarle el PIN a un chofer lo hace un admin.", 403);
+  }
   await repo.updateDriver(c.env.DB, id, input);
   if (pin !== "") await repo.setPin(c.env.DB, id, await hashPassword(pin));
   return ok(c, await repo.getDriver(c.env.DB, id));

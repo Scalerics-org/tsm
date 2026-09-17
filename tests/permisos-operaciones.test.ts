@@ -67,6 +67,14 @@ describe("operaciones sí administra choferes y camiones", () => {
     expect(await status(method, url, ROLES.ENCARGADO)).not.toBe(403);
   });
 
+  it("pero no le cambia el PIN a un chofer que ya existe: sería entrar como él", async () => {
+    const cuerpo = { name: "Carlos", document: "1234567", pin: "9999" };
+    expect(await status("PUT", "/api/drivers/1", ROLES.ENCARGADO, cuerpo)).toBe(403);
+    expect(await status("PUT", "/api/drivers/1", ROLES.ADMIN, cuerpo)).not.toBe(403);
+    // Sin PIN, la corrección de datos pasa.
+    expect(await status("PUT", "/api/drivers/1", ROLES.ENCARGADO, { name: "Carlos", document: "1234567" })).not.toBe(403);
+  });
+
   it("borrar sigue siendo de admin", async () => {
     expect(await status("DELETE", "/api/drivers/1", ROLES.ENCARGADO)).toBe(403);
     expect(await status("DELETE", "/api/trucks/1", ROLES.ENCARGADO)).toBe(403);
