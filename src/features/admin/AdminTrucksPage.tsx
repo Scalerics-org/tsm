@@ -162,7 +162,7 @@ function TruckForm({
   useEffect(() => {
     api
       .get<TripTemplate[]>("/templates")
-      .then((ts) => setPlantillas(ts.filter((t) => t.active)))
+      .then(setPlantillas)
       .catch((e) => setListaFalló(mensajeDe(e, "No se pudieron cargar los viajes.")));
     if (id) {
       api
@@ -256,8 +256,10 @@ function TruckForm({
           <ErrorText>{listaFalló}</ErrorText>
           {soloEstos && (
             <div className="grid gap-1 sm:grid-cols-2">
+              {/* Las inactivas no se ofrecen, salvo que ya estén en la lista: si no, quedaban
+                  guardadas sin forma de destildarlas. */}
               {plantillas
-                .slice()
+                .filter((t) => t.active || lista.includes(t.id))
                 .sort((a, b) => (a.provider_name ?? "").localeCompare(b.provider_name ?? "") || a.name.localeCompare(b.name))
                 .map((t) => (
                   <label key={t.id} className="flex items-center gap-2 text-sm text-ink">
@@ -265,6 +267,7 @@ function TruckForm({
                     <span>
                       <span className="text-ink/50">{t.provider_name} · </span>
                       {t.name}
+                      {!t.active && <span className="text-st-amberTx"> (desactivada)</span>}
                     </span>
                   </label>
                 ))}

@@ -4,7 +4,6 @@ import {
   CAMPO_MODO,
   FIELD_STAGE,
   PHOTO_KIND,
-  plantillaHabilitada,
   requiereFotoCarga,
   type CampoUbicacion,
   type LibretaEntry,
@@ -47,6 +46,27 @@ export function StartTripPage() {
   const [textos, setTextos] = useState<Record<string, string>>({});
   const [trucks, setTrucks] = useState<TruckOption[]>([]);
   const [truckId, setTruckId] = useState("");
+  /**
+   * Si el camión elegido hace este viaje. Se le pregunta al servidor con la misma lista que
+   * arma la pantalla de viajes (`GET /templates?truck=N`), que ya cuenta los viajes propios del
+   * camión ("el 4383 hace solo eso"). Con la regla vieja copiada acá, "UAM - Retorno" salía en
+   * la lista del 4383 y esta pantalla le trababa el botón.
+   *
+   * `null` = no se sabe (sin señal): no se traba nada, el alta lo vuelve a controlar.
+   */
+  const [haceElViaje, setHaceElViaje] = useState<boolean | null>(null);
+  useEffect(() => {
+    setHaceElViaje(null);
+    if (!truckId || !templateId) return;
+    let vigente = true;
+    api
+      .get<{ id: number }[]>(`/templates?truck=${truckId}`)
+      .then((ts) => vigente && setHaceElViaje(ts.some((t) => t.id === Number(templateId))))
+      .catch(() => vigente && setHaceElViaje(null));
+    return () => {
+      vigente = false;
+    };
+  }, [truckId, templateId]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -225,7 +245,7 @@ export function StartTripPage() {
         {/* La lista de viajes se arma con el camión asignado, pero acá lo puede cambiar. Si
             el que eligió no hace este viaje conviene decírselo ahora y no después de llenar
             todo: el alta lo va a rechazar igual. */}
-        {truckId && !plantillaHabilitada(tpl, Number(truckId)) && (
+        {haceElViaje === false && (
           <ErrorText>Este viaje no lo hace ese camión. Elegí otro camión o volvé atrás.</ErrorText>
         )}
         {/* Partes que la plantilla resuelve con la libreta. Las fijas ya vienen resueltas. */}
@@ -377,7 +397,7 @@ export function StartTripPage() {
       <Button
         variant="success"
         loading={busy}
-        disabled={!!truckId && !plantillaHabilitada(tpl, Number(truckId))}
+        disabled={haceElViaje === false}
         onClick={confirm}
         className="w-full py-4 text-lg"
       >

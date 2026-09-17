@@ -197,6 +197,23 @@ templates.delete("/:id", requireRole(ROLES.ADMIN), async (c) => {
       409,
     );
   }
+  // Borrarla la saca de la lista de los camiones que la tienen, y un camión que se queda con la
+  // lista vacía pasa a ver TODOS los viajes sin que nadie lo decida ("el 4383 hace solo eso").
+  const camiones = await c.env.DB
+    .prepare(
+      `SELECT tr.plate FROM camion_plantillas cp JOIN trucks tr ON tr.id = cp.truck_id
+        WHERE cp.template_id = ? ORDER BY tr.plate`,
+    )
+    .bind(id)
+    .all<{ plate: string }>();
+  const patentes = (camiones.results ?? []).map((r) => r.plate);
+  if (patentes.length) {
+    return fail(
+      c,
+      `No se puede borrar: está en la lista de viajes de ${patentes.join(", ")}. Sacala primero desde Camiones, o desactivala.`,
+      409,
+    );
+  }
   await repo.deleteTemplate(c.env.DB, id);
   return ok(c, { deleted: true });
 });

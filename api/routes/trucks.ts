@@ -68,7 +68,15 @@ trucks.put("/:id/plantillas", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (
   const b = (await c.req.json().catch(() => null)) as { template_ids?: unknown } | null;
   if (!b || !Array.isArray(b.template_ids)) return fail(c, "Faltan los viajes", 400);
   const ids = [...new Set(b.template_ids.map(Number))].filter((n) => Number.isInteger(n) && n > 0);
-  if (ids.length !== b.template_ids.length) return fail(c, "Hay un viaje que no existe", 400);
+  if (ids.length !== b.template_ids.length) return fail(c, "La lista de viajes vino mal armada", 400);
+  // Un id que no existe haría fallar el guardado entero por la clave foránea, con un error 500.
+  if (ids.length) {
+    const { results } = await c.env.DB
+      .prepare(`SELECT id FROM trip_templates WHERE id IN (${ids.map(() => "?").join(",")})`)
+      .bind(...ids)
+      .all<{ id: number }>();
+    if ((results ?? []).length !== ids.length) return fail(c, "Hay un viaje que ya no existe: recargá la página", 400);
+  }
   await repo.guardarPlantillasDelCamion(c.env.DB, id, ids);
   return ok(c, ids);
 });
