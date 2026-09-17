@@ -2,18 +2,22 @@ import { useState } from "react";
 import {
   COBRO_TIPO,
   PHOTO_KIND_LABEL,
+  UNIDAD,
+  type Unidad,
   fotosPorRenglon,
   type PhotoKind,
   type TripPhoto,
   type TripSegment,
 } from "@shared/domain";
-import { api, ApiError } from "../../lib/api";
+import { api, ApiError, mensajeDe } from "../../lib/api";
 import { Card } from "../../components/ui";
 import { PhotoImage } from "../../components/PhotoImage";
 import { VisorFotos, type FotoDelVisor } from "../../components/VisorFotos";
 import { fmtDateTime } from "../../lib/format";
 
 interface Props {
+  /** Con el id, cada carga se puede corregir desde acá (cantidad, unidad y remito). */
+  tripId?: number;
   segments: TripSegment[];
   photos: TripPhoto[];
   /** Para releer el viaje después de borrar una foto. */
@@ -24,7 +28,7 @@ interface Props {
  * Las cargas del viaje como las ve la oficina: una por lugar de carga, con su foto y a
  * quién se le factura. Es la misma fila que sale en el Excel, pero en pantalla.
  */
-export function CargasDelViaje({ segments, photos, onChanged }: Props) {
+export function CargasDelViaje({ tripId, segments, photos, onChanged }: Props) {
   const { porCarga, delViaje } = fotosPorRenglon(photos);
 
   /* Todas las fotos del viaje en una sola lista: con las flechas del visor la oficina las
@@ -70,10 +74,14 @@ export function CargasDelViaje({ segments, photos, onChanged }: Props) {
                     <div className="font-cond text-lg font-semibold leading-tight text-ink">
                       {s.remitente} → {s.clientes.join(" · ") || "sin destinatario"}
                     </div>
-                    <div className="mt-0.5 text-xs text-ink/55">
-                      {s.cantidad != null ? `${s.cantidad.toLocaleString("es-UY")} ${s.unidad}` : "sin cantidad"}
-                      {s.remito && ` · remito ${s.remito}`}
-                    </div>
+                    {tripId != null ? (
+                      <CantidadDeCarga tripId={tripId} segments={segments} carga={s} onGuardada={onChanged} />
+                    ) : (
+                      <div className="mt-0.5 text-xs text-ink/55">
+                        {s.cantidad != null ? `${s.cantidad.toLocaleString("es-UY")} ${s.unidad}` : "sin cantidad"}
+                        {s.remito && ` · remito ${s.remito}`}
+                      </div>
+                    )}
                   </div>
 
                   {/* La facturación es lo único que la oficina ve y el chofer no. */}
@@ -150,6 +158,119 @@ export function CargasDelViaje({ segments, photos, onChanged }: Props) {
       {ampliada != null && ampliada >= 0 && (
         <VisorFotos fotos={todas} indice={ampliada} onCerrar={() => setAmpliada(null)} />
       )}
+    </div>
+  );
+}
+
+/**
+ * La cantidad de una carga, corregible desde la oficina.
+ *
+ * "No le pusieron los pallets y no puedo agregar. Modificar sería." — Rodrigo, 17/9, en una
+ * ida y vuelta de Manassi: las dos cargas vienen fijas de la plantilla y el chofer las cerró
+ * sin cantidad. Se manda la lista entera por `PUT /trips/:id/segments` cambiando sólo ésta,
+ * identificada por su `sid`: así no se mueven sus fotos, su cobro a mano ni la marca de fija.
+ */
+function CantidadDeCarga({
+  tripId,
+  segments,
+  carga,
+  onGuardada,
+}: {
+  tripId: number;
+  segments: TripSegment[];
+  carga: TripSegment;
+  onGuardada: () => void;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const [cantidad, setCantidad] = useState("");
+  const [unidad, setUnidad] = useState<Unidad>(UNIDAD.PALLETS);
+  const [remito, setRemito] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const abrir = () => {
+    setCantidad(carga.cantidad == null ? "" : String(carga.cantidad));
+    setUnidad(carga.unidad ?? UNIDAD.PALLETS);
+    setRemito(carga.remito ?? "");
+    setError("");
+    setAbierto(true);
+  };
+
+  async function guardar() {
+    setBusy(true);
+    setError("");
+    try {
+      await api.put(`/trips/${tripId}/segments`, {
+        segments: segments.map((x) =>
+          x.sid === carga.sid
+            ? {
+                ...x,
+                cantidad: cantidad === "" ? null : Number(cantidad),
+                unidad: cantidad === "" ? x.unidad : unidad,
+                remito: remito.trim() || null,
+              }
+            : x,
+        ),
+      });
+      setAbierto(false);
+      onGuardada();
+    } catch (e) {
+      // Si el viaje ya está facturado el servidor lo frena y dice cómo seguir.
+      setError(mensajeDe(e, "No se pudo corregir la carga"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!abierto) {
+    return (
+      <div className="mt-0.5 text-xs text-ink/55">
+        {carga.cantidad != null ? (
+          `${carga.cantidad.toLocaleString("es-UY")} ${carga.unidad}`
+        ) : (
+          <span className="text-st-amberTx">sin cantidad</span>
+        )}
+        {carga.remito && ` · remito ${carga.remito}`}
+        <button type="button" onClick={abrir} className="ml-2 text-brand-700 hover:underline">
+          Corregir
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="text-xs text-ink/60">
+          Cantidad
+          <input
+            className="input mt-0.5 w-28 py-1"
+            type="number"
+            inputMode="decimal"
+            value={cantidad}
+            onChange={(e) => setCantidad(e.target.value)}
+            autoFocus
+          />
+        </label>
+        <label className="text-xs text-ink/60">
+          Unidad
+          <select className="input mt-0.5 w-28 py-1" value={unidad} onChange={(e) => setUnidad(e.target.value as Unidad)}>
+            <option value={UNIDAD.PALLETS}>Pallets</option>
+            <option value={UNIDAD.KILOS}>Kilos</option>
+          </select>
+        </label>
+        <label className="text-xs text-ink/60">
+          Remito
+          <input className="input mt-0.5 w-32 py-1" value={remito} onChange={(e) => setRemito(e.target.value)} />
+        </label>
+        <button type="button" onClick={guardar} disabled={busy} className="pb-1.5 text-sm text-brand-700 hover:underline disabled:opacity-40">
+          {busy ? "Guardando…" : "Guardar"}
+        </button>
+        <button type="button" onClick={() => setAbierto(false)} className="pb-1.5 text-sm text-ink/55 hover:underline">
+          Cancelar
+        </button>
+      </div>
+      {error && <div className="text-xs text-st-redTx">{error}</div>}
     </div>
   );
 }
