@@ -10,7 +10,7 @@ import {
   bloqueaSalidaPorLectura,
   corrimientoEnDias,
   esFechaValida,
-  plantillaHabilitada,
+  plantillaParaCamion,
   TRIP_STATUS,
   UNIDAD,
   aplicarCobro,
@@ -302,7 +302,10 @@ trips.post("/", async (c) => {
   // Esconder la plantilla de la lista no alcanza: el id viaja en el pedido y se puede mandar
   // igual. Sin este control la restricción por camión es decorativa.
   // La oficina pasa: es quien define la asignación, y puede necesitar una excepción puntual.
-  if (user.role === ROLES.CHOFER && !plantillaHabilitada(tpl, truckId)) {
+  if (
+    user.role === ROLES.CHOFER &&
+    !plantillaParaCamion(tpl, truckId, await trucksRepo.plantillasDelCamion(c.env.DB, truckId))
+  ) {
     return fail(c, "Ese viaje no es de tu camión", 403);
   }
 

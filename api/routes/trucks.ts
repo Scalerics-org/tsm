@@ -56,6 +56,23 @@ trucks.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   return ok(c, await repo.getTruck(c.env.DB, id));
 });
 
+// GET /api/trucks/:id/plantillas — los viajes que ve este camión. [] = ve lo de siempre.
+trucks.get("/:id/plantillas", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) =>
+  ok(c, await repo.plantillasDelCamion(c.env.DB, Number(c.req.param("id")))),
+);
+
+// PUT /api/trucks/:id/plantillas { template_ids } — "el 4383 hace solo eso" (Rodrigo, 16/9).
+trucks.put("/:id/plantillas", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+  const id = Number(c.req.param("id"));
+  if (!(await repo.getTruck(c.env.DB, id))) return fail(c, "Camión no encontrado", 404);
+  const b = (await c.req.json().catch(() => null)) as { template_ids?: unknown } | null;
+  if (!b || !Array.isArray(b.template_ids)) return fail(c, "Faltan los viajes", 400);
+  const ids = [...new Set(b.template_ids.map(Number))].filter((n) => Number.isInteger(n) && n > 0);
+  if (ids.length !== b.template_ids.length) return fail(c, "Hay un viaje que no existe", 400);
+  await repo.guardarPlantillasDelCamion(c.env.DB, id, ids);
+  return ok(c, ids);
+});
+
 trucks.delete("/:id", requireRole(ROLES.ADMIN), async (c) => {
   const id = Number(c.req.param("id"));
   const motivo = motivoParaNoBorrarCamion(await repo.loAtadoAlCamion(c.env.DB, id));

@@ -1141,6 +1141,26 @@ export function plantillaHabilitada(
   return truckId != null && tpl.truck_ids.includes(truckId);
 }
 
+/**
+ * Si este camión ve la plantilla, contando la lista de viajes del propio camión.
+ *
+ * "Esos 4 viajes tendría que ver el 4383, porque ese camión hace solo eso." — Rodrigo, 16/9.
+ * La asignación de `plantillaHabilitada` va de la plantilla a los camiones y no sirve para esto:
+ * dos de esos viajes (Agencia, Mdeo - BU) son de todos, y restringirlos se los sacaría al resto.
+ *
+ * Con lista, la lista manda: el camión ve exactamente esas, aunque la plantilla esté asignada
+ * a otro camión —la eligió la oficina para él—. Sin lista (vacía) queda la regla de siempre,
+ * que es el fallo seguro: si la lista se borra, el camión vuelve a ver lo de todos.
+ */
+export function plantillaParaCamion(
+  tpl: Pick<TripTemplate, "id" | "truck_ids">,
+  truckId: number | null | undefined,
+  listaDelCamion: number[],
+): boolean {
+  if (listaDelCamion.length) return listaDelCamion.includes(tpl.id);
+  return plantillaHabilitada(tpl, truckId);
+}
+
 /** Lo que se le manda al celular cuando se cierra un viaje. */
 export interface AvisoViaje {
   title: string;

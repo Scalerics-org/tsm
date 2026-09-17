@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { plantillaHabilitada } from "@shared/domain";
+import { plantillaHabilitada, plantillaParaCamion } from "@shared/domain";
 
 /**
  * "Hay camiones que directamente no hacen algunas cosas. A esos me gustaría que les
@@ -39,5 +39,32 @@ describe("plantillaHabilitada", () => {
   it("no confunde el camión 0 con la falta de camión", () => {
     expect(plantillaHabilitada({ truck_ids: [0] }, 0)).toBe(true);
     expect(plantillaHabilitada({ truck_ids: [1] }, 0)).toBe(false);
+  });
+});
+
+/**
+ * El camión que hace siempre lo mismo.
+ *
+ * "El 4383. Solo ese tendría que ver esas opciones. Esos 4 viajes tendría que ver el 4383,
+ * porque ese camión hace solo eso." — Rodrigo, 16/9/2026. UAM, UAM - Retorno, Agencia y
+ * Mdeo - BU: dos son de todos, así que no alcanza con asignarle camiones a la plantilla.
+ */
+describe("plantillaParaCamion — la lista de viajes del camión", () => {
+  const libre = { id: 22, truck_ids: [] };
+  const deOtro = { id: 18, truck_ids: [3] };
+  const otra = { id: 10, truck_ids: [] };
+
+  it("sin lista, el camión ve lo de siempre", () => {
+    expect(plantillaParaCamion(libre, 2, [])).toBe(true);
+    expect(plantillaParaCamion(deOtro, 2, [])).toBe(false);
+  });
+
+  it("con lista, ve sólo las de su lista aunque sean de todos", () => {
+    expect(plantillaParaCamion(libre, 2, [22, 18])).toBe(true);
+    expect(plantillaParaCamion(otra, 2, [22, 18])).toBe(false);
+  });
+
+  it("la lista del camión manda: la oficina la eligió para él", () => {
+    expect(plantillaParaCamion(deOtro, 2, [22, 18])).toBe(true);
   });
 });

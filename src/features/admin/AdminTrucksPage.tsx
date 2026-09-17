@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { TRUCK_STATUS, fmtConsumo, type Truck, type TruckStatus } from "@shared/domain";
+import { TRUCK_STATUS, fmtConsumo, type Truck, type TruckStatus, type TripTemplate } from "@shared/domain";
 import { api, mensajeDe } from "../../lib/api";
 import { Button, Card, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
 
@@ -153,6 +153,29 @@ function TruckForm({
   const [f, setF] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  // Los viajes que ve este camión. Vacío = ve lo de siempre (todos los que no son de otro).
+  const [plantillas, setPlantillas] = useState<TripTemplate[]>([]);
+  const [lista, setLista] = useState<number[]>([]);
+  const [soloEstos, setSoloEstos] = useState(false);
+  const [listaFalló, setListaFalló] = useState("");
+  useEffect(() => {
+    api
+      .get<TripTemplate[]>("/templates")
+      .then((ts) => setPlantillas(ts.filter((t) => t.active)))
+      .catch((e) => setListaFalló(mensajeDe(e, "No se pudieron cargar los viajes.")));
+    if (id) {
+      api
+        .get<number[]>(`/trucks/${id}/plantillas`)
+        .then((ids) => {
+          setLista(ids);
+          setSoloEstos(ids.length > 0);
+        })
+        .catch((e) => setListaFalló(mensajeDe(e, "No se pudo cargar la lista de viajes del camión.")));
+    }
+  }, [id]);
+  const alternar = (tid: number) =>
+    setLista((prev) => (prev.includes(tid) ? prev.filter((x) => x !== tid) : [...prev, tid]));
   const set = (k: keyof typeof f, num = false) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setF({ ...f, [k]: num ? Number(e.target.value) : e.target.value });
 
@@ -161,8 +184,15 @@ function TruckForm({
     setError("");
     setBusy(true);
     try {
-      if (id) await api.put(`/trucks/${id}`, f);
-      else await api.post("/trucks", f);
+      if (soloEstos && lista.length === 0) {
+        setBusy(false);
+        return setError("Marcá al menos un viaje, o elegí que vea todos.");
+      }
+      const guardado = id ? await api.put<Truck>(`/trucks/${id}`, f) : await api.post<Truck>("/trucks", f);
+      // Si la lista no cargó no se toca: guardarla vacía le cambiaría los viajes sin que nadie lo pidiera.
+      if (!listaFalló) {
+        await api.put(`/trucks/${guardado.id}/plantillas`, { template_ids: soloEstos ? lista : [] });
+      }
       onSaved();
     } catch (err) {
       // Sin esto, un rechazo del servidor dejaba el formulario abierto y quieto, como si el
@@ -209,6 +239,39 @@ function TruckForm({
             ))}
           </select>
         </Field>
+        {/* "El 4383 hace solo eso" (Rodrigo, 16/9): un camión puede tener su propia lista de
+            viajes. Sin lista ve lo de siempre. */}
+        <div className="col-span-full space-y-2 border border-ink/15 p-3">
+          <span className="label">Viajes que ve este camión</span>
+          <div className="flex flex-wrap gap-4 text-sm text-ink">
+            <label className="flex items-center gap-2">
+              <input type="radio" checked={!soloEstos} onChange={() => setSoloEstos(false)} />
+              Todos (lo de siempre)
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="radio" checked={soloEstos} onChange={() => setSoloEstos(true)} />
+              Sólo estos
+            </label>
+          </div>
+          <ErrorText>{listaFalló}</ErrorText>
+          {soloEstos && (
+            <div className="grid gap-1 sm:grid-cols-2">
+              {plantillas
+                .slice()
+                .sort((a, b) => (a.provider_name ?? "").localeCompare(b.provider_name ?? "") || a.name.localeCompare(b.name))
+                .map((t) => (
+                  <label key={t.id} className="flex items-center gap-2 text-sm text-ink">
+                    <input type="checkbox" checked={lista.includes(t.id)} onChange={() => alternar(t.id)} />
+                    <span>
+                      <span className="text-ink/50">{t.provider_name} · </span>
+                      {t.name}
+                    </span>
+                  </label>
+                ))}
+            </div>
+          )}
+        </div>
+
         {/* Habilita la surtida de la cámara de frío en el celular del chofer, y las horas del
             equipo en la ficha. Si otro camión engancha el furgón, se tilda acá. */}
         <label className="col-span-full flex items-center gap-2 text-sm text-ink">

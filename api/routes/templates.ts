@@ -10,11 +10,12 @@ import {
   LIBRETA_TIPO,
   TIPO_DEPARTAMENTO,
   parseRenglon,
-  plantillaHabilitada,
+  plantillaParaCamion,
   type CamposUbicacion,
   type RenglonFijo,
 } from "../../shared/domain";
 import * as repo from "../repos/templates";
+import { plantillasDelCamion } from "../repos/trucks";
 
 const templates = new Hono<{ Bindings: Env; Variables: Vars }>();
 templates.use("*", requireAuth);
@@ -35,7 +36,9 @@ templates.get("/", async (c) => {
   // seguiría viendo los viajes del anterior durante toda la semana que dura el token.
   const q = c.req.query("truck");
   const truckId = q ? Number(q) : user.truck_id;
-  return ok(c, todas.filter((t) => plantillaHabilitada(t, truckId)));
+  // Y si el camión tiene su propia lista ("el 4383 hace solo eso"), ve sólo esa.
+  const lista = await plantillasDelCamion(c.env.DB, truckId);
+  return ok(c, todas.filter((t) => plantillaParaCamion(t, truckId, lista)));
 });
 
 function slug(s: string): string {

@@ -72,6 +72,26 @@ export async function loAtadoAlCamion(db: D1Database, id: number): Promise<Atado
   return row ?? { viajes: 0, surtidas: 0, lecturas: 0, choferes: 0 };
 }
 
+/** Los viajes que ve el camión (`camion_plantillas`). Vacío = ve lo de siempre. */
+export async function plantillasDelCamion(db: D1Database, truckId: number | null | undefined): Promise<number[]> {
+  if (truckId == null) return [];
+  const { results } = await db
+    .prepare("SELECT template_id FROM camion_plantillas WHERE truck_id = ? ORDER BY template_id")
+    .bind(truckId)
+    .all<{ template_id: number }>();
+  return (results ?? []).map((r) => r.template_id);
+}
+
+/** Reemplaza la lista entera. Una lista vacía devuelve el camión a ver lo de siempre. */
+export async function guardarPlantillasDelCamion(db: D1Database, truckId: number, ids: number[]): Promise<void> {
+  await db.batch([
+    db.prepare("DELETE FROM camion_plantillas WHERE truck_id = ?").bind(truckId),
+    ...ids.map((t) =>
+      db.prepare("INSERT OR IGNORE INTO camion_plantillas (truck_id, template_id) VALUES (?, ?)").bind(truckId, t),
+    ),
+  ]);
+}
+
 export async function deleteTruck(db: D1Database, id: number): Promise<void> {
   await db.prepare("DELETE FROM trucks WHERE id = ?").bind(id).run();
 }
