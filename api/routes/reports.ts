@@ -1,5 +1,5 @@
 import { fotoQueFalta, leFaltaCarga } from "../lib/fotos-faltantes";
-import { surtidasARevisar, surtidasParaLaFicha } from "../lib/surtidas-a-revisar";
+import { surtidasARevisar, surtidasParaLaFicha, consumoPorSurtida } from "../lib/surtidas-a-revisar";
 import { viajesAFacturar } from "../lib/resumen-cliente";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
@@ -269,6 +269,9 @@ reports.get("/truck/:id", async (c) => {
     monthly,
     fuel: surtidasParaLaFicha(fuel, marcadas),
     surtidas_a_revisar: Object.fromEntries(aRevisar.sospechosas.map((s) => [s.id, s.motivo])),
+    // El km/L de cada llenado, con TODAS las surtidas (el primer tramo de la lista necesita la
+    // anterior, que puede no venir entre las 20).
+    consumo_por_surtida: consumoPorSurtida(fuel),
     vacios: vacios.slice(-20).reverse(),
     km_vacios: kmVacios(vacios),
     // Mismo criterio que los vacíos: un viaje cancelado no cargó nada, así que sus kilos

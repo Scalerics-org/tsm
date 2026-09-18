@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { litrosTotales, type FuelLog } from "@shared/domain";
+import { fmtConsumo, litrosTotales, type FuelLog } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { Button, ErrorText, Spinner } from "../../components/ui";
 import { fmtDateTime } from "../../lib/format";
@@ -27,11 +27,17 @@ export function SurtidaRow({
   f,
   onChanged,
   sospechosa = null,
+  consumo = null,
+  esperado = 0,
 }: {
   f: FuelLog;
   onChanged: () => void;
   /** Por qué esta surtida no cierra contra el rendimiento del camión, o `null` si cierra. */
   sospechosa?: string | null;
+  /** El tramo que cierra esta surtida. `null` = chorro, o el primer llenado (la base). */
+  consumo?: { kml: number; km: number; litros: number } | null;
+  /** El rendimiento esperado del camión (ficha), para pintar la columna. 0 = no se sabe. */
+  esperado?: number;
 }) {
   const [editando, setEditando] = useState(false);
   const [km, setKm] = useState(String(f.odometer_km));
@@ -136,6 +142,7 @@ export function SurtidaRow({
             </div>
           )}
         </td>
+        <CeldaConsumo consumo={consumo} esperado={esperado} sospechosa={!!sospechosa && !verificada} chorro={!f.is_full} />
         <td className="px-4 py-2 text-ink/70">
           {f.is_full ? "Sí" : "Chorro"}
           {/* Las dos fotos respaldan números distintos: el tacógrafo los km y la boleta los
@@ -258,6 +265,7 @@ export function SurtidaRow({
         )}
         <div className="mt-1 text-[11px] text-ink/55">Total {total ?? 0} L</div>
       </td>
+      <td className="px-4 py-2 text-right text-ink/40">—</td>
       <td className="px-4 py-2 text-ink/70">{f.is_full ? "Sí" : "Chorro"}</td>
       {/* Sin tilde mientras se corrige: guardar la corrección se lo lleva puesto igual. */}
       <td className="px-4 py-2" />
@@ -278,5 +286,46 @@ export function SurtidaRow({
         <ErrorText>{error}</ErrorText>
       </td>
     </tr>
+  );
+}
+
+/**
+ * El km/L del tramo que cierra la surtida, pintado para leerse de un vistazo: "una columna con
+ * el consumo, así puedo observar visualmente cada camión" (Rodrigo, 18/9).
+ *
+ * Rojo cuando el aviso la marca (no cierra contra el propio camión); ámbar cuando rinde menos
+ * que lo esperado en la ficha; el resto, normal. El detalle —km y litros del tramo— en el título.
+ */
+function CeldaConsumo({
+  consumo,
+  esperado,
+  sospechosa,
+  chorro,
+}: {
+  consumo: { kml: number; km: number; litros: number } | null;
+  esperado: number;
+  sospechosa: boolean;
+  chorro: boolean;
+}) {
+  if (!consumo) {
+    return (
+      <td className="px-4 py-2 text-right text-xs text-ink/40" title={chorro ? "Sus litros van al llenado siguiente" : "Primer llenado: es la base"}>
+        {chorro ? "va al siguiente" : "base"}
+      </td>
+    );
+  }
+  const color = sospechosa
+    ? "text-st-redTx"
+    : esperado > 0 && consumo.kml < esperado
+      ? "text-st-amberTx"
+      : "text-st-greenTx";
+  return (
+    <td
+      className={`px-4 py-2 text-right font-semibold tabular-nums ${color}`}
+      title={`${consumo.km.toLocaleString("es-UY")} km con ${consumo.litros.toLocaleString("es-UY")} L`}
+    >
+      {fmtConsumo(consumo.kml)}
+      <div className="text-[11px] font-normal text-ink/45">km/L</div>
+    </td>
   );
 }

@@ -1,5 +1,5 @@
 import type { FuelLog } from "../../shared/domain";
-import { rangoDeSurtidas, type RangoCamion } from "../../shared/rango-surtidas";
+import { rangoDeSurtidas, tramosDeConsumo, type RangoCamion, type SurtidaParaRango } from "../../shared/rango-surtidas";
 
 /**
  * Lo que le queda por revisar a la oficina en un camión: lo raro, menos lo ya verificado.
@@ -15,16 +15,30 @@ import { rangoDeSurtidas, type RangoCamion } from "../../shared/rango-surtidas";
  * Y si al filtrar no queda ninguna, el camión vuelve a `ok`: hoy no hay nada que mirar. No es
  * lo mismo que `sin_datos`, que es "todavía no sé".
  */
-export function surtidasARevisar(logs: FuelLog[]): RangoCamion {
-  const r = rangoDeSurtidas(
-    logs.map((f) => ({
-      id: f.id,
-      odometer_km: f.odometer_km,
-      liters: f.liters,
-      is_full: !!f.is_full,
-      logged_at: f.logged_at,
-    })),
+const paraRango = (logs: FuelLog[]): SurtidaParaRango[] =>
+  logs.map((f) => ({
+    id: f.id,
+    odometer_km: f.odometer_km,
+    liters: f.liters,
+    is_full: !!f.is_full,
+    logged_at: f.logged_at,
+  }));
+
+/**
+ * El consumo de cada surtida, para la columna de la ficha del camión: el tramo que cierra cada
+ * llenado. "Una columna con el consumo, así puedo observar visualmente cada camión" (Rodrigo,
+ * 18/9). Es la misma cuenta que el aviso de abajo, a propósito: si fueran dos, la columna diría
+ * un número y el aviso marcaría por otro. El primer llenado es la base y los chorros no cierran
+ * tramo, así que ésos no vienen.
+ */
+export function consumoPorSurtida(logs: FuelLog[]): Record<number, { kml: number; km: number; litros: number }> {
+  return Object.fromEntries(
+    tramosDeConsumo(paraRango(logs)).map((t) => [t.id, { kml: t.kml, km: t.km, litros: t.litros }]),
   );
+}
+
+export function surtidasARevisar(logs: FuelLog[]): RangoCamion {
+  const r = rangoDeSurtidas(paraRango(logs));
   const verificadas = new Set(logs.filter((f) => f.verificado_at).map((f) => f.id));
   const sospechosas = r.sospechosas.filter((s) => !verificadas.has(s.id));
   return {

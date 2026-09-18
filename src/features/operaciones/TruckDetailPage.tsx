@@ -36,6 +36,8 @@ interface Ficha {
    * Control, así las dos pantallas marcan exactamente las mismas.
    */
   surtidas_a_revisar: Record<number, string>;
+  /** km/L del tramo que cierra cada llenado. Sin entrada = chorro o primer llenado (la base). */
+  consumo_por_surtida: Record<number, { kml: number; km: number; litros: number }>;
   vacios: TramoVacio[];
   km_vacios: number;
   tons: number;
@@ -207,6 +209,7 @@ export function TruckDetailPage() {
               <th className="px-4 py-2">Fecha</th>
               <th className="px-4 py-2 text-right">Odómetro</th>
               <th className="px-4 py-2 text-right">Litros</th>
+              <th className="px-4 py-2 text-right">Consumo</th>
               <th className="px-4 py-2">Llenó</th>
               <th className="px-4 py-2">Verificada</th>
               <th className="px-4 py-2" />
@@ -214,7 +217,14 @@ export function TruckDetailPage() {
           </thead>
           <tbody>
             {d.fuel.map((f) => (
-              <SurtidaRow key={f.id} f={f} onChanged={load} sospechosa={d.surtidas_a_revisar[f.id] ?? null} />
+              <SurtidaRow
+                key={f.id}
+                f={f}
+                onChanged={load}
+                sospechosa={d.surtidas_a_revisar[f.id] ?? null}
+                consumo={d.consumo_por_surtida?.[f.id] ?? null}
+                esperado={truck.avg_km_litro}
+              />
             ))}
             {d.fuel.length === 0 && (
               <tr>
