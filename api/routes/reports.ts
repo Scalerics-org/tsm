@@ -17,7 +17,7 @@ import {
 import { listTrips, listTripsFacturables } from "../repos/trips";
 import { columnasDeCampos, encabezado, filasDeViaje, resumenParaElCliente } from "../lib/export-viajes";
 import { csvResponse } from "../lib/csv";
-import { vaciosEntreViajes, kmVacios, vaciosDelPeriodo } from "../../shared/vacios";
+import { vaciosEntreViajes, kmVacios, vaciosDelPeriodo, paraVacios } from "../../shared/vacios";
 import { resumenCliente } from "../lib/resumen-cliente";
 import { listTemplates } from "../repos/templates";
 import { listFuelLogs } from "../repos/fuel";
@@ -51,13 +51,7 @@ reports.get("/summary", async (c) => {
     const v = vaciosDelPeriodo(
       todosLosViajes
         .filter((x) => x.truck_id === truckId && x.status !== TRIP_STATUS.CANCELADO)
-        .map((x) => ({
-          id: x.id,
-          started_at: x.started_at,
-          origin: x.origin,
-          destination: x.destination,
-          kilometros: Number.isFinite(x.kilometros as number) ? (x.kilometros as number) : null,
-        })),
+        .map(paraVacios),
       range.from,
       range.to,
     );
@@ -259,13 +253,7 @@ reports.get("/truck/:id", async (c) => {
   const hechos = trips.filter((t) => t.status !== TRIP_STATUS.CANCELADO);
   const vacios = vaciosEntreViajes(
     hechos
-      .map((t) => ({
-        id: t.id,
-        started_at: t.started_at,
-        origin: t.origin,
-        destination: t.destination,
-        kilometros: Number.isFinite(t.kilometros as number) ? (t.kilometros as number) : null,
-      })),
+      .map(paraVacios),
   );
 
   // El aviso de litros se calcula con TODAS las surtidas y con la misma función que Control

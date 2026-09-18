@@ -16,7 +16,7 @@ import {
 } from "../../shared/domain";
 import { kmEstimados } from "../../shared/distancias";
 import { periodoDeHoy } from "../lib/periodo";
-import { vaciosEntreViajes } from "../../shared/vacios";
+import { vaciosEntreViajes, paraVacios } from "../../shared/vacios";
 import { DESVIO_SURTIDA } from "../../shared/rango-surtidas";
 import { claveMovida, esPeriodo, fechaDeFoto, moverLectura } from "../lib/lectura-periodo";
 import * as repo from "../repos/lecturas";
@@ -257,13 +257,7 @@ lecturas.get("/auditoria", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
       // plantillas de viaje vacío existen hace un mes y NUNCA se usaron. Entre dónde descargó
       // y dónde volvió a cargar está el tramo, y ese dato ya está cargado.
       const tramos = vaciosEntreViajes(
-        crudos.map((t) => ({
-          id: t.id,
-          started_at: t.started_at,
-          origin: t.origin,
-          destination: t.destination,
-          kilometros: Number.isFinite(t.kilometros as number) ? (t.kilometros as number) : null,
-        })),
+        crudos.map(paraVacios),
       );
 
       const suyos: ViajeAuditado[] = crudos

@@ -32,6 +32,65 @@ export interface ViajeParaVacios {
   destination: string;
   /** Los km reales que cargó el chofer. `null` cuando no los puso. */
   kilometros: number | null;
+  /** Las cargas, para saber dónde terminó de verdad (ver `finDelViaje`). */
+  segments?: CargaConRecorrido[];
+}
+
+type CargaConRecorrido = { origen?: string | null; destino?: string | null };
+
+/**
+ * Un viaje guardado → lo que necesitan los vacíos. Las tres pantallas que los calculan (el
+ * resumen, la ficha del camión y Control) lo armaban cada una a mano, y así es como una se
+ * queda sin las cargas y vuelve a contar la ida y vuelta como retorno.
+ */
+export function paraVacios(t: {
+  id: number;
+  started_at: string;
+  origin: string;
+  destination: string;
+  kilometros?: number | null;
+  segments?: CargaConRecorrido[];
+}): ViajeParaVacios {
+  return {
+    id: t.id,
+    started_at: t.started_at,
+    origin: t.origin,
+    destination: t.destination,
+    kilometros: Number.isFinite(t.kilometros as number) ? (t.kilometros as number) : null,
+    segments: t.segments ?? [],
+  };
+}
+
+/**
+ * Dónde quedó el camión al terminar el viaje.
+ *
+ * Casi siempre es el destino. La excepción es la ida y vuelta de Manassi: el viaje dice
+ * Artigas → Minas, pero la última carga es Minas → Artigas —vuelve cargado con envases—. "No lo
+ * considero retorno vacío, porque el precio del viaje es ida y vuelta." (Rodrigo, 18/9/2026).
+ * Sin esto, el camión figuraba terminando en Minas y la vuelta salía como retorno vacío.
+ *
+ * Manda el destino de la ÚLTIMA carga que lo tenga; si ninguna lo tiene, el del viaje.
+ */
+export function finDelViaje(v: { destination: string; segments?: CargaConRecorrido[] }): string {
+  const conDestino = (v.segments ?? []).filter((s) => s.destino?.trim());
+  return conDestino.length ? (conDestino[conDestino.length - 1].destino as string).trim() : v.destination;
+}
+
+/**
+ * Los km estimados del viaje. En una ida y vuelta —termina donde empezó— son los dos tramos:
+ * la vuelta va cargada y es parte del viaje, no un vacío aparte.
+ */
+export function kmEstimadosDelViaje(v: {
+  origin: string;
+  destination: string;
+  segments?: CargaConRecorrido[];
+}): number | null {
+  const ida = kmEstimados(v.origin, v.destination);
+  const fin = finDelViaje(v);
+  const esIdaYVuelta = kmEstimados(fin, v.destination) !== 0 && kmEstimados(fin, v.origin) === 0;
+  if (!esIdaYVuelta || ida == null) return ida;
+  const vuelta = kmEstimados(v.destination, fin);
+  return vuelta == null ? null : ida + vuelta;
 }
 
 /**
@@ -72,7 +131,8 @@ export function vaciosEntreViajes(viajes: ViajeParaVacios[]): TramoVacio[] {
     const viaje = enOrden[i];
     const siguiente = enOrden[i + 1];
 
-    const estimado = kmEstimados(viaje.destination, siguiente.origin);
+    const fin = finDelViaje(viaje);
+    const estimado = kmEstimados(fin, siguiente.origin);
     // 0 km es el mismo lugar escrito distinto: no hubo viaje. `null` es un lugar que la app
     // no conoce, que es otra cosa —hay tramo, no se sabe cuánto— y sí se reporta.
     if (estimado === 0) continue;
@@ -82,7 +142,7 @@ export function vaciosEntreViajes(viajes: ViajeParaVacios[]): TramoVacio[] {
     const esRetorno = kmEstimados(siguiente.origin, viaje.origin) === 0;
 
     tramos.push({
-      desde: viaje.destination,
+      desde: fin,
       hasta: siguiente.origin,
       km: esRetorno ? (viaje.kilometros ?? estimado) : estimado,
       tipo: esRetorno ? "retorno" : "reposicion",

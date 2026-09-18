@@ -26,7 +26,7 @@ import {
   type TripSegmentInput,
   type TripTemplate,
 } from "../../shared/domain";
-import { kmEstimados } from "../../shared/distancias";
+import { kmEstimadosDelViaje } from "../../shared/vacios";
 import * as tripsRepo from "../repos/trips";
 import * as templatesRepo from "../repos/templates";
 import * as photosRepo from "../repos/photos";
@@ -583,7 +583,8 @@ trips.post("/:id/finish", async (c) => {
     //
     // Si no reconoce alguna de las dos puntas queda en null, que es lo honesto: mejor un
     // hueco visible que un número inventado que después nadie sabe de dónde salió.
-    const estimado = kmEstimados(s.trip.origin, s.trip.destination);
+    // Con las cargas: una ida y vuelta cuenta los dos tramos, la vuelta va cargada (Manassi).
+    const estimado = kmEstimadosDelViaje(s.trip);
     if (estimado != null) await tripsRepo.setKilometros(c.env.DB, s.trip.id, estimado);
   }
 
