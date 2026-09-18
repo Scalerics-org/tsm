@@ -132,6 +132,9 @@ export function vaciosEntreViajes(viajes: ViajeParaVacios[]): TramoVacio[] {
     const siguiente = enOrden[i + 1];
 
     const fin = finDelViaje(viaje);
+    // Sin destino todavía (el internacional en curso lo pide al cerrar) no se sabe dónde quedó
+    // el camión: no hay tramo que deducir, y reportarlo como "sin medir" sería inventarlo.
+    if (!fin.trim()) continue;
     const estimado = kmEstimados(fin, siguiente.origin);
     // 0 km es el mismo lugar escrito distinto: no hubo viaje. `null` es un lugar que la app
     // no conoce, que es otra cosa —hay tramo, no se sabe cuánto— y sí se reporta.

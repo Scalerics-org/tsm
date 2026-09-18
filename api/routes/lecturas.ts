@@ -14,9 +14,8 @@ import {
   type AuthUser,
   type ViajeAuditado,
 } from "../../shared/domain";
-import { kmEstimados } from "../../shared/distancias";
 import { periodoDeHoy } from "../lib/periodo";
-import { vaciosEntreViajes, paraVacios } from "../../shared/vacios";
+import { vaciosEntreViajes, paraVacios, kmEstimadosDelViaje } from "../../shared/vacios";
 import { DESVIO_SURTIDA } from "../../shared/rango-surtidas";
 import { claveMovida, esPeriodo, fechaDeFoto, moverLectura } from "../lib/lectura-periodo";
 import * as repo from "../repos/lecturas";
@@ -266,7 +265,9 @@ lecturas.get("/auditoria", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
           // cerrar el viaje. Contarlos como 0 hacía que cada viaje registrado empeorara el
           // número del camión: cuanto mejor se usaba la app, peor pintaba.
           const propios = Number.isFinite(t.kilometros as number) ? (t.kilometros as number) : null;
-          const estimados = propios == null ? kmEstimados(t.origin, t.destination) : null;
+          // Con las cargas (la ida y vuelta cuenta los dos tramos), igual que al cerrar. Un
+          // internacional en curso sin destino todavía da null: no se inventa un número.
+          const estimados = propios == null ? kmEstimadosDelViaje(t) : null;
           return {
             kilometros: propios ?? estimados,
             estimado: propios == null && estimados != null,

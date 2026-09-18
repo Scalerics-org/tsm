@@ -75,3 +75,11 @@ describe("kmEstimadosDelViaje", () => {
     expect(kmEstimadosDelViaje({ origin: "Lugar Raro", destination: "Minas", segments: [] })).toBeNull();
   });
 });
+
+describe("viaje en curso sin destino todavía (internacional)", () => {
+  it("no inventa un tramo vacío desde un destino que no existe", () => {
+    const abierto = { ...SIGUIENTE_DESDE_ARTIGAS, id: 3, origin: "Salto", destination: "", started_at: "2026-09-17 10:00:00" };
+    const despues = { ...SIGUIENTE_DESDE_ARTIGAS, id: 4, started_at: "2026-09-18 10:00:00" };
+    expect(vaciosEntreViajes([abierto, despues])).toEqual([]);
+  });
+});
