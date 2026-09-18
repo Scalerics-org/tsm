@@ -566,6 +566,47 @@ export async function setRecorrido(
     .run();
 }
 
+/**
+ * El destino que el chofer elige al cerrar (los internacionales: "cuando lleguen:
+ * departamento, donde descargo…").
+ *
+ * `setRecorrido` no sirve: toca el origen y no el destinatario, y acá el origen ya lo eligió
+ * al salir. Sólo mientras está en curso, igual que el resto de lo que escribe el chofer.
+ */
+export async function setDestino(
+  db: D1Database,
+  id: number,
+  destination: string,
+  destinatario: string | null,
+): Promise<void> {
+  await db
+    .prepare("UPDATE trips SET destination=?, destinatario=? WHERE id=? AND status='EN_CURSO'")
+    .bind(destination, destinatario, id)
+    .run();
+}
+
+/**
+ * Los campos del viaje, completados en el camino (el N° de MIC en el puente).
+ *
+ * Se reescribe el JSON entero, como en `finishTrip`: quien llama ya mezcló lo nuevo con lo que
+ * había. Sólo mientras está en curso: un viaje cerrado lo corrige la oficina por la cabecera.
+ */
+export async function setFieldValues(
+  db: D1Database,
+  id: number,
+  fieldValues: Record<string, string>,
+): Promise<void> {
+  await db
+    .prepare("UPDATE trips SET field_values=? WHERE id=? AND status='EN_CURSO'")
+    .bind(JSON.stringify(fieldValues ?? {}), id)
+    .run();
+}
+
+/** El peso en kilos, cuando llega después de salir (en el cierre). */
+export async function setKilos(db: D1Database, id: number, kilos: number | null): Promise<void> {
+  await db.prepare("UPDATE trips SET kilos=? WHERE id=?").bind(kilos, id).run();
+}
+
 export async function setKilometros(db: D1Database, id: number, km: number | null): Promise<void> {
   await db.prepare("UPDATE trips SET kilometros=? WHERE id=?").bind(km, id).run();
 }

@@ -42,6 +42,15 @@ export type FieldType = (typeof FIELD_TYPE)[keyof typeof FIELD_TYPE];
 export const FIELD_STAGE = {
   CARGA: "carga",
   DESCARGA: "descarga",
+  /**
+   * Se pide en el camino, con el viaje ya en curso: en los internacionales, en el puente.
+   *
+   * "Hoy sólo donde cargo y le dé iniciar viaje. Y después sí, cuando lleguen al puente, o
+   * cuando lleguen para cerrar, que le pida todo lo otro." — Rodrigo, 18/9/2026. La hoja del
+   * MIC se la dan en la frontera: pedírsela al salir era pedirle un papel que todavía no tiene.
+   * Si no la cargó en el puente, se la pide el cierre.
+   */
+  RUTA: "ruta",
 } as const;
 export type FieldStage = (typeof FIELD_STAGE)[keyof typeof FIELD_STAGE];
 
@@ -51,7 +60,7 @@ export interface TemplateField {
   label: string;
   type: FieldType;
   required: boolean;
-  stage: FieldStage; // se pide en la carga o en la descarga
+  stage: FieldStage; // se pide en la carga, en el camino (el puente) o en la descarga
   is_weight?: boolean; // marca el campo de peso/toneladas (para reportes)
 }
 
@@ -345,6 +354,14 @@ export interface CampoUbicacion {
   libreta_tipo?: LibretaTipo;
   permite_alta?: boolean;
   requerido?: boolean;
+  /**
+   * Se pregunta al cerrar el viaje y no al salir. Sólo significa algo en `destino` y
+   * `destinatario`.
+   *
+   * "Cuando lleguen: departamento, donde descargo, kilos y foto." — Rodrigo, 18/9/2026. En el
+   * internacional el chofer sale de Argentina sin saber todavía a qué depósito va a descargar.
+   */
+  al_cerrar?: boolean;
 }
 
 /** Partes configurables de una plantilla. Ausente = comportamiento clásico (dest_options). */
@@ -1169,6 +1186,17 @@ export interface AvisoViaje {
   tag: string;
 }
 
+/** Texto que se muestra mientras el viaje todavía no sabe a dónde va. */
+export const DESTINO_A_DEFINIR = "destino a definir";
+
+/**
+ * El destino para mostrar. Un internacional en curso no lo tiene —se elige al cerrar: "cuando
+ * lleguen: departamento, donde descargo…"— y un "Salto → " a secas parece un viaje roto.
+ */
+export function destinoVisible(trip: Pick<Trip, "destination">): string {
+  return trip.destination?.trim() || DESTINO_A_DEFINIR;
+}
+
 /**
  * El aviso de viaje cerrado.
  *
@@ -1211,7 +1239,7 @@ export function avisoViajeCerrado(
 
   if (trip.notes?.trim()) lineas.push(`"${trip.notes.trim()}"`);
 
-  const destino = trip.destinatario ? `${trip.destination} (${trip.destinatario})` : trip.destination;
+  const destino = trip.destinatario ? `${destinoVisible(trip)} (${trip.destinatario})` : destinoVisible(trip);
   return {
     title: `Viaje cerrado · ${trip.provider_name}`,
     body: [`${trip.origin} → ${destino}`, ...lineas].join("\n"),

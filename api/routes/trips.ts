@@ -5,6 +5,7 @@ import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
 import {
+  FIELD_STAGE,
   MENSAJE_LECTURA_PENDIENTE,
   ROLES,
   bloqueaSalidaPorLectura,
@@ -15,6 +16,7 @@ import {
   UNIDAD,
   aplicarCobro,
   avisoViajeCerrado,
+  destinoVisible,
   fotosFaltantes,
   parseRenglon,
   recorridoSegunCargas,
@@ -27,6 +29,13 @@ import {
   type TripTemplate,
 } from "../../shared/domain";
 import { kmEstimadosDelViaje } from "../../shared/vacios";
+import {
+  camposDeRuta,
+  destinoAlCierre,
+  destinoSeEligeAlCerrar,
+  pesoDe,
+  valoresDeRuta,
+} from "../../shared/en-ruta";
 import * as tripsRepo from "../repos/trips";
 import * as templatesRepo from "../repos/templates";
 import * as photosRepo from "../repos/photos";
@@ -218,6 +227,9 @@ trips.get("/:id", async (c) => {
     renglon_pide_ubicacion: !!tpl?.renglon_pide_ubicacion,
     renglon_pide_departamento: !!tpl?.renglon_pide_departamento,
     provider_id: tpl?.provider_id ?? null,
+    // Para que el cierre sepa qué partes del destino quedaron para el final. Es la misma
+    // configuración que el chofer ya recibe en la lista de plantillas: no lleva facturación.
+    campos_ubicacion: tpl?.campos_ubicacion ?? null,
   });
 });
 
@@ -246,7 +258,7 @@ trips.post("/", async (c) => {
     if (abierto) {
       return fail(
         c,
-        `Todavía tenés un viaje sin cerrar: ${abierto.origin} → ${abierto.destination}. Registrá la llegada antes de empezar otro.`,
+        `Todavía tenés un viaje sin cerrar: ${abierto.origin} → ${destinoVisible(abierto)}. Registrá la llegada antes de empezar otro.`,
         409,
       );
     }
@@ -290,7 +302,12 @@ trips.post("/", async (c) => {
   // El destino se sigue exigiendo, SALVO en los viajes donde cada carga trae su propia
   // ubicación: ahí el recorrido lo arman las cargas y preguntarlo antes de arrancar era
   // pedirle al chofer dos veces el mismo dato.
-  if (!tpl.renglon_pide_ubicacion && !b.destino) return fail(c, "Elegí el destino", 400);
+  //
+  // Tampoco al chofer cuando la plantilla lo deja para el cierre: "hoy sólo donde cargo y le dé
+  // iniciar viaje" (Rodrigo, de los internacionales). La oficina sí lo manda siempre: carga un
+  // viaje que ya pasó y nace cerrado, así que no hay un cierre después donde preguntarlo.
+  const destinoAlFinal = esChoferQueSale && destinoSeEligeAlCerrar(tpl.campos_ubicacion);
+  if (!tpl.renglon_pide_ubicacion && !destinoAlFinal && !b.destino) return fail(c, "Elegí el destino", 400);
 
   const values: Record<string, string> = b.field_values ?? {};
   const missing = missingField(tpl, "carga", values);
@@ -544,6 +561,55 @@ trips.put("/:id/segments", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
   return ok(c, await tripsRepo.getTrip(c.env.DB, trip.id));
 });
 
+/**
+ * PATCH /api/trips/:id/campos — el chofer completa en el camino los datos del puente.
+ *
+ * "Después para continuar, que le pida el nro del MIC y la foto. Y luego sí cerrarlo." La hoja
+ * del MIC se la dan en la frontera, así que no se puede pedir al salir. La foto va por
+ * /photos como cualquier otra; acá van sólo los campos, y sólo los de la etapa "ruta": los de
+ * la carga ya se dieron al salir y los corrige la oficina.
+ */
+trips.patch("/:id/campos", async (c) => {
+  const s = await scoped(c);
+  if ("error" in s) return fail(c, s.error, s.status);
+  if (s.trip.status !== TRIP_STATUS.EN_CURSO) return fail(c, "El viaje no está en curso", 409);
+
+  const tpl = s.trip.template_id ? await templatesRepo.getTemplate(c.env.DB, s.trip.template_id) : null;
+  const campos = tpl?.fields ?? [];
+  if (!camposDeRuta(campos).length) return fail(c, "Este viaje no lleva datos para completar en el camino", 400);
+
+  const b = (await c.req.json().catch(() => null)) as { field_values?: unknown } | null;
+  const r = valoresDeRuta(campos, b?.field_values);
+  if ("error" in r) return fail(c, r.error, 400);
+
+  const merged = { ...s.trip.field_values, ...r.values };
+  await tripsRepo.setFieldValues(c.env.DB, s.trip.id, merged);
+  // Si el peso fuera de los del camino, la columna "Kilos" del Excel sale de acá.
+  await guardarPesoSiCambio(c.env.DB, s.trip, campos, merged);
+  return okViaje(c, await tripsRepo.getTrip(c.env.DB, s.trip.id));
+});
+
+/**
+ * Pasa el peso del campo a `trips.kilos` si cambió.
+ *
+ * Al salir lo hace el alta. Pero si el peso se pide en el camino o al cerrar —"cuando lleguen:
+ * …kilos y foto"— nadie lo pasaba, y la columna "Kilos" del Excel y los totales por cliente,
+ * que salen de `trips.kilos`, quedaban vacíos para esos viajes.
+ *
+ * Sólo si el peso NO es de la carga: ése ya lo guardó el alta, y si la oficina lo corrigió
+ * después, volver a leerlo del texto crudo del campo podría pisar el corregido.
+ */
+async function guardarPesoSiCambio(
+  db: D1Database,
+  trip: Trip,
+  campos: TripTemplate["fields"],
+  values: Record<string, string>,
+): Promise<void> {
+  if (campos.some((f) => f.is_weight && f.stage === FIELD_STAGE.CARGA)) return;
+  const peso = pesoDe(campos, values);
+  if (peso != null && peso !== trip.kilos_carga) await tripsRepo.setKilos(db, trip.id, peso);
+}
+
 // POST /api/trips/:id/finish — registrar llegada (campos de descarga + observaciones)
 trips.post("/:id/finish", async (c) => {
   const s = await scoped(c);
@@ -554,14 +620,22 @@ trips.post("/:id/finish", async (c) => {
     field_values?: Record<string, string>;
     notes?: string;
     kilometros?: number;
+    destino?: unknown;
+    destinatario?: unknown;
   };
   const merged = { ...s.trip.field_values, ...(b.field_values ?? {}) };
 
   const tpl = s.trip.template_id ? await templatesRepo.getTemplate(c.env.DB, s.trip.template_id) : null;
   if (tpl) {
-    const missing = missingField(tpl, "descarga", merged);
+    // Los del camino también: si no los cargó en el puente, se los pide el cierre.
+    const missing = missingField(tpl, FIELD_STAGE.DESCARGA, merged) ?? missingField(tpl, FIELD_STAGE.RUTA, merged);
     if (missing) return fail(c, `Falta: ${missing}`, 400);
   }
+
+  // "Cuando lleguen: departamento, donde descargo…". Se valida con los campos, antes de
+  // escribir nada: si falta el destino, el viaje queda como estaba.
+  const destino = destinoAlCierre(tpl?.campos_ubicacion, s.trip, b);
+  if ("error" in destino) return fail(c, destino.error, 400);
 
   // Un viaje combinado sin ninguna carga registrada no sirve para facturar.
   if (tpl?.multi_renglon && !tpl.viaje_vacio && !s.trip.segments.length) {
@@ -571,6 +645,19 @@ trips.post("/:id/finish", async (c) => {
   if (tpl?.pide_kilometros && b.kilometros == null && s.trip.kilometros == null) {
     return fail(c, "Falta: kilómetros del recorrido.", 400);
   }
+
+  // El destino elegido al cerrar se guarda ANTES de estimar los km: la estimación sale del
+  // origen y el destino del viaje, y con el destino todavía vacío daba null — un internacional
+  // sin kilómetros, que en el control de fin de mes aparece como un hueco.
+  // Si después rebotan las fotos, el destino queda guardado: ya lo eligió, y al volver a
+  // intentar no se le pregunta de nuevo.
+  const trip: Trip = destino.cambia
+    ? { ...s.trip, destination: destino.destination, destinatario: destino.destinatario }
+    : s.trip;
+  if (destino.cambia) {
+    await tripsRepo.setDestino(c.env.DB, trip.id, trip.destination, trip.destinatario);
+  }
+
   if (b.kilometros != null) {
     await tripsRepo.setKilometros(c.env.DB, s.trip.id, Number(b.kilometros));
   } else if (s.trip.kilometros == null) {
@@ -584,7 +671,7 @@ trips.post("/:id/finish", async (c) => {
     // Si no reconoce alguna de las dos puntas queda en null, que es lo honesto: mejor un
     // hueco visible que un número inventado que después nadie sabe de dónde salió.
     // Con las cargas: una ida y vuelta cuenta los dos tramos, la vuelta va cargada (Manassi).
-    const estimado = kmEstimadosDelViaje(s.trip);
+    const estimado = kmEstimadosDelViaje(trip);
     if (estimado != null) await tripsRepo.setKilometros(c.env.DB, s.trip.id, estimado);
   }
 
@@ -599,6 +686,7 @@ trips.post("/:id/finish", async (c) => {
     }
   }
 
+  if (tpl) await guardarPesoSiCambio(c.env.DB, s.trip, tpl.fields, merged);
   await tripsRepo.finishTrip(c.env.DB, s.trip.id, nowIso(), merged, b.notes ?? s.trip.notes ?? null);
   const cerrado = await tripsRepo.getTrip(c.env.DB, s.trip.id);
 

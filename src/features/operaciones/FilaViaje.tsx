@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { TRIP_STATUS, fmtKilos, type Trip } from "@shared/domain";
+import { TRIP_STATUS, destinoVisible, fmtKilos, type Trip } from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { Spinner, StatusBadge } from "../../components/ui";
 import { fmtDate, fmtDateTime } from "../../lib/format";
@@ -108,7 +108,7 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
         : "";
     if (
       !confirm(
-        `¿Borrar el viaje ${t.origin} → ${t.destination} del ${fmtDateTime(t.started_at)}?\n\n${detalle}${enCurso}\n\nEsto no se puede deshacer. Si solo querés dejarlo sin efecto, entrá al viaje y usá Cancelar.`,
+        `¿Borrar el viaje ${t.origin} → ${destinoVisible(t)} del ${fmtDateTime(t.started_at)}?\n\n${detalle}${enCurso}\n\nEsto no se puede deshacer. Si solo querés dejarlo sin efecto, entrá al viaje y usá Cancelar.`,
       )
     ) {
       return;
@@ -136,7 +136,7 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
       </td>
       <td className="px-4 py-3">
         <Link to={`/panel/viajes/${t.id}`} state={desde} className="font-medium text-ink hover:text-brand-700">
-          {t.origin} → {t.destination}
+          {t.origin} → {destinoVisible(t)}
         </Link>
         <div className="text-xs text-ink/50">{t.provider_name}</div>
         {error && <div className="mt-1 max-w-xs text-xs text-st-redTx">{error}</div>}

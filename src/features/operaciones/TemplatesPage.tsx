@@ -468,6 +468,7 @@ function TemplateForm({
               clasico="Los destinos de la lista de abajo"
               campo={destino}
               onChange={setDestino}
+              permiteAlCerrar
             />
           </div>
         </div>
@@ -541,6 +542,7 @@ function TemplateForm({
                 </select>
                 <select className="input sm:col-span-2" value={fld.stage} onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, stage: e.target.value as TemplateField["stage"] } : x)))}>
                   <option value={FIELD_STAGE.CARGA}>En carga</option>
+                  <option value={FIELD_STAGE.RUTA}>En ruta (puente)</option>
                   <option value={FIELD_STAGE.DESCARGA}>En descarga</option>
                 </select>
                 <label className="flex items-center gap-1 text-xs text-ink sm:col-span-2">
@@ -567,7 +569,7 @@ function TemplateForm({
             + Agregar campo
           </button>
           <p className="mt-1 text-xs text-ink/45">
-            "Peso" marca el campo de toneladas para los reportes. "En descarga" = se pide al registrar la llegada.
+            "Peso" marca el campo de toneladas para los reportes. "En ruta" = se pide con el viaje en curso (el N° de MIC en el puente) y, si no lo cargó, al cerrar. "En descarga" = se pide al registrar la llegada.
           </p>
         </div>
 
@@ -605,6 +607,8 @@ interface CampoForm {
   permite_alta: boolean;
   /** Sin control en pantalla: viaja como vino para no apagar lo que dejó una migración. */
   requerido?: boolean;
+  /** "Se pide al cerrar el viaje". Sólo lo muestra el destino. */
+  al_cerrar: boolean;
 }
 
 function aFormulario(c: CampoUbicacion | undefined): CampoForm {
@@ -616,6 +620,7 @@ function aFormulario(c: CampoUbicacion | undefined): CampoForm {
     libreta_tipo: (c?.libreta_tipo as PickerTipo) ?? TIPO_DEPARTAMENTO,
     permite_alta: c?.permite_alta !== false,
     requerido: c?.requerido,
+    al_cerrar: !!c?.al_cerrar,
   };
 }
 
@@ -626,18 +631,21 @@ function aCampo(cf: CampoForm): CampoSalida | null {
     ...(cf.requerido === undefined ? {} : { requerido: cf.requerido }),
   };
   if (cf.modo === CAMPO_MODO.FIJO) {
-    // Un fijo sin texto no configura nada; el backend lo descarta igual.
+    // Un fijo sin texto no configura nada; el backend lo descarta igual. "Al cerrar" no va:
+    // un fijo no lo elige nadie.
     return cf.valor.trim() ? { ...base, modo: CAMPO_MODO.FIJO, valor: cf.valor.trim() } : null;
   }
+  const alCerrar = cf.al_cerrar ? { al_cerrar: true } : {};
   if (cf.modo === CAMPO_MODO.LIBRETA) {
     return {
       ...base,
+      ...alCerrar,
       modo: CAMPO_MODO.LIBRETA,
       libreta_tipo: cf.libreta_tipo,
       permite_alta: cf.permite_alta,
     };
   }
-  return { ...base, modo: CAMPO_MODO.TEXTO };
+  return { ...base, ...alCerrar, modo: CAMPO_MODO.TEXTO };
 }
 
 /**
@@ -646,6 +654,10 @@ function aCampo(cf: CampoForm): CampoSalida | null {
  * El remitente y el destinatario NO tienen control en esta pantalla, así que se copian tal
  * como estaban: el backend guarda lo que llega y borra lo que falta, y sin esto abrir un
  * internacional y apretar Guardar se llevaba puesto el lugar de carga y el de descarga.
+ *
+ * El destinatario sí sigue a la casilla "Se pide al cerrar el viaje" del destino: en los
+ * internacionales van juntos —"cuando lleguen: departamento, donde descargo…"—, y un lugar de
+ * descarga que se pide al salir con el departamento pedido al llegar no tiene sentido.
  */
 function armarCampos(
   previo: CamposUbicacion | null,
@@ -654,13 +666,20 @@ function armarCampos(
 ): Record<string, CampoSalida> | null {
   const o = aCampo(origen);
   const d = aCampo(destino);
+  const destinatario = previo?.destinatario ? conAlCerrar(previo.destinatario, !!d?.al_cerrar) : null;
   const out: Record<string, CampoSalida> = {
     ...(previo?.remitente ? { remitente: previo.remitente } : {}),
-    ...(previo?.destinatario ? { destinatario: previo.destinatario } : {}),
+    ...(destinatario ? { destinatario } : {}),
     ...(o ? { origen: o } : {}),
     ...(d ? { destino: d } : {}),
   };
   return Object.keys(out).length ? out : null;
+}
+
+/** La parte con `al_cerrar` puesto o sacado, sin tocar el resto. Un fijo no lo lleva nunca. */
+function conAlCerrar(c: CampoUbicacion, alCerrar: boolean): CampoUbicacion {
+  const { al_cerrar: _, ...resto } = c;
+  return alCerrar && c.modo !== CAMPO_MODO.FIJO ? { ...resto, al_cerrar: true } : resto;
 }
 
 /** Casilla con la línea que explica qué hace: el que la marca tiene que saber qué prendió. */
@@ -697,11 +716,14 @@ function ParteUbicacion({
   clasico,
   campo,
   onChange,
+  permiteAlCerrar = false,
 }: {
   titulo: string;
   clasico: string;
   campo: CampoForm;
   onChange: (c: CampoForm) => void;
+  /** Sólo el destino: el origen no se puede elegir al cerrar, ya salió de algún lado. */
+  permiteAlCerrar?: boolean;
 }) {
   const set = (cambio: Partial<CampoForm>) => onChange({ ...campo, ...cambio });
   const esLibreta = campo.modo === CAMPO_MODO.LIBRETA;
@@ -761,6 +783,20 @@ function ParteUbicacion({
             onChange={(e) => set({ permite_alta: e.target.checked })}
           />
           El chofer puede agregar uno nuevo si no está en la lista
+        </label>
+      )}
+
+      {/* "Cuando lleguen: departamento, donde descargo…" — Rodrigo, de los internacionales.
+          El chofer sale sin saber a qué depósito va: se le pregunta al registrar la llegada. */}
+      {permiteAlCerrar && !!campo.modo && campo.modo !== CAMPO_MODO.FIJO && (
+        <label className="mt-2 flex gap-2 text-xs text-ink">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 flex-none accent-brand"
+            checked={campo.al_cerrar}
+            onChange={(e) => set({ al_cerrar: e.target.checked })}
+          />
+          Se pide al cerrar el viaje (también el lugar de descarga)
         </label>
       )}
     </div>

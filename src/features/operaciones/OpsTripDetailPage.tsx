@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   TRIP_STATUS,
+  destinoVisible,
   type TemplateField,
   type Trip,
   type TripPhoto,
@@ -104,7 +105,7 @@ export function OpsTripDetailPage() {
 
 OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abierto y va a perder lo que esté cargando.`
         : "";
-    if (!confirm(`¿Borrar el viaje ${trip.origin} → ${trip.destination} del ${fmtDateTime(trip.started_at)}?\n\n${detalle}${enCurso}\n\nEsto no se puede deshacer. Si solo querés dejarlo sin efecto, usá Cancelar.`)) {
+    if (!confirm(`¿Borrar el viaje ${trip.origin} → ${destinoVisible(trip)} del ${fmtDateTime(trip.started_at)}?\n\n${detalle}${enCurso}\n\nEsto no se puede deshacer. Si solo querés dejarlo sin efecto, usá Cancelar.`)) {
       return;
     }
     setBorrando(true);
@@ -162,7 +163,7 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
             {trip.provider_name}
           </div>
           <h1 className="text-2xl text-ink">
-            {trip.origin} → {trip.destination}
+            {trip.origin} → {destinoVisible(trip)}
             {trip.destinatario ? ` (${trip.destinatario})` : ""}
           </h1>
           <p className="text-sm text-ink/60">

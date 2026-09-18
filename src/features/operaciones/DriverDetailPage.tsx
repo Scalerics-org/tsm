@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import type { Driver, Trip } from "@shared/domain";
+import { destinoVisible, type Driver, type Trip } from "@shared/domain";
 import { fmtKilos } from "@shared/domain";
 import { api, mensajeDe } from "../../lib/api";
 import { Card, Corners, ErrorDeCarga, Spinner, Stat, StatusBadge } from "../../components/ui";
@@ -69,7 +69,7 @@ export function DriverDetailPage() {
               <tr key={t.id} className="border-b border-ink/10">
                 <td className="px-4 py-2">
                   <Link to={`/panel/viajes/${t.id}`} className="text-ink hover:text-brand-700">
-                    {t.origin} → {t.destination}
+                    {t.origin} → {destinoVisible(t)}
                   </Link>
                   <div className="text-xs text-ink/50">{t.provider_name} · 🚛 {t.truck_plate}</div>
                 </td>

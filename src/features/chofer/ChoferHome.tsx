@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import type { Trip, TripTemplate } from "@shared/domain";
+import { destinoVisible, type Trip, type TripTemplate } from "@shared/domain";
 import { api } from "../../lib/api";
 import { Corners, Spinner, StatusBadge } from "../../components/ui";
 import { estimateTravel, fmtDuration } from "../../lib/eta";
@@ -79,14 +79,15 @@ export function ChoferHome() {
             <span className="font-cond text-sm font-semibold text-brand-700">Continuar →</span>
           </div>
           <div className="mt-2 font-cond text-2xl font-semibold leading-tight text-ink">
-            {active.origin} → {active.destination}
+            {active.origin} → {destinoVisible(active)}
             {active.destinatario ? ` (${active.destinatario})` : ""}
           </div>
           <div className="mt-1 text-sm text-ink/60">
             {active.provider_name} · 🚛 {active.truck_plate}
           </div>
           {(() => {
-            const e = estimateTravel(active.origin, active.destination);
+            // Sin destino (se elige al cerrar) no hay llegada que estimar.
+            const e = active.destination ? estimateTravel(active.origin, active.destination) : null;
             if (!e) return null;
             const llegada = new Date(
               (Date.parse(active.started_at.replace(" ", "T") + "Z") || Date.now()) + e.hours * 3_600_000,

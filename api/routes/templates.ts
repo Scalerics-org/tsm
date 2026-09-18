@@ -53,6 +53,15 @@ function slug(s: string): string {
 }
 
 const PARTES = ["origen", "remitente", "destino", "destinatario"] as const;
+const ETAPAS = Object.values(FIELD_STAGE) as string[];
+
+/**
+ * "Se pide al cerrar el viaje": sólo en el destino y el destinatario, que son lo que el chofer
+ * puede no saber al salir. Un origen al cierre no tiene sentido —ya salió de algún lado—.
+ */
+const alCerrar = (parte: (typeof PARTES)[number], c: any) =>
+  (parte === "destino" || parte === "destinatario") && c.al_cerrar === true ? { al_cerrar: true } : {};
+
 // "departamento" no es un tipo de libreta pero se elige con el mismo selector: en el
 // viaje ocasional la ciudad de carga sale de los 19, no del tipo "lugar" (que son los
 // orígenes de los internacionales).
@@ -73,6 +82,7 @@ function parseCamposUbicacion(raw: any): CamposUbicacion | null {
         libreta_tipo: tipo,
         permite_alta: c.permite_alta === undefined ? true : !!c.permite_alta,
         requerido: c.requerido === undefined ? true : !!c.requerido,
+        ...alCerrar(parte, c),
       };
     } else if (c.modo === CAMPO_MODO.TEXTO) {
       // El "completar" de la planilla: el galpón puntual donde cargó, que cambia cada viaje.
@@ -83,6 +93,7 @@ function parseCamposUbicacion(raw: any): CamposUbicacion | null {
         modo: CAMPO_MODO.TEXTO,
         label: c.label ? String(c.label).trim() : undefined,
         requerido: c.requerido === undefined ? true : !!c.requerido,
+        ...alCerrar(parte, c),
       };
     } else if (c.modo === CAMPO_MODO.FIJO) {
       const valor = String(c.valor ?? "").trim();
@@ -133,7 +144,10 @@ function parse(b: any): repo.TemplateInput | null {
           label: String(f?.label ?? "").trim(),
           type: f?.type === FIELD_TYPE.NUMERO ? FIELD_TYPE.NUMERO : FIELD_TYPE.TEXTO,
           required: !!f?.required,
-          stage: f?.stage === FIELD_STAGE.DESCARGA ? FIELD_STAGE.DESCARGA : FIELD_STAGE.CARGA,
+          // Lo que no se reconoce cae en la carga, como siempre. "ruta" tiene que estar en la
+          // lista: si no, abrir un internacional y apretar Guardar devolvía el N° de MIC a la
+          // salida, que es justo lo que Rodrigo pidió sacar de ahí.
+          stage: ETAPAS.includes(f?.stage) ? f.stage : FIELD_STAGE.CARGA,
           is_weight: !!f?.is_weight,
         }))
         .filter((f: any) => f.label)

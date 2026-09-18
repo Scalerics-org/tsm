@@ -5,17 +5,27 @@ import {
   PHOTO_KIND,
   PHOTO_KIND_LABEL,
   TRIP_STATUS,
+  destinoVisible,
+  type CamposUbicacion,
   type PhotoKind,
   type TemplateField,
   type Trip,
   type TripPhoto,
 } from "@shared/domain";
+import {
+  camposDeRuta,
+  camposDeRutaPendientes,
+  destinoAlCierre,
+  partesAlCerrar,
+} from "@shared/en-ruta";
 import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner, StatusBadge } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
 import { PhotoImage } from "../../components/PhotoImage";
 import { VisorFotos, type FotoDelVisor } from "../../components/VisorFotos";
 import { CargasPanel } from "./CargasPanel";
+import { EnElPuente } from "./EnElPuente";
+import { DestinoAlCerrar, type DestinoElegido } from "./DestinoAlCerrar";
 import { compressImage } from "../../lib/image";
 import { estimateTravel, fmtDuration } from "../../lib/eta";
 import { fmtDateTime } from "../../lib/format";
@@ -35,6 +45,8 @@ interface Detail {
   renglon_pide_ubicacion: boolean;
   renglon_pide_departamento: boolean;
   provider_id: number | null;
+  /** Para saber qué partes del destino quedaron para el cierre. */
+  campos_ubicacion: CamposUbicacion | null;
 }
 
 async function uploadPhoto(tripId: number, file: File, kind: string) {
@@ -64,6 +76,10 @@ export function ChoferTripPage() {
   const { trip, photos, arrival_photo_label, multi_renglon, provider_id } = data;
   const fields = trip.fields ?? [];
   const enCurso = trip.status === TRIP_STATUS.EN_CURSO;
+  const rutaFields = camposDeRuta(fields);
+  // En los viajes con datos del puente, la foto del papel (la hoja del MIC) se saca ahí y no
+  // al salir: "después para continuar, que le pida el nro del MIC y la foto".
+  const fotoEnElPuente = rutaFields.length > 0 && !multi_renglon && data.foto_carga_requerida;
 
   return (
     <div className="space-y-5">
@@ -75,7 +91,7 @@ export function ChoferTripPage() {
         <div>
           <div className="kicker">{trip.provider_name}</div>
           <h1 className="text-2xl text-ink">
-            {trip.origin} → {trip.destination}
+            {trip.origin} → {destinoVisible(trip)}
           </h1>
           <p className="text-sm text-ink/60">
             {trip.destinatario ? `${trip.destinatario} · ` : ""}🚛 {trip.truck_plate}
@@ -84,7 +100,9 @@ export function ChoferTripPage() {
         <StatusBadge status={trip.status} />
       </div>
 
+      {/* Sin destino no hay estimación: en los internacionales se elige al cerrar. */}
       {trip.status === TRIP_STATUS.EN_CURSO &&
+        !!trip.destination &&
         (() => {
           const est = estimateTravel(trip.origin, trip.destination);
           if (!est) return null;
@@ -141,7 +159,18 @@ export function ChoferTripPage() {
           En los combinados la foto va por carga, así que la pide CargasPanel. */}
       {/* La cámara sigue disponible aunque ya haya una foto: una movida o del papel
           equivocado no sirve de nada, y antes no se podía ni sumar otra ni rehacerla. */}
-      {enCurso && !multi_renglon && data.foto_carga_requerida && (
+      {enCurso && rutaFields.length > 0 && (
+        <EnElPuente
+          tripId={trip.id}
+          campos={rutaFields}
+          valores={trip.field_values}
+          fotoLabel={fotoEnElPuente ? data.carga_photo_label ?? "Foto de la carga" : null}
+          fotosCarga={photos.filter((p) => p.kind === PHOTO_KIND.CARGA).length}
+          onDone={load}
+        />
+      )}
+
+      {enCurso && !multi_renglon && data.foto_carga_requerida && !fotoEnElPuente && (
         <MissingCargoPhoto
           tripId={trip.id}
           onDone={load}
@@ -151,8 +180,11 @@ export function ChoferTripPage() {
 
       {trip.status === TRIP_STATUS.EN_CURSO && (
         <ArrivalForm
-          tripId={trip.id}
+          trip={trip}
           descargaFields={fields.filter((f) => f.stage === FIELD_STAGE.DESCARGA)}
+          rutaPendientes={camposDeRutaPendientes(fields, trip.field_values)}
+          camposUbicacion={data.campos_ubicacion}
+          providerId={provider_id}
           photoLabel={arrival_photo_label}
           pideKilometros={data.pide_kilometros}
           photos={photos}
@@ -240,24 +272,39 @@ function MissingCargoPhoto({
 }
 
 function ArrivalForm({
-  tripId,
+  trip,
   descargaFields,
+  rutaPendientes,
+  camposUbicacion,
+  providerId,
   photoLabel,
   pideKilometros,
   photos,
   onDone,
 }: {
-  tripId: number;
+  trip: Trip;
   descargaFields: TemplateField[];
+  /** Los del puente que quedaron sin cargar: "o cuando lleguen para cerrar, que le pida todo lo otro". */
+  rutaPendientes: TemplateField[];
+  camposUbicacion: CamposUbicacion | null;
+  providerId: number | null;
   photoLabel: string | null;
   pideKilometros: boolean;
   photos: TripPhoto[];
   onDone: () => void;
 }) {
+  const tripId = trip.id;
   const [kilometros, setKilometros] = useState("");
   const [subiendoFoto, setSubiendoFoto] = useState(false);
   const [fotoError, setFotoError] = useState<string | null>(null);
-  const [values, setValues] = useState<Record<string, string>>({});
+  // Arranca con lo que el viaje ya tiene. Un viaje que salió antes de que el campo pasara a la
+  // llegada (los kilos de Valvis) ya los trae, y pedírselos de nuevo sería trabarlo por nada.
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(descargaFields.map((f) => [f.key, trip.field_values[f.key] ?? ""])),
+  );
+  const [destinoElegido, setDestinoElegido] = useState<DestinoElegido>({ destino: "", destinatario: "" });
+  const partesDestino = partesAlCerrar(camposUbicacion, trip);
+  const pedidos = [...rutaPendientes, ...descargaFields];
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -289,7 +336,10 @@ function ArrivalForm({
 
   async function confirm() {
     setError("");
-    for (const f of descargaFields) {
+    // La misma regla del cierre en el servidor, así no se entera recién al confirmar.
+    const destino = destinoAlCierre(camposUbicacion, trip, destinoElegido);
+    if ("error" in destino) return setError(`${destino.error}.`);
+    for (const f of pedidos) {
       if (f.required && !String(values[f.key] ?? "").trim()) return setError(`Cargá ${f.label}.`);
     }
     if (photoRequired && !fotosDescarga) return setError(`Sacá la foto: ${photoLabel}.`);
@@ -300,6 +350,9 @@ function ArrivalForm({
         field_values: values,
         notes: notes || undefined,
         kilometros: kilometros ? Number(kilometros) : undefined,
+        // Sólo viajan si la plantilla los deja para el cierre; si no, el servidor los ignora.
+        destino: destinoElegido.destino || undefined,
+        destinatario: destinoElegido.destinatario || undefined,
       });
       onDone();
     } catch (e) {
@@ -317,7 +370,8 @@ function ArrivalForm({
   return (
     <Card className="space-y-4">
       <h2 className="text-lg font-semibold text-ink">Registrar llegada</h2>
-      {descargaFields.map((f) => (
+      <DestinoAlCerrar partes={partesDestino} providerId={providerId} onChange={setDestinoElegido} />
+      {pedidos.map((f) => (
         <Field key={f.key} label={`${f.label}${f.required ? "" : " (opcional)"}`}>
           <input
             className="input"

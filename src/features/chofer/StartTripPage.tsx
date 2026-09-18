@@ -10,6 +10,7 @@ import {
   type Trip,
   type TripTemplate,
 } from "@shared/domain";
+import { camposDeRuta, destinatarioSeEligeAlCerrar, destinoSeEligeAlCerrar } from "@shared/en-ruta";
 import { api, ApiError, mensajeDe } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { Button, Card, Corners, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
@@ -118,7 +119,12 @@ export function StartTripPage() {
   // En los combinados no se pide al salir: la evidencia va por lugar de carga, y al arrancar
   // todavía no hay ninguna carga a la que pegarla. Pedirla acá deja una foto suelta que no
   // cuenta para el cierre, y el chofer termina sacando cuatro para tres paradas.
-  const pideFoto = requiereFotoCarga(tpl) && !tpl.multi_renglon;
+  //
+  // Tampoco cuando el viaje tiene datos que se piden en el puente: el papel a fotografiar es la
+  // hoja del MIC, que se la dan en la frontera. "Hoy sólo donde cargo y le dé iniciar viaje."
+  // La saca desde la pantalla del viaje, y el cierre la sigue exigiendo.
+  const fotoEnElPuente = camposDeRuta(tpl.fields).length > 0;
+  const pideFoto = requiereFotoCarga(tpl) && !tpl.multi_renglon && !fotoEnElPuente;
 
   /**
    * Valor de una parte según su modo: fijo lo trae la plantilla, libreta lo elige el
@@ -142,13 +148,23 @@ export function StartTripPage() {
 
   // El destino sale de la libreta solo si la plantilla lo configuró; si no, del par clásico.
   const usaLibretaDestino = !!(cu.destino || cu.destinatario);
+  // Los internacionales: "cuando lleguen: departamento, donde descargo…". Al salir no se
+  // muestran ni se exigen; el viaje arranca sin destino y se lo pide el cierre.
+  const destinoAlCerrar = destinoSeEligeAlCerrar(cu);
+  const destinatarioAlCerrar = destinatarioSeEligeAlCerrar(cu);
   const opt = optIdx !== "" ? tpl.dest_options[Number(optIdx)] : null;
 
   const origenFinal = valorDe(cu.origen, "origen", tpl.origin);
   const remitenteFinal = valorDe(cu.remitente, "remitente", tpl.remite ?? "");
-  const destinoFinal = usaLibretaDestino ? valorDe(cu.destino, "destino", "") : opt?.destino ?? "";
-  const destinatarioFinal = usaLibretaDestino
-    ? valorDe(cu.destinatario, "destinatario", "")
+  const destinoFinal = destinoAlCerrar
+    ? ""
+    : usaLibretaDestino
+      ? valorDe(cu.destino, "destino", "")
+      : opt?.destino ?? "";
+  const destinatarioFinal = destinatarioAlCerrar
+    ? ""
+    : usaLibretaDestino
+      ? valorDe(cu.destinatario, "destinatario", "")
     : opt?.destinatario === "Otro" && otroDest.trim()
       ? otroDest.trim()
       : opt?.destinatario ?? "";
@@ -173,8 +189,13 @@ export function StartTripPage() {
     if (recorridoPorCarga) {
       // Nada que validar: el recorrido todavía no existe y se va a armar con las cargas.
     } else if (usaLibretaDestino) {
-      if (!destinoFinal) return setError("Elegí el destino.");
-      if (cu.destinatario && cu.destinatario.requerido !== false && !destinatarioFinal) {
+      if (!destinoAlCerrar && !destinoFinal) return setError("Elegí el destino.");
+      if (
+        cu.destinatario &&
+        !destinatarioAlCerrar &&
+        cu.destinatario.requerido !== false &&
+        !destinatarioFinal
+      ) {
         return setError("Elegí el destinatario.");
       }
     } else if (!opt) {
@@ -192,7 +213,7 @@ export function StartTripPage() {
         origin: origenFinal,
         remitente: remitenteFinal || undefined,
         destino: destinoFinal,
-        destinatario: destinatarioFinal,
+        destinatario: destinatarioFinal || undefined,
         field_values: values,
         truck_id: truckId ? Number(truckId) : undefined,
       });
@@ -304,7 +325,10 @@ export function StartTripPage() {
             a propósito. Colgarse de esa bandera se lo sacaba a las cuatro. */}
         {usaLibretaDestino ? (
           <>
-            {cu.destino?.modo === CAMPO_MODO.LIBRETA && (
+            {destinoAlCerrar && (
+              <p className="text-sm text-ink/60">El destino y dónde descargás se eligen al llegar.</p>
+            )}
+            {cu.destino?.modo === CAMPO_MODO.LIBRETA && !destinoAlCerrar && (
               <LibretaPicker
                 tipo={cu.destino.libreta_tipo ?? "lugar"}
                 label={cu.destino.label ?? "Destino"}
@@ -314,7 +338,7 @@ export function StartTripPage() {
                 permiteAlta={cu.destino.permite_alta !== false}
               />
             )}
-            {cu.destino?.modo === CAMPO_MODO.TEXTO && (
+            {cu.destino?.modo === CAMPO_MODO.TEXTO && !destinoAlCerrar && (
               <Field label={cu.destino.label ?? "Destino"}>
                 <input
                   className="input"
@@ -324,7 +348,7 @@ export function StartTripPage() {
                 />
               </Field>
             )}
-            {cu.destinatario?.modo === CAMPO_MODO.TEXTO && (
+            {cu.destinatario?.modo === CAMPO_MODO.TEXTO && !destinatarioAlCerrar && (
               <Field label={cu.destinatario.label ?? "Lugar de descarga"}>
                 <input
                   className="input"
@@ -334,7 +358,7 @@ export function StartTripPage() {
                 />
               </Field>
             )}
-            {cu.destinatario?.modo === CAMPO_MODO.LIBRETA && (
+            {cu.destinatario?.modo === CAMPO_MODO.LIBRETA && !destinatarioAlCerrar && (
               <LibretaPicker
                 tipo={cu.destinatario.libreta_tipo ?? "destinatario"}
                 label={cu.destinatario.label ?? "Destinatario"}
@@ -382,8 +406,9 @@ export function StartTripPage() {
         </div>
       )}
 
-      {/* En el combinado no va: cada carga trae la suya al registrarla. */}
-      {!tpl.multi_renglon && (
+      {/* En el combinado no va: cada carga trae la suya al registrarla. Y en los que tienen
+          datos del puente tampoco: esa foto se saca en el puente. */}
+      {!tpl.multi_renglon && !fotoEnElPuente && (
         <Card className="space-y-3">
           <Corners />
           <CameraCapture
