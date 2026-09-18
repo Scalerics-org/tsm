@@ -215,6 +215,8 @@ export interface Trip {
   edited_by: number | null;
   edited_at: string | null;
   edited_by_name?: string | null;
+  /** Nombre de la plantilla: el tipo de viaje adentro del cliente (Internacional TYCSUR). */
+  template_name?: string | null;
   /**
    * Número del viaje dentro de su mes: 1, 2, 3… y de nuevo desde 1 el mes que viene.
    *

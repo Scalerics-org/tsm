@@ -48,12 +48,15 @@ facturacion.get("/resumen", async (c) => {
   const provider = q.provider?.trim();
   if (!provider) return fail(c, "Elegí el cliente", 400);
 
+  // El tipo de viaje adentro del cliente: facturar TYCSUR sin sacar a Internacional de un solo
+  // cliente para los choferes (Rodrigo, 18/9).
+  const templateId = Number(q.plantilla) > 0 ? Number(q.plantilla) : undefined;
   const [trips, templates, anteriores] = await Promise.all([
-    listTripsFacturables(c.env.DB, { provider, from: q.from, to: q.to }),
+    listTripsFacturables(c.env.DB, { provider, templateId, from: q.from, to: q.to }),
     listTemplates(c.env.DB),
     // Lo que quedó afuera por la fecha de arriba. La pantalla abre en el 1° del mes, así que
     // sin esto los viajes viejos sin facturar no los nombra nadie: hoy son 82.
-    q.from ? sinFacturarAntesDe(c.env.DB, provider, q.from) : Promise.resolve(0),
+    q.from ? sinFacturarAntesDe(c.env.DB, provider, q.from, templateId) : Promise.resolve(0),
   ]);
 
   return ok(c, {
@@ -63,7 +66,7 @@ facturacion.get("/resumen", async (c) => {
     anteriores_sin_facturar: anteriores,
     ...resumenCliente(
       trips,
-      templates.filter((t) => t.provider_name === provider),
+      templates.filter((t) => t.provider_name === provider && (templateId == null || t.id === templateId)),
       { porDestino: q.porDestino === "1", incluirFacturados: q.incluirFacturados === "1", cliente: provider },
     ),
   });

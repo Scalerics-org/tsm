@@ -138,7 +138,14 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
         <Link to={`/panel/viajes/${t.id}`} state={desde} className="font-medium text-ink hover:text-brand-700">
           {t.origin} → {destinoVisible(t)}
         </Link>
-        <div className="text-xs text-ink/50">{t.provider_name}</div>
+        <div className="text-xs text-ink/50">
+          {t.provider_name}
+          {/* El tipo de viaje, para no tener que entrar: "Internacional TYCSUR". Sólo si dice
+              algo más que el cliente. */}
+          {t.template_name && t.template_name !== t.provider_name && (
+            <span className="text-ink/40"> · {t.template_name}</span>
+          )}
+        </div>
         {error && <div className="mt-1 max-w-xs text-xs text-st-redTx">{error}</div>}
       </td>
       <td className="px-4 py-3 text-ink/70">{t.driver_name}</td>

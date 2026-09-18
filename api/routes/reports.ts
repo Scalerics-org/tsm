@@ -318,6 +318,7 @@ reports.get("/trips.csv", async (c) => {
     to: q.to,
     provider: q.provider || undefined,
     cliente: q.cliente || undefined,
+    templateId: Number(q.plantilla) > 0 ? Number(q.plantilla) : undefined,
     facturado: q.facturado === "si" || q.facturado === "no" ? (q.facturado as "si" | "no") : undefined,
     driverId: q.driver ? Number(q.driver) : undefined,
     truckId: q.truck ? Number(q.truck) : undefined,

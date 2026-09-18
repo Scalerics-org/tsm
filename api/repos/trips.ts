@@ -40,6 +40,7 @@ interface TripRow {
   driver_name?: string;
   truck_plate?: string;
   edited_by_name?: string | null;
+  template_name?: string | null;
 }
 
 /**
@@ -106,11 +107,15 @@ const SELECT = `
          d.name AS driver_name, tr.plate AS truck_plate,
          -- Quién fue el último en corregirlo. El LEFT es porque el usuario puede haberse
          -- borrado, y un viaje no puede desaparecer de la lista por eso.
-         e.name AS edited_by_name
+         e.name AS edited_by_name,
+         -- El tipo de viaje: "Internacional TYCSUR" adentro del cliente Internacional. Para
+         -- ver de cuál es cada viaje sin entrar (Rodrigo, 18/9).
+         tp.name AS template_name
   FROM (${NUMERADOS}) t
   JOIN drivers d ON d.id = t.driver_id
   JOIN trucks tr ON tr.id = t.truck_id
   LEFT JOIN users e ON e.id = t.edited_by
+  LEFT JOIN trip_templates tp ON tp.id = t.template_id
 `;
 
 function parseSegments(raw: string | null): TripSegment[] {
@@ -159,6 +164,7 @@ function toTrip(r: TripRow): Trip {
     driver_name: r.driver_name,
     truck_plate: r.truck_plate,
     edited_by_name: r.edited_by_name ?? null,
+    template_name: r.template_name ?? null,
   };
 }
 
@@ -181,6 +187,8 @@ export interface TripFilters {
    * filtrando por mes y camión, se vea cuál está facturado y cuál no.
    */
   facturado?: "si" | "no";
+  /** El tipo de viaje (plantilla) adentro del cliente: TYCSUR, Minabel o Valvis en Internacional. */
+  templateId?: number;
   from?: string;
   to?: string;
 }
@@ -219,6 +227,10 @@ function filtrar(f: TripFilters): { sql: string; binds: unknown[] } {
   if (f.provider) {
     where.push("t.provider_name = ?");
     binds.push(f.provider);
+  }
+  if (f.templateId != null) {
+    where.push("t.template_id = ?");
+    binds.push(f.templateId);
   }
   if (f.cliente) {
     where.push(SQL_CLIENTE_DE_CARGA);
@@ -688,14 +700,20 @@ export async function marcarFacturados(
  * mirando. La pantalla abre en el 1° del mes; sin este número, el trabajo viejo sin facturar no
  * aparece en ningún lado y nadie se acuerda de que existe.
  */
-export async function sinFacturarAntesDe(db: D1Database, provider: string, desde: string): Promise<number> {
+export async function sinFacturarAntesDe(
+  db: D1Database,
+  provider: string,
+  desde: string,
+  templateId?: number,
+): Promise<number> {
   const row = await db
     .prepare(
       `SELECT COUNT(*) AS n FROM trips
         WHERE provider_name = ? AND status = 'COMPLETADO' AND factura_numero IS NULL
-          AND date(started_at) < date(?)`,
+          AND date(started_at) < date(?)
+          AND (? IS NULL OR template_id = ?)`,
     )
-    .bind(provider, desde)
+    .bind(provider, desde, templateId ?? null, templateId ?? null)
     .first<{ n: number }>();
   return row?.n ?? 0;
 }

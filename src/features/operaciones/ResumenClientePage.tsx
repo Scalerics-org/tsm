@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import type { Provider } from "@shared/domain";
+import type { Provider, TripTemplate } from "@shared/domain";
 import { api, downloadFile, mensajeDe } from "../../lib/api";
 import { Button, Card, Corners, Empty, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
@@ -81,7 +81,22 @@ function inicioDeMes(): string {
  */
 export function ResumenClientePage() {
   const [providers, setProviders] = useState<Provider[]>([]);
-  const [provider, setProvider] = useState("");
+  const [provider, setProviderRaw] = useState("");
+  /**
+   * El tipo de viaje adentro del cliente. "Los internacionales son 3 clientes diferentes, tengo
+   * que facturar uno" (Rodrigo, 18/9): para el chofer siguen siendo "Internacional"; acá se
+   * factura TYCSUR, Minabel o Valvis por separado.
+   */
+  const [plantilla, setPlantilla] = useState("");
+  const setProvider = (p: string) => {
+    setProviderRaw(p);
+    setPlantilla("");
+  };
+  const [plantillas, setPlantillas] = useState<TripTemplate[]>([]);
+  useEffect(() => {
+    api.get<TripTemplate[]>("/templates").then(setPlantillas).catch(() => setPlantillas([]));
+  }, []);
+  const delCliente = plantillas.filter((t) => t.provider_name === provider);
   const [from, setFrom] = useState(inicioDeMes());
   const [to, setTo] = useState("");
   const [porDestino, setPorDestino] = useState(false);
@@ -106,12 +121,13 @@ export function ResumenClientePage() {
   const query = useMemo(() => {
     const p = new URLSearchParams();
     if (provider) p.set("provider", provider);
+    if (plantilla) p.set("plantilla", plantilla);
     if (from) p.set("from", from);
     if (to) p.set("to", to);
     if (porDestino) p.set("porDestino", "1");
     if (verFacturados) p.set("incluirFacturados", "1");
     return `?${p}`;
-  }, [provider, from, to, porDestino, verFacturados]);
+  }, [provider, plantilla, from, to, porDestino, verFacturados]);
 
   const [falló, setFalló] = useState<string | null>(null);
   useEffect(() => {
@@ -226,6 +242,20 @@ export function ResumenClientePage() {
               ))}
             </select>
           </Field>
+          {/* Sólo si el cliente tiene más de un tipo de viaje: con uno solo no hay qué elegir. */}
+          {delCliente.length > 1 && (
+            <Field label="Tipo de viaje">
+              <select className="input" value={plantilla} onChange={(e) => setPlantilla(e.target.value)}>
+                <option value="">Todos</option>
+                {delCliente.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                    {t.active ? "" : " (desactivado)"}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
           <Field label="Desde">
             <FechaInput value={from} onChange={setFrom} />
           </Field>
@@ -340,7 +370,7 @@ export function ResumenClientePage() {
             </div>
             <Button
               variant="secondary"
-              onClick={() => downloadFile(`/reports/trips.csv?facturables=1${verFacturados ? "&incluirFacturados=1" : ""}&provider=${encodeURIComponent(provider)}${from ? `&from=${from}` : ""}${to ? `&to=${to}` : ""}`, `${provider}.csv`)}
+              onClick={() => downloadFile(`/reports/trips.csv?facturables=1${verFacturados ? "&incluirFacturados=1" : ""}&provider=${encodeURIComponent(provider)}${plantilla ? `&plantilla=${plantilla}` : ""}${from ? `&from=${from}` : ""}${to ? `&to=${to}` : ""}`, `${provider}.csv`)}
             >
               ⬇ Exportar Excel
             </Button>

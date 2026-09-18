@@ -88,3 +88,21 @@ describe("sqlFiltros por facturación", () => {
     expect(sqlFiltros({}).sql).not.toContain("factura_numero IS");
   });
 });
+
+/**
+ * "Ahora los internacionales son 3 clientes diferentes, tengo que facturar uno, y tengo la
+ * opción de filtrar sólo por Internacional. Tengo que entrar adentro de cada viaje para ver
+ * cuál es." — Rodrigo, 18/9/2026. Para los choferes no cambia nada: se filtra por tipo de
+ * viaje (la plantilla) adentro del cliente.
+ */
+describe("sqlFiltros por tipo de viaje", () => {
+  it("filtra por la plantilla", () => {
+    const { sql, binds } = sqlFiltros({ provider: "Internacional", templateId: 8 });
+    expect(sql).toContain("t.template_id = ?");
+    expect(binds).toEqual(["Internacional", 8]);
+  });
+
+  it("la lista trae el nombre del tipo de viaje", () => {
+    expect(sqlFiltros({}).sql).toContain("AS template_name");
+  });
+});

@@ -6,6 +6,7 @@ import {
   TRIP_STATUS_LABEL,
   type Driver,
   type Provider,
+  type TripTemplate,
   type TripStatus,
   type Truck,
 } from "@shared/domain";
@@ -19,6 +20,7 @@ export function OpsTripsPage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [clientes, setClientes] = useState<{ nombre: string; cobra: boolean }[]>([]);
+  const [plantillas, setPlantillas] = useState<TripTemplate[]>([]);
   const [trips, setTrips] = useState<ViajeDeOficina[] | null>(null);
   /**
    * Los filtros viven en la dirección de la página, no en memoria.
@@ -34,6 +36,7 @@ export function OpsTripsPage() {
     return {
       provider: leer("provider"),
       cliente: leer("cliente"),
+      plantilla: leer("plantilla"),
       facturado: leer("facturado"),
       driver: leer("driver"),
       truck: leer("truck"),
@@ -63,12 +66,14 @@ export function OpsTripsPage() {
     api.get<Truck[]>("/trucks").then(setTrucks).catch(falla);
     api.get<Provider[]>("/providers").then(setProviders).catch(falla);
     api.get<{ nombre: string; cobra: boolean }[]>("/trips/clientes").then(setClientes).catch(falla);
+    api.get<TripTemplate[]>("/templates").then(setPlantillas).catch(falla);
   }, []);
 
   const query = useMemo(() => {
     const p = new URLSearchParams();
     if (f.provider) p.set("provider", f.provider);
     if (f.cliente) p.set("cliente", f.cliente);
+    if (f.plantilla) p.set("plantilla", f.plantilla);
     if (f.facturado) p.set("facturado", f.facturado);
     if (f.driver) p.set("driver", f.driver);
     if (f.truck) p.set("truck", f.truck);
@@ -123,7 +128,8 @@ export function OpsTripsPage() {
       <Card className="grid gap-3 sm:grid-cols-4 lg:grid-cols-8">
         {/* Éste lista los VIAJES ("Montevideo - BU", "UAM"). Decía "Todos los clientes" y por
             eso Rodrigo buscaba ahí a Armco o a Agronorte, que van adentro de un viaje. */}
-        <select className="input" value={f.provider} onChange={(e) => setF({ ...f, provider: e.target.value })}>
+        {/* Cambiar de viaje borra el tipo: un TYCSUR elegido no tiene sentido en UAM. */}
+        <select className="input" value={f.provider} onChange={(e) => setF({ ...f, provider: e.target.value, plantilla: "" })}>
           <option value="">Todos los viajes</option>
           {providers.map((p) => (
             <option key={p.id} value={p.name}>
@@ -131,6 +137,21 @@ export function OpsTripsPage() {
             </option>
           ))}
         </select>
+        {/* "Los internacionales son 3 clientes diferentes y tengo que entrar a cada viaje para ver
+            cuál es" (Rodrigo, 18/9). El tipo de viaje adentro del elegido, si tiene más de uno. */}
+        {plantillas.filter((t) => t.provider_name === f.provider).length > 1 && (
+          <select className="input" value={f.plantilla} onChange={(e) => setF({ ...f, plantilla: e.target.value })}>
+            <option value="">Todos los tipos</option>
+            {plantillas
+              .filter((t) => t.provider_name === f.provider)
+              .map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                  {t.active ? "" : " (desactivado)"}
+                </option>
+              ))}
+          </select>
+        )}
         {/* "Todos los clientes que están en el viaje Mdeo–Bella Unión, esos son clientes a
             cobrar, y no puedo filtrarlos." Busca adentro de las cargas: para quién va y a quién
             se le cobra. */}

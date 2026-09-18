@@ -169,6 +169,7 @@ trips.get("/", async (c) => {
     status: (q.status as Trip["status"]) || undefined,
     provider: q.provider || undefined,
     cliente: q.cliente || undefined,
+    templateId: Number(q.plantilla) > 0 ? Number(q.plantilla) : undefined,
     facturado: q.facturado === "si" || q.facturado === "no" ? q.facturado : undefined,
     from: q.from || undefined,
     to: q.to || undefined,
