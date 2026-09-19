@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { DRIVER_STATUS, TRIP_STATUS, pesoSospechoso, type Driver, type Trip, type Truck } from "@shared/domain";
+import { DRIVER_STATUS, TRIP_STATUS, pesoSospechoso, type Driver, type TemplateField, type Trip, type Truck } from "@shared/domain";
 import { api, ApiError, mensajeDe } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
 
@@ -22,7 +22,8 @@ import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
  */
 
 interface Props {
-  trip: Trip;
+  /** `fields` = los campos de la plantilla, que vienen con el detalle del viaje. */
+  trip: Trip & { fields?: TemplateField[] };
   /** La plantilla arma el recorrido con las cargas: ahí origen y destino no se editan. */
   recorridoPorCargas: boolean;
   onGuardado: (avisos: string[]) => void;
@@ -75,6 +76,17 @@ function loQueCambio(form: Formulario, original: Formulario): Record<string, unk
 export function EditarCabecera({ trip, recorridoPorCargas, onGuardado, onCancelar }: Props) {
   const original = delViaje(trip);
   const [form, setForm] = useState<Formulario>(original);
+  /**
+   * Los campos propios de la plantilla (remito, remito empresa, N° de MIC…). "Donde corrijo los
+   * viajes no tengo la opción de corregir el nro de remito" — Rodrigo, 19/9. El peso no va acá:
+   * es "Kilos", más abajo, que escribe los dos lados a la vez.
+   */
+  const camposPlantilla = (trip.fields ?? []).filter((f) => !f.is_weight);
+  const camposOriginal = Object.fromEntries(camposPlantilla.map((f) => [f.key, trip.field_values?.[f.key] ?? ""]));
+  const [campos, setCampos] = useState<Record<string, string>>(camposOriginal);
+  const camposCambiados = Object.fromEntries(
+    Object.entries(campos).filter(([k, v]) => v.trim() !== String(camposOriginal[k] ?? "").trim()),
+  );
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [guardando, setGuardando] = useState(false);
@@ -93,7 +105,10 @@ export function EditarCabecera({ trip, recorridoPorCargas, onGuardado, onCancela
   const set = (k: keyof Formulario) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const cambios = loQueCambio(form, original);
+  const cambios: Record<string, unknown> = {
+    ...loQueCambio(form, original),
+    ...(Object.keys(camposCambiados).length ? { campos: camposCambiados } : {}),
+  };
   const hayCambios = Object.keys(cambios).length > 0;
   // El chofer lo tiene abierto en la ruta: cambiárselo se lo saca de la mano a mitad de
   // camino. El backend lo rechaza igual; acá se muestra por qué antes de que lo intente.
@@ -207,6 +222,17 @@ export function EditarCabecera({ trip, recorridoPorCargas, onGuardado, onCancela
             el chofer y el camión se cambian recién cuando lo cierre.
           </p>
         )}
+
+        {camposPlantilla.map((f) => (
+          <Field key={f.key} label={f.label}>
+            <input
+              className="input"
+              inputMode={f.type === "numero" ? "decimal" : undefined}
+              value={campos[f.key] ?? ""}
+              onChange={(e) => setCampos((c) => ({ ...c, [f.key]: e.target.value }))}
+            />
+          </Field>
+        ))}
 
         <div className="sm:col-span-2">
           <Field label="Observaciones">

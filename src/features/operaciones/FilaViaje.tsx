@@ -146,6 +146,13 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
             <span className="text-ink/40"> · {t.template_name}</span>
           )}
         </div>
+        {/* Las cargas, para identificar el viaje sin entrar: en "Otros Viajes" todos dicen
+            Montevideo → Artigas y lo que cambia es qué se cargó y para quién (Rodrigo, 19/9). */}
+        {t.segments.length > 0 && (
+          <div className="mt-0.5 max-w-xs truncate text-xs text-ink/45" title={resumenCargas(t)}>
+            {resumenCargas(t)}
+          </div>
+        )}
         {error && <div className="mt-1 max-w-xs text-xs text-st-redTx">{error}</div>}
       </td>
       <td className="px-4 py-3 text-ink/70">{t.driver_name}</td>
@@ -244,4 +251,11 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
       </td>
     </tr>
   );
+}
+
+/** "Maccio → La Estancia · ISUSA → Tomás Gomensoro": las cargas del viaje en una línea. */
+function resumenCargas(t: Trip): string {
+  return t.segments
+    .map((c) => `${c.remitente}${c.clientes.length ? ` → ${c.clientes.join(", ")}` : ""}`)
+    .join(" · ");
 }

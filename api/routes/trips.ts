@@ -784,6 +784,7 @@ trips.patch("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const tpl = trip.template_id ? await templatesRepo.getTemplate(c.env.DB, trip.template_id) : null;
   const r = cabeceraCorregida(trip, b, tpl?.fields.find((f) => f.is_weight)?.key ?? null, {
     recorridoPorCargas: !!tpl?.renglon_pide_ubicacion,
+    campos: (tpl?.fields ?? []).filter((f) => !f.is_weight).map((f) => ({ key: f.key, type: f.type })),
   });
   if ("error" in r) return fail(c, r.error, 400);
 

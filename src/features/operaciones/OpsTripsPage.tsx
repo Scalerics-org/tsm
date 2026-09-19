@@ -19,7 +19,7 @@ export function OpsTripsPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
-  const [clientes, setClientes] = useState<{ nombre: string; cobra: boolean }[]>([]);
+  const [clientes, setClientes] = useState<{ nombre: string; cobra: boolean; soloCarga: boolean }[]>([]);
   const [plantillas, setPlantillas] = useState<TripTemplate[]>([]);
   const [trips, setTrips] = useState<ViajeDeOficina[] | null>(null);
   /**
@@ -65,7 +65,7 @@ export function OpsTripsPage() {
     api.get<Driver[]>("/drivers").then(setDrivers).catch(falla);
     api.get<Truck[]>("/trucks").then(setTrucks).catch(falla);
     api.get<Provider[]>("/providers").then(setProviders).catch(falla);
-    api.get<{ nombre: string; cobra: boolean }[]>("/trips/clientes").then(setClientes).catch(falla);
+    api.get<{ nombre: string; cobra: boolean; soloCarga: boolean }[]>("/trips/clientes").then(setClientes).catch(falla);
     api.get<TripTemplate[]>("/templates").then(setPlantillas).catch(falla);
   }, []);
 
@@ -165,7 +165,15 @@ export function OpsTripsPage() {
             ))}
           </optgroup>
           <optgroup label="Clientes de las cargas">
-            {clientes.filter((c) => !c.cobra).map((c) => (
+            {clientes.filter((c) => !c.cobra && !c.soloCarga).map((c) => (
+              <option key={c.nombre} value={c.nombre}>
+                {c.nombre}
+              </option>
+            ))}
+          </optgroup>
+          {/* Dónde cargó: en "Otros Viajes" es lo único que distingue un viaje de otro. */}
+          <optgroup label="Lugares de carga">
+            {clientes.filter((c) => c.soloCarga).map((c) => (
               <option key={c.nombre} value={c.nombre}>
                 {c.nombre}
               </option>

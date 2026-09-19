@@ -133,3 +133,34 @@ describe("cabeceraCorregida", () => {
     });
   });
 });
+
+/**
+ * "Donde corrijo los viajes no tengo la opción de corregir el nro de remito." — Rodrigo,
+ * 19/9/2026. Los campos propios de la plantilla (remito, remito empresa, N° de MIC…) viven en
+ * `field_values` y la corrección de cabecera no los tocaba.
+ */
+describe("cabeceraCorregida — campos de la plantilla", () => {
+  const campos = [
+    { key: "remito", type: "texto" as const },
+    { key: "nro_mic", type: "numero" as const },
+  ];
+
+  it("corrige el remito y deja el resto como estaba", () => {
+    const p = patchDe(cabeceraCorregida(viaje(), { campos: { remito: "999" } }, "kilos", { campos }));
+    expect(p.field_values).toEqual({ remito: "999", kilos: "28070" });
+  });
+
+  it("vaciar un campo lo saca", () => {
+    const p = patchDe(cabeceraCorregida(viaje(), { campos: { remito: "  " } }, "kilos", { campos }));
+    expect(p.field_values).toEqual({ kilos: "28070" });
+  });
+
+  it("un campo numérico con letras se rechaza", () => {
+    expect("error" in cabeceraCorregida(viaje(), { campos: { nro_mic: "abc" } }, "kilos", { campos })).toBe(true);
+  });
+
+  it("una key que no es de la plantilla no entra, ni el peso por la puerta de atrás", () => {
+    const p = patchDe(cabeceraCorregida(viaje(), { campos: { inventado: "x", kilos: "1" } }, "kilos", { campos }));
+    expect(p.field_values).toEqual({ remito: "113430", kilos: "28070" });
+  });
+});

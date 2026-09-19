@@ -200,6 +200,9 @@ export interface TripFilters {
 const SQL_CLIENTE_DE_CARGA = `EXISTS (
     SELECT 1 FROM json_each(COALESCE(t.segments, '[]')) s
      WHERE lower(trim(COALESCE(json_extract(s.value, '$.cobro_a'), ''))) = lower(trim(?))
+        -- El lugar de carga también: en "Otros Viajes" todos dicen Montevideo → Artigas y lo que
+        -- distingue a cada uno es dónde cargó (Maccio, ISUSA, Cargill). Rodrigo, 19/9.
+        OR lower(trim(COALESCE(json_extract(s.value, '$.remitente'), ''))) = lower(trim(?))
         OR EXISTS (SELECT 1 FROM json_each(COALESCE(json_extract(s.value, '$.clientes'), '[]')) c
                     WHERE lower(trim(c.value)) = lower(trim(?))))`;
 
@@ -234,7 +237,7 @@ function filtrar(f: TripFilters): { sql: string; binds: unknown[] } {
   }
   if (f.cliente) {
     where.push(SQL_CLIENTE_DE_CARGA);
-    binds.push(f.cliente, f.cliente);
+    binds.push(f.cliente, f.cliente, f.cliente);
   }
   if (f.facturado === "si") where.push("t.factura_numero IS NOT NULL");
   // Un viaje en curso o cancelado no está "sin facturar": no hay nada que facturar todavía.
@@ -260,14 +263,17 @@ function filtrar(f: TripFilters): { sql: string; binds: unknown[] } {
 export async function listClientesDeCarga(db: D1Database): Promise<ClienteDeCarga[]> {
   const { results } = await db
     .prepare(
-      `SELECT json_extract(s.value, '$.cobro_a') AS nombre, 1 AS cobra
+      `SELECT json_extract(s.value, '$.cobro_a') AS nombre, 1 AS cobra, 0 AS remite
          FROM trips t, json_each(COALESCE(t.segments, '[]')) s
        UNION ALL
-       SELECT c.value AS nombre, 0 AS cobra
+       SELECT c.value AS nombre, 0 AS cobra, 0 AS remite
          FROM trips t, json_each(COALESCE(t.segments, '[]')) s,
-              json_each(COALESCE(json_extract(s.value, '$.clientes'), '[]')) c`,
+              json_each(COALESCE(json_extract(s.value, '$.clientes'), '[]')) c
+       UNION ALL
+       SELECT json_extract(s.value, '$.remitente') AS nombre, 0 AS cobra, 1 AS remite
+         FROM trips t, json_each(COALESCE(t.segments, '[]')) s`,
     )
-    .all<{ nombre: string | null; cobra: number }>();
+    .all<{ nombre: string | null; cobra: number; remite?: number }>();
   return clientesDeCarga(results ?? []);
 }
 
@@ -275,20 +281,29 @@ export interface ClienteDeCarga {
   nombre: string;
   /** Alguna carga se le cobra a este cliente. */
   cobra: boolean;
+  /** Sólo aparece como lugar de carga, nunca como cliente ni como cobro. */
+  soloCarga: boolean;
 }
 
 /**
  * Junta los nombres sin repetir. SQLite no sabe pasar a minúsculas "Á" ni "Ñ", así que la
  * deduplicación se hace acá. Queda la primera forma en que apareció escrito.
  */
-export function clientesDeCarga(rows: { nombre: string | null; cobra: number }[]): ClienteDeCarga[] {
+export function clientesDeCarga(
+  rows: { nombre: string | null; cobra: number; remite?: number }[],
+): ClienteDeCarga[] {
   const porClave = new Map<string, ClienteDeCarga>();
   for (const r of rows) {
     const nombre = (r.nombre ?? "").trim();
     if (!nombre) continue;
     const clave = nombre.toLocaleLowerCase("es");
     const previo = porClave.get(clave);
-    porClave.set(clave, { nombre: previo?.nombre ?? nombre, cobra: !!previo?.cobra || !!r.cobra });
+    porClave.set(clave, {
+      nombre: previo?.nombre ?? nombre,
+      cobra: !!previo?.cobra || !!r.cobra,
+      // Deja de ser "sólo carga" en cuanto aparece una vez como cliente o como cobro.
+      soloCarga: (previo?.soloCarga ?? true) && !!r.remite,
+    });
   }
   return [...porClave.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" }));
 }

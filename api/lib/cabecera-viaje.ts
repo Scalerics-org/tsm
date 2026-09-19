@@ -25,6 +25,12 @@ export interface ContextoCabecera {
    * que corregirlos acá se revierte solo en el próximo guardado.
    */
   recorridoPorCargas?: boolean;
+  /**
+   * Los campos propios de la plantilla que se pueden corregir acá (remito, N° de MIC…), sin el
+   * de peso, que va por `kilos_carga`. "Donde corrijo los viajes no tengo la opción de corregir
+   * el nro de remito" — Rodrigo, 19/9.
+   */
+  campos?: { key: string; type: string }[];
 }
 
 const texto = (v: unknown): string => String(v ?? "").trim();
@@ -101,6 +107,22 @@ export function cabeceraCorregida(
   // El peso de la plantilla acompaña a la columna: si se corrigieron los kilos, se corrige
   // también el campo que sale en el Excel. Sin peso en la plantilla no hay nada que sincronizar.
   const field_values = { ...trip.field_values };
+  // Los campos de la plantilla que manda la pantalla. Sólo los que la plantilla tiene: una key
+  // inventada no entra, y el peso tampoco —ése se corrige por `kilos_carga`, que escribe los dos
+  // lados a la vez—.
+  const pedidos = (body.campos ?? {}) as Record<string, unknown>;
+  for (const campo of ctx.campos ?? []) {
+    if (campo.key === weightKey || !Object.prototype.hasOwnProperty.call(pedidos, campo.key)) continue;
+    const valor = texto(pedidos[campo.key]);
+    if (!valor) {
+      delete field_values[campo.key];
+      continue;
+    }
+    if (campo.type === "numero" && !Number.isFinite(Number(valor.replace(",", ".")))) {
+      return { error: `"${valor}" no es un número.` };
+    }
+    field_values[campo.key] = valor;
+  }
   if (weightKey && trae("kilos_carga")) {
     if (kilos_carga == null) delete field_values[weightKey];
     else field_values[weightKey] = String(kilos_carga);

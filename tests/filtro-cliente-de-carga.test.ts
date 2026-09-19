@@ -19,7 +19,8 @@ describe("sqlFiltros con cliente de la carga", () => {
     expect(sql).toContain("json_each");
     expect(sql).toContain("$.cobro_a");
     expect(sql).toContain("$.clientes");
-    expect(binds).toEqual(["Armco", "Armco"]);
+    expect(sql).toContain("$.remitente");
+    expect(binds).toEqual(["Armco", "Armco", "Armco"]);
     expect(signos(sql)).toBe(binds.length);
   });
 
@@ -32,7 +33,7 @@ describe("sqlFiltros con cliente de la carga", () => {
 
   it("los dos juntos se suman, con los binds en orden", () => {
     const { sql, binds } = sqlFiltros({ provider: "Montevideo - BU", cliente: "Agronorte", from: "2026-09-01" });
-    expect(binds).toEqual(["Montevideo - BU", "Agronorte", "Agronorte", "2026-09-01"]);
+    expect(binds).toEqual(["Montevideo - BU", "Agronorte", "Agronorte", "Agronorte", "2026-09-01"]);
     expect(signos(sql)).toBe(binds.length);
   });
 });
@@ -47,9 +48,9 @@ describe("clientesDeCarga — las opciones del desplegable", () => {
       { nombre: "agronorte", cobra: 1 },
     ]);
     expect(opciones).toEqual([
-      { nombre: "Agronorte", cobra: true },
-      { nombre: "Armco", cobra: true },
-      { nombre: "Jair", cobra: false },
+      { nombre: "Agronorte", cobra: true, soloCarga: false },
+      { nombre: "Armco", cobra: true, soloCarga: false },
+      { nombre: "Jair", cobra: false, soloCarga: false },
     ]);
   });
 
@@ -104,5 +105,19 @@ describe("sqlFiltros por tipo de viaje", () => {
 
   it("la lista trae el nombre del tipo de viaje", () => {
     expect(sqlFiltros({}).sql).toContain("AS template_name");
+  });
+});
+
+describe("clientesDeCarga — lugares de carga (Otros Viajes)", () => {
+  it("un lugar donde sólo se cargó queda aparte; si también es cliente, no", () => {
+    const o = clientesDeCarga([
+      { nombre: "Maccio", cobra: 0, remite: 1 },
+      { nombre: "UAM", cobra: 0, remite: 1 },
+      { nombre: "UAM", cobra: 0, remite: 0 },
+    ]);
+    expect(o).toEqual([
+      { nombre: "Maccio", cobra: false, soloCarga: true },
+      { nombre: "UAM", cobra: false, soloCarga: false },
+    ]);
   });
 });
