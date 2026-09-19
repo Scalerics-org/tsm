@@ -167,6 +167,20 @@ describe("corregir y borrar la surtida de la cámara", () => {
     expect(escrituras[0].binds[0]).toBe(90);
   });
 
+  // "Fijate las surtidas de las cámaras de frío, para permitir corregir las fechas" — Rodrigo, 19/9.
+  it("la oficina corrige la fecha: cambia el día y se queda con la hora", async () => {
+    const { status, escrituras } = await pedir("/api/frio/5", ROLES.ENCARGADO, { method: "PUT", json: { liters: 80, fecha: "2026-09-08" } }, { surtida: SURTIDA });
+    expect(status).toBe(200);
+    expect(escrituras[0].sql).toContain("substr(logged_at, 11)");
+    expect(escrituras[0].binds.slice(0, 3)).toEqual([80, "2026-09-08", "2026-09-08"]);
+  });
+
+  it("una fecha mal escrita se rechaza", async () => {
+    const { status, escrituras } = await pedir("/api/frio/5", ROLES.ENCARGADO, { method: "PUT", json: { liters: 80, fecha: "2026-02-30" } }, { surtida: SURTIDA });
+    expect(status).toBe(400);
+    expect(escrituras).toHaveLength(0);
+  });
+
   it("el chofer no corrige ni borra", async () => {
     expect((await pedir("/api/frio/5", ROLES.CHOFER, { method: "PUT", json: { liters: 90 } }, { surtida: SURTIDA })).status).toBe(403);
     expect((await pedir("/api/frio/5", ROLES.CHOFER, { method: "DELETE" }, { surtida: SURTIDA })).status).toBe(403);

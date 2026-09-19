@@ -5,6 +5,7 @@ import { api, mensajeDe } from "../../lib/api";
 import { Card, Corners, ErrorDeCarga, ErrorText, Spinner } from "../../components/ui";
 import { VisorFotos } from "../../components/VisorFotos";
 import { fmtDateTime } from "../../lib/format";
+import { FechaInput } from "../../components/FechaInput";
 
 interface DatosFrio {
   surtidas: SurtidaFrio[];
@@ -176,6 +177,7 @@ function MesFrio({ truckId, m, onGuardado }: { truckId: number; m: ConsumoFrioMe
 function SurtidaFrioRow({ s, onChanged }: { s: SurtidaFrio; onChanged: () => void }) {
   const [editando, setEditando] = useState(false);
   const [litros, setLitros] = useState(String(s.liters));
+  const [fecha, setFecha] = useState(s.logged_at.slice(0, 10));
   const [verFoto, setVerFoto] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -184,7 +186,7 @@ function SurtidaFrioRow({ s, onChanged }: { s: SurtidaFrio; onChanged: () => voi
     setBusy(true);
     setError(null);
     try {
-      await api.put(`/frio/${s.id}`, { liters: Number(litros) });
+      await api.put(`/frio/${s.id}`, { liters: Number(litros), fecha: fecha || null });
       setEditando(false);
       onChanged();
     } catch (e) {
@@ -210,7 +212,11 @@ function SurtidaFrioRow({ s, onChanged }: { s: SurtidaFrio; onChanged: () => voi
   return (
     <tr className="border-b border-ink/10">
       <td className="px-4 py-2 text-ink/70">
-        {fmtDateTime(s.logged_at)}
+        {editando ? (
+          <FechaInput className="input w-36 py-1 text-sm" value={fecha} onChange={setFecha} />
+        ) : (
+          fmtDateTime(s.logged_at)
+        )}
         {s.edited_at && <span className="ml-2 text-[11px] uppercase tracking-[0.08em] text-st-amberTx">corregida</span>}
         <div className="text-xs text-ink/45">{s.driver_name ?? "Sin chofer"}</div>
       </td>
@@ -243,7 +249,7 @@ function SurtidaFrioRow({ s, onChanged }: { s: SurtidaFrio; onChanged: () => voi
             <button type="button" onClick={guardar} disabled={busy} className="mr-3 text-sm text-brand-700 hover:underline disabled:opacity-40">
               Guardar
             </button>
-            <button type="button" onClick={() => { setEditando(false); setLitros(String(s.liters)); }} className="text-sm text-ink/60 hover:underline">
+            <button type="button" onClick={() => { setEditando(false); setLitros(String(s.liters)); setFecha(s.logged_at.slice(0, 10)); }} className="text-sm text-ink/60 hover:underline">
               Cancelar
             </button>
           </>

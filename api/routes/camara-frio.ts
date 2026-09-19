@@ -4,7 +4,7 @@ import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { leerFoto } from "../lib/archivo-foto";
 import { camionDelChofer } from "../lib/camion-del-chofer";
-import { ROLES } from "../../shared/domain";
+import { ROLES, esFechaValida } from "../../shared/domain";
 import { consumoFrioPorMes, validarHorasFrio } from "../../shared/camara-frio";
 import * as repo from "../repos/camara-frio";
 
@@ -111,10 +111,12 @@ frio.put("/horas/:truck/:mes", OFICINA, async (c) => {
 frio.put("/:id", OFICINA, async (c) => {
   const id = Number(c.req.param("id"));
   if (!(await repo.getSurtidaFrio(c.env.DB, id))) return fail(c, "Surtida no encontrada", 404);
-  const b = (await c.req.json().catch(() => null)) as { liters?: unknown } | null;
+  const b = (await c.req.json().catch(() => null)) as { liters?: unknown; fecha?: unknown } | null;
   const liters = Number(b?.liters);
   if (!Number.isFinite(liters) || liters <= 0) return fail(c, "Los litros tienen que ser un número mayor que cero", 400);
-  await repo.updateLitrosFrio(c.env.DB, id, liters, { userId: c.get("user").id, when: ahora() });
+  const fecha = b?.fecha == null || b.fecha === "" ? null : String(b.fecha);
+  if (fecha !== null && !esFechaValida(fecha)) return fail(c, "La fecha va como 2026-09-08", 400);
+  await repo.updateSurtidaFrio(c.env.DB, id, { liters, fecha }, { userId: c.get("user").id, when: ahora() });
   return ok(c, await repo.getSurtidaFrio(c.env.DB, id));
 });
 

@@ -38,16 +38,27 @@ export async function createSurtidaFrio(
   return res.meta.last_row_id as number;
 }
 
-/** La oficina corrige los litros contra la boleta. La foto no se toca: es la evidencia. */
-export async function updateLitrosFrio(
+/**
+ * La oficina corrige los litros contra la boleta, y el día si se cargó con la fecha que no es
+ * ("para permitir corregir las fechas" — Rodrigo, 19/9): el día decide en qué mes cuentan los
+ * litros, y con eso los litros por hora. La hora se conserva, igual que en las surtidas del
+ * camión. La foto no se toca: es la evidencia.
+ */
+export async function updateSurtidaFrio(
   db: D1Database,
   id: number,
-  liters: number,
+  cambios: { liters: number; fecha: string | null },
   editor: { userId: number; when: string },
 ): Promise<void> {
   await db
-    .prepare("UPDATE surtidas_frio SET liters = ?, edited_by = ?, edited_at = ? WHERE id = ?")
-    .bind(liters, editor.userId, editor.when, id)
+    .prepare(
+      `UPDATE surtidas_frio
+          SET liters = ?,
+              logged_at = CASE WHEN ? IS NULL THEN logged_at ELSE ? || substr(logged_at, 11) END,
+              edited_by = ?, edited_at = ?
+        WHERE id = ?`,
+    )
+    .bind(cambios.liters, cambios.fecha, cambios.fecha, editor.userId, editor.when, id)
     .run();
 }
 
