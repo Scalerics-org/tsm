@@ -14,8 +14,13 @@ import { api, downloadFile, mensajeDe } from "../../lib/api";
 import { Button, Card, Empty, ErrorDeCarga, ErrorText, Spinner } from "../../components/ui";
 import { FilaViaje, type ViajeDeOficina } from "./FilaViaje";
 import { FechaInput } from "../../components/FechaInput";
+import { useSoloMirar } from "../../lib/auth";
+import { AvisosCard } from "./AvisosCard";
 
 export function OpsTripsPage() {
+  // El "solo mirar" no carga viajes ni corrige nada: acá sólo se le sacan los botones. El
+  // freno de verdad está en el servidor (`api/lib/permisos-lector.ts`).
+  const soloMirar = useSoloMirar();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -105,12 +110,15 @@ export function OpsTripsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl text-ink">Viajes</h1>
         <div className="flex items-center gap-2">
-        <Link
-          to="/panel/viajes/nuevo"
-          className="btn btn-primary"
-        >
-          + Cargar viaje
-        </Link>
+        {!soloMirar && (
+          <Link
+            to="/panel/viajes/nuevo"
+            className="btn btn-primary"
+          >
+            + Cargar viaje
+          </Link>
+        )}
+        {/* Exportar queda: bajarse el Excel de lo que está mirando no cambia ningún dato. */}
         <Button
           variant="secondary"
           onClick={() =>
@@ -215,6 +223,11 @@ export function OpsTripsPage() {
         <FechaInput value={f.from} onChange={(iso) => setF({ ...f, from: iso })} />
         <FechaInput value={f.to} onChange={(iso) => setF({ ...f, to: iso })} />
       </Card>
+
+      {/* "Para que le llegue la notificación y listo": el interruptor de los avisos vive en
+          Resumen, que el lector no ve. Si no estuviera acá no tendría dónde prenderlos, que es
+          la mitad de lo que Rodrigo pidió. Los demás lo siguen teniendo en Resumen, uno solo. */}
+      {soloMirar && <AvisosCard />}
 
       <ErrorText>{filtrosFalló}</ErrorText>
 

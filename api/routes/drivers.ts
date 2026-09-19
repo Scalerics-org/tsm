@@ -10,7 +10,8 @@ import { motivoParaNoBorrarChofer } from "../lib/frenos-de-borrado";
 const drivers = new Hono<{ Bindings: Env; Variables: Vars }>();
 drivers.use("*", requireAuth);
 
-drivers.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) =>
+// El lector la necesita para el filtro por chofer de Viajes; escribir choferes, no.
+drivers.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR), async (c) =>
   ok(c, await repo.listDrivers(c.env.DB)),
 );
 

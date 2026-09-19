@@ -5,6 +5,7 @@ import { api, ApiError } from "../../lib/api";
 import { Spinner, StatusBadge } from "../../components/ui";
 import { fmtDate, fmtDateTime } from "../../lib/format";
 import { FechaInput } from "../../components/FechaInput";
+import { useSoloMirar } from "../../lib/auth";
 
 /**
  * Una fila de la lista de viajes, con la fecha corregible y el botón de borrar.
@@ -30,6 +31,9 @@ export type ViajeDeOficina = Trip & {
 let ultimaFactura = "";
 
 export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => void }) {
+  // "Vaya que toque un dedazo y borre algo jajaja." La fila es justo donde estaba el riesgo:
+  // la fecha se corrige tocándola, y Borrar es un renglón de texto al lado de Corregir.
+  const soloMirar = useSoloMirar();
   // Los filtros de la lista viajan al viaje, para que "← Viajes" vuelva con los mismos.
   const { search } = useLocation();
   const desde = { viajes: search };
@@ -161,7 +165,9 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
         {fmtKilos(t.kilos_carga)}
       </td>
       <td className="px-4 py-3 text-ink/60">
-        {editandoFecha ? (
+        {soloMirar ? (
+          fmtDateTime(t.started_at)
+        ) : editandoFecha ? (
           /* NO se guarda en cada `onChange`. Un input de fecha dispara un cambio por cada
              tramo que se completa: tipeando el día, el navegador ya entrega fechas enteras
              pero equivocadas —incluso del año 0002— y cada una salía como un PATCH. El viaje
@@ -203,13 +209,21 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
         <StatusBadge status={t.status} />
       </td>
       <td className="px-4 py-3">
+        {/* El tilde se SIGUE VIENDO para el lector —es la mitad de lo que se mira en esta
+            lista— pero apagado: mirar qué está facturado sí, cambiarlo no. */}
         {t.status === TRIP_STATUS.COMPLETADO || t.factura_numero ? (
           <button
             type="button"
             onClick={alternarFacturado}
-            disabled={busy}
+            disabled={busy || soloMirar}
             aria-pressed={!!t.factura_numero}
-            title={t.factura_numero ? `Factura ${t.factura_numero}. Tocá para sacarla.` : "Marcar como facturado"}
+            title={
+              t.factura_numero
+                ? `Factura ${t.factura_numero}.${soloMirar ? "" : " Tocá para sacarla."}`
+                : soloMirar
+                  ? "Sin facturar"
+                  : "Marcar como facturado"
+            }
             className={`flex h-6 w-6 items-center justify-center border transition disabled:opacity-40 ${
               t.factura_numero
                 ? "border-st-greenDot bg-st-greenDot text-bg"
@@ -227,27 +241,33 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
         {t.factura_numero && <div className="mt-1 text-[11px] text-st-greenTx">{t.factura_numero}</div>}
       </td>
       <td className="px-4 py-3 text-right">
-        {/* Corregir va acá, en Acciones, y no sólo adentro de la ficha: la oficina revisa la
-            lista y corrige de a varios, así que mandarla a abrir el viaje para recién ahí
-            encontrar el botón es un paso de más en cada corrección. Lleva a la ficha con la
-            edición ya abierta — el formulario vive allá, no se duplica. */}
-        <div className="flex items-center justify-end gap-3">
-          <Link
-            to={`/panel/viajes/${t.id}?editar=1`}
-            state={desde}
-            className="text-sm text-brand-700 hover:underline"
-          >
-            Corregir
-          </Link>
-          <button
-            type="button"
-            onClick={borrar}
-            disabled={busy}
-            className="text-sm text-st-redTx hover:underline disabled:opacity-40"
-          >
-            {busy ? <Spinner size={12} /> : "Borrar"}
-          </button>
-        </div>
+        {soloMirar ? (
+          <span className="text-ink/30">—</span>
+        ) : (
+          <>
+          {/* Corregir va acá, en Acciones, y no sólo adentro de la ficha: la oficina revisa la
+              lista y corrige de a varios, así que mandarla a abrir el viaje para recién ahí
+              encontrar el botón es un paso de más en cada corrección. Lleva a la ficha con la
+              edición ya abierta — el formulario vive allá, no se duplica. */}
+          <div className="flex items-center justify-end gap-3">
+            <Link
+              to={`/panel/viajes/${t.id}?editar=1`}
+              state={desde}
+              className="text-sm text-brand-700 hover:underline"
+            >
+              Corregir
+            </Link>
+            <button
+              type="button"
+              onClick={borrar}
+              disabled={busy}
+              className="text-sm text-st-redTx hover:underline disabled:opacity-40"
+            >
+              {busy ? <Spinner size={12} /> : "Borrar"}
+            </button>
+          </div>
+          </>
+        )}
       </td>
     </tr>
   );

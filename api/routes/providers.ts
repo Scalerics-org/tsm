@@ -9,7 +9,8 @@ import * as repo from "../repos/providers";
 const providers = new Hono<{ Bindings: Env; Variables: Vars }>();
 providers.use("*", requireAuth);
 
-providers.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) =>
+// El lector la necesita para el filtro por viaje de Viajes. `/uso` no: es la pantalla de ABM.
+providers.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR), async (c) =>
   ok(c, await repo.listProviders(c.env.DB)),
 );
 

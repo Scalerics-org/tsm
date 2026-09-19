@@ -15,6 +15,7 @@ import { AgregarCargaOficina } from "./AgregarCargaOficina";
 import { CargasDelViaje } from "./CargasDelViaje";
 import { EditarCabecera } from "./EditarCabecera";
 import { FechaInput } from "../../components/FechaInput";
+import { useSoloMirar } from "../../lib/auth";
 
 interface Detail {
   trip: Trip & { fields?: TemplateField[] };
@@ -26,6 +27,7 @@ interface Detail {
 }
 
 export function OpsTripDetailPage() {
+  const soloMirar = useSoloMirar();
   const { id } = useParams();
   const navigate = useNavigate();
   // Volver a la lista con los filtros con los que se entró (los manda `FilaViaje`).
@@ -38,7 +40,9 @@ export function OpsTripDetailPage() {
   // Con `?editar=1` la ficha abre directo en la corrección: es como llega desde el botón
   // "Corregir" de la lista, para que no haya que buscarlo otra vez acá adentro.
   const [params, setParams] = useSearchParams();
-  const [editando, setEditando] = useState(params.get("editar") === "1");
+  // El `?editar=1` viaja en la dirección: a un "solo mirar" que abra ese link —o que vuelva
+  // atrás a uno guardado— se le abría igual el formulario de corrección. Acá nunca.
+  const [editando, setEditando] = useState(params.get("editar") === "1" && !soloMirar);
   // Se saca `?editar=1` al salir: si no, recargar la página volvía a abrir la corrección.
   // `state` se conserva para que "← Viajes" siga volviendo con los filtros.
   const location = useLocation();
@@ -172,19 +176,25 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={trip.status} />
-          {!editando && (
-            <Button variant="secondary" onClick={() => setEditando(true)}>
-              Corregir
-            </Button>
+          {/* Corregir, Cancelar y Borrar: los tres escriben. Para el "solo mirar" no existen,
+              y la ficha le queda con el estado del viaje y nada más. */}
+          {!soloMirar && (
+            <>
+              {!editando && (
+                <Button variant="secondary" onClick={() => setEditando(true)}>
+                  Corregir
+                </Button>
+              )}
+              {trip.status === TRIP_STATUS.EN_CURSO && (
+                <Button variant="ghost" onClick={cancel}>
+                  Cancelar
+                </Button>
+              )}
+              <Button variant="danger" onClick={eliminar} loading={borrando}>
+                Borrar
+              </Button>
+            </>
           )}
-          {trip.status === TRIP_STATUS.EN_CURSO && (
-            <Button variant="ghost" onClick={cancel}>
-              Cancelar
-            </Button>
-          )}
-          <Button variant="danger" onClick={eliminar} loading={borrando}>
-            Borrar
-          </Button>
         </div>
       </div>
 
@@ -231,12 +241,18 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
             .map((f) => (
               <Info key={f.key} label={f.label} value={trip.field_values[f.key] || "—"} />
             ))}
-          <FechaDelViaje
-            valor={trip.started_at}
-            guardando={guardandoFecha}
-            onCambiar={cambiarFecha}
-          />
-          <LlegadaDelViaje trip={trip} onGuardada={load} />
+          {/* La salida se corrige en el mismo lugar donde se lee: para el lector vuelve a
+              ser lo que dice que es, una fecha. */}
+          {soloMirar ? (
+            <Info label="Salida" value={fmtDateTime(trip.started_at)} />
+          ) : (
+            <FechaDelViaje
+              valor={trip.started_at}
+              guardando={guardandoFecha}
+              onCambiar={cambiarFecha}
+            />
+          )}
+          <LlegadaDelViaje trip={trip} onGuardada={load} soloMirar={soloMirar} />
         </div>
         {trip.notes && (
           <div className="mt-3 border-l-4 border-brand bg-surface p-3 text-sm text-ink/80">
@@ -256,7 +272,7 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
 
       <CargasDelViaje tripId={trip.id} segments={trip.segments} photos={photos} onChanged={load} />
       {/* Un viaje cancelado no se factura: agregarle cargas no tiene sentido. */}
-      {trip.status !== TRIP_STATUS.CANCELADO && (
+      {trip.status !== TRIP_STATUS.CANCELADO && !soloMirar && (
         <AgregarCargaOficina tripId={trip.id} providerId={data.provider_id} segments={trip.segments} onAgregada={load} />
       )}
     </div>
@@ -326,7 +342,17 @@ function FechaDelViaje({
  * Tiene su propio error a propósito: el de la página reemplaza la ficha entera por una línea
  * roja, y un fallo acá no puede hacer desaparecer el viaje que se está mirando.
  */
-function LlegadaDelViaje({ trip, onGuardada }: { trip: Trip; onGuardada: () => void }) {
+function LlegadaDelViaje({
+  trip,
+  onGuardada,
+  soloMirar,
+}: {
+  trip: Trip;
+  onGuardada: () => void;
+  /** Por prop y no con el hook: el componente vive en este mismo archivo, que ya lo preguntó
+      una vez, y dos lecturas del mismo dato son dos cosas que se pueden desincronizar. */
+  soloMirar: boolean;
+}) {
   const [abierto, setAbierto] = useState(false);
   const [dia, setDia] = useState("");
   const [hora, setHora] = useState("");
@@ -367,7 +393,7 @@ function LlegadaDelViaje({ trip, onGuardada }: { trip: Trip; onGuardada: () => v
       {!abierto ? (
         <>
           <div className="font-medium text-ink">{fmtDateTime(trip.finished_at)}</div>
-          {trip.status === TRIP_STATUS.COMPLETADO && (
+          {trip.status === TRIP_STATUS.COMPLETADO && !soloMirar && (
             <button type="button" onClick={abrir} className="text-xs text-brand-700 hover:underline">
               Corregir
             </button>
@@ -375,7 +401,10 @@ function LlegadaDelViaje({ trip, onGuardada }: { trip: Trip; onGuardada: () => v
           {/* Un viaje de más de dos días casi siempre es uno que el chofer se olvidó de cerrar. */}
           {dias > 2 && (
             <div className="mt-0.5 text-xs text-st-amberTx">
-              Figura de {Math.round(dias)} días. Si el chofer se olvidó de cerrarlo, corregí la llegada.
+              {/* El aviso lo ve igual: es un dato del viaje. Lo que no le decimos al lector
+                  es "corregí", porque no puede y no es su trabajo. */}
+              Figura de {Math.round(dias)} días.
+              {!soloMirar && " Si el chofer se olvidó de cerrarlo, corregí la llegada."}
             </div>
           )}
         </>

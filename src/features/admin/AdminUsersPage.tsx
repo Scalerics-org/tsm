@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
-import { ROLES, type AuthUser, type Role } from "@shared/domain";
+import { ROLE_LABEL, ROLES, type AuthUser, type Role } from "@shared/domain";
 import { api, ApiError, mensajeDe } from "../../lib/api";
 import { Button, Card, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
 import { useAuth } from "../../lib/auth";
 
-const ROLE_LABEL: Record<string, string> = {
-  encargado: "Encargado",
-  admin: "Administrador",
-  chofer: "Chofer",
-};
-
-const OFFICE_ROLES: Role[] = [ROLES.ENCARGADO, ROLES.ADMIN];
+/**
+ * Los roles que se pueden elegir desde acá. Los choferes no: entran con patente y PIN, y se
+ * dan de alta en su propia pantalla.
+ *
+ * "Solo mirar" es el que Rodrigo le va a poner a Aníbal, que ya está dado de alta: el rol se
+ * cambia desde este desplegable, no desde la base. Los nombres viven en `shared/domain.ts`
+ * porque el rol también se muestra en la firma del menú.
+ */
+const OFFICE_ROLES: Role[] = [ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR];
 
 export function AdminUsersPage() {
   const { user: me } = useAuth();

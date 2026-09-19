@@ -17,8 +17,12 @@ push.use("*", requireAuth);
  * autoincremental: hoy mismo el chofer 2 y el usuario de oficina 2 son personas distintas.
  * Un chofer que llamara a esta ruta quedaba enganchado a los avisos de la oficina, y darlo de
  * baja no lo desenganchaba, porque el envío no pasa por ningún pedido suyo.
+ *
+ * El lector sí: "para que le llegue la notificación y listo" es la mitad de lo que Rodrigo
+ * pidió para Aníbal. Estas cinco rutas escriben la fila de su propio celular y nada más, y
+ * son las únicas que escriben algo en toda la app para ese rol.
  */
-push.use("*", requireRole(ROLES.ENCARGADO, ROLES.ADMIN));
+push.use("*", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR));
 
 /** Sin las claves VAPID cargadas no hay nada que hacer: se avisa en vez de fallar raro. */
 function claves(c: { env: Env }) {

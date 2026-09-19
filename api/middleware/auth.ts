@@ -5,6 +5,7 @@ import { verifyToken } from "../lib/crypto";
 import { sesionDelChofer } from "../repos/drivers";
 import { existeUsuario } from "../repos/users";
 import { fail } from "../lib/response";
+import { lectorPuede } from "../lib/permisos-lector";
 
 type Ctx = { Bindings: Env; Variables: Vars };
 
@@ -34,6 +35,18 @@ export const requireAuth: MiddlewareHandler<Ctx> = async (c, next) => {
       return fail(c, "Tu usuario ya no existe. Hablá con la oficina.", 401);
     }
     c.set("user", user);
+  }
+
+  /**
+   * El "solo mirar" se frena acá, en el único lugar por el que pasan todas las rutas.
+   *
+   * No alcanza con `requireRole` ruta por ruta: varias no lo llevan —`POST /api/trips`,
+   * `POST /api/trips/:id/cancel`, `DELETE /api/photos/:id`— porque se apoyan en la diferencia
+   * chofer/oficina, y un lector cae del lado de la oficina, que es el lado que borra. Acá es
+   * al revés: lo que no está en la lista blanca no existe para él.
+   */
+  if (c.get("user").role === ROLES.LECTOR && !lectorPuede(c.req.method, c.req.path)) {
+    return fail(c, "Tu usuario es de solo mirar", 403);
   }
   await next();
 };

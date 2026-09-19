@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { InstalarApp } from "./InstalarApp";
-import { ROLES } from "@shared/domain";
+import { ROLE_LABEL, ROLES } from "@shared/domain";
 
 export function TruckMark({ size = 20, stroke = "#f2f2f3" }: { size?: number; stroke?: string }) {
   return (
@@ -74,6 +74,15 @@ const OPS_NAV: NavGroup[] = [
   },
 ];
 
+/**
+ * Qué ve el "solo mirar": Viajes y nada más.
+ *
+ * "A él le hacemos que vea SOLAMENTE LOS VIAJES (…). En principio solo viajes y ta, ahí le
+ * queda bien facilito." — Rodrigo, 19/9. Un solo renglón no necesita grupos ni títulos, y el
+ * Resumen no va porque es la pantalla que además muestra cobros.
+ */
+const LECTOR_NAV: NavGroup[] = [{ items: [{ to: "/panel/viajes", label: "Viajes" }] }];
+
 const ADMIN_NAV: NavGroup[] = [
   DIA,
   {
@@ -101,7 +110,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   if (!user) return <>{children}</>;
   if (user.role === ROLES.CHOFER) return <ChoferShell>{children}</ChoferShell>;
-  return <DesktopShell grupos={user.role === ROLES.ADMIN ? ADMIN_NAV : OPS_NAV}>{children}</DesktopShell>;
+  const grupos =
+    user.role === ROLES.ADMIN ? ADMIN_NAV : user.role === ROLES.LECTOR ? LECTOR_NAV : OPS_NAV;
+  return <DesktopShell grupos={grupos}>{children}</DesktopShell>;
 }
 
 // ── Chofer: móvil ──
@@ -198,7 +209,9 @@ function DesktopShell({ grupos, children }: { grupos: NavGroup[]; children: Reac
           <div className="font-cond text-[13px] font-semibold uppercase tracking-[0.08em] text-bg">
             {user?.name}
           </div>
-          <div className="mt-0.5 text-[12px] capitalize text-bg/55">{user?.role}</div>
+          {/* El rol con su nombre de pantalla. Decía `user.role` crudo y ahí abajo iba a
+              quedar "lector", que no es como se le explicó a nadie: es "Solo mirar". */}
+          <div className="mt-0.5 text-[12px] text-bg/55">{user ? ROLE_LABEL[user.role] : ""}</div>
           <button
             onClick={doLogout}
             className="mt-3 block font-cond text-[13px] font-semibold uppercase tracking-[0.08em] text-brand-400 hover:text-bg"

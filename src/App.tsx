@@ -25,8 +25,16 @@ import { AdminDriversPage } from "./features/admin/AdminDriversPage";
 import { AdminTrucksPage } from "./features/admin/AdminTrucksPage";
 import { AdminUsersPage } from "./features/admin/AdminUsersPage";
 
+/**
+ * Adónde va cada rol cuando entra, o cuando pide una pantalla que no le toca.
+ *
+ * El "solo mirar" va a Viajes y no a /panel: el Resumen no lo puede ver, y mandarlo ahí era
+ * mandarlo a un rebote —RequireRole lo devolvía a homePath, que lo devolvía a /panel— que
+ * terminaba en una pantalla en blanco.
+ */
 function homePath(role: Role): string {
-  return role === ROLES.CHOFER ? "/" : "/panel";
+  if (role === ROLES.CHOFER) return "/";
+  return role === ROLES.LECTOR ? "/panel/viajes" : "/panel";
 }
 
 function RequireRole({ roles, children }: { roles: Role[]; children: JSX.Element }) {
@@ -61,6 +69,9 @@ export default function App() {
   // Plantillas, clientes, proveedores y lugares: sólo admin. Operaciones ve el día, choferes y
   // camiones (Rodrigo, 16/9).
   const ADM: Role[] = [ROLES.ADMIN];
+  // Las dos únicas pantallas del "solo mirar": la lista de viajes y la ficha de uno.
+  // Cualquier otra dirección de /panel lo rebota a Viajes, que es su casa.
+  const VER: Role[] = [ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR];
 
   return (
     <AppShell>
@@ -78,10 +89,10 @@ export default function App() {
         {/* Oficina */}
         <Route path="/panel" element={<RequireRole roles={OPS}><OpsSummary /></RequireRole>} />
         <Route path="/panel/control" element={<RequireRole roles={OPS}><ControlPage /></RequireRole>} />
-        <Route path="/panel/viajes" element={<RequireRole roles={OPS}><OpsTripsPage /></RequireRole>} />
+        <Route path="/panel/viajes" element={<RequireRole roles={VER}><OpsTripsPage /></RequireRole>} />
         <Route path="/panel/resumen-cliente" element={<RequireRole roles={OPS}><ResumenClientePage /></RequireRole>} />
         <Route path="/panel/viajes/nuevo" element={<RequireRole roles={OPS}><NuevoViajePage /></RequireRole>} />
-        <Route path="/panel/viajes/:id" element={<RequireRole roles={OPS}><OpsTripDetailPage /></RequireRole>} />
+        <Route path="/panel/viajes/:id" element={<RequireRole roles={VER}><OpsTripDetailPage /></RequireRole>} />
         <Route path="/panel/camion/:id" element={<RequireRole roles={OPS}><TruckDetailPage /></RequireRole>} />
         <Route path="/panel/chofer/:id" element={<RequireRole roles={OPS}><DriverDetailPage /></RequireRole>} />
         <Route path="/panel/plantillas" element={<RequireRole roles={ADM}><TemplatesPage /></RequireRole>} />

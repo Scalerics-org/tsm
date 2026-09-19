@@ -4,8 +4,34 @@ export const ROLES = {
   CHOFER: "chofer",
   ENCARGADO: "encargado",
   ADMIN: "admin",
+  /**
+   * Mira los viajes y recibe los avisos. Nada más.
+   *
+   * "A él le hacemos que vea SOLAMENTE LOS VIAJES, y para que le llegue la notificación y
+   * listo. (…) Y que él tenga opción solo de mirar, no tocar ni corregir. Vaya que toque un
+   * dedazo y borre algo jajaja." — Rodrigo, 19/9/2026, dando de alta a su hermano Aníbal.
+   *
+   * El miedo del dedazo es el requisito: no alcanza con esconderle los botones. Lo que lo
+   * garantiza es la lista blanca de `api/lib/permisos-lector.ts`, que le cierra el servidor
+   * a todo lo que no sea mirar viajes y prender sus propios avisos.
+   */
+  LECTOR: "lector",
 } as const;
 export type Role = (typeof ROLES)[keyof typeof ROLES];
+
+/**
+ * Cómo se nombra cada rol en pantalla.
+ *
+ * Vive acá y no en la pantalla de usuarios porque el rol se muestra en dos lados —el
+ * desplegable del alta y la firma del menú— y con dos listas sueltas una queda sin el rol
+ * nuevo. "Solo mirar" y no "Lector": es lo que Rodrigo pidió, en sus palabras.
+ */
+export const ROLE_LABEL: Record<Role, string> = {
+  chofer: "Chofer",
+  encargado: "Encargado",
+  admin: "Administrador",
+  lector: "Solo mirar",
+};
 
 export const TRIP_STATUS = {
   EN_CURSO: "EN_CURSO",

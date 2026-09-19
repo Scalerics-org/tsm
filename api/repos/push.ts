@@ -31,14 +31,20 @@ export async function borrarSuscripcion(db: D1Database, endpoint: string): Promi
   await db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").bind(endpoint).run();
 }
 
-/** Todas las suscripciones activas. Los avisos van a la oficina, no a los choferes. */
+/**
+ * Todas las suscripciones activas. Los avisos van a la oficina, no a los choferes.
+ *
+ * El `lector` entra en la lista: el rol existe justamente para que Aníbal mire los viajes y
+ * "le llegue la notificación y listo" (Rodrigo, 19/9). Si el filtro no lo nombrara, podría
+ * prender los avisos en su celular y no le llegaría ninguno, sin ningún error que lo diga.
+ */
 export async function suscripcionesDeOficina(db: D1Database): Promise<SuscripcionGuardada[]> {
   const { results } = await db
     .prepare(
       `SELECT ps.id, ps.user_id, ps.endpoint, ps.p256dh, ps.auth
        FROM push_subscriptions ps
        JOIN users u ON u.id = ps.user_id
-       WHERE u.role IN ('encargado','admin')`,
+       WHERE u.role IN ('encargado','admin','lector')`,
     )
     .all<SuscripcionGuardada>();
   return results ?? [];

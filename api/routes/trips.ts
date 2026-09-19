@@ -189,7 +189,8 @@ trips.get("/", async (c) => {
 
 // GET /api/trips/clientes — los clientes de las cargas, para filtrar Viajes. Sólo oficina: dice
 // a quién se le cobra, y eso no baja al chofer.
-trips.get("/clientes", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) =>
+// El lector también: es uno de los desplegables de la pantalla que mira.
+trips.get("/clientes", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR), async (c) =>
   ok(c, await tripsRepo.listClientesDeCarga(c.env.DB)),
 );
 

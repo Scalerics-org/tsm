@@ -14,6 +14,7 @@ import { Card } from "../../components/ui";
 import { PhotoImage } from "../../components/PhotoImage";
 import { VisorFotos, type FotoDelVisor } from "../../components/VisorFotos";
 import { fmtDateTime } from "../../lib/format";
+import { useSoloMirar } from "../../lib/auth";
 
 interface Props {
   /** Con el id, cada carga se puede corregir desde acá (cantidad, unidad y remito). */
@@ -29,6 +30,9 @@ interface Props {
  * quién se le factura. Es la misma fila que sale en el Excel, pero en pantalla.
  */
 export function CargasDelViaje({ tripId, segments, photos, onChanged }: Props) {
+  // El lector ve las cargas y las fotos enteras; lo que no ve es el "Corregir" de cada carga
+  // ni el "Borrar" de cada foto. El visor, que es lo que viene a mirar, queda igual.
+  const soloMirar = useSoloMirar();
   const { porCarga, delViaje } = fotosPorRenglon(photos);
 
   /* Todas las fotos del viaje en una sola lista: con las flechas del visor la oficina las
@@ -74,7 +78,7 @@ export function CargasDelViaje({ tripId, segments, photos, onChanged }: Props) {
                     <div className="font-cond text-lg font-semibold leading-tight text-ink">
                       {s.remitente} → {s.clientes.join(" · ") || "sin destinatario"}
                     </div>
-                    {tripId != null ? (
+                    {tripId != null && !soloMirar ? (
                       <CantidadDeCarga tripId={tripId} segments={segments} carga={s} onGuardada={onChanged} />
                     ) : (
                       <div className="mt-0.5 text-xs text-ink/55">
@@ -114,6 +118,7 @@ export function CargasDelViaje({ tripId, segments, photos, onChanged }: Props) {
                   lugar={s.remitente}
                   onAmpliar={abrir}
                   onChanged={onChanged}
+                  soloMirar={soloMirar}
                 />
               </Card>
             ))}
@@ -139,11 +144,13 @@ export function CargasDelViaje({ tripId, segments, photos, onChanged }: Props) {
                   <span className="min-w-0 truncate">
                     {PHOTO_KIND_LABEL[p.kind as PhotoKind]} · {fmtDateTime(p.taken_at)}
                   </span>
-                  <BorrarFoto
-                    foto={p}
-                    que={`la foto de ${PHOTO_KIND_LABEL[p.kind as PhotoKind].toLowerCase()}`}
-                    onChanged={onChanged}
-                  />
+                  {!soloMirar && (
+                    <BorrarFoto
+                      foto={p}
+                      que={`la foto de ${PHOTO_KIND_LABEL[p.kind as PhotoKind].toLowerCase()}`}
+                      onChanged={onChanged}
+                    />
+                  )}
                 </div>
               </div>
             ))}
@@ -280,11 +287,14 @@ function FotosDeCarga({
   lugar,
   onAmpliar,
   onChanged,
+  soloMirar,
 }: {
   fotos: TripPhoto[];
   lugar: string;
   onAmpliar: (r2Key: string) => void;
   onChanged: () => void;
+  /** Por prop: el componente es de este mismo archivo, que ya preguntó por el rol una vez. */
+  soloMirar: boolean;
 }) {
   if (fotos.length === 0) {
     return <p className="border-t border-ink/10 pt-2 text-xs text-ink/45">Sin foto de esta carga.</p>;
@@ -301,7 +311,9 @@ function FotosDeCarga({
           />
           <div className="mt-1 flex items-center justify-between gap-2 text-xs text-ink/55">
             <span className="min-w-0 truncate">{fmtDateTime(p.taken_at)}</span>
-            <BorrarFoto foto={p} que={`la foto de la carga en ${lugar}`} onChanged={onChanged} />
+            {!soloMirar && (
+              <BorrarFoto foto={p} que={`la foto de la carga en ${lugar}`} onChanged={onChanged} />
+            )}
           </div>
         </div>
       ))}

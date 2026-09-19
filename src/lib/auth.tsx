@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import type { AuthUser } from "@shared/domain";
+import { ROLES, type AuthUser } from "@shared/domain";
 import {
   api,
   ApiError,
@@ -93,6 +93,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
+}
+
+/**
+ * ¿Este usuario es de los que sólo miran?
+ *
+ * "Que él tenga opción solo de mirar, no tocar ni corregir." — Rodrigo, 19/9. Lo preguntan los
+ * pocos componentes que son dueños de un botón que escribe (la fila de la lista, la ficha, las
+ * cargas), en vez de pasarse un `soloMirar` de padre a hijo por media pantalla: la lista de
+ * viajes tiene cuatro niveles y el prop se olvidaba en uno solo, que es justo donde queda el
+ * botón que no tenía que estar.
+ *
+ * Esconder el botón es comodidad, no seguridad: quien de verdad lo frena es el servidor.
+ */
+export function useSoloMirar(): boolean {
+  return useAuth().user?.role === ROLES.LECTOR;
 }
 
 export function useAuth(): AuthState {

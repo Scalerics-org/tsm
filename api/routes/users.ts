@@ -12,14 +12,16 @@ users.use("*", requireAuth, requireRole(ROLES.ADMIN));
 users.get("/", async (c) => ok(c, await repo.listUsers(c.env.DB)));
 
 // Sólo usuarios de oficina; los choferes se crean como "choferes" con PIN.
-const VALID_ROLES: Role[] = [ROLES.ENCARGADO, ROLES.ADMIN];
+// `lector` entra acá porque el rol se asigna desde esta pantalla: es como Rodrigo va a pasar
+// a Aníbal, que ya está dado de alta, a "solo mirar".
+const VALID_ROLES: Role[] = [ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR];
 
 users.post("/", async (c) => {
   const b = await c.req.json<any>().catch(() => null);
   if (!b || !b.email || !b.password || !b.name) {
     return fail(c, "Email, nombre y contraseña son obligatorios", 400);
   }
-  if (!VALID_ROLES.includes(b.role)) return fail(c, "Rol inválido (encargado o admin)", 400);
+  if (!VALID_ROLES.includes(b.role)) return fail(c, "Rol inválido (encargado, admin o lector)", 400);
   if (String(b.password).length < 6) return fail(c, "La contraseña debe tener al menos 6 caracteres", 400);
 
   const existing = await repo.findUserByEmail(c.env.DB, b.email);
@@ -46,7 +48,7 @@ users.put("/:id", async (c) => {
   const b = await c.req.json<any>().catch(() => null);
   if (!b) return fail(c, "Faltan datos", 400);
   if (b.role != null && !VALID_ROLES.includes(b.role)) {
-    return fail(c, "Rol inválido (encargado o admin)", 400);
+    return fail(c, "Rol inválido (encargado, admin o lector)", 400);
   }
   if (b.password != null && String(b.password).length < 6) {
     return fail(c, "La contraseña debe tener al menos 6 caracteres", 400);
@@ -57,8 +59,10 @@ users.put("/:id", async (c) => {
     const otro = await repo.findUserByEmail(c.env.DB, b.email);
     if (otro && otro.id !== id) return fail(c, "Ya existe un usuario con ese email", 409);
   }
-  // Nadie se saca a sí mismo el admin: dejaría el sistema sin quien administre.
-  if (id === c.get("user").id && b.role === ROLES.ENCARGADO) {
+  // Nadie se saca a sí mismo el admin: dejaría el sistema sin quien administre. Y desde que
+  // existe "solo mirar", bajarse a lector es peor todavía: quedaría sin poder ni volver a
+  // subirse, porque la pantalla de usuarios es de admin.
+  if (id === c.get("user").id && b.role != null && b.role !== ROLES.ADMIN) {
     return fail(c, "No podés quitarte a vos mismo el rol de administrador", 400);
   }
 

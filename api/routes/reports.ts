@@ -25,7 +25,14 @@ import { listDrivers, getDriver } from "../repos/drivers";
 import { tripPhotoStatus } from "../repos/photos";
 
 const reports = new Hono<{ Bindings: Env; Variables: Vars }>();
-reports.use("*", requireAuth, requireRole(ROLES.ENCARGADO, ROLES.ADMIN));
+/**
+ * El lector entra acá por UNA sola puerta: `trips.csv`, el Excel de la lista que está mirando.
+ * El resto de los reportes —el resumen, las alertas, los pendientes de cobro, el Excel de
+ * combustible— no los alcanza, porque `requireAuth` corre antes que este `requireRole` y su
+ * lista blanca sólo tiene esa ruta. Está nombrado acá para que el permiso no parezca un
+ * descuido al leer el archivo.
+ */
+reports.use("*", requireAuth, requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR));
 
 function roundTo(n: number, d = 1): number {
   const f = 10 ** d;
