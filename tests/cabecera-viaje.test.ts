@@ -164,3 +164,32 @@ describe("cabeceraCorregida — campos de la plantilla", () => {
     expect(p.field_values).toEqual({ remito: "113430", kilos: "28070" });
   });
 });
+
+describe("cabeceraCorregida — campos de la plantilla, lo que encontró la revisión", () => {
+  const campos = [
+    { key: "remito", type: "texto", required: true, label: "Remito" },
+    { key: "nota", type: "texto" },
+    { key: "peso_extra", type: "numero" },
+  ];
+
+  it("un número con coma se guarda con punto: el resumen lo suma con Number()", () => {
+    const p = patchDe(cabeceraCorregida(viaje(), { campos: { peso_extra: "31,21" } }, "kilos", { campos }));
+    expect(p.field_values.peso_extra).toBe("31.21");
+  });
+
+  it("un campo obligatorio no se vacía", () => {
+    expect(cabeceraCorregida(viaje(), { campos: { remito: "" } }, "kilos", { campos })).toEqual({
+      error: "Remito no puede quedar vacío.",
+    });
+  });
+
+  it("con el viaje en curso no se tocan: el chofer los está cargando", () => {
+    const r = cabeceraCorregida(viaje({ status: "EN_CURSO" } as any), { campos: { nota: "x" } }, "kilos", { campos });
+    expect("error" in r).toBe(true);
+  });
+
+  it("mandar lo mismo que ya tenía, con el viaje en curso, no molesta", () => {
+    const r = cabeceraCorregida(viaje({ status: "EN_CURSO" } as any), { campos: { remito: "113430" } }, "kilos", { campos });
+    expect("error" in r).toBe(false);
+  });
+});

@@ -30,7 +30,7 @@ export interface ContextoCabecera {
    * de peso, que va por `kilos_carga`. "Donde corrijo los viajes no tengo la opción de corregir
    * el nro de remito" — Rodrigo, 19/9.
    */
-  campos?: { key: string; type: string }[];
+  campos?: { key: string; type: string; required?: boolean; label?: string }[];
 }
 
 const texto = (v: unknown): string => String(v ?? "").trim();
@@ -111,15 +111,33 @@ export function cabeceraCorregida(
   // inventada no entra, y el peso tampoco —ése se corrige por `kilos_carga`, que escribe los dos
   // lados a la vez—.
   const pedidos = (body.campos ?? {}) as Record<string, unknown>;
-  for (const campo of ctx.campos ?? []) {
-    if (campo.key === weightKey || !Object.prototype.hasOwnProperty.call(pedidos, campo.key)) continue;
+  const aCambiar = (ctx.campos ?? []).filter(
+    (campo) =>
+      campo.key !== weightKey &&
+      Object.prototype.hasOwnProperty.call(pedidos, campo.key) &&
+      texto(pedidos[campo.key]) !== texto(trip.field_values?.[campo.key]),
+  );
+  // Con el viaje en curso el chofer está cargando esos mismos campos (el MIC en el puente, la
+  // descarga al llegar): guardar desde acá pisaría lo que él acaba de mandar.
+  if (aCambiar.length && trip.status === "EN_CURSO") {
+    return {
+      error: "El viaje está en curso: el chofer está cargando esos datos. Corregilos cuando lo cierre.",
+    };
+  }
+  for (const campo of aCambiar) {
     const valor = texto(pedidos[campo.key]);
     if (!valor) {
+      // Un campo obligatorio es de los que se factura (el remito): no se borra por un descuido.
+      if (campo.required) return { error: `${campo.label ?? campo.key} no puede quedar vacío.` };
       delete field_values[campo.key];
       continue;
     }
-    if (campo.type === "numero" && !Number.isFinite(Number(valor.replace(",", ".")))) {
-      return { error: `"${valor}" no es un número.` };
+    if (campo.type === "numero") {
+      // Se guarda con punto: el resumen suma con Number(), y "31,21" le daba 0.
+      const n = Number(valor.replace(",", "."));
+      if (!Number.isFinite(n)) return { error: `"${valor}" no es un número.` };
+      field_values[campo.key] = String(n);
+      continue;
     }
     field_values[campo.key] = valor;
   }

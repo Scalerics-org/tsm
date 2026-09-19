@@ -227,6 +227,8 @@ export function EditarCabecera({ trip, recorridoPorCargas, onGuardado, onCancela
           <Field key={f.key} label={f.label}>
             <input
               className="input"
+              // En curso los carga el chofer (MIC, descarga): se corrigen cuando lo cierre.
+              disabled={enCurso}
               inputMode={f.type === "numero" ? "decimal" : undefined}
               value={campos[f.key] ?? ""}
               onChange={(e) => setCampos((c) => ({ ...c, [f.key]: e.target.value }))}
