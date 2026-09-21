@@ -280,3 +280,53 @@ export function resumenParaElCliente(trips: Trip[], campos: ColumnaCampo[]): Cel
 
   return [elegidas.map((i) => titulos[i]), ...filas.map((f) => elegidas.map((i) => f[i]))];
 }
+
+/**
+ * La planilla para facturar: lo que Rodrigo dejaba a mano.
+ *
+ * Con la 6029 (19/9/2026) bajó el Excel completo y le borró columnas hasta quedarse con Fecha ·
+ * Cliente · Clientes de la carga · Kilos · Nro Fac. · Remito de carga · Chofer · Camión ·
+ * Estado · Observaciones, con el total de kilos abajo. Ésta sale así de una; el completo sigue
+ * estando para controlar.
+ *
+ * UNA FILA POR VIAJE y no por carga, como la suya: se factura el viaje. Los clientes de las
+ * cargas van juntos en la misma celda. En el lugar del remito van los campos propios de la
+ * plantilla (menos el peso, que es "Kilos"): en Casarone es "Remito de carga", en otros es
+ * "Remito empresa" o el N° de MIC.
+ */
+export const ENCABEZADO_FACTURAR = [
+  "Fecha",
+  "Cliente",
+  "Clientes de la carga",
+  "Kilos",
+  "Nro Fac.",
+  "Chofer",
+  "Camión",
+  "Estado",
+  "Observaciones",
+];
+
+export function planillaParaFacturar(
+  trips: (Trip & { factura_numero?: string | null })[],
+  campos: ColumnaCampo[],
+): Celda[][] {
+  const encabezado = [...ENCABEZADO_FACTURAR.slice(0, 5), ...campos.map((c) => c.label), ...ENCABEZADO_FACTURAR.slice(5)];
+  const filas: Celda[][] = trips.map((t) => {
+    const clientes = [...new Set(t.segments.flatMap((s) => s.clientes))];
+    return [
+      t.started_at.slice(0, 10),
+      t.provider_name,
+      clientes.join(" / ") || (t.destinatario ?? ""),
+      t.kilos_carga ?? "",
+      t.factura_numero ?? "",
+      ...campos.map((c) => valorDeCampo(t.field_values?.[c.key], c)),
+      t.driver_name ?? "",
+      t.truck_plate ?? "",
+      t.status,
+      t.notes ?? "",
+    ];
+  });
+  const kilos = trips.reduce((s, t) => s + (t.kilos_carga ?? 0), 0);
+  const total: Celda[] = ["", "", "Total", kilos, ...Array(encabezado.length - 4).fill("")];
+  return [encabezado, ...filas, total];
+}

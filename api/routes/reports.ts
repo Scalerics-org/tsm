@@ -14,7 +14,7 @@ import {
   type PendienteCobro,
   type Trip, destinoVisible } from "../../shared/domain";
 import { listTrips, listTripsFacturables } from "../repos/trips";
-import { columnasDeCampos, encabezado, filasDeViaje, resumenParaElCliente } from "../lib/export-viajes";
+import { columnasDeCampos, encabezado, filasDeViaje, resumenParaElCliente, planillaParaFacturar } from "../lib/export-viajes";
 import { csvResponse } from "../lib/csv";
 import { vaciosEntreViajes, kmVacios, vaciosDelPeriodo, paraVacios } from "../../shared/vacios";
 import { resumenCliente } from "../lib/resumen-cliente";
@@ -351,6 +351,13 @@ reports.get("/trips.csv", async (c) => {
   // El remito, la boleta y el número de orden salen cada uno en su columna, no apelmazados
   // en una sola celda: así se ordena, se filtra y se suma por cualquiera de ellos.
   const campos = columnasDeCampos(trips, templates);
+  // La planilla corta, la que Rodrigo armaba a mano borrando columnas para facturar (19/9).
+  if (q.planilla === "facturar") {
+    return csvResponse(
+      q.provider ? `facturar-${q.provider}.csv` : "facturar.csv",
+      planillaParaFacturar(trips, campos),
+    );
+  }
   const rows = trips.flatMap((t) => filasDeViaje(t, campos));
   return csvResponse(q.provider ? `viajes-${q.provider}.csv` : "viajes.csv", [encabezado(campos), ...rows]);
 });

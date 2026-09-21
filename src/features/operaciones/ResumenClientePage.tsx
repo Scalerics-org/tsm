@@ -374,6 +374,15 @@ export function ResumenClientePage() {
             >
               ⬇ Exportar Excel
             </Button>
+            {/* La planilla corta, la que Rodrigo armaba borrando columnas: Fecha, Cliente,
+                Clientes de la carga, Kilos, Nro Fac., remito, Chofer, Camión, Estado,
+                Observaciones y el total de kilos. El completo sigue para controlar. */}
+            <Button
+              variant="secondary"
+              onClick={() => downloadFile(`/reports/trips.csv?facturables=1${verFacturados ? "&incluirFacturados=1" : ""}&provider=${encodeURIComponent(provider)}${plantilla ? `&plantilla=${plantilla}` : ""}${from ? `&from=${from}` : ""}${to ? `&to=${to}` : ""}` + "&planilla=facturar", `facturar-${provider}.csv`)}
+            >
+              ⬇ Excel para facturar
+            </Button>
           </div>
 
           {data.facturados > 0 && !verFacturados && (
