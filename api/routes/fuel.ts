@@ -5,6 +5,7 @@ import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { ROLES, avisoSurtida, esFechaValida, fuelFeedback, kmInicialTacografo, litrosTotales } from "../../shared/domain";
 import { notificarOficina } from "../lib/avisos";
+import { LITROS_MAX_POR_CARGA } from "../../shared/litros";
 import * as repo from "../repos/fuel";
 import { camionDelChofer } from "../lib/camion-del-chofer";
 
@@ -59,6 +60,8 @@ fuel.post("/", async (c) => {
   const porTanque = litrosTotales(t1, t2);
   const liters = porTanque ?? Number(form.get("liters"));
   if (!odometer || !liters) return fail(c, "Odómetro y litros son obligatorios", 400);
+  const tanqueDeMas = tanqueImposible(t1, t2);
+  if (tanqueDeMas) return fail(c, tanqueDeMas, 400);
 
   const truckId =
     user.role === ROLES.CHOFER
@@ -145,6 +148,20 @@ fuel.post("/", async (c) => {
   return ok(c, { id, r2_key: r2Key, r2_key_boleta: r2KeyBoleta, feedback }, 201);
 });
 
+/**
+ * Un tanque no carga mil litros: si llega un número así, es un tipeo sin la coma (29044 por
+ * 290,44). "Nunca he cargado 500 mil" — Rodrigo, 21/9. La pantalla ya pone la coma sola; esto
+ * frena lo que llegue por otro lado.
+ */
+function tanqueImposible(t1: number | null, t2: number | null): string | null {
+  for (const t of [t1, t2]) {
+    if (t != null && t > LITROS_MAX_POR_CARGA) {
+      return `${t.toLocaleString("es-UY")} litros en un tanque no puede ser: revisá la coma (ej. 290,44).`;
+    }
+  }
+  return null;
+}
+
 /** Un campo numérico que puede no venir. `null` = no lo mandaron; distinto de un 0 escrito. */
 function numeroOpcional(v: unknown): number | null {
   if (v == null || v === "") return null;
@@ -177,6 +194,8 @@ fuel.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const t2 = numeroOpcional(b.liters_tanque2);
   const porTanque = litrosTotales(t1, t2);
   const liters = porTanque ?? Number(b.liters);
+  const tanqueDeMas = tanqueImposible(t1, t2);
+  if (tanqueDeMas) return fail(c, tanqueDeMas, 400);
   if (!Number.isFinite(liters) || liters <= 0) return fail(c, "Los litros tienen que ser un número mayor que cero", 400);
 
   // "Lo mismo de las fechas en el gas oil": la surtida que se cargó con la fecha equivocada

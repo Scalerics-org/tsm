@@ -6,6 +6,7 @@ import { leerFoto } from "../lib/archivo-foto";
 import { camionDelChofer } from "../lib/camion-del-chofer";
 import { ROLES, esFechaValida } from "../../shared/domain";
 import { consumoFrioPorMes, validarHorasFrio } from "../../shared/camara-frio";
+import { LITROS_MAX_POR_CARGA } from "../../shared/litros";
 import * as repo from "../repos/camara-frio";
 
 /**
@@ -50,6 +51,9 @@ frio.post("/", async (c) => {
 
   const liters = Number(form.get("liters"));
   if (!Number.isFinite(liters) || liters <= 0) return fail(c, "Cargá los litros", 400);
+  if (liters > LITROS_MAX_POR_CARGA) {
+    return fail(c, `${liters.toLocaleString("es-UY")} litros no puede ser: revisá la coma (ej. 85,50).`, 400);
+  }
 
   const truckId =
     user.role === ROLES.CHOFER

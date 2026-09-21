@@ -4,6 +4,8 @@ import { api, ApiError } from "../../lib/api";
 import { Button, Card, Corners, ErrorText } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
 import { compressImage } from "../../lib/image";
+import { LitrosInput } from "../../components/LitrosInput";
+import { litrosTipeados } from "@shared/litros";
 
 /**
  * Registrar surtida de la cámara de frío.
@@ -25,7 +27,7 @@ export function FrioFuelPage() {
 
   async function confirm() {
     setError("");
-    const n = Number(litros);
+    const n = litrosTipeados(litros).valor ?? NaN;
     if (!litros || !Number.isFinite(n) || n <= 0) return setError("Cargá los litros.");
     if (!fotoBoleta) return setError("Sacá la foto de la boleta de gasoil.");
 
@@ -53,7 +55,7 @@ export function FrioFuelPage() {
         <Card className="border-l-4 border-l-st-greenDot">
           <Corners />
           <div className="font-cond text-5xl font-semibold text-ink">
-            {Number(litros).toLocaleString("es-UY")} L
+            {(litrosTipeados(litros).valor ?? 0).toLocaleString("es-UY")} L
           </div>
           <div className="mt-1 text-sm text-ink/60">cargados en la cámara de frío</div>
         </Card>
@@ -77,14 +79,7 @@ export function FrioFuelPage() {
       <Card className="space-y-4">
         <div>
           <span className="label">1 · Litros cargados en la cámara</span>
-          <input
-            className="input"
-            type="number"
-            inputMode="decimal"
-            value={litros}
-            onChange={(e) => setLitros(e.target.value)}
-            placeholder="Ej: 85"
-          />
+          <LitrosInput value={litros} onChange={setLitros} placeholder="Ej: 85" />
         </div>
         <CameraCapture label="2 · Foto de la boleta de gasoil" onChange={setFotoBoleta} />
       </Card>

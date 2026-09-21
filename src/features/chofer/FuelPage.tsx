@@ -15,6 +15,8 @@ import { useAuth } from "../../lib/auth";
 import { Button, Card, Corners, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
 import { compressImage } from "../../lib/image";
+import { LitrosInput } from "../../components/LitrosInput";
+import { litrosTipeados } from "@shared/litros";
 
 /** Cuando no hay de dónde sacar el km de arranque, lo tipea el chofer. */
 /**
@@ -77,10 +79,10 @@ export function FuelPage() {
 
   // Cada foto abre el paso siguiente. Sin la del tacógrafo no se ven ni los litros.
   const tacografoListo = isFull === false || fotoTacografo != null;
-  const litros = litrosTotales(
-    tanque1 === "" ? null : Number(tanque1),
-    tanque2 === "" ? null : Number(tanque2),
-  );
+  // Lo que se ve en el campo ("290,44") no es un número de JS: sale de `litrosTipeados`.
+  const litrosT1 = litrosTipeados(tanque1).valor;
+  const litrosT2 = litrosTipeados(tanque2).valor;
+  const litros = litrosTotales(litrosT1, litrosT2);
   const consumoDelDia =
     isFull && fotoTacografo && recorridos && recorridos > 0 && litros
       ? kmPorLitro(recorridos, litros)
@@ -140,8 +142,8 @@ export function FuelPage() {
       // recién se reparten cuando llene y se cierre el tramo.
       fd.append("odometer_km", isFull ? kmFinal : String(kmInicial));
       fd.append("liters", String(litros));
-      if (tanque1 !== "") fd.append("liters_tanque1", tanque1);
-      if (tanque2 !== "") fd.append("liters_tanque2", tanque2);
+      if (litrosT1 != null) fd.append("liters_tanque1", String(litrosT1));
+      if (litrosT2 != null) fd.append("liters_tanque2", String(litrosT2));
       fd.append("is_full", String(isFull));
       const res = await api.upload<{ feedback: FuelFeedback }>("/fuel", fd);
       setResult(res.feedback);
@@ -280,24 +282,10 @@ export function FuelPage() {
             <span className="label">4 · Litros surtidos</span>
             <div className="grid grid-cols-2 gap-2">
               <Field label="Tanque 1">
-                <input
-                  className="input"
-                  type="number"
-                  inputMode="decimal"
-                  value={tanque1}
-                  onChange={(e) => setTanque1(e.target.value)}
-                  placeholder="Ej: 280"
-                />
+                <LitrosInput value={tanque1} onChange={setTanque1} placeholder="Ej: 280" />
               </Field>
               <Field label="Tanque 2">
-                <input
-                  className="input"
-                  type="number"
-                  inputMode="decimal"
-                  value={tanque2}
-                  onChange={(e) => setTanque2(e.target.value)}
-                  placeholder="Ej: 194,7"
-                />
+                <LitrosInput value={tanque2} onChange={setTanque2} placeholder="Ej: 19470 = 194,70" />
               </Field>
             </div>
             {/* El total no se escribe: se suma. Si se pudiera tipear y no coincidiera con los
