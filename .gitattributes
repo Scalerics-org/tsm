@@ -1,0 +1,11 @@
+# El repo se versiona con LF, igual que pide .editorconfig.
+# Sin esto, en Windows cada checkout reintroduce CRLF y el lint falla en CI.
+* text=auto eol=lf
+
+# Binarios: que git no los toque.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.ico  binary
+*.pdf  binary
+*.webp binary
