@@ -123,26 +123,26 @@ Borra viajes, fotos y surtidas de ejemplo sin tocar clientes, plantillas, camion
 
 ## Fotos (R2)
 
-**R2 está deshabilitado.** El binding está comentado en `wrangler.toml` para poder probar el flujo sin
-tenerlo contratado: `POST /api/photos` devuelve `{ skipped: true }` y **el viaje se cierra igual**.
+**R2 está habilitado** (`[[r2_buckets]]` en `wrangler.toml`, bucket `logistica-fotos`). Las fotos de
+carga, descarga y documentación se guardan ahí y se sirven con token desde `/api/photos/*`.
 
-Para habilitarlo:
+Si en algún entorno todavía no está el bucket, el sistema no se rompe: `POST /api/photos` detecta el
+binding ausente, devuelve `{ skipped: true }` y **el viaje se cierra igual, sin evidencia**. Para
+habilitarlo desde cero en un entorno nuevo:
 
 ```bash
 npx wrangler r2 bucket create logistica-fotos
 ```
 
-Después descomentá el bloque `[[r2_buckets]]` en `wrangler.toml` y volvé a desplegar.
-
-> Sin R2 el sistema funciona, pero **no guarda evidencia** — que es la mitad del valor para la oficina.
-> Es lo primero a habilitar antes de un uso real.
+Y descomentar el bloque `[[r2_buckets]]` en `wrangler.toml` si estuviera comentado.
 
 ## Secrets
 
-En local van en `.dev.vars` (no se commitea). En producción:
+En local van en `.dev.vars` (no se commitea). En producción, el proyecto corre en Workers (no en
+Pages), así que el comando es:
 
 ```bash
-npx wrangler pages secret put JWT_SECRET
+npx wrangler secret put JWT_SECRET
 ```
 
 ## Correr en local
