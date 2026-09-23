@@ -1280,6 +1280,47 @@ export function estadoDeCobro(t: { factura_numero?: string | null; pago_at?: str
 }
 
 /**
+ * El "Cliente" de un viaje en la lista de Viajes: a quién se le cobra, con lo que ya existe.
+ *
+ * "Que cada renglón tenga el filtro para elegir cliente" (Rodrigo, 23/9): por ahora SÓLO SE VE.
+ * No escribe nada ni toca el cobro; decidió Gonzalo.
+ *
+ * Sale de `cobro_a` de las cargas —lo que resuelven las reglas de la libreta o fijó la oficina—.
+ * El nombre del viaje (`provider_name`) sólo vale en los clásicos, de un solo tramo: en Combinados
+ * y Otros Viajes dice "Combinados" u "OTROS VIAJES", que no le pagan a nadie. Sin nada de eso el
+ * viaje queda "sin asignar", que es lo que la oficina tiene que mirar.
+ */
+export interface ClienteDelViaje {
+  /** El primero que se le cobra, o el tipo de viaje en los clásicos. `null` = sin asignar. */
+  nombre: string | null;
+  /** Cuántos más, distintos del primero. */
+  mas: number;
+  /** El nombre es el del tipo de viaje y no un cobro asignado. */
+  deTipo: boolean;
+  /** Alguna carga todavía no tiene a quién cobrarle. */
+  faltaAsignar: boolean;
+}
+
+export function clienteDelViaje(
+  trip: Pick<Trip, "provider_name"> & { segments?: Pick<TripSegment, "cobro_a">[] },
+  combinado: boolean,
+): ClienteDelViaje {
+  const cargas = trip.segments ?? [];
+  const cobros: string[] = [];
+  for (const c of cargas) {
+    const nombre = c.cobro_a?.trim();
+    if (nombre && !cobros.some((x) => x.toLocaleLowerCase("es") === nombre.toLocaleLowerCase("es"))) cobros.push(nombre);
+  }
+  const faltaAsignar = cargas.some((c) => !c.cobro_a?.trim());
+  if (cobros.length) return { nombre: cobros[0], mas: cobros.length - 1, deTipo: false, faltaAsignar };
+
+  // Sin cobro en ninguna carga. Un clásico de un solo tramo se cobra al cliente del viaje.
+  const tipo = trip.provider_name?.trim();
+  if (!combinado && cargas.length === 0 && tipo) return { nombre: tipo, mas: 0, deTipo: true, faltaAsignar: false };
+  return { nombre: null, mas: 0, deTipo: false, faltaAsignar: true };
+}
+
+/**
  * El aviso de viaje cerrado.
  *
  * "Que al finalizar un viaje le mande un aviso con toda la info: qué viaje fue, quién lo

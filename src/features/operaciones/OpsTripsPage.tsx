@@ -27,6 +27,11 @@ export function OpsTripsPage() {
   const [clientes, setClientes] = useState<{ nombre: string; cobra: boolean; soloCarga: boolean }[]>([]);
   const [plantillas, setPlantillas] = useState<TripTemplate[]>([]);
   const [facturas, setFacturas] = useState<string[]>([]);
+  // Las plantillas que arman el recorrido con cargas: ahí el nombre del viaje no es quien paga.
+  const combinados = useMemo(
+    () => new Set(plantillas.filter((p) => p.multi_renglon).map((p) => p.id)),
+    [plantillas],
+  );
   const [trips, setTrips] = useState<ViajeDeOficina[] | null>(null);
   /**
    * Los filtros viven en la dirección de la página, no en memoria.
@@ -266,13 +271,14 @@ export function OpsTripsPage() {
         <Empty>No hay viajes con esos filtros.</Empty>
       ) : (
         <Card className="overflow-x-auto p-0">
-          <table className="w-full min-w-[900px] text-sm">
+          <table className="w-full min-w-[1000px] text-sm">
             <thead className="text-left text-ink/60">
               <tr className="border-b border-ink/15">
                 {/* El N° es del mes: reinicia en 1 cada mes. Va primero y angosto porque es
                     para leerlo de un vistazo y para nombrar un viaje por teléfono. */}
                 <th className="px-3 py-3 text-right">N°</th>
                 <th className="px-4 py-3">Proveedor / Ruta</th>
+                <th className="px-4 py-3" title="A quién se le cobra">Cliente</th>
                 <th className="px-4 py-3">Chofer</th>
                 <th className="px-4 py-3">Camión</th>
                 {/* Decía "Ton" y la celda muestra kilos desde la migración 0039. */}
@@ -287,7 +293,12 @@ export function OpsTripsPage() {
             </thead>
             <tbody>
               {trips.map((t) => (
-                <FilaViaje key={t.id} t={t} onCambio={() => setVersion((v) => v + 1)} />
+                <FilaViaje
+                  key={t.id}
+                  t={t}
+                  combinado={combinados.has(t.template_id ?? -1)}
+                  onCambio={() => setVersion((v) => v + 1)}
+                />
               ))}
             </tbody>
           </table>

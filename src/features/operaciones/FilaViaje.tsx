@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   TRIP_STATUS,
+  clienteDelViaje,
   destinoVisible,
   estadoDeCobro,
   fmtKilos,
@@ -53,7 +54,16 @@ const COLOR_DE_FILA: Record<ReturnType<typeof estadoDeCobro>, string> = {
   pago: "bg-st-greenBg hover:bg-st-greenBg/70",
 };
 
-export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => void }) {
+export function FilaViaje({
+  t,
+  combinado,
+  onCambio,
+}: {
+  t: ViajeDeOficina;
+  /** El viaje arma su recorrido con cargas: ahí el nombre del viaje no es quien paga. */
+  combinado: boolean;
+  onCambio: () => void;
+}) {
   // "Vaya que toque un dedazo y borre algo jajaja." La fila es justo donde estaba el riesgo:
   // la fecha se corrige tocándola, y Borrar es un renglón de texto al lado de Corregir.
   const soloMirar = useSoloMirar();
@@ -66,6 +76,7 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const estado = estadoDeCobro(t);
+  const cliente = clienteDelViaje(t, combinado);
 
   /**
    * El tilde de facturado. "No tengo cómo poner un tick, color tipo Excel, a los facturados."
@@ -204,6 +215,27 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
           </div>
         )}
         {error && <div className="mt-1 max-w-xs text-xs text-st-redTx">{error}</div>}
+      </td>
+      {/* A quién se le cobra. Sólo se ve: no escribe nada ni toca el cobro. Sin nada asignado
+          dice "Sin asignar" en ámbar, para distinguirlo de un vistazo de una fila que sí tiene
+          cliente; el tipo de viaje, cuando es lo único que hay, va más apagado. */}
+      <td className="px-4 py-3">
+        {cliente.nombre ? (
+          <div
+            className={`max-w-[10rem] ${cliente.deTipo ? "text-ink/50" : "text-ink/80"}`}
+            title={cliente.deTipo ? "Tipo de viaje: todavía no hay un cobro asignado" : undefined}
+          >
+            {cliente.nombre}
+            {cliente.mas > 0 && <span className="ml-1 text-ink/45">+{cliente.mas}</span>}
+          </div>
+        ) : (
+          <span className="inline-block border border-st-amberBd bg-st-amberBg px-2 py-0.5 text-xs font-semibold text-st-amberTx">
+            Sin asignar
+          </span>
+        )}
+        {cliente.nombre && cliente.faltaAsignar && (
+          <div className="mt-0.5 text-[11px] font-semibold text-st-amberTx">falta asignar una carga</div>
+        )}
       </td>
       <td className="px-4 py-3 text-ink/70">{t.driver_name}</td>
       <td className="px-4 py-3 text-ink/70">{t.truck_plate}</td>
