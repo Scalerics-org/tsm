@@ -16,6 +16,7 @@ import { listTrips, listTripsFacturables } from "../repos/trips";
 import { columnasDeCampos, encabezado, filasDeViaje, resumenParaElCliente, planillaParaFacturar } from "../lib/export-viajes";
 import { csvResponse } from "../lib/csv";
 import { consumoDelCamion, consumoMensualDelCamion } from "../lib/consumo-camiones";
+import { verificarMeses } from "../../shared/verificacion-mensual";
 import { vaciosEntreViajes, kmVacios, vaciosDelPeriodo, paraVacios } from "../../shared/vacios";
 import { resumenCliente } from "../lib/resumen-cliente";
 import { listTemplates } from "../repos/templates";
@@ -115,11 +116,29 @@ reports.get("/summary", async (c) => {
     .sort((a, b) => b.trips - a.trips);
 
   const monthlyByTruck = trucks
-    .map((t) => ({
-      truck_id: t.id,
-      plate: t.plate,
-      months: consumoMensualDelCamion(allFuel.filter((f) => f.truck_id === t.id)),
-    }))
+    .map((t) => {
+      const surtidas = allFuel.filter((f) => f.truck_id === t.id);
+      // La verificación mensual del gasoil (Rodrigo, 22/9): los mismos km y litros de cada mes,
+      // más si se fueron del rango habitual de ESTE camión. Sólo acá: el lector no ve el Resumen.
+      const ver = verificarMeses(
+        surtidas.map((f) => ({
+          id: f.id,
+          odometer_km: f.odometer_km,
+          liters: f.liters,
+          is_full: !!f.is_full,
+          logged_at: f.logged_at,
+        })),
+      );
+      return {
+        truck_id: t.id,
+        plate: t.plate,
+        rango: { mediana: ver.mediana === null ? null : roundTo(ver.mediana, 2), tramos: ver.tramos },
+        months: consumoMensualDelCamion(surtidas).map((m) => ({
+          ...m,
+          verificacion: ver.meses.find((v) => v.month === m.month) ?? null,
+        })),
+      };
+    })
     .filter((t) => t.months.length > 0);
 
   return ok(c, {

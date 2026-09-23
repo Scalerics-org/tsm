@@ -12,6 +12,12 @@ interface MonthRow {
   liters: number;
   kml: number | null;
   closed: boolean;
+  /** La verificación del gasoil: si los litros alcanzan para los km de ESE mes. */
+  verificacion?: {
+    estado: "ok" | "faltan" | "sobran" | "en_curso" | "sin_datos";
+    titulo: string | null;
+    mensaje: string;
+  } | null;
 }
 interface Summary {
   totals: { trips: number; en_curso: number; completados: number; surtidas: number };
@@ -32,7 +38,13 @@ interface Summary {
     vacios_sin_km: number;
   }[];
   byProvider: { name: string; trips: number; completed: number; tons: number }[];
-  monthlyByTruck: { truck_id: number; plate: string; months: MonthRow[] }[];
+  monthlyByTruck: {
+    truck_id: number;
+    plate: string;
+    /** El km/L habitual de este camión, contra el que se compara cada mes. */
+    rango?: { mediana: number | null; tramos: number };
+    months: MonthRow[];
+  }[];
 }
 
 const MONTH_NAMES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -40,6 +52,14 @@ function monthLabel(m: string): string {
   const [y, mm] = m.split("-");
   return `${MONTH_NAMES[Number(mm) - 1]} ${y}`;
 }
+
+const BORDE_DEL_MES = {
+  ok: "border-l-st-blueDot",
+  en_curso: "border-l-st-blueDot",
+  sin_datos: "border-l-st-blueDot",
+  faltan: "border-l-st-redDot",
+  sobran: "border-l-st-amberDot",
+} as const;
 
 export function OpsSummary() {
   const [s, setS] = useState<Summary | null>(null);
@@ -246,6 +266,13 @@ export function OpsSummary() {
                 Cada mes arranca en la última surtida del mes anterior y cuenta todos los litros
                 cargados dentro del mes. El mes en curso queda abierto.
               </p>
+              {/* La verificación (Rodrigo, 22/9): el aviso sale sólo cuando el mes se va del
+                  rango habitual de ESE camión, y dice cuántos litros son, para ir a buscar la
+                  boleta. Si no alcanzan los datos para comparar, lo dice en vez de opinar. */}
+              <p className="mb-3 text-xs text-ink/50">
+                Cada mes se compara con el rendimiento habitual del propio camión: si los litros no
+                alcanzan para los kilómetros, falta una surtida por registrar.
+              </p>
               <div className="space-y-4">
                 {s.monthlyByTruck.map((t) => (
                   <div key={t.truck_id}>
@@ -255,9 +282,14 @@ export function OpsSummary() {
                     >
                       {t.plate} →
                     </Link>
+                    <span className="ml-3 text-xs text-ink/50">
+                      {t.rango?.mediana != null
+                        ? `Habitual: ${fmtConsumo(t.rango.mediana)} km/L`
+                        : "Todavía no alcanza para comparar: faltan surtidas de este camión"}
+                    </span>
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                       {t.months.map((m) => (
-                        <div key={m.month} className="border-l-4 border-l-st-blueDot bg-surface px-3 py-2">
+                        <div key={m.month} className={`border-l-4 bg-surface px-3 py-2 ${BORDE_DEL_MES[m.verificacion?.estado ?? "sin_datos"]}`}>
                           <div className="flex items-center justify-between">
                             <span className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-ink/60">
                               {monthLabel(m.month)}
@@ -272,6 +304,24 @@ export function OpsSummary() {
                           <div className="text-xs text-ink/55">
                             {m.liters.toLocaleString("es-UY")} L · {m.km.toLocaleString("es-UY")} km
                           </div>
+                          {/* Sólo habla cuando hay algo que decir: "dentro de lo habitual" es una línea
+                              chica, y el mes en curso o sin datos no dice nada para no dar una alarma
+                              falsa. */}
+                          {m.verificacion && m.verificacion.estado === "faltan" && (
+                            <p className="mt-1 text-xs font-semibold text-st-redTx">
+                              {m.verificacion.titulo}
+                              <span className="block font-normal">{m.verificacion.mensaje}</span>
+                            </p>
+                          )}
+                          {m.verificacion && m.verificacion.estado === "sobran" && (
+                            <p className="mt-1 text-xs font-semibold text-st-amberTx">
+                              {m.verificacion.titulo}
+                              <span className="block font-normal">{m.verificacion.mensaje}</span>
+                            </p>
+                          )}
+                          {m.verificacion && m.verificacion.estado === "ok" && (
+                            <p className="mt-1 text-xs text-st-greenTx">Dentro de lo habitual</p>
+                          )}
                         </div>
                       ))}
                     </div>

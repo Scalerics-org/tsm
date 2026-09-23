@@ -34,3 +34,29 @@ Para que la deducción no invente vacíos por errores de tipeo, los nombres de l
 antes de comparar (`"Montevideo"`, `"Mdeo"` y `"MONTEVIDEO"` cuentan como el mismo lugar) y hay un
 umbral mínimo, `KM_VACIO_MINIMO = 70`, fijado por el cliente: por debajo de eso no es un viaje
 vacío, es moverse dentro de la misma zona.
+
+## Sacarle la factura a un viaje también le saca el pago
+
+`desmarcarFacturados` (`api/repos/trips.ts`) limpia `pago_at` y `pago_by` junto con la factura. Un
+viaje verde sin factura no se entiende, y sacar la factura es corregir un error, no algo de todos
+los días. **Lo que se pierde:** el quién y el cuándo del pago. La factura que tenía queda en
+`factura_quitada`, pero el pago no deja rastro. La alternativa descartada era bloquear "sacar
+factura" mientras el viaje figure pago. Marcar el pago, en cambio, sólo agrega información: no toca
+la factura ni saca al viaje de ningún resumen (decidido con Rodrigo el 23/9/2026).
+
+## El campo de la factura también lleva "S/F" o a quién se le cobra
+
+`trips.factura_numero` es texto libre a propósito: la oficina anota el número de la factura, "S/F", o
+—cuando el viaje se arregla sin factura— a quién le corresponde pagarlo ("SAMAN"). Cualquiera de las
+tres lo deja como facturado y lo saca del resumen por cliente de lo que falta facturar, que es lo que
+Rodrigo ya hacía a mano. Sólo cambió cómo se lo nombra en la pantalla.
+
+## La verificación mensual del gasoil no es una cuenta nueva
+
+`shared/verificacion-mensual.ts` compara los litros de cada mes contra los km que hizo el camión,
+para encontrar la surtida que nadie registró. Reusa lo que ya existía: los km y litros del mes son
+los de `monthlyConsumption` (por calendario, con los chorros adentro, los mismos que muestra el
+Resumen) y "lo habitual" es la mediana de los tramos de ese camión (`rangoDeSurtidas`). Se calla en
+el mes en curso, con pocos tramos, con un mes medido desde su propia primera surtida y cuando la
+diferencia son pocos litros: una alarma falsa enseña a no mirar más la pantalla. La cámara de frío
+no entra (`surtidas_frio` va aparte porque no mueve kilómetros).
