@@ -216,20 +216,22 @@ export function FilaViaje({
         )}
         {error && <div className="mt-1 max-w-xs text-xs text-st-redTx">{error}</div>}
       </td>
-      {/* A quién se le cobra. Sólo se ve: no escribe nada ni toca el cobro. Sin nada asignado
-          dice "Sin asignar" en ámbar, para distinguirlo de un vistazo de una fila que sí tiene
-          cliente; el tipo de viaje, cuando es lo único que hay, va más apagado. */}
+      {/* A quién se le cobra. Sólo se ve: no escribe nada ni toca el cobro. "Sin asignar" es el
+          estado normal de la mayoría de los viajes con cargas (80 de 112 en producción), así que
+          va en gris, en cursiva y sin pastilla: un dato que falta, no una alarma. Se distingue del
+          tipo de viaje de los clásicos, que va en gris más oscuro y derecho. El ámbar queda sólo
+          para el viaje con una carga cobrada y otra sin cobrar, que sí es una inconsistencia. */}
       <td className="px-4 py-3">
         {cliente.nombre ? (
           <div
-            className={`max-w-[10rem] ${cliente.deTipo ? "text-ink/50" : "text-ink/80"}`}
+            className={`max-w-[10rem] ${cliente.deTipo ? "text-ink/60" : "text-ink/80"}`}
             title={cliente.deTipo ? "Tipo de viaje: todavía no hay un cobro asignado" : undefined}
           >
             {cliente.nombre}
             {cliente.mas > 0 && <span className="ml-1 text-ink/45">+{cliente.mas}</span>}
           </div>
         ) : (
-          <span className="inline-block border border-st-amberBd bg-st-amberBg px-2 py-0.5 text-xs font-semibold text-st-amberTx">
+          <span className="whitespace-nowrap italic text-ink/40" title="Todavía no hay a quién cobrarle este viaje">
             Sin asignar
           </span>
         )}
