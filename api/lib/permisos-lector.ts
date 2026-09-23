@@ -39,6 +39,13 @@ export const LO_QUE_MIRA_EL_LECTOR: PedidoPermitido[] = [
   // Bajarse el Excel de lo que está mirando sigue siendo mirar: no cambia un solo dato.
   { metodo: "GET", ruta: /^\/api\/reports\/trips\.csv$/, porque: "el Excel de la lista filtrada" },
 
+  // La pantalla de Consumo.
+  // "Si al usuario de mi hermano le agregamos el resumen de los consumos, para ver. Solo esas dos
+  // cosas: Viajes y Consumo." — Rodrigo, 22/9/2026. Es un endpoint propio y no `/reports/summary`
+  // a propósito: el resumen trae además los kilos por cliente y lo que se factura, y eso no se
+  // le abre. Éste devuelve sólo km, litros y rendimiento por camión.
+  { metodo: "GET", ruta: /^\/api\/reports\/consumo$/, porque: "el consumo por camión, sin kilos ni cobros" },
+
   // Los avisos en su celular. Escriben, pero sólo su propia suscripción.
   { metodo: "GET", ruta: /^\/api\/push\/clave$/, porque: "la clave VAPID para suscribir el celular" },
   { metodo: "GET", ruta: /^\/api\/push\/estado$/, porque: "si ya tiene los avisos prendidos" },

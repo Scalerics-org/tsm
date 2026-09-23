@@ -9,13 +9,13 @@ import {
   DRIVER_STATUS,
   ROLES,
   TRIP_STATUS,
-  consumoDelPeriodo,
   monthlyConsumption,
   type PendienteCobro,
   type Trip, destinoVisible } from "../../shared/domain";
 import { listTrips, listTripsFacturables } from "../repos/trips";
 import { columnasDeCampos, encabezado, filasDeViaje, resumenParaElCliente, planillaParaFacturar } from "../lib/export-viajes";
 import { csvResponse } from "../lib/csv";
+import { consumoDelCamion, consumoMensualDelCamion } from "../lib/consumo-camiones";
 import { vaciosEntreViajes, kmVacios, vaciosDelPeriodo, paraVacios } from "../../shared/vacios";
 import { resumenCliente } from "../lib/resumen-cliente";
 import { listTemplates } from "../repos/templates";
@@ -26,11 +26,11 @@ import { tripPhotoStatus } from "../repos/photos";
 
 const reports = new Hono<{ Bindings: Env; Variables: Vars }>();
 /**
- * El lector entra acá por UNA sola puerta: `trips.csv`, el Excel de la lista que está mirando.
- * El resto de los reportes —el resumen, las alertas, los pendientes de cobro, el Excel de
- * combustible— no los alcanza, porque `requireAuth` corre antes que este `requireRole` y su
- * lista blanca sólo tiene esa ruta. Está nombrado acá para que el permiso no parezca un
- * descuido al leer el archivo.
+ * El lector entra acá por DOS puertas: `trips.csv`, el Excel de la lista que está mirando, y
+ * `consumo`, el rendimiento por camión. El resto de los reportes —el resumen, las alertas, los
+ * pendientes de cobro, el Excel de combustible— no los alcanza, porque `requireAuth` corre antes
+ * que este `requireRole` y su lista blanca sólo tiene esas dos rutas. Está nombrado acá para que
+ * el permiso no parezca un descuido al leer el archivo.
  */
 reports.use("*", requireAuth, requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR));
 
@@ -76,8 +76,11 @@ reports.get("/summary", async (c) => {
     // período quedaba sin contra qué medirse. Es el mismo corte de mes que reportó el cliente,
     // y por eso esta tarjeta y la de consumo mensual decían cosas distintas del mismo camión
     // (10.816 km / 2,74 acá contra 11.197 / 2,77 abajo).
-    const tFuel = allFuel.filter((x) => x.truck_id === t.id);
-    const fs = consumoDelPeriodo(tFuel, range.from ?? "0000-01-01", range.to ?? "9999-12-31");
+    const fs = consumoDelCamion(
+      allFuel.filter((x) => x.truck_id === t.id),
+      range.from,
+      range.to,
+    );
     return {
       truck_id: t.id,
       plate: t.plate,
@@ -87,9 +90,9 @@ reports.get("/summary", async (c) => {
       tons: roundTo(
         tTrips.filter((x) => x.status !== TRIP_STATUS.CANCELADO).reduce((s, x) => s + (x.kilos_carga ?? 0), 0),
       ),
-      km: Math.round(fs.km),
-      liters: Math.round(fs.liters),
-      consumption_kml: fs.kml != null ? roundTo(fs.kml, 2) : null,
+      km: fs.km,
+      liters: fs.liters,
+      consumption_kml: fs.consumption_kml,
       // "No veo bien dónde quedó el resumen, identificado por camión." Estaba repartido entre
       // la ficha de cada camión y la letra chica de Control; acá queda en la tabla de todos.
       ...vaciosDelCamion(t.id),
@@ -115,19 +118,7 @@ reports.get("/summary", async (c) => {
     .map((t) => ({
       truck_id: t.id,
       plate: t.plate,
-      months: monthlyConsumption(
-        allFuel
-          .filter((f) => f.truck_id === t.id)
-          .map((f) => ({ odometer_km: f.odometer_km, liters: f.liters, is_full: !!f.is_full, logged_at: f.logged_at })),
-      )
-        .slice(0, 6)
-        .map((m) => ({
-          month: m.month,
-          km: Math.round(m.km),
-          liters: Math.round(m.liters),
-          kml: m.kml != null ? roundTo(m.kml, 2) : null,
-          closed: m.closed,
-        })),
+      months: consumoMensualDelCamion(allFuel.filter((f) => f.truck_id === t.id)),
     }))
     .filter((t) => t.months.length > 0);
 
@@ -142,6 +133,32 @@ reports.get("/summary", async (c) => {
     byProvider,
     monthlyByTruck,
   });
+});
+
+// ── Consumo por camión: la pantalla del "solo mirar" ──
+// Sólo el rendimiento. No trae kilos por cliente, cobros ni facturación, que es lo que hace que
+// el lector no pueda pedir `/summary`. Lo pueden pedir encargado, admin y lector; el lector
+// entra porque `permisos-lector.ts` lo nombra.
+reports.get("/consumo", async (c) => {
+  const q = c.req.query();
+  const [trucks, allFuel] = await Promise.all([listTrucks(c.env.DB), listFuelLogs(c.env.DB, {})]);
+
+  // Un camión sin una sola surtida no tiene nada que medir: queda afuera en vez de llenar la
+  // pantalla de filas en blanco.
+  const camiones = trucks.flatMap((t) => {
+    const surtidas = allFuel.filter((f) => f.truck_id === t.id);
+    if (surtidas.length === 0) return [];
+    return [
+      {
+        plate: t.plate,
+        expected_kml: t.avg_km_litro,
+        ...consumoDelCamion(surtidas, q.from, q.to),
+        months: consumoMensualDelCamion(surtidas),
+      },
+    ];
+  });
+
+  return ok(c, { camiones });
 });
 
 // ── Alertas de control ──

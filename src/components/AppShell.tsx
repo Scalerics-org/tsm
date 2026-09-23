@@ -75,13 +75,21 @@ const OPS_NAV: NavGroup[] = [
 ];
 
 /**
- * Qué ve el "solo mirar": Viajes y nada más.
+ * Qué ve el "solo mirar": Viajes y Consumo, y nada más.
  *
  * "A él le hacemos que vea SOLAMENTE LOS VIAJES (…). En principio solo viajes y ta, ahí le
- * queda bien facilito." — Rodrigo, 19/9. Un solo renglón no necesita grupos ni títulos, y el
- * Resumen no va porque es la pantalla que además muestra cobros.
+ * queda bien facilito." — Rodrigo, 19/9. Y el 22/9: "Solo esas dos cosas: Viajes y Consumo."
+ * Dos renglones no necesitan grupos ni títulos, y el Resumen no va porque es la pantalla que
+ * además muestra cobros: el Consumo es su propia pantalla, sin eso.
  */
-const LECTOR_NAV: NavGroup[] = [{ items: [{ to: "/panel/viajes", label: "Viajes" }] }];
+const LECTOR_NAV: NavGroup[] = [
+  {
+    items: [
+      { to: "/panel/viajes", label: "Viajes" },
+      { to: "/panel/consumo", label: "Consumo" },
+    ],
+  },
+];
 
 const ADMIN_NAV: NavGroup[] = [
   DIA,

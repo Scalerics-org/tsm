@@ -71,6 +71,9 @@ describe("el lector mira los viajes", () => {
     ["GET", "/api/photos/trips/7/carga-abc.jpg"],
     // Bajarse el Excel de lo que está mirando sigue siendo mirar.
     ["GET", "/api/reports/trips.csv"],
+    // La pantalla de Consumo (Rodrigo, 22/9).
+    ["GET", "/api/reports/consumo"],
+    ["GET", "/api/reports/consumo?from=2026-09-01&to=2026-09-30"],
   ])("%s %s no lo frena el rol", async (method, url) => {
     expect(await status(method, url, ROLES.LECTOR)).not.toBe(403);
   });
@@ -203,5 +206,98 @@ describe("el lector sí prende sus avisos", () => {
     } as unknown as D1Database;
     await suscripcionesDeOficina(db);
     expect(sql).toContain("lector");
+  });
+});
+
+describe("la pantalla de Consumo del lector", () => {
+  const surtida = (id: number, km: number, litros: number, dia: string) => ({
+    id,
+    truck_id: 1,
+    odometer_km: km,
+    liters: litros,
+    is_full: 1,
+    logged_at: `${dia} 12:00:00`,
+  });
+
+  function dbConSurtidas() {
+    return {
+      prepare(sql: string) {
+        const q = sql.toLowerCase();
+        const stmt = {
+          bind: () => stmt,
+          first: async () => (q.includes("from users") ? { id: 2 } : null),
+          all: async () => {
+            if (q.includes("from trucks")) {
+              return {
+                results: [
+                  { id: 1, plate: "GTP 4301", avg_km_litro: 2.8 },
+                  { id: 2, plate: "GTP 4302", avg_km_litro: 2.8 },
+                ],
+              };
+            }
+            if (q.includes("from fuel_logs")) {
+              return {
+                results: [
+                  surtida(3, 10800, 400, "2026-09-20"),
+                  surtida(2, 10000, 300, "2026-09-10"),
+                  surtida(1, 9000, 350, "2026-08-25"),
+                ],
+              };
+            }
+            return { results: [] };
+          },
+          run: async () => ({ meta: { last_row_id: 1, changes: 1 } }),
+        };
+        return stmt;
+      },
+      batch: async () => [],
+    } as unknown as D1Database;
+  }
+
+  async function pedirConsumo(role: string) {
+    const token = await signToken(
+      { id: 2, name: "Aníbal", role, driver_id: null, truck_id: null, email: null } as any,
+      SECRET,
+    );
+    return app.request(
+      "/api/reports/consumo",
+      { headers: { authorization: `Bearer ${token}` } },
+      { DB: dbConSurtidas(), JWT_SECRET: SECRET } as any,
+    );
+  }
+
+  it("devuelve el rendimiento por camión y nada de kilos ni cobros", async () => {
+    const res = await pedirConsumo(ROLES.LECTOR);
+    expect(res.status).toBe(200);
+    const { data } = (await res.json()) as { data: { camiones: Record<string, unknown>[] } };
+
+    // Solo el camión que tiene surtidas: el otro no tiene nada que medir.
+    expect(data.camiones).toHaveLength(1);
+    const [camion] = data.camiones;
+    expect(camion.plate).toBe("GTP 4301");
+    expect(camion.expected_kml).toBe(2.8);
+    expect(Object.keys(camion).sort()).toEqual(
+      ["consumption_kml", "expected_kml", "km", "liters", "months", "plate"].sort(),
+    );
+    expect((camion.months as unknown[]).length).toBeGreaterThan(0);
+  });
+
+  it("el lector no puede pedir el resumen, que sí trae kilos por cliente", async () => {
+    expect(await status("GET", "/api/reports/summary", ROLES.LECTOR)).toBe(403);
+  });
+
+  it("la oficina lo pide igual que antes", async () => {
+    expect((await pedirConsumo(ROLES.ENCARGADO)).status).toBe(200);
+    expect((await pedirConsumo(ROLES.ADMIN)).status).toBe(200);
+  });
+
+  it("un chofer no puede pedirlo", async () => {
+    expect((await pedirConsumo(ROLES.CHOFER)).status).toBe(403);
+  });
+
+  it("y sigue sin poder escribir en esa ruta", async () => {
+    for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+      expect(await status(method, "/api/reports/consumo", ROLES.LECTOR)).toBe(403);
+    }
   });
 });

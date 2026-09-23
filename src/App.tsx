@@ -12,6 +12,7 @@ import { FuelPage } from "./features/chofer/FuelPage";
 import { FrioFuelPage } from "./features/chofer/FrioFuelPage";
 import { OpsSummary } from "./features/operaciones/OpsSummary";
 import { OpsTripsPage } from "./features/operaciones/OpsTripsPage";
+import { ConsumoPage } from "./features/operaciones/ConsumoPage";
 import { ResumenClientePage } from "./features/operaciones/ResumenClientePage";
 import { NuevoViajePage } from "./features/operaciones/NuevoViajePage";
 import { OpsTripDetailPage } from "./features/operaciones/OpsTripDetailPage";
@@ -69,7 +70,7 @@ export default function App() {
   // Plantillas, clientes, proveedores y lugares: sólo admin. Operaciones ve el día, choferes y
   // camiones (Rodrigo, 16/9).
   const ADM: Role[] = [ROLES.ADMIN];
-  // Las dos únicas pantallas del "solo mirar": la lista de viajes y la ficha de uno.
+  // Las pantallas del "solo mirar": la lista de viajes, la ficha de uno y el Consumo.
   // Cualquier otra dirección de /panel lo rebota a Viajes, que es su casa.
   const VER: Role[] = [ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR];
 
@@ -90,6 +91,7 @@ export default function App() {
         <Route path="/panel" element={<RequireRole roles={OPS}><OpsSummary /></RequireRole>} />
         <Route path="/panel/control" element={<RequireRole roles={OPS}><ControlPage /></RequireRole>} />
         <Route path="/panel/viajes" element={<RequireRole roles={VER}><OpsTripsPage /></RequireRole>} />
+        <Route path="/panel/consumo" element={<RequireRole roles={VER}><ConsumoPage /></RequireRole>} />
         <Route path="/panel/resumen-cliente" element={<RequireRole roles={OPS}><ResumenClientePage /></RequireRole>} />
         <Route path="/panel/viajes/nuevo" element={<RequireRole roles={OPS}><NuevoViajePage /></RequireRole>} />
         <Route path="/panel/viajes/:id" element={<RequireRole roles={VER}><OpsTripDetailPage /></RequireRole>} />
