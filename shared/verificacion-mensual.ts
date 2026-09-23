@@ -102,7 +102,9 @@ export function verificarMeses(surtidas: SurtidaParaRango[], umbral = DESVIO_SUR
         ...base,
         estado: "faltan",
         titulo: `Le faltan unos ${litros(diferencia)} L sin registrar`,
-        mensaje: `${cuenta} Buscá la boleta.`,
+        // El mes se corta en la última surtida del anterior: la que nadie registró puede ser de
+        // fines del mes pasado, y es lo que más desconcierta si no se dice.
+        mensaje: `${cuenta} Buscá la boleta; puede ser una surtida de fin del mes pasado.`,
       };
     }
     return {
