@@ -17,6 +17,7 @@ import {
   aplicarCobro,
   avisoViajeCerrado,
   destinoVisible,
+  origenVisible,
   fotosFaltantes,
   parseRenglon,
   recorridoSegunCargas,
@@ -260,7 +261,7 @@ trips.post("/", async (c) => {
     if (abierto) {
       return fail(
         c,
-        `Todavía tenés un viaje sin cerrar: ${abierto.origin} → ${destinoVisible(abierto)}. Registrá la llegada antes de empezar otro.`,
+        `Todavía tenés un viaje sin cerrar: ${origenVisible(abierto)} → ${destinoVisible(abierto)}. Registrá la llegada antes de empezar otro.`,
         409,
       );
     }

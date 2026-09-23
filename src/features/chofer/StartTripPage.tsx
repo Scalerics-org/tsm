@@ -143,6 +143,11 @@ export function StartTripPage() {
    * dos veces el mismo dato —con tres cargas eran catorce pasos y dos repetidos— y encima
    * ambiguo: si carga en Artigas y en Salto y descarga todo en Montevideo, no hay un solo
    * "origen del viaje". El backend lo arma con la primera y la última carga.
+   *
+   * Lo mismo vale para el ORIGEN: `recalcularRecorrido` lo pisa con el de la primera carga, así
+   * que la respuesta de acá se tiraba. El chofer elegía "Salto", cargaba en Artigas y el viaje
+   * quedaba en Artigas; y al agregar la carga se le pedía otra vez el departamento donde cargó
+   * ("Otros Viajes", Rodrigo 22/9). Por eso tampoco se dibuja ni se exige el origen.
    */
   const recorridoPorCarga = !!tpl.multi_renglon && !!tpl.renglon_pide_ubicacion;
 
@@ -180,7 +185,13 @@ export function StartTripPage() {
     // contesta con el mensaje del camión, que no dice qué hacer.
     if (!truckId) return setError("Elegí con qué camión salís.");
     // Los de texto se validan igual que los de lista: si son obligatorios, no pasan vacios.
-    if (cu.origen && cu.origen.modo !== CAMPO_MODO.FIJO && cu.origen.requerido !== false && !origenFinal) {
+    if (
+      !recorridoPorCarga &&
+      cu.origen &&
+      cu.origen.modo !== CAMPO_MODO.FIJO &&
+      cu.origen.requerido !== false &&
+      !origenFinal
+    ) {
       return setError("Elegí el origen.");
     }
     if (cu.remitente && cu.remitente.modo !== CAMPO_MODO.FIJO && cu.remitente.requerido !== false && !remitenteFinal) {
@@ -270,7 +281,7 @@ export function StartTripPage() {
           <ErrorText>Este viaje no lo hace ese camión. Elegí otro camión o volvé atrás.</ErrorText>
         )}
         {/* Partes que la plantilla resuelve con la libreta. Las fijas ya vienen resueltas. */}
-        {cu.origen?.modo === CAMPO_MODO.LIBRETA && (
+        {!recorridoPorCarga && cu.origen?.modo === CAMPO_MODO.LIBRETA && (
           <LibretaPicker
             tipo={cu.origen.libreta_tipo ?? "lugar"}
             label={cu.origen.label ?? "Origen / Lugar de carga"}
@@ -281,7 +292,7 @@ export function StartTripPage() {
           />
         )}
         {/* Los "completar" de la planilla: lugares puntuales que cambian cada viaje. */}
-        {cu.origen?.modo === CAMPO_MODO.TEXTO && (
+        {!recorridoPorCarga && cu.origen?.modo === CAMPO_MODO.TEXTO && (
           <Field label={cu.origen.label ?? "Origen"}>
             <input
               className="input"

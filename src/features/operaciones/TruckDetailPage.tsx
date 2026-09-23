@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { destinoVisible, fmtConsumo, fmtKilos, type FuelLog, type Trip, type Truck } from "@shared/domain";
+import { destinoVisible, origenVisible, fmtConsumo, fmtKilos, type FuelLog, type Trip, type Truck } from "@shared/domain";
 import { api, mensajeDe } from "../../lib/api";
 import { Card, Corners, ErrorDeCarga, Spinner, Stat, StatusBadge } from "../../components/ui";
 import { SurtidaRow } from "./SurtidaRow";
@@ -136,7 +136,7 @@ export function TruckDetailPage() {
               <tr key={t.id} className="border-b border-ink/10">
                 <td className="px-4 py-2">
                   <Link to={`/panel/viajes/${t.id}`} className="text-ink hover:text-brand-700">
-                    {t.origin} → {destinoVisible(t)}
+                    {origenVisible(t)} → {destinoVisible(t)}
                   </Link>
                   <div className="text-xs text-ink/50">{t.provider_name} · {t.driver_name}</div>
                 </td>

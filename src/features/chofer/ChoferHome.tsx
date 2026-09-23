@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { destinoVisible, type Trip, type TripTemplate } from "@shared/domain";
+import { destinoVisible, origenVisible, type Trip, type TripTemplate } from "@shared/domain";
 import { api } from "../../lib/api";
 import { Corners, Spinner, StatusBadge } from "../../components/ui";
 import { estimateTravel, fmtDuration } from "../../lib/eta";
@@ -79,7 +79,7 @@ export function ChoferHome() {
             <span className="font-cond text-sm font-semibold text-brand-700">Continuar →</span>
           </div>
           <div className="mt-2 font-cond text-2xl font-semibold leading-tight text-ink">
-            {active.origin} → {destinoVisible(active)}
+            {origenVisible(active)} → {destinoVisible(active)}
             {active.destinatario ? ` (${active.destinatario})` : ""}
           </div>
           <div className="mt-1 text-sm text-ink/60">

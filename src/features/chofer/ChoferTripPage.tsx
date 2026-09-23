@@ -6,6 +6,7 @@ import {
   PHOTO_KIND_LABEL,
   TRIP_STATUS,
   destinoVisible,
+  origenVisible,
   type CamposUbicacion,
   type PhotoKind,
   type TemplateField,
@@ -91,7 +92,7 @@ export function ChoferTripPage() {
         <div>
           <div className="kicker">{trip.provider_name}</div>
           <h1 className="text-2xl text-ink">
-            {trip.origin} → {destinoVisible(trip)}
+            {origenVisible(trip)} → {destinoVisible(trip)}
           </h1>
           <p className="text-sm text-ink/60">
             {trip.destinatario ? `${trip.destinatario} · ` : ""}🚛 {trip.truck_plate}

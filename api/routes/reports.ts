@@ -11,7 +11,7 @@ import {
   TRIP_STATUS,
   monthlyConsumption,
   type PendienteCobro,
-  type Trip, destinoVisible } from "../../shared/domain";
+  type Trip, destinoVisible, origenVisible } from "../../shared/domain";
 import { listTrips, listTripsFacturables } from "../repos/trips";
 import { columnasDeCampos, encabezado, filasDeViaje, resumenParaElCliente, planillaParaFacturar } from "../lib/export-viajes";
 import { csvResponse } from "../lib/csv";
@@ -183,7 +183,7 @@ reports.get("/alerts", async (c) => {
     .map((t) => ({
       id: t.id,
       provider_name: t.provider_name,
-      origin: t.origin,
+      origin: origenVisible(t),
       // Un internacional en curso todavía no tiene destino (se pide al cerrar): sin esto Control
       // mostraba "Salto → " con la flecha colgando.
       destination: destinoVisible(t),
@@ -201,7 +201,7 @@ reports.get("/alerts", async (c) => {
     .map((p) => ({
       id: p.id,
       provider_name: p.provider_name,
-      origin: p.origin,
+      origin: origenVisible(p),
       destination: destinoVisible(p),
       driver_name: p.driver_name,
       missing: p.missing,

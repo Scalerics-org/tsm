@@ -1225,6 +1225,18 @@ export function destinoVisible(trip: Pick<Trip, "destination">): string {
   return trip.destination?.trim() || DESTINO_A_DEFINIR;
 }
 
+/** Texto que se muestra mientras el viaje todavía no sabe de dónde sale. */
+export const ORIGEN_A_DEFINIR = "origen a definir";
+
+/**
+ * El origen para mostrar. En los viajes donde el recorrido lo arman las cargas ("Otros
+ * Viajes") el chofer ya no elige el origen al salir: el viaje nace sin él y lo toma de la primera
+ * carga. Hasta entonces, un " → destino a definir" a secas parece un viaje roto.
+ */
+export function origenVisible(trip: Pick<Trip, "origin">): string {
+  return trip.origin?.trim() || ORIGEN_A_DEFINIR;
+}
+
 /**
  * El aviso de viaje cerrado.
  *
@@ -1270,7 +1282,7 @@ export function avisoViajeCerrado(
   const destino = trip.destinatario ? `${destinoVisible(trip)} (${trip.destinatario})` : destinoVisible(trip);
   return {
     title: `Viaje cerrado · ${trip.provider_name}`,
-    body: [`${trip.origin} → ${destino}`, ...lineas].join("\n"),
+    body: [`${origenVisible(trip)} → ${destino}`, ...lineas].join("\n"),
     url: `/panel/viajes/${trip.id}`,
     tag: `viaje-${trip.id}`,
   };
