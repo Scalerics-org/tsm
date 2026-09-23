@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   LIBRETA_TIPO,
   PHOTO_KIND,
@@ -14,6 +14,7 @@ import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
 import { LibretaPicker } from "../../components/LibretaPicker";
 import { CameraCapture } from "../../components/CameraCapture";
+import { FotosVarias } from "../../components/FotosVarias";
 import { compressImage } from "../../lib/image";
 
 interface Props {
@@ -293,7 +294,11 @@ function NuevaCarga({
   // que ya usan "+ Cargar viaje" y completar cantidad. Con kilos por defecto, el chofer que
   // tipeaba "2" pensando en pallets guardaba 2 kilos: en producción hay cuatro así.
   const [unidad, setUnidad] = useState<Unidad>(UNIDAD.PALLETS);
-  const [foto, setFoto] = useState<File | null>(null);
+  const [fotos, setFotos] = useState<File[]>([]);
+  // La carga ya quedó guardada pero falló alguna foto: al reintentar NO se vuelve a crear la
+  // carga —quedaría duplicada—, sólo se suben las fotos que faltan.
+  const guardada = useRef<{ sid: string; subidas: number } | null>(null);
+  const [yaGuardada, setYaGuardada] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -331,14 +336,15 @@ function NuevaCarga({
       if (pideDepartamento && !origen) return setError("Elegí el departamento donde cargaste.");
       if (!lugar) return setError("Elegí dónde cargaste.");
     }
-    if (pideFoto && !foto) return setError("Sacá la foto de esta carga.");
+    if (pideFoto && fotos.length === 0) return setError("Sacá la foto de esta carga.");
     setError("");
     setBusy(true);
     try {
       // El sid lo genera el celular para poder subir la foto sin esperar respuesta;
-      // el backend lo respeta y garantiza que no choque con otro.
-      const sid = crypto.randomUUID();
-      await api.post(`/trips/${tripId}/segments`, {
+      // el backend lo respeta y garantiza que no choque con otro. Si la carga ya se guardó en un
+      // intento anterior, se sigue con el mismo y no se crea otra.
+      const sid = guardada.current?.sid ?? crypto.randomUUID();
+      if (!guardada.current) await api.post(`/trips/${tripId}/segments`, {
         segments: [
           {
             sid,
@@ -359,9 +365,12 @@ function NuevaCarga({
           },
         ],
       });
-      if (foto) {
+      const avance = (guardada.current ??= { sid, subidas: 0 });
+      // Todas con el mismo `segment_sid`: son fotos de una misma carga. Si una falla, las que ya
+      // subieron no se repiten al reintentar.
+      for (; avance.subidas < fotos.length; avance.subidas++) {
         const fd = new FormData();
-        fd.append("file", await compressImage(foto));
+        fd.append("file", await compressImage(fotos[avance.subidas]));
         fd.append("trip_id", String(tripId));
         fd.append("kind", PHOTO_KIND.CARGA);
         fd.append("segment_sid", sid);
@@ -369,7 +378,15 @@ function NuevaCarga({
       }
       onSaved(seguirCargando);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "No se pudo guardar la carga");
+      const razon = e instanceof ApiError ? e.message : null;
+      if (guardada.current) {
+        setYaGuardada(true);
+        setError(
+          `La carga quedó guardada, pero no se pudo subir la foto ${guardada.current.subidas + 1} de ${fotos.length}${razon ? ` (${razon})` : ""}. Tocá guardar de nuevo para reintentar.`,
+        );
+      } else {
+        setError(razon ?? "No se pudo guardar la carga");
+      }
     } finally {
       setBusy(false);
     }
@@ -512,9 +529,14 @@ function NuevaCarga({
         </div>
       </div>
 
-      <CameraCapture
+      {/* Una o varias: "que te dé la opción de sacar una foto más" (Rodrigo, 22/9). Con la carga
+          ya guardada y una foto sin subir, la lista se congela para que el reintento suba
+          exactamente las mismas. */}
+      <FotosVarias
         label={pideFoto ? "Foto de esta carga" : "Foto de esta carga (opcional)"}
-        onChange={setFoto}
+        fotos={fotos}
+        onChange={setFotos}
+        disabled={busy || yaGuardada}
       />
 
       <ErrorText>{error}</ErrorText>
