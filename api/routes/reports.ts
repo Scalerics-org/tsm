@@ -348,6 +348,8 @@ reports.get("/trips.csv", async (c) => {
     cliente: q.cliente || undefined,
     templateId: Number(q.plantilla) > 0 ? Number(q.plantilla) : undefined,
     facturado: q.facturado === "si" || q.facturado === "no" ? (q.facturado as "si" | "no") : undefined,
+    pago: q.pago === "si" || q.pago === "no" ? (q.pago as "si" | "no") : undefined,
+    factura: q.factura?.trim() || undefined,
     driverId: q.driver ? Number(q.driver) : undefined,
     truckId: q.truck ? Number(q.truck) : undefined,
     status: (q.status as Trip["status"]) || undefined,

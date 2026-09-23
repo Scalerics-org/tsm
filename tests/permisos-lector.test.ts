@@ -63,6 +63,9 @@ describe("el lector mira los viajes", () => {
     ["GET", "/api/trips?truck=3&facturado=si"],
     ["GET", "/api/trips/7"],
     ["GET", "/api/trips/clientes"],
+    // El filtro por factura o referencia, y los dos filtros nuevos de la lista (Rodrigo, 23/9).
+    ["GET", "/api/trips/facturas"],
+    ["GET", "/api/trips?pago=no&factura=SAMAN"],
     ["GET", "/api/drivers"],
     ["GET", "/api/trucks"],
     ["GET", "/api/providers"],
@@ -97,6 +100,9 @@ describe("el lector no toca nada", () => {
     // Facturación: es lo que mira, no lo que mueve.
     ["POST", "/api/facturacion/marcar"],
     ["POST", "/api/facturacion/desmarcar"],
+    // El tilde de pago es de oficina: el lector lo ve, no lo mueve.
+    ["POST", "/api/facturacion/marcar-pago"],
+    ["POST", "/api/facturacion/desmarcar-pago"],
     ["GET", "/api/facturacion/resumen"],
     // Fotos: subir y —sobre todo— borrar.
     ["POST", "/api/photos"],

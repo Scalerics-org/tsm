@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { TRIP_STATUS, destinoVisible, fmtKilos, origenVisible, type Trip } from "@shared/domain";
+import {
+  TRIP_STATUS,
+  destinoVisible,
+  estadoDeCobro,
+  fmtKilos,
+  origenVisible,
+  recorridoVisible,
+  type Trip,
+} from "@shared/domain";
 import { api, ApiError } from "../../lib/api";
 import { Spinner, StatusBadge } from "../../components/ui";
 import { fmtDate, fmtDateTime } from "../../lib/format";
@@ -22,6 +30,8 @@ export type ViajeDeOficina = Trip & {
   factura_numero?: string | null;
   facturado_at?: string | null;
   factura_quitada?: string | null;
+  /** Cuándo se cobró. Sólo tiene sentido con factura o referencia. */
+  pago_at?: string | null;
 };
 
 /**
@@ -29,6 +39,19 @@ export type ViajeDeOficina = Trip & {
  * varios viajes seguidos de la lista. Vive mientras la pestaña esté abierta.
  */
 let ultimaFactura = "";
+
+/**
+ * Lo que pide el diálogo, y cómo se llama la columna. El campo es texto libre y la oficina lo usa
+ * para dos cosas: el número de la factura, o —cuando el viaje se arregla sin factura— a quién le
+ * corresponde pagarlo ("SAMAN"), o "S/F". Cualquiera de las tres lo deja como facturado.
+ */
+const TEXTO_FACTURA = "N° de factura, S/F, o a quién se le cobra (por ejemplo SAMAN)";
+
+const COLOR_DE_FILA: Record<ReturnType<typeof estadoDeCobro>, string> = {
+  sin_facturar: "hover:bg-surface",
+  facturado: "bg-st-redBg hover:bg-st-redBg/70",
+  pago: "bg-st-greenBg hover:bg-st-greenBg/70",
+};
 
 export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => void }) {
   // "Vaya que toque un dedazo y borre algo jajaja." La fila es justo donde estaba el riesgo:
@@ -42,6 +65,7 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
   const [borrador, setBorrador] = useState(t.started_at.slice(0, 10));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const estado = estadoDeCobro(t);
 
   /**
    * El tilde de facturado. "No tengo cómo poner un tick, color tipo Excel, a los facturados."
@@ -57,7 +81,7 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
       if (!confirm(`¿Sacarle la factura ${t.factura_numero} a este viaje? Vuelve a quedar sin facturar.`)) return;
       cuerpo = { trip_ids: [t.id] };
     } else {
-      const numero = prompt("Número de la factura", ultimaFactura || t.factura_quitada || "")?.trim();
+      const numero = prompt(TEXTO_FACTURA, ultimaFactura || t.factura_quitada || "")?.trim();
       if (!numero) return;
       ultimaFactura = numero;
       cuerpo = { trip_ids: [t.id], factura_numero: numero };
@@ -69,6 +93,26 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
       onCambio();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "No se pudo guardar la factura");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * El tilde de pago: "cuando paguen le pongo sí en otro tick y queda en verde". Sólo agrega
+   * información: no toca la factura. Sin factura o referencia no hay nada que cobrar, y el tilde
+   * queda apagado.
+   */
+  async function alternarPago() {
+    const pago = estado === "pago";
+    if (pago && !confirm(`¿Sacarle el pago a este viaje? Sigue facturado (${t.factura_numero}), sin cobrar.`)) return;
+    setError("");
+    setBusy(true);
+    try {
+      await api.post(pago ? "/facturacion/desmarcar-pago" : "/facturacion/marcar-pago", { trip_ids: [t.id] });
+      onCambio();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudo guardar el pago");
     } finally {
       setBusy(false);
     }
@@ -131,8 +175,10 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
   }
 
   return (
-    // Verde tipo Excel en toda la fila: facturado se lee de lejos, sin buscar la columna.
-    <tr className={`border-b border-ink/10 ${t.factura_numero ? "bg-st-greenBg hover:bg-st-greenBg/70" : "hover:bg-surface"}`}>
+    // Los tres colores del Excel: blanco sin facturar, rojo facturado y sin cobrar, verde
+    // facturado y pago. Se lee de lejos, sin buscar la columna; y sin el color, el tilde de
+    // Facturado y el de Pago dicen lo mismo.
+    <tr className={`border-b border-ink/10 ${COLOR_DE_FILA[estado]}`}>
       {/* El número del mes. Tabular para que las unidades queden alineadas entre filas, y
           apagado porque es una referencia: lo que se lee primero es el recorrido. */}
       <td className="px-3 py-3 text-right font-cond tabular-nums text-ink/45">
@@ -140,7 +186,7 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
       </td>
       <td className="px-4 py-3">
         <Link to={`/panel/viajes/${t.id}`} state={desde} className="font-medium text-ink hover:text-brand-700">
-          {origenVisible(t)} → {destinoVisible(t)}
+          {recorridoVisible(t)}
         </Link>
         <div className="text-xs text-ink/50">
           {t.provider_name}
@@ -219,10 +265,10 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
             aria-pressed={!!t.factura_numero}
             title={
               t.factura_numero
-                ? `Factura ${t.factura_numero}.${soloMirar ? "" : " Tocá para sacarla."}`
+                ? `${t.factura_numero}.${soloMirar ? "" : " Tocá para sacarla."}`
                 : soloMirar
                   ? "Sin facturar"
-                  : "Marcar como facturado"
+                  : "Marcar como facturado: número de factura, S/F o a quién se le cobra"
             }
             className={`flex h-6 w-6 items-center justify-center border transition disabled:opacity-40 ${
               t.factura_numero
@@ -238,7 +284,41 @@ export function FilaViaje({ t, onCambio }: { t: ViajeDeOficina; onCambio: () => 
           // En curso o cancelado: todavía no hay nada que facturar.
           <span className="text-ink/30" title="Sólo se factura un viaje completado">—</span>
         )}
-        {t.factura_numero && <div className="mt-1 text-[11px] text-st-greenTx">{t.factura_numero}</div>}
+        {t.factura_numero && (
+          <div className={`mt-1 text-[11px] ${estado === "pago" ? "text-st-greenTx" : "text-st-redTx"}`}>{t.factura_numero}</div>
+        )}
+      </td>
+      {/* El tilde de pago, en su propia columna. Apagado mientras el viaje no tenga factura o
+          referencia, y para el lector: mirar qué está cobrado sí, cambiarlo no. */}
+      <td className="px-4 py-3">
+        {t.factura_numero ? (
+          <button
+            type="button"
+            onClick={alternarPago}
+            disabled={busy || soloMirar}
+            aria-pressed={estado === "pago"}
+            title={
+              estado === "pago"
+                ? `Pago.${soloMirar ? "" : " Tocá para sacarlo."}`
+                : soloMirar
+                  ? "Sin pagar"
+                  : "Marcar como pago"
+            }
+            className={`flex h-6 w-6 items-center justify-center border transition disabled:opacity-40 ${
+              estado === "pago"
+                ? "border-st-greenDot bg-st-greenDot text-bg"
+                : "border-ink/25 text-transparent hover:border-brand hover:text-ink/25"
+            }`}
+          >
+            <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M3 8.5l3.5 3.5L13 4.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        ) : (
+          <span className="text-ink/30" title="Primero tiene que tener factura o referencia: sin eso no hay nada que cobrar">
+            —
+          </span>
+        )}
       </td>
       <td className="px-4 py-3 text-right">
         {soloMirar ? (

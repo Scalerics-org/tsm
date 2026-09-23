@@ -1238,6 +1238,48 @@ export function origenVisible(trip: Pick<Trip, "origin">): string {
 }
 
 /**
+ * El recorrido completo del viaje, con todas las paradas: "Mdeo → Salto → BU".
+ *
+ * "Mdeo → BU" a secas no distingue dos viajes de "Otros Viajes" que pasan por lugares distintos
+ * (Rodrigo, 23/9). Sale de las cargas: cada una trae de dónde a dónde fue, y las paradas
+ * repetidas seguidas se cuentan una vez ("Salto" al descargar y "Salto" al volver a cargar).
+ *
+ * Sin cargas con ubicación —los viajes de recorrido fijo—, es el de siempre: origen → destino.
+ * El destino del viaje NO se agrega después de las cargas: en una ida y vuelta (Artigas → Minas
+ * → Artigas) la última carga ya dice dónde terminó, y sumarlo mostraba un tramo que no existió.
+ */
+export function recorridoVisible(
+  trip: Pick<Trip, "origin" | "destination"> & { segments?: Pick<TripSegment, "origen" | "destino">[] },
+): string {
+  const deLasCargas = (trip.segments ?? []).flatMap((s) => [s.origen, s.destino]);
+  // Sin ubicación en las cargas no hay paradas intermedias que contar: el de siempre.
+  if (!deLasCargas.some((p) => p?.trim())) return `${origenVisible(trip)} → ${destinoVisible(trip)}`;
+
+  const enOrden: string[] = [];
+  for (const p of [trip.origin, ...deLasCargas]) {
+    const lugar = p?.trim();
+    if (!lugar) continue;
+    if (enOrden[enOrden.length - 1]?.toLocaleLowerCase("es") === lugar.toLocaleLowerCase("es")) continue;
+    enOrden.push(lugar);
+  }
+  // Una sola parada: cargó y descargó en el mismo lugar. Se muestra como el tramo que fue.
+  return enOrden.length === 1 ? `${enOrden[0]} → ${enOrden[0]}` : enOrden.join(" → ");
+}
+
+/**
+ * En qué punto del cobro está un viaje: blanco, rojo o verde en el Excel de Rodrigo.
+ *
+ * "Blanco: sin facturar. Rojo: facturado y no pago. Verde: facturado y pago." El pago sólo cuenta
+ * con factura o referencia: sin ella no hay nada cobrado, aunque la base traiga una marca suelta.
+ */
+export type EstadoDeCobro = "sin_facturar" | "facturado" | "pago";
+
+export function estadoDeCobro(t: { factura_numero?: string | null; pago_at?: string | null }): EstadoDeCobro {
+  if (!t.factura_numero) return "sin_facturar";
+  return t.pago_at ? "pago" : "facturado";
+}
+
+/**
  * El aviso de viaje cerrado.
  *
  * "Que al finalizar un viaje le mande un aviso con toda la info: qué viaje fue, quién lo

@@ -26,6 +26,7 @@ export function OpsTripsPage() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [clientes, setClientes] = useState<{ nombre: string; cobra: boolean; soloCarga: boolean }[]>([]);
   const [plantillas, setPlantillas] = useState<TripTemplate[]>([]);
+  const [facturas, setFacturas] = useState<string[]>([]);
   const [trips, setTrips] = useState<ViajeDeOficina[] | null>(null);
   /**
    * Los filtros viven en la dirección de la página, no en memoria.
@@ -43,6 +44,8 @@ export function OpsTripsPage() {
       cliente: leer("cliente"),
       plantilla: leer("plantilla"),
       facturado: leer("facturado"),
+      pago: leer("pago"),
+      factura: leer("factura"),
       driver: leer("driver"),
       truck: leer("truck"),
       status: leer("status"),
@@ -72,6 +75,7 @@ export function OpsTripsPage() {
     api.get<Provider[]>("/providers").then(setProviders).catch(falla);
     api.get<{ nombre: string; cobra: boolean; soloCarga: boolean }[]>("/trips/clientes").then(setClientes).catch(falla);
     api.get<TripTemplate[]>("/templates").then(setPlantillas).catch(falla);
+    api.get<string[]>("/trips/facturas").then(setFacturas).catch(falla);
   }, []);
 
   const query = useMemo(() => {
@@ -80,6 +84,8 @@ export function OpsTripsPage() {
     if (f.cliente) p.set("cliente", f.cliente);
     if (f.plantilla) p.set("plantilla", f.plantilla);
     if (f.facturado) p.set("facturado", f.facturado);
+    if (f.pago) p.set("pago", f.pago);
+    if (f.factura) p.set("factura", f.factura);
     if (f.driver) p.set("driver", f.driver);
     if (f.truck) p.set("truck", f.truck);
     if (f.status) p.set("status", f.status);
@@ -220,6 +226,23 @@ export function OpsTripsPage() {
           <option value="si">Facturados</option>
           <option value="no">Sin facturar</option>
         </select>
+        {/* El tercer estado del Excel: los facturados que todavía no pagaron son los rojos. */}
+        <select className="input" value={f.pago} onChange={(e) => setF({ ...f, pago: e.target.value })}>
+          <option value="">Pagos y no</option>
+          <option value="si">Pagos</option>
+          <option value="no">Facturados sin pagar</option>
+        </select>
+        {/* "Que me permita filtrar los números de factura y los proveedores ingresados, en este
+            caso SAMAN." (Rodrigo, 23/9). Son las referencias que existen en los viajes, sin
+            repetir: el mismo campo lleva el número de factura o a quién se le cobra. */}
+        <select className="input" value={f.factura} onChange={(e) => setF({ ...f, factura: e.target.value })}>
+          <option value="">Todas las facturas</option>
+          {facturas.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
         <FechaInput value={f.from} onChange={(iso) => setF({ ...f, from: iso })} />
         <FechaInput value={f.to} onChange={(iso) => setF({ ...f, to: iso })} />
       </Card>
@@ -257,7 +280,8 @@ export function OpsTripsPage() {
                 <th className="px-4 py-3">Salida</th>
                 <th className="px-4 py-3">Descarga</th>
                 <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3">Facturado</th>
+                <th className="px-4 py-3" title="Número de factura, S/F, o a quién se le cobra">Factura</th>
+                <th className="px-4 py-3">Pago</th>
                 <th className="px-4 py-3 text-right">Acciones</th>
               </tr>
             </thead>

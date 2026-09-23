@@ -7,6 +7,8 @@ import {
   listTripsFacturables,
   marcarFacturados,
   desmarcarFacturados,
+  marcarPagos,
+  desmarcarPagos,
   sinFacturarAntesDe,
 } from "../repos/trips";
 import { listTemplates } from "../repos/templates";
@@ -108,6 +110,45 @@ facturacion.post("/desmarcar", async (c) => {
   if (!ids) return fail(c, "Elegí al menos un viaje", 400);
 
   const desmarcados = await desmarcarFacturados(c.env.DB, ids);
+  return ok(c, { desmarcados, sin_tocar: ids.length - desmarcados });
+});
+
+/**
+ * POST /api/facturacion/marcar-pago  { trip_ids: [1,2,3] }
+ *
+ * "Cuando paguen le pongo sí en otro tick y queda en verde." (Rodrigo, 23/9). Sólo agrega
+ * información: anota quién y cuándo, y no toca la factura ni saca al viaje de ningún resumen.
+ *
+ * Sólo se cobra lo que ya tiene factura o referencia; sin eso no hay nada que cobrar. Si ninguno
+ * de los que llegan se pudo marcar, se dice por qué en vez de contestar "0 marcados" en silencio.
+ */
+facturacion.post("/marcar-pago", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const ids = idsValidos(body?.trip_ids);
+  if (!ids) return fail(c, "Elegí al menos un viaje", 400);
+
+  const user = c.get("user");
+  const marcados = await marcarPagos(c.env.DB, ids, {
+    userId: user.id,
+    when: new Date().toISOString().replace("T", " ").slice(0, 19),
+  });
+  if (marcados === 0) {
+    return fail(c, "Sólo se marca pago un viaje que ya tiene factura o referencia y que todavía no figura pago.", 409);
+  }
+  return ok(c, { marcados, sin_tocar: ids.length - marcados });
+});
+
+/**
+ * POST /api/facturacion/desmarcar-pago  { trip_ids: [1,2,3] }
+ *
+ * Saca el pago y nada más: el viaje sigue con su factura.
+ */
+facturacion.post("/desmarcar-pago", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const ids = idsValidos(body?.trip_ids);
+  if (!ids) return fail(c, "Elegí al menos un viaje", 400);
+
+  const desmarcados = await desmarcarPagos(c.env.DB, ids);
   return ok(c, { desmarcados, sin_tocar: ids.length - desmarcados });
 });
 

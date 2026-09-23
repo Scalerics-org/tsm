@@ -35,6 +35,9 @@ interface TripRow {
   facturado_by: number | null;
   factura_quitada: string | null;
   factura_quitada_at: string | null;
+  /** Cuándo se cobró (migración 0032). `null` = todavía no pagó. Sólo tiene sentido con factura. */
+  pago_at: string | null;
+  pago_by: number | null;
   /** Lo calcula `NUMERADOS` con ROW_NUMBER; no es una columna de la tabla. */
   numero_mes: number;
   driver_name?: string;
@@ -65,6 +68,9 @@ export interface TripFacturacion {
    */
   factura_quitada: string | null;
   factura_quitada_at: string | null;
+  /** Cuándo se cobró (migración 0032). `null` = todavía no pagó. Sólo tiene sentido con factura. */
+  pago_at: string | null;
+  pago_by: number | null;
 }
 
 export type TripFacturable = Trip & TripFacturacion;
@@ -103,7 +109,7 @@ const SELECT = `
          t.started_at, t.finished_at, t.notes, t.created_at,
          t.segments, t.kilometros, t.edited_by, t.edited_at,
          t.factura_numero, t.facturado_at, t.facturado_by,
-         t.factura_quitada, t.factura_quitada_at, t.numero_mes,
+         t.factura_quitada, t.factura_quitada_at, t.pago_at, t.pago_by, t.numero_mes,
          d.name AS driver_name, tr.plate AS truck_plate,
          -- Quién fue el último en corregirlo. El LEFT es porque el usuario puede haberse
          -- borrado, y un viaje no puede desaparecer de la lista por eso.
@@ -187,6 +193,16 @@ export interface TripFilters {
    * filtrando por mes y camión, se vea cuál está facturado y cuál no.
    */
   facturado?: "si" | "no";
+  /**
+   * "si" = ya se cobró; "no" = facturado y todavía sin cobrar (el rojo del Excel de Rodrigo).
+   * Un viaje sin facturar no está "sin pagar": no hay nada que cobrar todavía.
+   */
+  pago?: "si" | "no";
+  /**
+   * La factura o la referencia exacta que tiene puesta: 6029, o SAMAN cuando el viaje se arregla
+   * sin factura y el campo dice a quién le corresponde pagarlo. Sin distinguir mayúsculas.
+   */
+  factura?: string;
   /** El tipo de viaje (plantilla) adentro del cliente: TYCSUR, Minabel o Valvis en Internacional. */
   templateId?: number;
   from?: string;
@@ -242,6 +258,12 @@ function filtrar(f: TripFilters): { sql: string; binds: unknown[] } {
   if (f.facturado === "si") where.push("t.factura_numero IS NOT NULL");
   // Un viaje en curso o cancelado no está "sin facturar": no hay nada que facturar todavía.
   if (f.facturado === "no") where.push("t.factura_numero IS NULL AND t.status = 'COMPLETADO'");
+  if (f.pago === "si") where.push("t.pago_at IS NOT NULL");
+  if (f.pago === "no") where.push("t.factura_numero IS NOT NULL AND t.pago_at IS NULL");
+  if (f.factura) {
+    where.push("lower(trim(t.factura_numero)) = lower(trim(?))");
+    binds.push(f.factura);
+  }
   if (f.from) {
     where.push("substr(t.started_at,1,10) >= ?");
     binds.push(f.from);
@@ -328,6 +350,8 @@ export async function listTripsFacturables(db: D1Database, f: TripFilters): Prom
     facturado_by: r.facturado_by,
     factura_quitada: r.factura_quitada,
     factura_quitada_at: r.factura_quitada_at,
+    pago_at: r.pago_at,
+    pago_by: r.pago_by,
   }));
 }
 
@@ -546,6 +570,8 @@ export async function getTripFacturable(db: D1Database, id: number): Promise<Tri
     facturado_by: r.facturado_by,
     factura_quitada: r.factura_quitada,
     factura_quitada_at: r.factura_quitada_at,
+    pago_at: r.pago_at,
+    pago_by: r.pago_by,
   };
 }
 
@@ -741,12 +767,84 @@ export async function desmarcarFacturados(db: D1Database, ids: number[]): Promis
       .prepare(
         `UPDATE trips SET factura_quitada = factura_numero,
                           factura_quitada_at = datetime('now'),
-                          factura_numero=NULL, facturado_at=NULL, facturado_by=NULL
+                          factura_numero=NULL, facturado_at=NULL, facturado_by=NULL,
+                          pago_at=NULL, pago_by=NULL
           WHERE id IN (${tanda.map(() => "?").join(",")}) AND factura_numero IS NOT NULL`,
       )
       .bind(...tanda),
   );
   return cambios(await db.batch(stmts));
+}
+
+/**
+ * Anota que el viaje se cobró.
+ *
+ * SÓLO AGREGA información: no toca la factura ni saca al viaje de ningún resumen. Y sólo a los que
+ * ya tienen factura o referencia: sin eso no hay nada que cobrar, y un pago sin factura es un
+ * viaje verde que nadie facturó. Los que ya figuran pagos no se pisan (se conserva quién y cuándo).
+ *
+ * Devuelve cuántos se marcaron de verdad, para poder avisarle de los que quedaron afuera.
+ */
+export async function marcarPagos(
+  db: D1Database,
+  ids: number[],
+  quien: { userId: number; when: string },
+): Promise<number> {
+  if (!ids.length) return 0;
+  const stmts = enTandas(ids).map((tanda) =>
+    db
+      .prepare(
+        `UPDATE trips SET pago_at=?, pago_by=?
+          WHERE id IN (${tanda.map(() => "?").join(",")})
+            AND factura_numero IS NOT NULL AND pago_at IS NULL`,
+      )
+      .bind(quien.when, quien.userId, ...tanda),
+  );
+  return cambios(await db.batch(stmts));
+}
+
+/** Saca la marca de pago: "se va a equivocar alguna vez". La factura queda como estaba. */
+export async function desmarcarPagos(db: D1Database, ids: number[]): Promise<number> {
+  if (!ids.length) return 0;
+  const stmts = enTandas(ids).map((tanda) =>
+    db
+      .prepare(
+        `UPDATE trips SET pago_at=NULL, pago_by=NULL
+          WHERE id IN (${tanda.map(() => "?").join(",")}) AND pago_at IS NOT NULL`,
+      )
+      .bind(...tanda),
+  );
+  return cambios(await db.batch(stmts));
+}
+
+/**
+ * Las facturas y referencias que tienen los viajes, para el desplegable de Viajes: 6029, 5566,
+ * SAMAN… Sólo las que existen: una opción que no trae nada confunde. Se resuelve igual que los
+ * clientes de las cargas (`listClientesDeCarga`).
+ */
+export async function listReferenciasDeFactura(db: D1Database): Promise<string[]> {
+  const { results } = await db
+    .prepare("SELECT DISTINCT factura_numero AS nombre FROM trips WHERE factura_numero IS NOT NULL")
+    .all<{ nombre: string | null }>();
+  return referenciasDeFactura(results ?? []);
+}
+
+/**
+ * Junta las referencias sin repetir —"saman" y "SAMAN " son la misma— y las ordena como las
+ * lee una persona: 5566 antes que 6029, y los números antes que los nombres. Queda la primera
+ * forma en que apareció escrita.
+ */
+export function referenciasDeFactura(rows: { nombre: string | null }[]): string[] {
+  const porClave = new Map<string, string>();
+  for (const r of rows) {
+    const nombre = (r.nombre ?? "").trim();
+    if (!nombre) continue;
+    const clave = nombre.toLocaleLowerCase("es");
+    if (!porClave.has(clave)) porClave.set(clave, nombre);
+  }
+  return [...porClave.values()].sort((a, b) =>
+    a.localeCompare(b, "es", { sensitivity: "base", numeric: true }),
+  );
 }
 
 export async function activeTripForDriver(db: D1Database, driverId: number): Promise<Trip | null> {

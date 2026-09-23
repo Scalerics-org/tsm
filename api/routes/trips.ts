@@ -172,6 +172,8 @@ trips.get("/", async (c) => {
     cliente: q.cliente || undefined,
     templateId: Number(q.plantilla) > 0 ? Number(q.plantilla) : undefined,
     facturado: q.facturado === "si" || q.facturado === "no" ? q.facturado : undefined,
+    pago: q.pago === "si" || q.pago === "no" ? q.pago : undefined,
+    factura: q.factura?.trim() || undefined,
     from: q.from || undefined,
     to: q.to || undefined,
   };
@@ -193,6 +195,12 @@ trips.get("/", async (c) => {
 // El lector también: es uno de los desplegables de la pantalla que mira.
 trips.get("/clientes", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR), async (c) =>
   ok(c, await tripsRepo.listClientesDeCarga(c.env.DB)),
+);
+
+// GET /api/trips/facturas — las facturas y referencias que tienen los viajes, para filtrar Viajes.
+// Sólo oficina y lector: es la misma información que ya ve en la columna de la lista. El chofer no.
+trips.get("/facturas", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR), async (c) =>
+  ok(c, await tripsRepo.listReferenciasDeFactura(c.env.DB)),
 );
 
 // GET /api/trips/active — viaje en curso del chofer

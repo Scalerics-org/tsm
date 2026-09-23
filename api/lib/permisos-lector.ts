@@ -30,6 +30,7 @@ export const LO_QUE_MIRA_EL_LECTOR: PedidoPermitido[] = [
   // La pantalla de Viajes.
   { metodo: "GET", ruta: /^\/api\/trips$/, porque: "la lista de viajes" },
   { metodo: "GET", ruta: /^\/api\/trips\/clientes$/, porque: "el filtro por cliente de la carga" },
+  { metodo: "GET", ruta: /^\/api\/trips\/facturas$/, porque: "el filtro por factura o referencia" },
   { metodo: "GET", ruta: /^\/api\/trips\/\d+$/, porque: "la ficha de un viaje" },
   { metodo: "GET", ruta: /^\/api\/drivers$/, porque: "el filtro por chofer" },
   { metodo: "GET", ruta: /^\/api\/trucks$/, porque: "el filtro por camión" },
