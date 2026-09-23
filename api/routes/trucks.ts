@@ -9,10 +9,13 @@ import { motivoParaNoBorrarCamion } from "../lib/frenos-de-borrado";
 const trucks = new Hono<{ Bindings: Env; Variables: Vars }>();
 trucks.use("*", requireAuth);
 
-// El lector la necesita para el filtro por camión de Viajes.
-trucks.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR), async (c) =>
-  ok(c, await repo.listTrucks(c.env.DB)),
-);
+// El lector la necesita para el filtro por camión de Viajes, y para eso alcanza con id y
+// patente: el odómetro y el rendimiento esperado de cada camión no son de él.
+trucks.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR), async (c) => {
+  const todos = await repo.listTrucks(c.env.DB);
+  if (c.get("user").role !== ROLES.LECTOR) return ok(c, todos);
+  return ok(c, todos.map(({ id, plate }) => ({ id, plate })));
+});
 
 // Lista mínima (id + patente) para que el chofer elija con qué camión viaja.
 trucks.get("/options", async (c) =>

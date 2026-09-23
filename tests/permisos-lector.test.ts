@@ -301,3 +301,96 @@ describe("la pantalla de Consumo del lector", () => {
     }
   });
 });
+
+describe("lo que el lector recibe de choferes y camiones", () => {
+  const choferes = [
+    {
+      id: 5,
+      name: "Mario Correa",
+      document: "4.123.456-7",
+      license_number: "LIC-10231",
+      license_category: "C",
+      license_expiry: "2027-05-14",
+      phone: "+598 99 123 456",
+      status: "activo",
+      default_truck_id: 1,
+      default_truck_plate: "GTP 4325",
+      viaje_en_curso: null,
+    },
+  ];
+  const camiones = [
+    { id: 1, plate: "GTP 4325", brand: "Scania", model: "R450", year: 2021, type: "Tolva", capacity_kg: 28000, odometer_km: 182450, avg_km_litro: 2.8, status: "disponible" },
+  ];
+  const consultas: string[] = [];
+
+  function dbConFilas() {
+    return {
+      prepare(sql: string) {
+        const q = sql.toLowerCase();
+        consultas.push(q);
+        const stmt = {
+          bind: () => stmt,
+          first: async () => (q.includes("from users") ? { id: 2 } : null),
+          all: async () => {
+            if (q.includes("from drivers")) return { results: choferes };
+            if (q.includes("from trucks")) return { results: camiones };
+            return { results: [] };
+          },
+          run: async () => ({ meta: { last_row_id: 1, changes: 1 } }),
+        };
+        return stmt;
+      },
+      batch: async () => [],
+    } as unknown as D1Database;
+  }
+
+  async function pedir(url: string, role: string) {
+    const token = await signToken(
+      { id: 2, name: "Aníbal", role, driver_id: null, truck_id: null, email: null } as any,
+      SECRET,
+    );
+    const res = await app.request(
+      url,
+      { headers: { authorization: `Bearer ${token}` } },
+      { DB: dbConFilas(), JWT_SECRET: SECRET } as any,
+    );
+    expect(res.status).toBe(200);
+    return ((await res.json()) as { data: Record<string, unknown>[] }).data;
+  }
+
+  it("el lector recibe de cada chofer sólo quién es y si está activo", async () => {
+    const [chofer] = await pedir("/api/drivers", ROLES.LECTOR);
+    expect(Object.keys(chofer).sort()).toEqual(["id", "name", "status"]);
+    for (const campo of ["document", "phone", "license_number", "license_expiry", "pin_hash"]) {
+      expect(chofer).not.toHaveProperty(campo);
+    }
+  });
+
+  it("y de cada camión sólo el id y la patente", async () => {
+    const [camion] = await pedir("/api/trucks", ROLES.LECTOR);
+    expect(Object.keys(camion).sort()).toEqual(["id", "plate"]);
+  });
+
+  it("la oficina sigue recibiendo los campos de siempre", async () => {
+    for (const role of [ROLES.ENCARGADO, ROLES.ADMIN]) {
+      const [chofer] = await pedir("/api/drivers", role);
+      expect(chofer).toMatchObject({ document: "4.123.456-7", phone: "+598 99 123 456", license_number: "LIC-10231" });
+      const [camion] = await pedir("/api/trucks", role);
+      expect(camion).toMatchObject({ odometer_km: 182450, avg_km_litro: 2.8 });
+    }
+  });
+
+  // El 12/9 un `SELECT d.*` mandó el hash del PIN de cada chofer al navegador. Esto no mira lo que
+  // devuelve el fake sino la consulta que se arma: si alguien vuelve a los `*` o nombra la
+  // columna, este test lo frena para cualquier rol.
+  it("la consulta de choferes no pide el hash del PIN ni usa d.*", async () => {
+    consultas.length = 0;
+    await pedir("/api/drivers", ROLES.ADMIN);
+    const deChoferes = consultas.filter((q) => q.includes("from drivers d"));
+    expect(deChoferes.length).toBeGreaterThan(0);
+    for (const q of deChoferes) {
+      expect(q).not.toContain("pin_hash");
+      expect(q).not.toMatch(/\bd\.\*/);
+    }
+  });
+});

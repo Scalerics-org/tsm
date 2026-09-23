@@ -10,10 +10,14 @@ import { motivoParaNoBorrarChofer } from "../lib/frenos-de-borrado";
 const drivers = new Hono<{ Bindings: Env; Variables: Vars }>();
 drivers.use("*", requireAuth);
 
-// El lector la necesita para el filtro por chofer de Viajes; escribir choferes, no.
-drivers.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR), async (c) =>
-  ok(c, await repo.listDrivers(c.env.DB)),
-);
+// El lector la necesita para el filtro por chofer de Viajes; escribir choferes, no. Y para ese
+// desplegable alcanza con quién es y si está activo: el teléfono, el documento y la licencia de
+// cada chofer no son de él.
+drivers.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR), async (c) => {
+  const todos = await repo.listDrivers(c.env.DB);
+  if (c.get("user").role !== ROLES.LECTOR) return ok(c, todos);
+  return ok(c, todos.map(({ id, name, status }) => ({ id, name, status })));
+});
 
 function parse(b: any): repo.DriverInput | null {
   if (!b || !b.name || !b.document) return null;
