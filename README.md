@@ -4,7 +4,8 @@ Sistema para que los choferes de **Transporte Santa María** registren sus viaje
 —con la evidencia fotográfica que la oficina necesita para facturar— y para que la oficina deje de
 reconstruir esa información a mano desde WhatsApp y Excel.
 
-Tres roles: **chofer** (móvil), **encargado/operaciones** (escritorio) y **administrador**.
+Cuatro roles: **chofer** (móvil), **encargado/operaciones** (escritorio), **administrador** y
+**lector** (solo mirar — ve los viajes y recibe los avisos, sin editar nada).
 
 > **El modelo es "viajes precargados".** La oficina define plantillas de viaje por cliente y el chofer
 > elige una: no crea viajes ni completa datos libres. Todo lo que se le pide está pensado para hacerse
@@ -159,11 +160,19 @@ Worker completo con los bindings de D1 locales, sobre el build:
 npm run build && npm run dev:worker
 ```
 
-## Usuarios de ejemplo
+## Usuarios
 
-Vienen del seed y **hay que reemplazarlos antes de un uso real**. La pantalla de login ya no los muestra.
+Los usuarios de oficina (admin, encargado, lector) se crean desde **Panel → Usuarios**. Los choferes
+se dan de alta desde **Panel → Choferes**: entran con la patente de su camión y un PIN de 4 dígitos
+o más que les asigna la oficina.
 
-| Rol | Acceso |
+**En producción no hay cuentas de demo** — se reemplazaron por los usuarios reales de Transporte
+Santa María apenas arrancó el uso real, y la pantalla de login ya no las muestra.
+
+Para desarrollo local, las migraciones sí traen credenciales de prueba (`migrations/0005_seed_v2.sql`,
+que `npm run db:migrate:local` aplica junto con el resto):
+
+| Rol | Acceso (solo local) |
 |-----|--------|
 | Administrador | `admin@demo.uy` · `demo1234` |
 | Encargado | `ops@demo.uy` · `demo1234` |
