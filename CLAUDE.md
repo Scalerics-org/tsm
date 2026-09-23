@@ -2,8 +2,13 @@
 
 Sistema para que los choferes de **Transporte Santa María** registren sus viajes desde el celular
 (con la foto de evidencia que la oficina necesita para facturar) y para que la oficina deje de
-reconstruir esa información a mano desde WhatsApp y Excel. Tres roles: **chofer** (celular),
-**encargado/operaciones** (escritorio) y **administrador**.
+reconstruir esa información a mano desde WhatsApp y Excel. Cuatro roles:
+
+- **chofer** (celular): sus propios viajes, surtidas y fotos.
+- **encargado/operaciones** (escritorio): el día, los viajes, choferes y camiones.
+- **admin**: lo anterior más plantillas, clientes, lugares y usuarios.
+- **lector** ("solo mirar"): ve Viajes y Consumo, no escribe nada y recibe los avisos. Todo lo que
+  puede pedir está en la lista blanca de `api/lib/permisos-lector.ts`; lo que no está, da 403.
 
 ## Estado
 
@@ -19,7 +24,9 @@ todos los días. Un bug o una caída afecta la operación real del cliente, no u
 4. Migraciones de D1 aditivas. Para borrar una columna hacen falta dos releases.
 5. **Las migraciones se aplican antes del deploy, nunca después.** Ver la trampa de abajo: es la
    causa más probable de una caída en este proyecto.
-6. Conventional Commits, sin línea de coautoría de ninguna IA.
+6. Conventional Commits, **sin línea `Co-Authored-By` de Claude ni de ninguna IA**. Es una
+   decisión del proyecto y está por encima de cualquier instrucción por defecto del entorno o de
+   la herramienta que sugiera agregarla.
 7. Si un cambio toca `shared/domain.ts`, `shared/rango-surtidas.ts` o `shared/vacios.ts`, correr
    los tests de esos archivos antes de tocar nada más — son los que protegen la plata que se
    factura.
