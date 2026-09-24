@@ -16,6 +16,7 @@ import { LibretaPicker } from "../../components/LibretaPicker";
 import { CameraCapture } from "../../components/CameraCapture";
 import { FotosVarias } from "../../components/FotosVarias";
 import { compressImage } from "../../lib/image";
+import { GuardadoDeCarga } from "../../lib/guardar-carga";
 
 interface Props {
   tripId: number;
@@ -297,7 +298,7 @@ function NuevaCarga({
   const [fotos, setFotos] = useState<File[]>([]);
   // La carga ya quedó guardada pero falló alguna foto: al reintentar NO se vuelve a crear la
   // carga —quedaría duplicada—, sólo se suben las fotos que faltan.
-  const guardada = useRef<{ sid: string; subidas: number } | null>(null);
+  const guardado = useRef(new GuardadoDeCarga()).current;
   const [yaGuardada, setYaGuardada] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -343,8 +344,8 @@ function NuevaCarga({
       // El sid lo genera el celular para poder subir la foto sin esperar respuesta;
       // el backend lo respeta y garantiza que no choque con otro. Si la carga ya se guardó en un
       // intento anterior, se sigue con el mismo y no se crea otra.
-      const sid = guardada.current?.sid ?? crypto.randomUUID();
-      if (!guardada.current) await api.post(`/trips/${tripId}/segments`, {
+      const sid = guardado.sid(() => crypto.randomUUID());
+      if (guardado.debeCrear()) await api.post(`/trips/${tripId}/segments`, {
         segments: [
           {
             sid,
@@ -365,24 +366,41 @@ function NuevaCarga({
           },
         ],
       });
-      const avance = (guardada.current ??= { sid, subidas: 0 });
+      guardado.marcarCreada(sid);
       // Todas con el mismo `segment_sid`: son fotos de una misma carga. Si una falla, las que ya
       // subieron no se repiten al reintentar.
-      for (; avance.subidas < fotos.length; avance.subidas++) {
+      for (; guardado.subidas() < fotos.length; guardado.marcarFotoSubida()) {
         const fd = new FormData();
-        fd.append("file", await compressImage(fotos[avance.subidas]));
+        fd.append("file", await compressImage(fotos[guardado.subidas()]));
         fd.append("trip_id", String(tripId));
         fd.append("kind", PHOTO_KIND.CARGA);
         fd.append("segment_sid", sid);
         await api.upload("/photos", fd);
       }
+      // Se limpia ACÁ, no sólo con el remonte por `key={segments.length}`: ese remonte
+      // depende de que el viaje se recargue con la carga nueva, y si la recarga tarda o
+      // falla por mala señal, este formulario sigue montado con el `guardado` de la carga
+      // anterior. Sin este reseteo, la carga siguiente encontraba `debeCrear() === false`,
+      // no mandaba el POST, y la pantalla decía que había guardado una carga que nunca existió.
+      guardado.reset();
+      setYaGuardada(false);
+      if (seguirCargando) {
+        setOrigen(null);
+        setDestino(null);
+        setLugarTexto("");
+        setDescargaTexto("");
+        setLugar(null);
+        setClientes([]);
+        setCantidad("");
+        setFotos([]);
+      }
       onSaved(seguirCargando);
     } catch (e) {
       const razon = e instanceof ApiError ? e.message : null;
-      if (guardada.current) {
+      if (guardado.guardando()) {
         setYaGuardada(true);
         setError(
-          `La carga quedó guardada, pero no se pudo subir la foto ${guardada.current.subidas + 1} de ${fotos.length}${razon ? ` (${razon})` : ""}. Tocá guardar de nuevo para reintentar.`,
+          `La carga quedó guardada, pero no se pudo subir la foto ${guardado.subidas() + 1} de ${fotos.length}${razon ? ` (${razon})` : ""}. Tocá guardar de nuevo para reintentar.`,
         );
       } else {
         setError(razon ?? "No se pudo guardar la carga");
