@@ -287,6 +287,59 @@ describe("recorridoVisible — el recorrido completo en la fila", () => {
     ).toBe("Artigas → Minas → Artigas");
   });
 
+  // Se desplegó con este defecto: en 17 de 29 viajes de producción con varias cargas las cargas no
+  // encadenan, y pegar los tramos mostraba idas y vueltas que no pasaron.
+  it("cargó en varios lados y descargó en uno: Artigas → Salto → Mdeo, sin el zigzag", () => {
+    expect(
+      recorridoVisible({
+        origin: "Artigas",
+        destination: "Mdeo",
+        segments: [carga("Artigas", "Mdeo"), carga("Salto", "Mdeo")],
+      }),
+    ).toBe("Artigas → Salto → Mdeo");
+  });
+
+  it("varias cargas que salen del mismo lugar a lugares distintos no repiten el origen", () => {
+    expect(
+      recorridoVisible({
+        origin: "Montevideo",
+        destination: "Salto",
+        segments: [
+          carga("Montevideo", "Artigas"),
+          carga("Montevideo", "Artigas"),
+          carga("Montevideo", "Artigas"),
+          carga("Montevideo", "Salto"),
+        ],
+      }),
+    ).toBe("Montevideo → Artigas → Salto");
+  });
+
+  it("cuatro cargas que no encadenan juntan los lugares sin repetir", () => {
+    expect(
+      recorridoVisible({
+        origin: "Artigas",
+        destination: "Mdeo",
+        segments: [carga("Artigas", "Mdeo"), carga("Salto", "Mdeo"), carga("Artigas", "Mdeo"), carga("Salto", "Mdeo")],
+      }),
+    ).toBe("Artigas → Salto → Mdeo");
+  });
+
+  it("un viaje con una sola carga es el tramo de esa carga", () => {
+    expect(
+      recorridoVisible({ origin: "Artigas", destination: "Montevideo", segments: [carga("Artigas", "Montevideo")] }),
+    ).toBe("Artigas → Montevideo");
+  });
+
+  it("encadenadas de verdad siguen siendo un camino, aunque una parada se repita más adelante", () => {
+    expect(
+      recorridoVisible({
+        origin: "Mdeo",
+        destination: "Mdeo",
+        segments: [carga("Mdeo", "Salto"), carga("Salto", "BU"), carga("BU", "Mdeo")],
+      }),
+    ).toBe("Mdeo → Salto → BU → Mdeo");
+  });
+
   it("un viaje que todavía no tiene recorrido lo dice", () => {
     expect(recorridoVisible({ origin: "", destination: "" })).toBe("origen a definir → destino a definir");
   });

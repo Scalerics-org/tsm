@@ -1241,29 +1241,58 @@ export function origenVisible(trip: Pick<Trip, "origin">): string {
  * El recorrido completo del viaje, con todas las paradas: "Mdeo → Salto → BU".
  *
  * "Mdeo → BU" a secas no distingue dos viajes de "Otros Viajes" que pasan por lugares distintos
- * (Rodrigo, 23/9). Sale de las cargas: cada una trae de dónde a dónde fue, y las paradas
- * repetidas seguidas se cuentan una vez ("Salto" al descargar y "Salto" al volver a cargar).
+ * (Rodrigo, 23/9). Sale de las cargas, y hay DOS formas de leerlas según cómo se relacionen:
+ *
+ * - ENCADENADAS: cada carga sale de donde terminó la anterior (Mdeo → Salto, Salto → BU). Es un
+ *   camino: se sigue de punta a punta, y las paradas repetidas seguidas cuentan una vez. Así una
+ *   ida y vuelta (Artigas → Minas, Minas → Artigas) conserva el regreso.
+ * - NO ENCADENADAS: cargó en varios lados y descargó en uno (Artigas → Mdeo, Salto → Mdeo), o el
+ *   camino de las cargas no se corresponde. Pegar los tramos inventa idas y vueltas que no
+ *   pasaron ("Artigas → Mdeo → Salto → Mdeo"); en 17 de 29 viajes de producción con varias
+ *   cargas no encadenaban. Ahí se juntan los lugares sin repetir: primero donde cargó, en orden,
+ *   y después donde descargó (Artigas → Salto → Mdeo).
  *
  * Sin cargas con ubicación —los viajes de recorrido fijo—, es el de siempre: origen → destino.
- * El destino del viaje NO se agrega después de las cargas: en una ida y vuelta (Artigas → Minas
- * → Artigas) la última carga ya dice dónde terminó, y sumarlo mostraba un tramo que no existió.
+ * El destino del viaje NO se agrega después de las cargas: en una ida y vuelta la última carga ya
+ * dice dónde terminó, y sumarlo mostraba un tramo que no existió.
  */
 export function recorridoVisible(
   trip: Pick<Trip, "origin" | "destination"> & { segments?: Pick<TripSegment, "origen" | "destino">[] },
 ): string {
-  const deLasCargas = (trip.segments ?? []).flatMap((s) => [s.origen, s.destino]);
+  const clave = (p: string) => p.toLocaleLowerCase("es");
+  const limpio = (p: string | null | undefined) => p?.trim() || "";
+  const cargas = (trip.segments ?? [])
+    .map((s) => ({ origen: limpio(s.origen), destino: limpio(s.destino) }))
+    .filter((c) => c.origen || c.destino);
   // Sin ubicación en las cargas no hay paradas intermedias que contar: el de siempre.
-  if (!deLasCargas.some((p) => p?.trim())) return `${origenVisible(trip)} → ${destinoVisible(trip)}`;
+  if (cargas.length === 0) return `${origenVisible(trip)} → ${destinoVisible(trip)}`;
 
-  const enOrden: string[] = [];
-  for (const p of [trip.origin, ...deLasCargas]) {
-    const lugar = p?.trim();
-    if (!lugar) continue;
-    if (enOrden[enOrden.length - 1]?.toLocaleLowerCase("es") === lugar.toLocaleLowerCase("es")) continue;
-    enOrden.push(lugar);
+  // Encadenan si cada carga arranca donde terminó la anterior. Un extremo sin dato no la rompe:
+  // no se sabe, y ante la duda se lee como camino, que es lo que hacía antes.
+  const encadenan = cargas.every(
+    (c, i) => i === 0 || !c.origen || !cargas[i - 1].destino || clave(c.origen) === clave(cargas[i - 1].destino),
+  );
+
+  const paradas: string[] = [];
+  const sumar = (p: string, soloSiNoEsta: boolean) => {
+    if (!p) return;
+    if (soloSiNoEsta ? paradas.some((x) => clave(x) === clave(p)) : clave(paradas[paradas.length - 1] ?? "") === clave(p)) return;
+    paradas.push(p);
+  };
+
+  if (encadenan) {
+    sumar(limpio(trip.origin), false);
+    for (const c of cargas) {
+      sumar(c.origen, false);
+      sumar(c.destino, false);
+    }
+  } else {
+    sumar(limpio(trip.origin), true);
+    for (const c of cargas) sumar(c.origen, true);
+    for (const c of cargas) sumar(c.destino, true);
   }
   // Una sola parada: cargó y descargó en el mismo lugar. Se muestra como el tramo que fue.
-  return enOrden.length === 1 ? `${enOrden[0]} → ${enOrden[0]}` : enOrden.join(" → ");
+  return paradas.length === 1 ? `${paradas[0]} → ${paradas[0]}` : paradas.join(" → ");
 }
 
 /**
