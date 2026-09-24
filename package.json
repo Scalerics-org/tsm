@@ -11,7 +11,6 @@
     "db:migrate:local": "wrangler d1 migrations apply logistica_db --local",
     "db:migrate:remote": "wrangler d1 migrations apply logistica_db --remote",
     "db:seed:local": "wrangler d1 execute logistica_db --local --file=./migrations/0007_seed_real.sql",
-    "db:seed:remote": "wrangler d1 execute logistica_db --remote --file=./migrations/0007_seed_real.sql",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -b --noEmit",

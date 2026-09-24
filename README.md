@@ -108,8 +108,11 @@ npm run db:migrate:local     # esquema en local
 npm run db:seed:local        # datos de ejemplo (clientes reales del Excel)
 
 npm run db:migrate:remote    # esquema en producción
-npm run db:seed:remote       # datos de ejemplo en producción
 ```
+
+No hay `db:seed:remote`: `0007_seed_real.sql` empieza con varios `DELETE` (viajes, fotos, surtidas,
+plantillas, proveedores) y sólo tiene sentido en una base de desarrollo vacía. Correrlo contra
+producción borra los viajes reales del cliente.
 
 Las migraciones son incrementales y se aplican en orden. `0007_seed_real.sql` carga los clientes reales
 (Casarone, Nayna, Molino Cañuelas) junto con viajes de ejemplo.
@@ -117,10 +120,13 @@ Las migraciones son incrementales y se aplican en orden. `0007_seed_real.sql` ca
 ### Limpiar los datos de ejemplo (puesta en marcha)
 
 ```bash
-npx wrangler d1 execute logistica_db --remote --file scripts/go-live-limpiar-demo.sql
+npx wrangler d1 execute logistica_db --local --file scripts/go-live-limpiar-demo.sql
 ```
 
-Borra viajes, fotos y surtidas de ejemplo sin tocar clientes, plantillas, camiones ni choferes.
+Borra viajes, fotos y surtidas de ejemplo sin tocar clientes, plantillas, camiones ni choferes —
+pero sin filtrar cuáles son de ejemplo y cuáles no. Sólo con `--local`, para dejar limpia una base
+de desarrollo antes del piloto. Ver la advertencia arriba del `.sql`: contra producción borra los
+viajes reales.
 
 ## Fotos (R2)
 

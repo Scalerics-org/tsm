@@ -1,4 +1,9 @@
 -- ─────────────────────────────────────────────────────────────
+-- ⚠️  BORRA TODOS los viajes, fotos y surtidas de la base — sin filtrar cuáles son de
+-- demostración: no hay forma de distinguirlos de los reales una vez que hay viajes reales
+-- cargados. Sólo se usa con --local, para dejar limpia una base de desarrollo antes del
+-- piloto. NUNCA con --remote: contra producción borra TODOS los viajes reales del cliente.
+-- ─────────────────────────────────────────────────────────────
 -- PUESTA EN MARCHA · Limpieza de datos de ejemplo
 -- ─────────────────────────────────────────────────────────────
 -- Borra los viajes, fotos y surtidas de demostración para que el
@@ -7,11 +12,11 @@
 -- NO toca: proveedores, plantillas de viaje, camiones, choferes ni
 -- usuarios de oficina. Esos se reemplazan por los reales aparte.
 --
---   npx wrangler d1 execute logistica_db --remote --file scripts/go-live-limpiar-demo.sql
+--   npx wrangler d1 execute logistica_db --local --file scripts/go-live-limpiar-demo.sql
 --
 -- Para volver a cargar los datos de ejemplo (por si hace falta mostrar
 -- el sistema con movimiento antes del piloto):
---   npx wrangler d1 execute logistica_db --remote --file migrations/0007_seed_real.sql
+--   npx wrangler d1 execute logistica_db --local --file migrations/0007_seed_real.sql
 -- ─────────────────────────────────────────────────────────────
 
 DELETE FROM trip_photos;

@@ -1,3 +1,7 @@
+-- ⚠️  BORRA viajes, surtidas, fotos y plantillas ANTES de cargar los datos de ejemplo.
+-- Sólo se corre con --local. NUNCA con --remote: en producción esos DELETE son viajes reales
+-- del cliente, no datos de prueba. No hay comando `db:seed:remote` en package.json a propósito.
+--
 -- Datos reales del cliente (del Excel "EJEMPLO VIAJES"). Reemplaza las plantillas demo.
 -- Mantiene camiones/choferes/usuarios del seed 0005 (choferes PIN 1234, oficina demo1234).
 
