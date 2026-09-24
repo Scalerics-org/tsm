@@ -1320,10 +1320,17 @@ export function estadoDeCobro(t: { factura_numero?: string | null; pago_at?: str
  * viaje queda "sin asignar", que es lo que la oficina tiene que mirar.
  */
 export interface ClienteDelViaje {
-  /** El primero que se le cobra, o el tipo de viaje en los clásicos. `null` = sin asignar. */
-  nombre: string | null;
-  /** Cuántos más, distintos del primero. */
+  /**
+   * A quién se le cobra: hasta DOS nombres, en el orden en que aparecen las cargas (o el tipo de
+   * viaje en los clásicos). Vacío = sin asignar. Con dos clientes distintos se ven los dos: un
+   * "+1" tapaba justo al que importa ("Agencia +1" escondía a Argenzio). Sin un orden armado a
+   * mano: una regla del tipo "Agencia al final" se rompe con el próximo nombre que aparezca.
+   */
+  nombres: string[];
+  /** Cuántos más hay desde el tercero. */
   mas: number;
+  /** Todos los cobros distintos, para el detalle. */
+  todos: string[];
   /** El nombre es el del tipo de viaje y no un cobro asignado. */
   deTipo: boolean;
   /** Alguna carga todavía no tiene a quién cobrarle. */
@@ -1341,12 +1348,16 @@ export function clienteDelViaje(
     if (nombre && !cobros.some((x) => x.toLocaleLowerCase("es") === nombre.toLocaleLowerCase("es"))) cobros.push(nombre);
   }
   const faltaAsignar = cargas.some((c) => !c.cobro_a?.trim());
-  if (cobros.length) return { nombre: cobros[0], mas: cobros.length - 1, deTipo: false, faltaAsignar };
+  if (cobros.length) {
+    return { nombres: cobros.slice(0, 2), mas: Math.max(0, cobros.length - 2), todos: cobros, deTipo: false, faltaAsignar };
+  }
 
   // Sin cobro en ninguna carga. Un clásico de un solo tramo se cobra al cliente del viaje.
   const tipo = trip.provider_name?.trim();
-  if (!combinado && cargas.length === 0 && tipo) return { nombre: tipo, mas: 0, deTipo: true, faltaAsignar: false };
-  return { nombre: null, mas: 0, deTipo: false, faltaAsignar: true };
+  if (!combinado && cargas.length === 0 && tipo) {
+    return { nombres: [tipo], mas: 0, todos: [tipo], deTipo: true, faltaAsignar: false };
+  }
+  return { nombres: [], mas: 0, todos: [], deTipo: false, faltaAsignar: true };
 }
 
 /**

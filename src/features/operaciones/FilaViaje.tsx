@@ -222,20 +222,24 @@ export function FilaViaje({
           tipo de viaje de los clásicos, que va en gris más oscuro y derecho. El ámbar queda sólo
           para el viaje con una carga cobrada y otra sin cobrar, que sí es una inconsistencia. */}
       <td className="px-4 py-3">
-        {cliente.nombre ? (
+        {cliente.nombres.length > 0 ? (
           <div
             className={`max-w-[10rem] ${cliente.deTipo ? "text-ink/60" : "text-ink/80"}`}
-            title={cliente.deTipo ? "Tipo de viaje: todavía no hay un cobro asignado" : undefined}
+            title={cliente.deTipo ? "Tipo de viaje: todavía no hay un cobro asignado" : cliente.todos.join(", ")}
           >
-            {cliente.nombre}
-            {cliente.mas > 0 && <span className="ml-1 text-ink/45">+{cliente.mas}</span>}
+            {/* Hasta dos nombres, uno debajo del otro: con un "+1" se veía sólo el primero y
+                podía tapar al cliente que importa. Recién desde el tercero aparece el "+N". */}
+            {cliente.nombres.map((n) => (
+              <div key={n}>{n}</div>
+            ))}
+            {cliente.mas > 0 && <div className="text-ink/45">+{cliente.mas}</div>}
           </div>
         ) : (
           <span className="whitespace-nowrap italic text-ink/40" title="Todavía no hay a quién cobrarle este viaje">
             Sin asignar
           </span>
         )}
-        {cliente.nombre && cliente.faltaAsignar && (
+        {cliente.nombres.length > 0 && !cliente.deTipo && cliente.faltaAsignar && (
           <div className="mt-0.5 text-[11px] font-semibold text-st-amberTx">falta asignar una carga</div>
         )}
       </td>
