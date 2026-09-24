@@ -56,12 +56,9 @@ const COLOR_DE_FILA: Record<ReturnType<typeof estadoDeCobro>, string> = {
 
 export function FilaViaje({
   t,
-  combinado,
   onCambio,
 }: {
   t: ViajeDeOficina;
-  /** El viaje arma su recorrido con cargas: ahí el nombre del viaje no es quien paga. */
-  combinado: boolean;
   onCambio: () => void;
 }) {
   // "Vaya que toque un dedazo y borre algo jajaja." La fila es justo donde estaba el riesgo:
@@ -76,7 +73,7 @@ export function FilaViaje({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const estado = estadoDeCobro(t);
-  const cliente = clienteDelViaje(t, combinado);
+  const cliente = clienteDelViaje(t);
 
   /**
    * El tilde de facturado. "No tengo cómo poner un tick, color tipo Excel, a los facturados."
@@ -218,15 +215,12 @@ export function FilaViaje({
       </td>
       {/* A quién se le cobra. Sólo se ve: no escribe nada ni toca el cobro. "Sin asignar" es el
           estado normal de la mayoría de los viajes con cargas (80 de 112 en producción), así que
-          va en gris, en cursiva y sin pastilla: un dato que falta, no una alarma. Se distingue del
-          tipo de viaje de los clásicos, que va en gris más oscuro y derecho. El ámbar queda sólo
-          para el viaje con una carga cobrada y otra sin cobrar, que sí es una inconsistencia. */}
+          va en gris, en cursiva y sin pastilla: un dato que falta, no una alarma. El tipo de viaje
+          no se repite acá: ya está en la columna del recorrido. El ámbar queda sólo para el viaje
+          con una carga cobrada y otra sin cobrar, que sí es una inconsistencia. */}
       <td className="px-4 py-3">
         {cliente.nombres.length > 0 ? (
-          <div
-            className={`max-w-[10rem] ${cliente.deTipo ? "text-ink/60" : "text-ink/80"}`}
-            title={cliente.deTipo ? "Tipo de viaje: todavía no hay un cobro asignado" : cliente.todos.join(", ")}
-          >
+          <div className="max-w-[10rem] text-ink/80" title={cliente.todos.join(", ")}>
             {/* Hasta dos nombres, uno debajo del otro: con un "+1" se veía sólo el primero y
                 podía tapar al cliente que importa. Recién desde el tercero aparece el "+N". */}
             {cliente.nombres.map((n) => (
@@ -239,7 +233,7 @@ export function FilaViaje({
             Sin asignar
           </span>
         )}
-        {cliente.nombres.length > 0 && !cliente.deTipo && cliente.faltaAsignar && (
+        {cliente.nombres.length > 0 && cliente.faltaAsignar && (
           <div className="mt-0.5 text-[11px] font-semibold text-st-amberTx">falta asignar una carga</div>
         )}
       </td>

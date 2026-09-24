@@ -1315,9 +1315,9 @@ export function estadoDeCobro(t: { factura_numero?: string | null; pago_at?: str
  * No escribe nada ni toca el cobro; decidió Gonzalo.
  *
  * Sale de `cobro_a` de las cargas —lo que resuelven las reglas de la libreta o fijó la oficina—.
- * El nombre del viaje (`provider_name`) sólo vale en los clásicos, de un solo tramo: en Combinados
- * y Otros Viajes dice "Combinados" u "OTROS VIAJES", que no le pagan a nadie. Sin nada de eso el
- * viaje queda "sin asignar", que es lo que la oficina tiene que mirar.
+ * Y NADA MÁS: el tipo de viaje (`provider_name`) ya se ve en la columna del recorrido, y repetirlo
+ * acá sólo agregaba la chance de leer "Casarone" como "se le cobra a Casarone". Dos estados: hay
+ * cobro asignado, o no lo hay ("Sin asignar", que es lo que la oficina tiene que mirar).
  */
 export interface ClienteDelViaje {
   /**
@@ -1331,16 +1331,11 @@ export interface ClienteDelViaje {
   mas: number;
   /** Todos los cobros distintos, para el detalle. */
   todos: string[];
-  /** El nombre es el del tipo de viaje y no un cobro asignado. */
-  deTipo: boolean;
   /** Alguna carga todavía no tiene a quién cobrarle. */
   faltaAsignar: boolean;
 }
 
-export function clienteDelViaje(
-  trip: Pick<Trip, "provider_name"> & { segments?: Pick<TripSegment, "cobro_a">[] },
-  combinado: boolean,
-): ClienteDelViaje {
+export function clienteDelViaje(trip: { segments?: Pick<TripSegment, "cobro_a">[] }): ClienteDelViaje {
   const cargas = trip.segments ?? [];
   const cobros: string[] = [];
   for (const c of cargas) {
@@ -1349,15 +1344,9 @@ export function clienteDelViaje(
   }
   const faltaAsignar = cargas.some((c) => !c.cobro_a?.trim());
   if (cobros.length) {
-    return { nombres: cobros.slice(0, 2), mas: Math.max(0, cobros.length - 2), todos: cobros, deTipo: false, faltaAsignar };
+    return { nombres: cobros.slice(0, 2), mas: Math.max(0, cobros.length - 2), todos: cobros, faltaAsignar };
   }
-
-  // Sin cobro en ninguna carga. Un clásico de un solo tramo se cobra al cliente del viaje.
-  const tipo = trip.provider_name?.trim();
-  if (!combinado && cargas.length === 0 && tipo) {
-    return { nombres: [tipo], mas: 0, todos: [tipo], deTipo: true, faltaAsignar: false };
-  }
-  return { nombres: [], mas: 0, todos: [], deTipo: false, faltaAsignar: true };
+  return { nombres: [], mas: 0, todos: [], faltaAsignar: true };
 }
 
 /**

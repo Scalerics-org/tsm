@@ -7,20 +7,19 @@ import { clienteDelViaje } from "@shared/domain";
  * "Que cada renglón tenga el filtro para elegir cliente… o poder agregar uno nuevo." — Rodrigo,
  * 23/9/2026. Gonzalo decidió empezar por mostrarla y filtrarla: nada de esto escribe en la base.
  *
- * Lo que tiene que ser cierto: que el cobro asignado gane sobre el nombre del viaje; que en los
- * combinados el nombre del viaje ("Combinados", "OTROS VIAJES") NO se pase por cliente; y que lo
- * que no tiene a quién cobrarle se distinga, porque es lo que la oficina tiene que mirar.
+ * Lo que tiene que ser cierto: que la columna tenga sólo dos estados —los nombres del cobro, o
+ * "sin asignar"—, que el nombre del tipo de viaje NO se pase por cliente (ya está en la columna
+ * del recorrido), y que lo que no tiene a quién cobrarle se distinga.
  */
 
 const carga = (cobro_a: string | null) => ({ cobro_a });
 
 describe("clienteDelViaje", () => {
   it("el cobro de las cargas manda", () => {
-    expect(clienteDelViaje({ provider_name: "UAM", segments: [carga("Agencia")] }, false)).toEqual({
+    expect(clienteDelViaje({ segments: [carga("Agencia")] })).toEqual({
       nombres: ["Agencia"],
       mas: 0,
       todos: ["Agencia"],
-      deTipo: false,
       faltaAsignar: false,
     });
   });
@@ -28,47 +27,33 @@ describe("clienteDelViaje", () => {
   // Los dos casos reales de producción: Argenzio y Agencia, Armco y Agencia. Con un "+1" se veía
   // sólo "Agencia" y el cliente de verdad quedaba escondido.
   it("con dos clientes distintos se ven los dos, en el orden de las cargas y sin un +N", () => {
-    const r = clienteDelViaje({ provider_name: "Montevideo - BU", segments: [carga("Agencia"), carga("Argenzio")] }, false);
+    const r = clienteDelViaje({ segments: [carga("Agencia"), carga("Argenzio")] });
     expect(r.nombres).toEqual(["Agencia", "Argenzio"]);
     expect(r.mas).toBe(0);
   });
 
   it("de tres para arriba: dos nombres y un +N, con todos en el detalle, sin contar dos veces al mismo", () => {
-    const r = clienteDelViaje(
-      { provider_name: "Combinados", segments: [carga("Armco"), carga("ARMCO "), carga("Agencia"), carga("Jair")] },
-      true,
-    );
+    const r = clienteDelViaje({ segments: [carga("Armco"), carga("ARMCO "), carga("Agencia"), carga("Jair")] });
     expect(r.nombres).toEqual(["Armco", "Agencia"]);
     expect(r.mas).toBe(1);
     expect(r.todos).toEqual(["Armco", "Agencia", "Jair"]);
   });
 
-  it("un clásico de un solo tramo se cobra al cliente del viaje, y se marca que es el tipo", () => {
-    expect(clienteDelViaje({ provider_name: "Casarone", segments: [] }, false)).toEqual({
-      nombres: ["Casarone"],
-      mas: 0,
-      todos: ["Casarone"],
-      deTipo: true,
-      faltaAsignar: false,
-    });
+  // El tipo de viaje ya se ve en la columna del recorrido: repetirlo acá se leía como "se le cobra
+  // a Casarone". Sin cobro asignado la columna dice que falta, sea cual sea el viaje.
+  it("un viaje sin cobro dice 'sin asignar', aunque sea un clásico sin ninguna carga", () => {
+    expect(clienteDelViaje({ segments: [] })).toEqual({ nombres: [], mas: 0, todos: [], faltaAsignar: true });
+    expect(clienteDelViaje({})).toEqual({ nombres: [], mas: 0, todos: [], faltaAsignar: true });
   });
 
-  it("en un combinado sin cobro el nombre del viaje NO es el cliente: queda sin asignar", () => {
-    const r = clienteDelViaje({ provider_name: "OTROS VIAJES", segments: [carga(null), carga("")] }, true);
-    expect(r).toEqual({ nombres: [], mas: 0, todos: [], deTipo: false, faltaAsignar: true });
-  });
-
-  it("un combinado que todavía no tiene cargas tampoco se cobra a 'Combinados'", () => {
-    expect(clienteDelViaje({ provider_name: "Combinados", segments: [] }, true).nombres).toEqual([]);
+  it("con cargas y ninguna con cobro tampoco hay cliente: queda sin asignar", () => {
+    const r = clienteDelViaje({ segments: [carga(null), carga("")] });
+    expect(r).toEqual({ nombres: [], mas: 0, todos: [], faltaAsignar: true });
   });
 
   it("con algunas cargas resueltas y otras no: muestra el cliente y avisa que falta una", () => {
-    const r = clienteDelViaje({ provider_name: "Combinados", segments: [carga("Armco"), carga(null)] }, true);
+    const r = clienteDelViaje({ segments: [carga("Armco"), carga(null)] });
     expect(r.nombres).toEqual(["Armco"]);
     expect(r.faltaAsignar).toBe(true);
-  });
-
-  it("un clásico con cargas y ninguna con cobro está sin asignar, no cobrado al nombre del viaje", () => {
-    expect(clienteDelViaje({ provider_name: "UAM", segments: [carga(null)] }, false).nombres).toEqual([]);
   });
 });

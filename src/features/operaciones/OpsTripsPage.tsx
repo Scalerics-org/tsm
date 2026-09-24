@@ -27,11 +27,6 @@ export function OpsTripsPage() {
   const [clientes, setClientes] = useState<{ nombre: string; cobra: boolean; soloCarga: boolean }[]>([]);
   const [plantillas, setPlantillas] = useState<TripTemplate[]>([]);
   const [facturas, setFacturas] = useState<string[]>([]);
-  // Las plantillas que arman el recorrido con cargas: ahí el nombre del viaje no es quien paga.
-  const combinados = useMemo(
-    () => new Set(plantillas.filter((p) => p.multi_renglon).map((p) => p.id)),
-    [plantillas],
-  );
   const [trips, setTrips] = useState<ViajeDeOficina[] | null>(null);
   /**
    * Los filtros viven en la dirección de la página, no en memoria.
@@ -293,12 +288,7 @@ export function OpsTripsPage() {
             </thead>
             <tbody>
               {trips.map((t) => (
-                <FilaViaje
-                  key={t.id}
-                  t={t}
-                  combinado={combinados.has(t.template_id ?? -1)}
-                  onCambio={() => setVersion((v) => v + 1)}
-                />
+                <FilaViaje key={t.id} t={t} onCambio={() => setVersion((v) => v + 1)} />
               ))}
             </tbody>
           </table>
