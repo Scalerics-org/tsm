@@ -15,7 +15,11 @@ const SECRET = "test-secret-tsm";
 
 type Escritura = { sql: string; binds: unknown[] };
 
-function fakeDB(escrituras: Escritura[], opts: { camaraFrio?: boolean; surtida?: unknown } = {}) {
+function fakeDB(
+  escrituras: Escritura[],
+  opts: { camaraFrio?: boolean; surtida?: unknown } = {},
+  role: string = ROLES.ADMIN,
+) {
   return {
     prepare(sql: string) {
       let binds: unknown[] = [];
@@ -26,7 +30,9 @@ function fakeDB(escrituras: Escritura[], opts: { camaraFrio?: boolean; surtida?:
           return stmt;
         },
         first: async () => {
-          if (q.includes("from users")) return { id: 2 };
+          // El rol se relee de la base en cada pedido (ver `usuarioDeOficina`): tiene que
+          // coincidir con el del token que firma `pedir`, si no la base lo pisa.
+          if (q.includes("from users")) return { id: 2, role };
           if (q.includes("from drivers")) return { status: "activo", default_truck_id: 1 };
           if (q.includes("select camara_frio from trucks")) return { camara_frio: opts.camaraFrio ? 1 : 0 };
           if (q.includes("from surtidas_frio")) return opts.surtida ?? null;
@@ -58,7 +64,7 @@ async function pedir(
   const res = await app.request(
     url,
     { method: init.method, headers, body: init.json !== undefined ? JSON.stringify(init.json) : init.body },
-    { DB: fakeDB(escrituras, opts), JWT_SECRET: SECRET } as any,
+    { DB: fakeDB(escrituras, opts, rol), JWT_SECRET: SECRET } as any,
     { waitUntil: () => {}, passThroughOnException: () => {} } as any,
   );
   return { status: res.status, escrituras, body: (await res.json()) as any };

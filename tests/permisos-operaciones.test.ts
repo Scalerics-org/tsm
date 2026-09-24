@@ -13,14 +13,16 @@ import { ROLES } from "@shared/domain";
 
 const SECRET = "test-secret-tsm";
 
-function fakeDB() {
+function fakeDB(role: string) {
   return {
     prepare(sql: string) {
       const q = sql.toLowerCase();
       const stmt = {
         bind: () => stmt,
         first: async () => {
-          if (q.includes("from users")) return { id: 2 };
+          // El rol se relee de la base en cada pedido (ver `usuarioDeOficina`): tiene que
+          // coincidir con el del token que firma `status`.
+          if (q.includes("from users")) return { id: 2, role };
           return null;
         },
         all: async () => ({ results: [] }),
@@ -37,7 +39,7 @@ async function status(method: string, url: string, role: string, body: unknown =
   const res = await app.request(
     url,
     { method, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: method === "GET" ? undefined : JSON.stringify(body) },
-    { DB: fakeDB(), JWT_SECRET: SECRET } as any,
+    { DB: fakeDB(role), JWT_SECRET: SECRET } as any,
   );
   return res.status;
 }

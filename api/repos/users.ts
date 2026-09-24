@@ -15,19 +15,29 @@ export async function findUserByEmail(db: D1Database, email: string): Promise<Us
 }
 
 /**
- * ¿El usuario de oficina sigue existiendo?
+ * El usuario de oficina, releído de la base en cada pedido: si sigue existiendo, y con qué rol.
  *
- * Se pregunta en cada pedido por lo mismo que el chofer: el token dura una semana, así que
- * borrar al encargado que se fue de la empresa no le cortaba nada —seguía leyendo y cambiando
- * todo desde su teléfono— hasta que venciera.
+ * Antes esto sólo miraba la existencia, a propósito: "el rol sigue saliendo del token hasta que
+ * vuelva a entrar. Cambiarlo acá haría que un permiso dependa de dos fuentes a la vez, y lo que
+ * resuelve el agujero es la baja, que es lo que la oficina realmente hace." Eso alcanzaba cuando
+ * los roles de oficina eran admin y encargado, que se diferencian por qué pueden CREAR, no por
+ * dejar de poder escribir.
  *
- * Sólo la existencia, no el rol: el rol sigue saliendo del token hasta que vuelva a entrar.
- * Cambiarlo acá haría que un permiso dependa de dos fuentes a la vez, y lo que resuelve el
- * agujero es la baja, que es lo que la oficina realmente hace.
+ * Con el rol lector ("solo mirar"), bajarle el rol a alguien a lector tiene que cortarle la
+ * escritura ya, no en hasta 7 días: es exactamente el permiso que ese cambio de rol quiere
+ * sacarle. Con el rol saliendo sólo del token, un admin bajado a lector seguía pudiendo borrar
+ * y escribir con el token viejo durante toda esa semana. Por eso ahora el rol de la base manda
+ * sobre el del token: es un SELECT más por pedido, y ya se hacía uno.
  */
-export async function existeUsuario(db: D1Database, id: number): Promise<boolean> {
-  const row = await db.prepare("SELECT id FROM users WHERE id = ?").bind(id).first<{ id: number }>();
-  return row != null;
+export async function usuarioDeOficina(
+  db: D1Database,
+  id: number,
+): Promise<{ id: number; role: Role } | null> {
+  const row = await db
+    .prepare("SELECT id, role FROM users WHERE id = ?")
+    .bind(id)
+    .first<{ id: number; role: Role }>();
+  return row ?? null;
 }
 
 export async function listUsers(db: D1Database): Promise<AuthUser[]> {

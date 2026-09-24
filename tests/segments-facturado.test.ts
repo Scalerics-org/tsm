@@ -45,12 +45,13 @@ function viaje(overrides: Record<string, unknown> = {}) {
 }
 
 /** D1 mínimo: responde por lo que pide la consulta. */
-function fakeDB(trip: ReturnType<typeof viaje>) {
+function fakeDB(trip: ReturnType<typeof viaje>, role: string = ROLES.ENCARGADO) {
   const responder = (sql: string) => {
     const s = sql.toLowerCase();
     if (s.includes("from trips")) return trip;
-    // La corrección de cabecera valida contra la base que el chofer y el camión existan.
-    if (s.includes("from users")) return { id: 2 };
+    // La corrección de cabecera valida contra la base que el chofer y el camión existan, y
+    // ahora también contra el rol de oficina (ver `usuarioDeOficina`).
+    if (s.includes("from users")) return { id: 2, role };
     if (s.includes("from drivers")) return { id: 1, name: "Carlos Méndez", status: "activo", default_truck_id: 1 };
     if (s.includes("from trucks")) return { id: 1, plate: "STZ 4821" };
     return null;
@@ -135,7 +136,7 @@ async function patchCabecera(rol: string, body: unknown) {
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: JSON.stringify(body),
     },
-    { DB: fakeDB(viaje({ kilometros: 627 })), JWT_SECRET: SECRET } as any,
+    { DB: fakeDB(viaje({ kilometros: 627 }), rol), JWT_SECRET: SECRET } as any,
   );
   return { status: res.status, json: (await res.json()) as any };
 }

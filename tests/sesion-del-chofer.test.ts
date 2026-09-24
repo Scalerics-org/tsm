@@ -65,7 +65,7 @@ describe("la sesión del chofer se revisa en cada pedido", () => {
  * su token, una semana leyendo y cambiando todo desde el teléfono.
  */
 describe("la sesión de oficina también se revisa", () => {
-  const pedirOficina = async (fila: { id: number } | null) => {
+  const pedirOficina = async (fila: { id: number; role: string } | null) => {
     const stmt = {
       bind: () => stmt,
       first: async () => fila,
@@ -81,7 +81,7 @@ describe("la sesión de oficina también se revisa", () => {
   };
 
   it("el usuario que sigue existiendo entra", async () => {
-    const { status } = await pedirOficina({ id: 2 });
+    const { status } = await pedirOficina({ id: 2, role: ROLES.ADMIN });
     expect(status).toBe(200);
   });
 
@@ -91,11 +91,14 @@ describe("la sesión de oficina también se revisa", () => {
     expect(json.error).toMatch(/ya no existe/i);
   });
 
-  it("el rol sigue saliendo del token: cambiarlo tiene efecto cuando vuelve a entrar", async () => {
-    // A propósito: acá se resuelve la baja, no el cambio de rol. Mezclar las dos fuentes haría
-    // que un permiso dependa del token y de la base a la vez.
-    const { status, json } = await pedirOficina({ id: 2 });
+  it("el rol manda de la base, no del token: bajarlo a lector rige en el pedido siguiente", async () => {
+    // El token dice admin (así lo firmó tokenOficina), pero la oficina ya le bajó el rol a
+    // lector en la base. Antes esto se resolvía sólo con el token —"cambiarlo tiene efecto
+    // cuando vuelve a entrar"— y un admin bajado a lector seguía pudiendo escribir con el
+    // token viejo hasta una semana. Con el rol lector, cuyo sentido es no poder escribir, ese
+    // margen ya no es aceptable: el próximo pedido tiene que verlo como lector YA.
+    const { status, json } = await pedirOficina({ id: 2, role: ROLES.LECTOR });
     expect(status).toBe(200);
-    expect(json.data.role).toBe(ROLES.ADMIN);
+    expect(json.data.role).toBe(ROLES.LECTOR);
   });
 });

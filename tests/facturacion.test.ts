@@ -178,7 +178,7 @@ describe("el resumen no vuelve a cobrar lo ya facturado", () => {
 const SECRET = "test-secret-tsm";
 
 /** D1 mínimo: guarda los UPDATE que se le mandan, que es lo que hay para mirar. */
-function fakeDB(updates: { sql: string; binds: unknown[] }[]) {
+function fakeDB(updates: { sql: string; binds: unknown[] }[], role: string) {
   return {
     prepare(sql: string) {
       const stmt = {
@@ -186,9 +186,10 @@ function fakeDB(updates: { sql: string; binds: unknown[] }[]) {
           if (/update trips/i.test(sql)) updates.push({ sql, binds });
           return stmt;
         },
-        // El middleware relee el camión del chofer antes de rebotarlo por rol.
+        // El middleware relee el camión del chofer antes de rebotarlo por rol, y ahora también
+        // el rol de oficina (ver `usuarioDeOficina`): tiene que coincidir con el del token.
         first: async () => {
-          if (/from users/i.test(sql)) return { id: 3 };
+          if (/from users/i.test(sql)) return { id: 3, role };
           return /from drivers/i.test(sql) ? { default_truck_id: 1, status: "activo" } : null;
         },
         all: async () => ({ results: [] }),
@@ -215,7 +216,7 @@ async function pedir(ruta: string, role: string, body?: unknown, updates: { sql:
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
     },
-    { DB: fakeDB(updates), JWT_SECRET: SECRET } as any,
+    { DB: fakeDB(updates, role), JWT_SECRET: SECRET } as any,
   );
   return { status: res.status, json: (await res.json()) as any };
 }

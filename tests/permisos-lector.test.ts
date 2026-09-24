@@ -20,14 +20,17 @@ import { ROLES } from "@shared/domain";
 
 const SECRET = "test-secret-tsm";
 
-function fakeDB() {
+// El rol ahora se relee de la base en cada pedido (ver `usuarioDeOficina`), así que el fake
+// tiene que devolver el mismo rol con el que se firmó el token: si no, el rol de la base pisa
+// al del token y estos tests estarían probando un rol distinto del que dicen probar.
+function fakeDB(role: string) {
   return {
     prepare(sql: string) {
       const q = sql.toLowerCase();
       const stmt = {
         bind: () => stmt,
         first: async () => {
-          if (q.includes("from users")) return { id: 2 };
+          if (q.includes("from users")) return { id: 2, role };
           return null;
         },
         all: async () => ({ results: [] }),
@@ -51,7 +54,7 @@ async function status(method: string, url: string, role: string, body: unknown =
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: method === "GET" ? undefined : JSON.stringify(body),
     },
-    { DB: fakeDB(), JWT_SECRET: SECRET } as any,
+    { DB: fakeDB(role), JWT_SECRET: SECRET } as any,
   );
   return res.status;
 }
@@ -225,13 +228,13 @@ describe("la pantalla de Consumo del lector", () => {
     logged_at: `${dia} 12:00:00`,
   });
 
-  function dbConSurtidas() {
+  function dbConSurtidas(role: string) {
     return {
       prepare(sql: string) {
         const q = sql.toLowerCase();
         const stmt = {
           bind: () => stmt,
-          first: async () => (q.includes("from users") ? { id: 2 } : null),
+          first: async () => (q.includes("from users") ? { id: 2, role } : null),
           all: async () => {
             if (q.includes("from trucks")) {
               return {
@@ -268,7 +271,7 @@ describe("la pantalla de Consumo del lector", () => {
     return app.request(
       "/api/reports/consumo",
       { headers: { authorization: `Bearer ${token}` } },
-      { DB: dbConSurtidas(), JWT_SECRET: SECRET } as any,
+      { DB: dbConSurtidas(role), JWT_SECRET: SECRET } as any,
     );
   }
 
@@ -329,14 +332,14 @@ describe("lo que el lector recibe de choferes y camiones", () => {
   ];
   const consultas: string[] = [];
 
-  function dbConFilas() {
+  function dbConFilas(role: string) {
     return {
       prepare(sql: string) {
         const q = sql.toLowerCase();
         consultas.push(q);
         const stmt = {
           bind: () => stmt,
-          first: async () => (q.includes("from users") ? { id: 2 } : null),
+          first: async () => (q.includes("from users") ? { id: 2, role } : null),
           all: async () => {
             if (q.includes("from drivers")) return { results: choferes };
             if (q.includes("from trucks")) return { results: camiones };
@@ -358,7 +361,7 @@ describe("lo que el lector recibe de choferes y camiones", () => {
     const res = await app.request(
       url,
       { headers: { authorization: `Bearer ${token}` } },
-      { DB: dbConFilas(), JWT_SECRET: SECRET } as any,
+      { DB: dbConFilas(role), JWT_SECRET: SECRET } as any,
     );
     expect(res.status).toBe(200);
     return ((await res.json()) as { data: Record<string, unknown>[] }).data;
@@ -398,5 +401,76 @@ describe("lo que el lector recibe de choferes y camiones", () => {
       expect(q).not.toContain("pin_hash");
       expect(q).not.toMatch(/\bd\.\*/);
     }
+  });
+});
+
+/**
+ * El rol manda de la base, no del token: bajarle el rol a alguien tiene que rendir efecto en
+ * el pedido siguiente, no recién cuando el token de 7 días vuelva a firmarse.
+ */
+describe("el rol de la base pisa al del token", () => {
+  /** DB falsa donde el token y la fila de `users` pueden decir roles distintos. */
+  function dbConRolDistinto(rolEnLaBase: string) {
+    return {
+      prepare(sql: string) {
+        const q = sql.toLowerCase();
+        const stmt = {
+          bind: () => stmt,
+          first: async () => (q.includes("from users") ? { id: 2, role: rolEnLaBase } : null),
+          all: async () => ({ results: [] }),
+          run: async () => ({ meta: { last_row_id: 1, changes: 1 } }),
+        };
+        return stmt;
+      },
+      batch: async () => [],
+    } as unknown as D1Database;
+  }
+
+  async function pedirConRolDistinto(
+    method: string,
+    url: string,
+    rolDelToken: string,
+    rolEnLaBase: string,
+    body: unknown = {},
+  ) {
+    const token = await signToken(
+      { id: 2, name: "Aníbal", role: rolDelToken, driver_id: null, truck_id: null, email: null } as any,
+      SECRET,
+    );
+    const res = await app.request(
+      url,
+      {
+        method,
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: method === "GET" ? undefined : JSON.stringify(body),
+      },
+      { DB: dbConRolDistinto(rolEnLaBase), JWT_SECRET: SECRET } as any,
+    );
+    return res.status;
+  }
+
+  it("token firmado como encargado, pero la base ya dice lector: un POST de escritura da 403", async () => {
+    const status = await pedirConRolDistinto("POST", "/api/trips", ROLES.ENCARGADO, ROLES.LECTOR, {
+      template_id: 1,
+    });
+    expect(status).toBe(403);
+  });
+
+  it("token firmado como admin, pero la base ya dice lector: nada fuera de la lista blanca", async () => {
+    for (const [method, url] of [
+      ["GET", "/api/reports/summary"],
+      ["POST", "/api/templates"],
+      ["DELETE", "/api/trips/1"],
+      ["GET", "/api/users"],
+    ] as const) {
+      expect(await pedirConRolDistinto(method, url, ROLES.ADMIN, ROLES.LECTOR)).toBe(403);
+    }
+    // Lo que sí está en la lista blanca lo sigue pudiendo: no quedó frenado por completo.
+    expect(await pedirConRolDistinto("GET", "/api/trips", ROLES.ADMIN, ROLES.LECTOR)).not.toBe(403);
+  });
+
+  it("al revés también: token de lector, pero la base ya lo subió a encargado, entra sin la lista blanca", async () => {
+    const status = await pedirConRolDistinto("GET", "/api/reports/summary", ROLES.LECTOR, ROLES.ENCARGADO);
+    expect(status).not.toBe(403);
   });
 });

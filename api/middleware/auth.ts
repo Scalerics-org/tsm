@@ -3,7 +3,7 @@ import type { Env, Vars } from "../env";
 import { DRIVER_STATUS, ROLES, type Role } from "../../shared/domain";
 import { verifyToken } from "../lib/crypto";
 import { sesionDelChofer } from "../repos/drivers";
-import { existeUsuario } from "../repos/users";
+import { usuarioDeOficina } from "../repos/users";
 import { fail } from "../lib/response";
 import { lectorPuede } from "../lib/permisos-lector";
 
@@ -31,10 +31,13 @@ export const requireAuth: MiddlewareHandler<Ctx> = async (c, next) => {
   } else {
     // Y la oficina igual: borrar a alguien que se fue de la empresa le cortaba el acceso recién
     // cuando venciera su token, hasta una semana después, con permiso para leer y cambiar todo.
-    if (!(await existeUsuario(c.env.DB, user.id))) {
+    // El rol también se relee acá y no sale del token: bajarle el rol a alguien —a lector, sobre
+    // todo— tiene que cortarle la escritura ya, no hasta que el token de una semana venza.
+    const fila = await usuarioDeOficina(c.env.DB, user.id);
+    if (!fila) {
       return fail(c, "Tu usuario ya no existe. Hablá con la oficina.", 401);
     }
-    c.set("user", user);
+    c.set("user", { ...user, role: fila.role });
   }
 
   /**

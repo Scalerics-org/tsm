@@ -16,10 +16,12 @@ import { ROLES } from "@shared/domain";
 
 const SECRET = "test-secret-tsm";
 
-function fakeDB() {
+// El rol ahora se relee de la base (ver `usuarioDeOficina`): la fila de "users" tiene que
+// devolver el mismo rol con el que se firmó el token, si no la base lo pisa.
+function fakeDB(role: string) {
   const stmt: any = {
     bind: () => stmt,
-    first: async () => ({ id: 2, status: "activo", default_truck_id: 1 }),
+    first: async () => ({ id: 2, role, status: "activo", default_truck_id: 1 }),
     all: async () => ({ results: [] }),
     run: async () => ({ meta: {} }),
   };
@@ -37,7 +39,7 @@ const suscribir = async (role: string, driverId: number | null) => {
       headers: { authorization: `Bearer ${await token(role, driverId)}`, "content-type": "application/json" },
       body: JSON.stringify({ endpoint: "https://push.example/abc", keys: { p256dh: "k", auth: "a" } }),
     },
-    { DB: fakeDB(), JWT_SECRET: SECRET } as any,
+    { DB: fakeDB(role), JWT_SECRET: SECRET } as any,
   );
   return res.status;
 };

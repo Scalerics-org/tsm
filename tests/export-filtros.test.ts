@@ -32,7 +32,9 @@ function fakeDB(registro: Consulta[]) {
           return stmt;
         },
         // El middleware comprueba en cada pedido que el usuario de oficina siga existiendo.
-        first: async () => (/from users/i.test(sql) ? { id: 2 } : null),
+        // El rol se relee de la base en cada pedido (ver `usuarioDeOficina`); acá el token
+        // siempre es ENCARGADO.
+        first: async () => (/from users/i.test(sql) ? { id: 2, role: ROLES.ENCARGADO } : null),
         all: async () => ({ results: [] }),
         run: async () => ({ meta: {} }),
       };

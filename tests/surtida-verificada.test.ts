@@ -41,7 +41,11 @@ const SURTIDA = {
 };
 
 /** Anota cada escritura con sus binds, que es lo que hay que poder afirmar acá. */
-function fakeDB(escrituras: { sql: string; binds: unknown[] }[], surtida: unknown = SURTIDA) {
+function fakeDB(
+  escrituras: { sql: string; binds: unknown[] }[],
+  surtida: unknown = SURTIDA,
+  role: string = ROLES.ENCARGADO,
+) {
   return {
     prepare(sql: string) {
       let binds: unknown[] = [];
@@ -52,7 +56,9 @@ function fakeDB(escrituras: { sql: string; binds: unknown[] }[], surtida: unknow
         },
         first: async () => {
           const q = sql.toLowerCase();
-          if (q.includes("from users")) return { id: 2 };
+          // El rol se relee de la base en cada pedido (ver `usuarioDeOficina`); tiene que
+          // coincidir con el del token que firma `pedir`.
+          if (q.includes("from users")) return { id: 2, role };
           if (q.includes("from fuel_logs")) return surtida;
           // El chofer se relee en cada pedido para saber si sigue activo; sin esta fila, lo
           // que frena al chofer sería la baja y no el permiso, que es lo que se está probando.
@@ -82,7 +88,7 @@ async function pedir(url: string, rol: string, body: unknown, method = "PUT", su
       headers: { authorization: `Bearer ${await token(rol)}`, "content-type": "application/json" },
       body: JSON.stringify(body),
     },
-    { DB: fakeDB(escrituras, surtida), JWT_SECRET: SECRET } as any,
+    { DB: fakeDB(escrituras, surtida, rol), JWT_SECRET: SECRET } as any,
   );
   return { status: res.status, escrituras };
 }

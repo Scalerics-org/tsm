@@ -34,7 +34,9 @@ function fakeDB(escrituras: string[]) {
     const s = sql.trim().toLowerCase();
     return {
       bind: () => stmt(sql),
-      first: async () => (s.startsWith("select") ? { id: 9, name: CHOFER_NUEVO.name } : null),
+      // El rol se relee de la base en cada pedido (ver `usuarioDeOficina`): tiene que coincidir
+      // con el del token de `tokenAdmin`, si no el rol de la base lo pisa.
+      first: async () => (s.startsWith("select") ? { id: 9, name: CHOFER_NUEVO.name, role: ROLES.ADMIN } : null),
       all: async () => ({ results: [] }),
       run: async () => {
         escrituras.push(s.split(/\s+/).slice(0, 3).join(" "));

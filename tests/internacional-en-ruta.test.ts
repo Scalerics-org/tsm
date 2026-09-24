@@ -100,9 +100,11 @@ interface Base {
   abierto?: boolean;
 }
 
-function fakeDB(escrituras: Escritura[], base: Base) {
+function fakeDB(escrituras: Escritura[], base: Base, role: string) {
   const responder = (q: string) => {
-    if (q.includes("from users")) return { id: 2 };
+    // El rol se relee de la base en cada pedido (ver `usuarioDeOficina`): tiene que coincidir
+    // con el del token que firma `pedir`.
+    if (q.includes("from users")) return { id: 2, role };
     if (q.includes("from lecturas_odometro")) return { id: 1, truck_id: 1, periodo: "2026-09" };
     if (q.includes("from trip_templates")) return base.tpl ?? plantilla();
     // El viaje abierto del chofer: el alta lo mira antes de crear uno.
@@ -155,7 +157,7 @@ async function pedir(url: string, method: string, json: unknown, base: Base, rol
       headers: { authorization: `Bearer ${await token(rol)}`, "content-type": "application/json" },
       body: JSON.stringify(json),
     },
-    { DB: fakeDB(escrituras, base), JWT_SECRET: SECRET } as any,
+    { DB: fakeDB(escrituras, base, rol), JWT_SECRET: SECRET } as any,
     { waitUntil: () => {}, passThroughOnException: () => {} } as any,
   );
   return { status: res.status, escrituras, body: (await res.json()) as any };

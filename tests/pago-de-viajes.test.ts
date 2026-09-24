@@ -28,7 +28,12 @@ const signos = (sql: string) => (sql.match(/\?/g) ?? []).length;
 type Escritura = { sql: string; binds: unknown[] };
 
 /** Una base que anota lo que se le escribe y contesta cuántas filas cambió cada `batch`. */
-function fakeDB(escrituras: Escritura[], cambiosPorTanda = 1, lecturas: Escritura[] = []) {
+function fakeDB(
+  escrituras: Escritura[],
+  cambiosPorTanda = 1,
+  lecturas: Escritura[] = [],
+  role: string = ROLES.ENCARGADO,
+) {
   return {
     prepare(sql: string) {
       const q = sql.replace(/\s+/g, " ").trim();
@@ -40,7 +45,9 @@ function fakeDB(escrituras: Escritura[], cambiosPorTanda = 1, lecturas: Escritur
         },
         first: async () => {
           const minusculas = q.toLowerCase();
-          if (minusculas.includes("from users")) return { id: 2 };
+          // El rol se relee de la base en cada pedido (ver `usuarioDeOficina`); tiene que
+          // coincidir con el del token que firma `pedir`.
+          if (minusculas.includes("from users")) return { id: 2, role };
           // El chofer se valida contra su ficha: tiene que existir y estar activo.
           if (minusculas.includes("from drivers")) return { id: 1, status: "activo", default_truck_id: 1 };
           return null;
@@ -164,7 +171,7 @@ describe("las rutas de pago", () => {
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
         body: JSON.stringify(body),
       },
-      { DB: fakeDB(escrituras, cambios), JWT_SECRET: SECRET } as any,
+      { DB: fakeDB(escrituras, cambios, [], role), JWT_SECRET: SECRET } as any,
       { waitUntil: () => {}, passThroughOnException: () => {} } as any,
     );
     return { status: res.status, body: (await res.json()) as any, escrituras };
