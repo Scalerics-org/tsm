@@ -351,6 +351,36 @@ describe("recorridoVisible — el recorrido completo en la fila", () => {
     expect(recorridoVisible({ origin: "", destination: "" })).toBe("origen a definir → destino a definir");
   });
 
+  // "Artigas → Artigas" decía que cargó y descargó en el mismo lugar cuando en realidad todavía no
+  // se sabe adónde va (Otros Viajes pide sólo dónde cargó; el destino se completa al final).
+  it("una carga que sólo tiene dónde cargó no dice que descargó en el mismo lugar", () => {
+    expect(recorridoVisible({ origin: "Artigas", destination: "", segments: [carga("Artigas", null)] })).toBe(
+      "Artigas → destino a definir",
+    );
+  });
+
+  it("varias cargas sin destino son los lugares donde cargó y después el destino a definir", () => {
+    expect(
+      recorridoVisible({ origin: "Artigas", destination: "", segments: [carga("Artigas", null), carga("Salto", null)] }),
+    ).toBe("Artigas → Salto → destino a definir");
+    expect(
+      recorridoVisible({ origin: "Artigas", destination: "", segments: [carga("Artigas", null), carga("Artigas", null)] }),
+    ).toBe("Artigas → destino a definir");
+  });
+
+  it("con el destino ya cargado deja de ser 'a definir', y el recorrido de siempre no cambia", () => {
+    expect(
+      recorridoVisible({ origin: "Artigas", destination: "Mdeo", segments: [carga("Artigas", "Mdeo"), carga("Salto", "Mdeo")] }),
+    ).toBe("Artigas → Salto → Mdeo");
+  });
+
+  it("un viaje de recorrido fijo con cargas que sólo dicen el origen no pierde su destino", () => {
+    // Mdeo - Bella Unión: el destino es del viaje, las cargas sólo dicen de qué departamento salen.
+    expect(recorridoVisible({ origin: "Mdeo", destination: "Bella Unión", segments: [carga("Artigas", null)] })).not.toContain(
+      "destino a definir",
+    );
+  });
+
   it("cargar y descargar en el mismo lugar no queda como una parada suelta", () => {
     expect(recorridoVisible({ origin: "Rivera", destination: "Rivera", segments: [carga("Rivera", "Rivera")] })).toBe(
       "Rivera → Rivera",

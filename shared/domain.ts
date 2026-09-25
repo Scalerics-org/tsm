@@ -1306,6 +1306,13 @@ export function recorridoVisible(
     for (const c of cargas) sumar(c.origen, true);
     for (const c of cargas) sumar(c.destino, true);
   }
+  // Ninguna carga dice dónde descargó y el viaje tampoco: todavía no se sabe adónde va. Sin esto,
+  // una carga que sólo tiene dónde cargó salía como "Artigas → Artigas", que dice otra cosa: que
+  // cargó y descargó en el mismo lugar. El destino del viaje, si lo trae, no es el caso: es el
+  // de recorrido fijo y ya sabe adónde va.
+  if (!cargas.some((c) => c.destino) && !limpio(trip.destination)) {
+    return [...paradas, DESTINO_A_DEFINIR].join(" → ");
+  }
   // Una sola parada: cargó y descargó en el mismo lugar. Se muestra como el tramo que fue.
   return paradas.length === 1 ? `${paradas[0]} → ${paradas[0]}` : paradas.join(" → ");
 }
