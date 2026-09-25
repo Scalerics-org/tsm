@@ -400,6 +400,69 @@ describe("recorridoVisible — el recorrido completo en la fila", () => {
     ).toBe("Mdeo → Salto → destino a definir");
   });
 
+  // Modelo nuevo: las descargas son del viaje y no de cada carga. El recorrido es donde cargó, en
+  // orden, y después donde descargó, en orden, sin repetir lo consecutivo. Los viajes viejos (sin
+  // `descargas`) siguen por la lógica de arriba.
+  describe("con las descargas por lugar", () => {
+    const d = (departamento: string) => ({ departamento });
+
+    it("cargó en dos lados y descargó en uno: Artigas → Salto → Mdeo", () => {
+      expect(
+        recorridoVisible({
+          origin: "Artigas",
+          destination: "Mdeo",
+          segments: [carga("Artigas", null), carga("Salto", null)],
+          descargas: [d("Mdeo")],
+        }),
+      ).toBe("Artigas → Salto → Mdeo");
+    });
+
+    it("una vuelta se conserva: Artigas → Minas → Artigas", () => {
+      expect(
+        recorridoVisible({
+          origin: "Artigas",
+          destination: "Artigas",
+          segments: [carga("Artigas", null)],
+          descargas: [d("Minas"), d("Artigas")],
+        }),
+      ).toBe("Artigas → Minas → Artigas");
+    });
+
+    it("descargó en dos lugares distintos: se ven los dos, sin tramos inventados", () => {
+      expect(
+        recorridoVisible({
+          origin: "Montevideo",
+          destination: "Artigas",
+          segments: [carga("Montevideo", null), carga("Montevideo", null)],
+          descargas: [d("Salto"), d("Artigas")],
+        }),
+      ).toBe("Montevideo → Salto → Artigas");
+    });
+
+    it("cargó y descargó en el mismo lugar: es el tramo que fue", () => {
+      expect(
+        recorridoVisible({ origin: "Rivera", destination: "Rivera", segments: [carga("Rivera", null)], descargas: [d("Rivera")] }),
+      ).toBe("Rivera → Rivera");
+    });
+
+    it("las grafías de un mismo lugar no se repiten", () => {
+      expect(
+        recorridoVisible({ origin: "Mdeo", destination: "Salto", segments: [carga("Montevideo", null)], descargas: [d("Salto")] }),
+      ).toBe("Mdeo → Salto");
+    });
+
+    it("un viaje del modelo anterior (descargas null) sigue igual", () => {
+      expect(
+        recorridoVisible({
+          origin: "Artigas",
+          destination: "Mdeo",
+          segments: [carga("Artigas", "Mdeo"), carga("Salto", "Mdeo")],
+          descargas: null,
+        }),
+      ).toBe("Artigas → Salto → Mdeo");
+    });
+  });
+
   it("cargar y descargar en el mismo lugar no queda como una parada suelta", () => {
     expect(recorridoVisible({ origin: "Rivera", destination: "Rivera", segments: [carga("Rivera", "Rivera")] })).toBe(
       "Rivera → Rivera",

@@ -14,6 +14,7 @@ import { fmtDateTime } from "../../lib/format";
 import { fmtKilos } from "@shared/domain";
 import { AgregarCargaOficina } from "./AgregarCargaOficina";
 import { CargasDelViaje } from "./CargasDelViaje";
+import { DescargasDelViaje } from "./DescargasDelViaje";
 import { EditarCabecera } from "./EditarCabecera";
 import { FechaInput } from "../../components/FechaInput";
 import { useSoloMirar } from "../../lib/auth";
@@ -278,6 +279,7 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
         onChanged={load}
         editarLugares={data.renglon_pide_ubicacion}
       />
+      {data.renglon_pide_ubicacion && <DescargasDelViaje trip={trip} photos={photos} />}
       {/* Un viaje cancelado no se factura: agregarle cargas no tiene sentido. */}
       {trip.status !== TRIP_STATUS.CANCELADO && !soloMirar && (
         <AgregarCargaOficina

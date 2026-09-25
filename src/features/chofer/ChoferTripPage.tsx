@@ -127,6 +127,12 @@ export function ChoferTripPage() {
           );
         })()}
 
+      {trip.status === TRIP_STATUS.COMPLETADO && (
+        <p className="border-l-4 border-st-greenDot bg-st-greenBg px-3 py-2 font-cond text-lg font-semibold text-st-greenTx">
+          Llegada confirmada ✓
+        </p>
+      )}
+
       <Card>
         <div className="grid grid-cols-2 gap-3 text-sm">
           {trip.remite && <Info label="Remite" value={trip.remite} />}

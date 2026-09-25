@@ -1289,12 +1289,31 @@ export function origenVisible(trip: Pick<Trip, "origin">): string {
  * dice dónde terminó, y sumarlo mostraba un tramo que no existió.
  */
 export function recorridoVisible(
-  trip: Pick<Trip, "origin" | "destination"> & { segments?: Pick<TripSegment, "origen" | "destino">[] },
+  trip: Pick<Trip, "origin" | "destination"> & {
+    segments?: Pick<TripSegment, "origen" | "destino">[];
+    descargas?: Pick<Descarga, "departamento">[] | null;
+  },
 ): string {
   // Se compara por la clave del lugar y no por el texto: "Mdeo" y "Montevideo" son la misma parada
   // y no debe salir repetida. La fila muestra la primera grafía que aparece.
   const clave = claveDeLugar;
   const limpio = (p: string | null | undefined) => p?.trim() || "";
+
+  // Con las descargas por lugar (modelo nuevo) ya no se puede emparejar cada carga con su destino:
+  // el recorrido son los lugares donde cargó, en orden, y después los lugares donde descargó, en
+  // orden, quitando sólo las repeticiones CONSECUTIVAS. Sin emparejar no hay tramos que inventar
+  // (el zigzag), y una vuelta ("Artigas → Minas → Artigas") se conserva.
+  if (trip.descargas?.length) {
+    const paradas: string[] = [];
+    const sumar = (p: string) => {
+      if (!p || clave(paradas[paradas.length - 1] ?? "") === clave(p)) return;
+      paradas.push(p);
+    };
+    sumar(limpio(trip.origin));
+    for (const s of trip.segments ?? []) sumar(limpio(s.origen));
+    for (const d of trip.descargas) sumar(limpio(d.departamento));
+    return paradas.length === 1 ? `${paradas[0]} → ${paradas[0]}` : paradas.join(" → ");
+  }
   const cargas = (trip.segments ?? [])
     .map((s) => ({ origen: limpio(s.origen), destino: limpio(s.destino) }))
     .filter((c) => c.origen || c.destino);
@@ -1411,9 +1430,11 @@ export const faltaDescarga = (c: Pick<TripSegment, "destino" | "clientes">): boo
 export function cargasSinDescarga(trip: {
   status: Trip["status"];
   descarga_por_carga?: boolean;
+  /** Con las descargas por lugar (modelo nuevo) las cargas no llevan destino: no hay nada que contar. */
+  descargas?: Descarga[] | null;
   segments?: Pick<TripSegment, "destino" | "clientes">[];
 }): number {
-  if (trip.status !== TRIP_STATUS.COMPLETADO || !trip.descarga_por_carga) return 0;
+  if (trip.status !== TRIP_STATUS.COMPLETADO || !trip.descarga_por_carga || trip.descargas) return 0;
   return (trip.segments ?? []).filter(faltaDescarga).length;
 }
 
@@ -1462,6 +1483,15 @@ export function descargasDelViaje(trip: {
     out.push({ sid: s.sid, departamento, lugar, kilos: null, pallets: null });
   }
   return out;
+}
+
+/**
+ * Cuántos lugares de descarga quedaron sin boleta: el chofer tocó "No pude sacar la boleta". Es lo
+ * que la fila de la lista muestra para que se vea que falta y alguien la pida; si no se ve, el
+ * viaje queda con el dato a medias y nadie se entera.
+ */
+export function descargasSinBoleta(trip: { descargas?: Descarga[] | null }): number {
+  return (trip.descargas ?? []).filter((d) => d.sin_boleta).length;
 }
 
 /**

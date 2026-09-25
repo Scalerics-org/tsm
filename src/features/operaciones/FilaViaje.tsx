@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   TRIP_STATUS,
   cargasSinDescarga,
+  descargasSinBoleta,
   clienteDelViaje,
   destinoVisible,
   estadoDeCobro,
@@ -77,6 +78,7 @@ export function FilaViaje({
   const estado = estadoDeCobro(t);
   const cliente = clienteDelViaje(t);
   const sinDescarga = cargasSinDescarga(t);
+  const sinBoleta = descargasSinBoleta(t);
   const rango = fmtRangoDeDias(t.started_at, t.finished_at);
   // Si no hay lugar, el rango parte después de la flecha ("24/09 →" / "25/09") y no en el medio
   // de una fecha: la columna llega a ser la mitad de ancha y la tabla entra en el monitor de 1280.
@@ -224,6 +226,14 @@ export function FilaViaje({
             title="El chofer cerró el viaje sin saber dónde descargó. Se completa desde la ficha del viaje, en Corregir lugares."
           >
             falta dónde descargó {sinDescarga === 1 ? "una carga" : `${sinDescarga} cargas`}
+          </div>
+        )}
+        {sinBoleta > 0 && (
+          <div
+            className="mt-0.5 text-[11px] font-semibold text-st-amberTx"
+            title="El chofer no pudo sacar la boleta de la descarga. Hay que pedírsela."
+          >
+            falta la boleta de {sinBoleta === 1 ? "un lugar" : `${sinBoleta} lugares`}
           </div>
         )}
         {error && <div className="mt-1 max-w-xs text-xs text-st-redTx">{error}</div>}

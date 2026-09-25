@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { descargasDelPedido, lugarVacio, lugaresDeDescarga, type LugarDeDescarga } from "../shared/en-ruta";
-import { cargasSinDescarga, faltaDescarga } from "@shared/domain";
+import { cargasSinDescarga, descargasSinBoleta, faltaDescarga } from "@shared/domain";
 
 /**
  * Dónde descargó el viaje, por lugar, al cerrar (Otros Viajes).
@@ -92,6 +92,18 @@ describe("viajes del modelo anterior: cargasSinDescarga", () => {
   it("un viaje cerrado con el cierre por carga y una carga sin descargar la cuenta", () => {
     expect(faltaDescarga(pendiente)).toBe(true);
     expect(cargasSinDescarga(viaje({ segments: [pendiente, completa] }))).toBe(1);
+  });
+
+  it("un viaje del modelo nuevo no cuenta: sus cargas no llevan destino y eso es lo normal", () => {
+    const d = [{ sid: "d", departamento: "Salto", lugar: "Molino", kilos: null, pallets: null }];
+    expect(cargasSinDescarga(viaje({ segments: [pendiente], descargas: d }))).toBe(0);
+  });
+
+  it("descargasSinBoleta cuenta los lugares donde el chofer no pudo sacarla", () => {
+    const base = { sid: "d", departamento: "Salto", lugar: "Molino", kilos: null, pallets: null };
+    expect(descargasSinBoleta({ descargas: [base, { ...base, sid: "e", sin_boleta: true }] })).toBe(1);
+    expect(descargasSinBoleta({ descargas: [base] })).toBe(0);
+    expect(descargasSinBoleta({})).toBe(0);
   });
 
   it("en curso, sin la marca de la plantilla, o con todas descargadas, no cuenta", () => {
