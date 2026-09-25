@@ -4,6 +4,7 @@ import {
   completarPendientes,
   type CobroRegla,
   type Trip,
+  type Descarga,
   type TripSegment,
   type TripStatus,
 } from "../../shared/domain";
@@ -45,6 +46,8 @@ interface TripRow {
   edited_by_name?: string | null;
   template_name?: string | null;
   descarga_por_carga?: number | null;
+  /** JSON con las descargas por lugar (migración 0051). `null` = modelo anterior. */
+  descargas?: string | null;
 }
 
 /**
@@ -108,7 +111,7 @@ const SELECT = `
   SELECT t.id, t.template_id, t.provider_name, t.origin, t.remite, t.destination, t.destinatario,
          t.driver_id, t.truck_id, t.cargo_type, t.kilos, t.field_values, t.status,
          t.started_at, t.finished_at, t.notes, t.created_at,
-         t.segments, t.kilometros, t.edited_by, t.edited_at,
+         t.segments, t.descargas, t.kilometros, t.edited_by, t.edited_at,
          t.factura_numero, t.facturado_at, t.facturado_by,
          t.factura_quitada, t.factura_quitada_at, t.pago_at, t.pago_by, t.numero_mes,
          d.name AS driver_name, tr.plate AS truck_plate,
@@ -176,7 +179,26 @@ function toTrip(r: TripRow): Trip {
     edited_by_name: r.edited_by_name ?? null,
     template_name: r.template_name ?? null,
     descarga_por_carga: !!r.descarga_por_carga,
+    descargas: parseDescargas(r.descargas),
   };
+}
+
+function parseDescargas(raw: string | null | undefined): Descarga[] | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? (v as Descarga[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Las descargas por lugar del viaje, que se escriben juntas al cerrar. */
+export async function setDescargas(db: D1Database, id: number, descargas: Descarga[]): Promise<void> {
+  await db
+    .prepare("UPDATE trips SET descargas=? WHERE id=?")
+    .bind(descargas.length ? JSON.stringify(descargas) : null, id)
+    .run();
 }
 
 export interface TripFilters {

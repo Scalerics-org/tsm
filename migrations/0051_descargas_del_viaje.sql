@@ -1,0 +1,16 @@
+-- Dónde descargó el viaje, por LUGAR y no por carga.
+--
+-- Rodrigo, 25/9/2026: al cerrar no pregunta "dónde descargó esta carga" sino "¿descargaste en más de
+-- un lugar?" y, por cada lugar: departamento, dónde descargaste, foto de la boleta y, si quiere,
+-- kilos o pallets. Las descargas ya no cuelgan de ninguna carga.
+--
+-- Es una lista JSON, como `segments`: [{ sid, departamento, lugar, kilos, pallets, sin_boleta }].
+-- El `sid` es el id de esa descarga y de él cuelgan sus fotos (`trip_photos.segment_sid`).
+--
+-- NULL = el viaje es del modelo anterior (la descarga vive en `destino` y `clientes[0]` de cada
+-- carga) o todavía no se cerró: nada se convierte, los dos modelos conviven y se leen con
+-- `descargasDelViaje`. Sin ningún dato escrito acá: al aplicarla no cambia ningún viaje.
+--
+-- Va ANTES que el código en el deploy: si el código lee la columna antes de que exista, se cae toda
+-- consulta de viajes.
+ALTER TABLE trips ADD COLUMN descargas TEXT;

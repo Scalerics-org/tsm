@@ -260,6 +260,11 @@ export interface Trip {
    * Para identificar sin ambigüedad está `id`. Lo calcula el repo, no la base.
    */
   numero_mes?: number;
+  /**
+   * Dónde descargó el viaje, por lugar (Otros Viajes). `null`/ausente = modelo anterior, donde la
+   * descarga vive en cada carga: se lee con `descargasDelViaje`, que junta los dos.
+   */
+  descargas?: Descarga[] | null;
   // joins
   driver_name?: string;
   truck_plate?: string;
@@ -1401,6 +1406,53 @@ export function cargasSinDescarga(trip: {
 }): number {
   if (trip.status !== TRIP_STATUS.COMPLETADO || !trip.descarga_por_carga) return 0;
   return (trip.segments ?? []).filter(faltaDescarga).length;
+}
+
+/**
+ * Un lugar donde el camión descargó. Rodrigo (25/9): "¿descargaste en más de un lugar?" y, por
+ * cada uno, departamento, dónde descargaste y foto de la boleta; kilos o pallets si quiere.
+ * No cuelga de ninguna carga: en el modelo nuevo no se sabe qué carga fue a qué lugar.
+ */
+export interface Descarga {
+  /** Id de esta descarga: de él cuelgan sus fotos (`trip_photos.segment_sid`). */
+  sid: string;
+  departamento: string;
+  lugar: string;
+  kilos: number | null;
+  pallets: number | null;
+  /**
+   * El chofer no pudo sacar la boleta y lo dijo ("No pude sacar la boleta"). Es lo que deja cerrar
+   * el viaje sin foto: un chofer sin señal o sin cámara en un depósito no queda atrapado por un
+   * requisito. La fila lo muestra, para que se vea que falta y alguien la pida.
+   */
+  sin_boleta?: boolean;
+}
+
+/**
+ * Las descargas de un viaje, sea del modelo que sea.
+ *
+ * Modelo nuevo: `trip.descargas`, tal cual. Modelo anterior (23 viajes en producción a la fecha):
+ * la descarga vive en cada carga (`destino` = departamento, `clientes[0]` = lugar) y se arma una
+ * por cada par distinto, sin repetir. Nada se convierte ni se escribe: es una lectura, y la
+ * descarga que sale de una carga lleva `sid` de esa carga y sin kilos ni pallets.
+ */
+export function descargasDelViaje(trip: {
+  descargas?: Descarga[] | null;
+  segments?: Pick<TripSegment, "sid" | "destino" | "clientes">[];
+}): Descarga[] {
+  if (trip.descargas) return trip.descargas;
+  const vistas = new Set<string>();
+  const out: Descarga[] = [];
+  for (const s of trip.segments ?? []) {
+    const departamento = s.destino?.trim() ?? "";
+    const lugar = s.clientes[0]?.trim() ?? "";
+    if (!departamento && !lugar) continue;
+    const clave = `${departamento.toLocaleLowerCase("es")}|${lugar.toLocaleLowerCase("es")}`;
+    if (vistas.has(clave)) continue;
+    vistas.add(clave);
+    out.push({ sid: s.sid, departamento, lugar, kilos: null, pallets: null });
+  }
+  return out;
 }
 
 /**
