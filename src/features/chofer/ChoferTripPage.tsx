@@ -16,8 +16,11 @@ import {
 import {
   camposDeRuta,
   camposDeRutaPendientes,
+  descargasAlCerrar,
+  descargasFaltantes,
   destinoAlCierre,
   partesAlCerrar,
+  type EleccionDeDescarga,
 } from "@shared/en-ruta";
 import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner, StatusBadge } from "../../components/ui";
@@ -27,6 +30,7 @@ import { VisorFotos, type FotoDelVisor } from "../../components/VisorFotos";
 import { CargasPanel } from "./CargasPanel";
 import { EnElPuente } from "./EnElPuente";
 import { DestinoAlCerrar, type DestinoElegido } from "./DestinoAlCerrar";
+import { DescargasAlCerrar } from "./DescargasAlCerrar";
 import { compressImage } from "../../lib/image";
 import { estimateTravel, fmtDuration } from "../../lib/eta";
 import { fmtDateTime } from "../../lib/format";
@@ -185,6 +189,7 @@ export function ChoferTripPage() {
           descargaFields={fields.filter((f) => f.stage === FIELD_STAGE.DESCARGA)}
           rutaPendientes={camposDeRutaPendientes(fields, trip.field_values)}
           camposUbicacion={data.campos_ubicacion}
+          descargaPorCarga={data.renglon_pide_ubicacion}
           providerId={provider_id}
           photoLabel={arrival_photo_label}
           pideKilometros={data.pide_kilometros}
@@ -277,6 +282,7 @@ function ArrivalForm({
   descargaFields,
   rutaPendientes,
   camposUbicacion,
+  descargaPorCarga,
   providerId,
   photoLabel,
   pideKilometros,
@@ -288,6 +294,8 @@ function ArrivalForm({
   /** Los del puente que quedaron sin cargar: "o cuando lleguen para cerrar, que le pida todo lo otro". */
   rutaPendientes: TemplateField[];
   camposUbicacion: CamposUbicacion | null;
+  /** Las cargas dicen dónde cargó y el cierre pregunta dónde descargó cada una (Otros Viajes). */
+  descargaPorCarga: boolean;
   providerId: number | null;
   photoLabel: string | null;
   pideKilometros: boolean;
@@ -305,6 +313,8 @@ function ArrivalForm({
   );
   const [destinoElegido, setDestinoElegido] = useState<DestinoElegido>({ destino: "", destinatario: "" });
   const partesDestino = partesAlCerrar(camposUbicacion, trip);
+  const pendientesDeDescarga = descargaPorCarga ? descargasFaltantes(trip.segments) : [];
+  const [elecciones, setElecciones] = useState<Record<string, EleccionDeDescarga>>({});
   const pedidos = [...rutaPendientes, ...descargaFields];
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
@@ -340,6 +350,8 @@ function ArrivalForm({
     // La misma regla del cierre en el servidor, así no se entera recién al confirmar.
     const destino = destinoAlCierre(camposUbicacion, trip, destinoElegido);
     if ("error" in destino) return setError(`${destino.error}.`);
+    const descargas = descargasAlCerrar(pendientesDeDescarga, elecciones);
+    if ("error" in descargas) return setError(descargas.error);
     for (const f of pedidos) {
       if (f.required && !String(values[f.key] ?? "").trim()) return setError(`Cargá ${f.label}.`);
     }
@@ -354,6 +366,7 @@ function ArrivalForm({
         // Sólo viajan si la plantilla los deja para el cierre; si no, el servidor los ignora.
         destino: destinoElegido.destino || undefined,
         destinatario: destinoElegido.destinatario || undefined,
+        descargas: descargas.descargas.length ? descargas.descargas : undefined,
       });
       onDone();
     } catch (e) {
@@ -372,6 +385,11 @@ function ArrivalForm({
     <Card className="space-y-4">
       <h2 className="text-lg font-semibold text-ink">Registrar llegada</h2>
       <DestinoAlCerrar partes={partesDestino} providerId={providerId} onChange={setDestinoElegido} />
+      <DescargasAlCerrar
+        pendientes={pendientesDeDescarga}
+        elecciones={elecciones}
+        onChange={(sid, e) => setElecciones((p) => ({ ...p, [sid]: e }))}
+      />
       {pedidos.map((f) => (
         <Field key={f.key} label={`${f.label}${f.required ? "" : " (opcional)"}`}>
           <input

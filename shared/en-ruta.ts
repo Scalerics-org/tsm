@@ -6,6 +6,7 @@ import {
   type CamposUbicacion,
   type TemplateField,
   type Trip,
+  type TripSegment,
 } from "./domain";
 
 /**
@@ -144,4 +145,112 @@ export function pesoDe(fields: TemplateField[], values: Record<string, string>):
   if (!crudo) return null;
   const n = Number(crudo);
   return Number.isFinite(n) ? n : null;
+}
+
+// ── Dónde descargó cada carga (viajes con ubicación por carga) ──
+
+/**
+ * Si a una carga le falta dónde descargó: el departamento de destino (`destino`) o el lugar
+ * (`clientes[0]`, escrito). En los viajes con ubicación por carga (Otros Viajes) el chofer sólo
+ * dice dónde cargó al agregarla, porque adónde va todavía no siempre se sabe ("uno no sé para
+ * dónde va, no sé aún" — Rodrigo, 25/9), y la descarga se pregunta al cerrar.
+ */
+export const faltaDescarga = (c: Pick<TripSegment, "destino" | "clientes">): boolean =>
+  !c.destino?.trim() || !c.clientes[0]?.trim();
+
+export interface DescargaPendiente {
+  sid: string;
+  /** Posición en el viaje desde 1: cómo la nombra el chofer ("la carga 2"). */
+  numero: number;
+  remitente: string;
+  origen: string | null;
+  /** Lo que la carga ya trae, para no pedirlo de nuevo si sólo le falta una de las dos partes. */
+  destino: string;
+  lugar: string;
+}
+
+/** Las cargas a las que el cierre todavía tiene que preguntarles dónde descargaron. */
+export function descargasFaltantes(segments: Pick<TripSegment, "sid" | "remitente" | "origen" | "destino" | "clientes">[]): DescargaPendiente[] {
+  return segments
+    .map((s, i) => ({ s, numero: i + 1 }))
+    .filter(({ s }) => faltaDescarga(s))
+    .map(({ s, numero }) => ({
+      sid: s.sid,
+      numero,
+      remitente: s.remitente,
+      origen: s.origen,
+      destino: s.destino?.trim() ?? "",
+      lugar: s.clientes[0]?.trim() ?? "",
+    }));
+}
+
+/** Lo que el chofer puso en el bloque de una carga. `sinDefinir` es su "todavía no sé". */
+export interface EleccionDeDescarga {
+  destino: string;
+  lugar: string;
+  sinDefinir: boolean;
+}
+
+/**
+ * Lo que se manda al cerrar, o qué falta.
+ *
+ * Cada carga pendiente tiene que tener una respuesta EXPLÍCITA: o dice dónde descargó (las dos
+ * partes) o toca "Todavía no sé". Lo que no puede pasar es que quede sin contestar por no haber
+ * mirado: eso sería un dato a medias sin que nadie se entere. El "no sé" no se manda: la carga
+ * queda sin descarga y el viaje se cierra igual.
+ */
+export function descargasAlCerrar(
+  pendientes: DescargaPendiente[],
+  elecciones: Record<string, EleccionDeDescarga | undefined>,
+): { error: string } | { descargas: DescargaElegida[] } {
+  const descargas: DescargaElegida[] = [];
+  for (const p of pendientes) {
+    const e = elecciones[p.sid];
+    if (e?.sinDefinir) continue;
+    const destino = e?.destino.trim() || p.destino;
+    const lugar = e?.lugar.trim() || p.lugar;
+    if (!destino || !lugar) {
+      return { error: `Carga ${p.numero} (${p.remitente}): elegí dónde descargó o tocá "Todavía no sé".` };
+    }
+    descargas.push({ sid: p.sid, destino, descarga: lugar });
+  }
+  return { descargas };
+}
+
+/** Lo que el chofer eligió para una carga al cerrar. */
+export interface DescargaElegida {
+  sid: string;
+  destino: string;
+  descarga: string;
+}
+
+/**
+ * Las cargas con lo que el chofer dijo al cerrar.
+ *
+ * Sólo completa lo que falta: una carga que ya trae su destino o su lugar de descarga (las de
+ * antes del cambio, o las que cargó la oficina) no se pisa ni se vuelve a preguntar. Una carga
+ * que el chofer no menciona queda como está —"todavía no sé"— y el viaje se cierra igual: la
+ * oficina la completa después y la lista ya la muestra como "destino a definir". Un `sid` que no
+ * es del viaje se rechaza: no se aplica a ciegas.
+ */
+export function conDescargas(
+  segments: TripSegment[],
+  descargas: DescargaElegida[],
+): { error: string } | { segments: TripSegment[]; cambia: boolean } {
+  const porSid = new Map(descargas.map((d) => [d.sid, d]));
+  for (const sid of porSid.keys()) {
+    if (!segments.some((s) => s.sid === sid)) return { error: "Esa carga no existe en el viaje" };
+  }
+  let cambia = false;
+  const nuevas = segments.map((s) => {
+    const d = porSid.get(s.sid);
+    if (!d) return s;
+    const destino = s.destino?.trim() || d.destino.trim() || null;
+    const lugar = s.clientes[0]?.trim() || d.descarga.trim();
+    const clientes = lugar ? [lugar, ...s.clientes.slice(1)] : s.clientes;
+    if (destino === (s.destino ?? null) && clientes[0] === s.clientes[0]) return s;
+    cambia = true;
+    return { ...s, destino, clientes };
+  });
+  return { segments: nuevas, cambia };
 }

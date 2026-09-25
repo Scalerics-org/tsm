@@ -290,9 +290,7 @@ export function NuevaCarga({
 }) {
   // Vienen heredados y sólo se tocan si esta carga fue de otra ciudad o a otro destino.
   const [origen, setOrigen] = useState<LibretaEntry | null>(null);
-  const [destino, setDestino] = useState<LibretaEntry | null>(null);
   const [lugarTexto, setLugarTexto] = useState("");
-  const [descargaTexto, setDescargaTexto] = useState("");
   const [lugar, setLugar] = useState<LibretaEntry | null>(null);
   const [clientes, setClientes] = useState<LibretaEntry[]>([]);
   const [opciones, setOpciones] = useState<LibretaEntry[] | null>(null);
@@ -343,11 +341,13 @@ export function NuevaCarga({
       // el origen fijo del viaje ("Mdeo") y el lugar real de carga se perdía.
       origen: origen?.nombre ?? null,
       origen_id: null,
-      destino: destino?.nombre ?? null,
+      // En el ocasional la carga sólo dice dónde cargó: adónde va se pregunta al cerrar el viaje,
+      // cuando el chofer ya lo sabe (`DescargasAlCerrar`). Pedirlo acá trababa al que todavía no sabe.
+      destino: null,
       destino_id: null,
       remitente: pideUbicacion ? lugarTexto.trim() : lugar!.nombre,
       remitente_id: pideUbicacion ? null : lugar!.id,
-      clientes: pideUbicacion ? [descargaTexto.trim()] : clientes.map((c) => c.nombre),
+      clientes: pideUbicacion ? [] : clientes.map((c) => c.nombre),
       cliente_ids: pideUbicacion ? [] : clientes.map((c) => c.id),
       cantidad: cantidad ? Number(cantidad) : null,
       unidad: cantidad ? unidad : null,
@@ -360,8 +360,6 @@ export function NuevaCarga({
       // Es un viaje puntual y cada parada puede ser de otro departamento.
       if (!origen) return setError("Elegí el departamento donde cargaste.");
       if (!lugarTexto.trim()) return setError("Escribí el lugar de carga.");
-      if (!destino) return setError("Elegí el departamento de destino.");
-      if (!descargaTexto.trim()) return setError("Escribí dónde descargaste.");
     } else {
       if (pideDepartamento && !origen) return setError("Elegí el departamento donde cargaste.");
       if (!lugar) return setError("Elegí dónde cargaste.");
@@ -399,9 +397,7 @@ export function NuevaCarga({
       setYaGuardada(false);
       if (seguirCargando) {
         setOrigen(null);
-        setDestino(null);
         setLugarTexto("");
-        setDescargaTexto("");
         setLugar(null);
         setClientes([]);
         setCantidad("");
@@ -445,21 +441,6 @@ export function NuevaCarga({
               value={lugarTexto}
               onChange={(e) => setLugarTexto(e.target.value)}
               placeholder="Ej: Galpón Bella Unión"
-              autoCapitalize="words"
-            />
-          </Field>
-          <LibretaPicker
-            tipo={TIPO_DEPARTAMENTO}
-            label="3 · Departamento de destino"
-            value={destino}
-            onChange={setDestino}
-          />
-          <Field label="4 · Lugar de descarga">
-            <input
-              className="input"
-              value={descargaTexto}
-              onChange={(e) => setDescargaTexto(e.target.value)}
-              placeholder="Ej: UAM, un depósito, una estancia…"
               autoCapitalize="words"
             />
           </Field>

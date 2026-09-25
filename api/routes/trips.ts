@@ -33,6 +33,7 @@ import {
 import { kmEstimadosDelViaje } from "../../shared/vacios";
 import {
   camposDeRuta,
+  conDescargas,
   destinoAlCierre,
   destinoSeEligeAlCerrar,
   pesoDe,
@@ -727,6 +728,7 @@ trips.post("/:id/finish", async (c) => {
     kilometros?: number;
     destino?: unknown;
     destinatario?: unknown;
+    descargas?: unknown;
   };
   const merged = { ...s.trip.field_values, ...(b.field_values ?? {}) };
 
@@ -751,14 +753,39 @@ trips.post("/:id/finish", async (c) => {
     return fail(c, "Falta: kilómetros del recorrido.", 400);
   }
 
+  // Dónde descargó cada carga (Otros Viajes): el chofer sólo dijo dónde cargó, y adónde va lo dice
+  // acá, cuando ya lo sabe. Sólo completa lo que falta —una carga con su destino no se pisa— y una
+  // carga que no menciona queda como está: "todavía no sé", y el viaje se cierra igual. Se guarda
+  // ANTES de estimar los km, que salen de las cargas, y se acomoda el recorrido del viaje.
+  let base: Trip = s.trip;
+  if (tpl?.renglon_pide_ubicacion && Array.isArray(b.descargas) && b.descargas.length) {
+    const elegidas = b.descargas.map((d: any) => ({
+      sid: String(d?.sid ?? ""),
+      destino: String(d?.destino ?? ""),
+      descarga: String(d?.descarga ?? ""),
+    }));
+    const r = conDescargas(s.trip.segments, elegidas);
+    if ("error" in r) return fail(c, r.error, 400);
+    if (r.cambia) {
+      await tripsRepo.updateSegments(c.env.DB, s.trip.id, r.segments);
+      await recalcularRecorrido(c.env.DB, s.trip.id, tpl, r.segments);
+      const recorrido = recorridoSegunCargas(r.segments);
+      base = {
+        ...s.trip,
+        segments: r.segments,
+        ...(recorrido ? { origin: recorrido.origin, destination: recorrido.destination } : {}),
+      };
+    }
+  }
+
   // El destino elegido al cerrar se guarda ANTES de estimar los km: la estimación sale del
   // origen y el destino del viaje, y con el destino todavía vacío daba null — un internacional
   // sin kilómetros, que en el control de fin de mes aparece como un hueco.
   // Si después rebotan las fotos, el destino queda guardado: ya lo eligió, y al volver a
   // intentar no se le pregunta de nuevo.
   const trip: Trip = destino.cambia
-    ? { ...s.trip, destination: destino.destination, destinatario: destino.destinatario }
-    : s.trip;
+    ? { ...base, destination: destino.destination, destinatario: destino.destinatario }
+    : base;
   if (destino.cambia) {
     await tripsRepo.setDestino(c.env.DB, trip.id, trip.destination, trip.destinatario);
   }
