@@ -280,7 +280,13 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
       />
       {/* Un viaje cancelado no se factura: agregarle cargas no tiene sentido. */}
       {trip.status !== TRIP_STATUS.CANCELADO && !soloMirar && (
-        <AgregarCargaOficina tripId={trip.id} providerId={data.provider_id} segments={trip.segments} onAgregada={load} />
+        <AgregarCargaOficina
+          tripId={trip.id}
+          providerId={data.provider_id}
+          segments={trip.segments}
+          pideUbicacion={data.renglon_pide_ubicacion}
+          onAgregada={load}
+        />
       )}
     </div>
   );

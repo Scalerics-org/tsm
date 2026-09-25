@@ -1,24 +1,8 @@
 import { useState } from "react";
-import { LIBRETA_ESTADO, LIBRETA_TIPO, TIPO_DEPARTAMENTO, type LibretaEntry, type TripSegment } from "@shared/domain";
+import type { TripSegment } from "@shared/domain";
 import { api, mensajeDe } from "../../lib/api";
-import { Button, ErrorText, Field } from "../../components/ui";
-import { LibretaPicker } from "../../components/LibretaPicker";
-
-/** El nombre de un departamento como lo espera el selector: sólo el nombre importa. */
-function departamento(nombre: string | null): LibretaEntry | null {
-  const n = nombre?.trim();
-  if (!n) return null;
-  return {
-    id: 0,
-    tipo: LIBRETA_TIPO.LUGAR,
-    nombre: n,
-    provider_id: null,
-    agrupador: false,
-    estado: LIBRETA_ESTADO.CONFIRMADO,
-    usos: 0,
-    created_by: null,
-  };
-}
+import { Button, ErrorText } from "../../components/ui";
+import { CamposDeLugares, errorDeLugares, type Lugares } from "./CamposDeLugares";
 
 /**
  * Dónde cargó y dónde descargó una carga, corregible desde la oficina.
@@ -44,27 +28,26 @@ export function EditarLugaresDeCarga({
   carga: TripSegment;
   onGuardado: () => void;
 }) {
+  const desdeLaCarga = (): Lugares => ({
+    origen: carga.origen,
+    lugar: carga.remitente,
+    destino: carga.destino,
+    descarga: carga.clientes[0] ?? "",
+  });
   const [abierto, setAbierto] = useState(false);
-  const [origen, setOrigen] = useState<string | null>(carga.origen);
-  const [lugar, setLugar] = useState(carga.remitente);
-  const [destino, setDestino] = useState<string | null>(carga.destino);
-  const [descarga, setDescarga] = useState(carga.clientes[0] ?? "");
+  const [lugares, setLugares] = useState<Lugares>(desdeLaCarga);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const abrir = () => {
-    setOrigen(carga.origen);
-    setLugar(carga.remitente);
-    setDestino(carga.destino);
-    setDescarga(carga.clientes[0] ?? "");
+    setLugares(desdeLaCarga());
     setError("");
     setAbierto(true);
   };
 
   async function guardar() {
-    // Sin lugar de carga el servidor descarta el renglón entero: es lo único que no puede quedar vacío.
-    if (!lugar.trim()) return setError("Escribí el lugar de carga.");
-    if (!origen) return setError("Elegí el departamento donde cargó.");
+    const falta = errorDeLugares(lugares);
+    if (falta) return setError(falta);
     setBusy(true);
     setError("");
     try {
@@ -73,10 +56,10 @@ export function EditarLugaresDeCarga({
           x.sid === carga.sid
             ? {
                 ...x,
-                origen,
-                remitente: lugar.trim(),
-                destino: destino || null,
-                clientes: descarga.trim() ? [descarga.trim()] : [],
+                origen: lugares.origen,
+                remitente: lugares.lugar.trim(),
+                destino: lugares.destino || null,
+                clientes: lugares.descarga.trim() ? [lugares.descarga.trim()] : [],
                 cliente_ids: [],
               }
             : x,
@@ -106,37 +89,7 @@ export function EditarLugaresDeCarga({
 
   return (
     <div className="mt-2 space-y-3 border border-brand/30 bg-brand/[.04] p-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <LibretaPicker
-          tipo={TIPO_DEPARTAMENTO}
-          label="Departamento de carga"
-          value={departamento(origen)}
-          onChange={(e) => setOrigen(e?.nombre ?? null)}
-        />
-        <Field label="Lugar de carga">
-          <input className="input" value={lugar} onChange={(e) => setLugar(e.target.value)} autoCapitalize="words" />
-        </Field>
-        <LibretaPicker
-          tipo={TIPO_DEPARTAMENTO}
-          label="Departamento de destino"
-          value={departamento(destino)}
-          onChange={(e) => setDestino(e?.nombre ?? null)}
-        />
-        <Field label="Lugar de descarga">
-          <input
-            className="input"
-            value={descarga}
-            onChange={(e) => setDescarga(e.target.value)}
-            placeholder="Todavía no se sabe"
-            autoCapitalize="words"
-          />
-        </Field>
-      </div>
-      {destino && (
-        <button type="button" onClick={() => setDestino(null)} className="text-xs text-ink/55 hover:underline">
-          Todavía no se sabe el destino: dejarlo a definir
-        </button>
-      )}
+      <CamposDeLugares value={lugares} onChange={setLugares} />
       <ErrorText>{error}</ErrorText>
       <div className="flex gap-2">
         <Button loading={busy} onClick={guardar}>

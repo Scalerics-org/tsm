@@ -171,6 +171,14 @@ describe("corregir los lugares de una carga (PUT /trips/:id/segments)", () => {
     expect(r.segmentos!.map((s) => s.sid)).toEqual(["a", "b"]);
   });
 
+  it("agregar una carga nueva con sus lugares deja el recorrido armado (viaje 306)", async () => {
+    const nueva = { origen: "Montevideo", remitente: "BUNGE", destino: null, clientes: [], cliente_ids: [], cantidad: 3, unidad: "pallets" };
+    const r = await corregir(viaje([], { origin: "" }), [nueva]);
+    expect(r.status).toBe(200);
+    expect(r.segmentos![0]).toMatchObject({ origen: "Montevideo", remitente: "BUNGE", destino: null });
+    expect(r.recorrido).toEqual(["Montevideo", ""]);
+  });
+
   it("un viaje facturado sigue frenado", async () => {
     const a = carga("a");
     const r = await corregir(viaje([a], { factura_numero: "A-1" }), [{ ...a, destino: "Salto" }]);

@@ -3,6 +3,7 @@ import { UNIDAD, type LibretaEntry, type TripSegment, type Unidad } from "@share
 import { api, mensajeDe } from "../../lib/api";
 import { Button, ErrorText, Field } from "../../components/ui";
 import { LibretaPicker } from "../../components/LibretaPicker";
+import { CamposDeLugares, LUGARES_VACIOS, errorDeLugares, type Lugares } from "./CamposDeLugares";
 
 /**
  * La oficina le agrega una carga a un viaje ya cargado.
@@ -15,21 +16,29 @@ import { LibretaPicker } from "../../components/LibretaPicker";
  * Se manda la lista entera: las cargas que ya estaban van tal cual, con su `sid` —de ahí
  * cuelgan sus fotos y su cobro escrito a mano— y la nueva al final. El cobro de la nueva lo
  * resuelven las reglas en el servidor, igual que cuando la carga el chofer.
+ *
+ * En las plantillas donde el recorrido sale de las cargas (Otros Viajes, `pideUbicacion`) la carga
+ * se arma como la arma el chofer: departamento y lugar de carga, y el destino si ya se sabe. Sin eso
+ * el viaje quedaba diciendo "origen a definir → destino a definir" con dos cargas adentro, y nada
+ * avisaba (viaje 306, 25/9). Rodrigo: "yo ya sé que cargaba en Montevideo, lugar de carga Bunge".
  */
 export function AgregarCargaOficina({
   tripId,
   providerId,
   segments,
+  pideUbicacion = false,
   onAgregada,
 }: {
   tripId: number;
   providerId: number | null;
   segments: TripSegment[];
+  pideUbicacion?: boolean;
   onAgregada: () => void;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [lugar, setLugar] = useState<LibretaEntry | null>(null);
   const [cliente, setCliente] = useState<LibretaEntry | null>(null);
+  const [lugares, setLugares] = useState<Lugares>(LUGARES_VACIOS);
   const [cantidad, setCantidad] = useState("");
   const [unidad, setUnidad] = useState<Unidad>(UNIDAD.PALLETS);
   const [busy, setBusy] = useState(false);
@@ -39,28 +48,40 @@ export function AgregarCargaOficina({
     setAbierto(false);
     setLugar(null);
     setCliente(null);
+    setLugares(LUGARES_VACIOS);
     setCantidad("");
     setError("");
   };
 
+  /** La carga nueva, con los mismos campos que arma el chofer en su modo. */
+  function armarCarga() {
+    const conCantidad = { cantidad: cantidad ? Number(cantidad) : null, unidad: cantidad ? unidad : null };
+    if (pideUbicacion) {
+      return {
+        origen: lugares.origen,
+        remitente: lugares.lugar.trim(),
+        destino: lugares.destino || null,
+        clientes: lugares.descarga.trim() ? [lugares.descarga.trim()] : [],
+        cliente_ids: [],
+        ...conCantidad,
+      };
+    }
+    return {
+      remitente: lugar!.nombre,
+      remitente_id: lugar!.id,
+      clientes: cliente ? [cliente.nombre] : [],
+      cliente_ids: cliente ? [cliente.id] : [],
+      ...conCantidad,
+    };
+  }
+
   async function guardar() {
     setError("");
-    if (!lugar) return setError("Elegí el lugar de carga.");
+    const falta = pideUbicacion ? errorDeLugares(lugares) : lugar ? null : "Elegí el lugar de carga.";
+    if (falta) return setError(falta);
     setBusy(true);
     try {
-      await api.put(`/trips/${tripId}/segments`, {
-        segments: [
-          ...segments,
-          {
-            remitente: lugar.nombre,
-            remitente_id: lugar.id,
-            clientes: cliente ? [cliente.nombre] : [],
-            cliente_ids: cliente ? [cliente.id] : [],
-            cantidad: cantidad ? Number(cantidad) : null,
-            unidad: cantidad ? unidad : null,
-          },
-        ],
-      });
+      await api.put(`/trips/${tripId}/segments`, { segments: [...segments, armarCarga()] });
       cerrar();
       onAgregada();
     } catch (e) {
@@ -88,15 +109,21 @@ export function AgregarCargaOficina({
       <div className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-brand-700">
         Carga {segments.length + 1}
       </div>
-      <LibretaPicker
-        tipo="remitente"
-        label="Lugar de carga"
-        value={lugar}
-        onChange={setLugar}
-        providerId={providerId}
-        soloSeleccionables
-      />
-      <LibretaPicker tipo="destinatario" label="Cliente" value={cliente} onChange={setCliente} providerId={providerId} />
+      {pideUbicacion ? (
+        <CamposDeLugares value={lugares} onChange={setLugares} />
+      ) : (
+        <>
+          <LibretaPicker
+            tipo="remitente"
+            label="Lugar de carga"
+            value={lugar}
+            onChange={setLugar}
+            providerId={providerId}
+            soloSeleccionables
+          />
+          <LibretaPicker tipo="destinatario" label="Cliente" value={cliente} onChange={setCliente} providerId={providerId} />
+        </>
+      )}
       <div className="grid grid-cols-2 gap-2">
         <Field label="Cantidad">
           <input className="input" type="number" inputMode="decimal" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
