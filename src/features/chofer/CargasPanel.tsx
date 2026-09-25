@@ -562,7 +562,7 @@ export function NuevaCarga({
       {alGuardar ? (
         // En la salida hay una sola carga que dejar lista: el botón de confirmar salida está más abajo.
         <Button onClick={() => guardar(false)} className="w-full py-4 text-lg">
-          Dejar lista la carga
+          SIGUIENTE
         </Button>
       ) : (
         <div className="space-y-2">
