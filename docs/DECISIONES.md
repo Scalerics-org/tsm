@@ -60,3 +60,29 @@ Resumen) y "lo habitual" es la mediana de los tramos de ese camión (`rangoDeSur
 el mes en curso, con pocos tramos, con un mes medido desde su propia primera surtida y cuando la
 diferencia son pocos litros: una alarma falsa enseña a no mirar más la pantalla. La cámara de frío
 no entra (`surtidas_frio` va aparte porque no mueve kilómetros).
+
+## A quién se le cobra cada carga se asigna desde la lista de Viajes, y sólo lo escribe la oficina
+
+En la columna Cliente de Viajes hay un tick por carga (`ClientePorCarga.tsx`); tocarlo abre un
+diálogo con el selector de la libreta y alta en el mismo lugar (Rodrigo, 25/9/2026: los choferes
+cargan para clientes que todavía no existen, así que al asignar el cliente casi nunca está). Al
+chofer no se le agrega ningún paso. Aparece cuando **el viaje tiene cargas** —Otros Viajes y
+Mdeo-Bella Unión—, no por una lista de plantillas. Los viajes clásicos se ven como siempre.
+
+- **Ruta propia**: `PUT /trips/:id/segments/:sid/cobro`. `PUT /segments` recibe la lista entera y por
+  cada guardado cuenta usos de la libreta (el contador que ordena lo que ve el chofer), re-resuelve
+  por regla las cargas no manuales y depende de que el navegador reenvíe bien todas las demás.
+- Lo asignado queda `cobro_manual: true` (ninguna regla lo pisa) y lleva `cobro_id`, el id de la
+  libreta, sólo para cobro tipo cliente. **Sin migración**: las cargas son JSON. El nombre lo pone el
+  servidor desde la entrada. Todavía **nada propaga** un cambio de nombre en la libreta a las cargas
+  que ya tienen `cobro_id`: el id deja la puerta abierta, no está hecho.
+- "Quitar la asignación" devuelve la carga a las reglas de hoy. Un viaje facturado (409) o cancelado
+  no se toca, y el lector no llega (la ruta es sólo de oficina).
+- Del quinto tick en adelante hay un "+N más" que se abre en la misma fila y avisa si alguna de las
+  ocultas está sin asignar.
+- **El contador de "pendientes de cobro" de la libreta cambia de significado**: lista las cargas sin
+  cobro, agrupadas por combinación remitente→destinatario. Una carga asignada a mano tiene cobro
+  aunque no exista regla, así que sale de esa lista: deja de contar "combinaciones sin regla" y pasa
+  a contar "renglones sin cobro". Una combinación sin regla que la oficina resolvió carga por carga
+  ya no aparece como pendiente, y la regla que la resolvería para siempre no se crea sola. No se
+  tocó; queda para decidir si hace falta otro aviso.

@@ -446,6 +446,15 @@ export interface TripSegment {
   cobro_a: string | null;
   cobro_manual: boolean;
   /**
+   * Id de la libreta del cliente al que se le cobra, cuando la oficina lo eligió de ahí.
+   *
+   * Sólo para cobro tipo cliente; en proveedor va null (el nombre sale de la lista de
+   * proveedores, que no es la libreta). Sin migración: las cargas se guardan como JSON. Sirve
+   * para que un cambio de nombre en la libreta se pueda propagar en vez de dejar a los viajes
+   * viejos con el nombre viejo. Los viajes anteriores no lo tienen y siguen siendo válidos.
+   */
+  cobro_id?: number | null;
+  /**
    * Renglón que dejó puesta la oficina en la plantilla. El chofer lo completa, no lo borra.
    *
    * Opcional a propósito: los viajes ya guardados no lo tienen y siguen siendo válidos.
@@ -578,7 +587,7 @@ export function completarPendientes(reglas: CobroRegla[], segmentos: TripSegment
 }
 
 /** Carga tal como la ve el chofer: sin nada de facturación. */
-export type TripSegmentChofer = Omit<TripSegment, "cobro_tipo" | "cobro_a" | "cobro_manual">;
+export type TripSegmentChofer = Omit<TripSegment, "cobro_tipo" | "cobro_a" | "cobro_manual" | "cobro_id">;
 
 /** Viaje tal como se le manda al chofer. */
 export type TripChofer = Omit<Trip, "segments"> & { segments: TripSegmentChofer[] };
@@ -593,7 +602,7 @@ export type TripChofer = Omit<Trip, "segments"> & { segments: TripSegmentChofer[
 export function sinCobro(trip: Trip): TripChofer {
   return {
     ...trip,
-    segments: trip.segments.map(({ cobro_tipo, cobro_a, cobro_manual, ...carga }) => carga),
+    segments: trip.segments.map(({ cobro_tipo, cobro_a, cobro_manual, cobro_id, ...carga }) => carga),
   };
 }
 
@@ -1353,6 +1362,46 @@ export function clienteDelViaje(trip: { segments?: Pick<TripSegment, "cobro_a">[
     return { nombres: cobros.slice(0, 2), mas: Math.max(0, cobros.length - 2), todos: cobros, faltaAsignar };
   }
   return { nombres: [], mas: 0, todos: [], faltaAsignar: true };
+}
+
+/**
+ * A quién se le cobra cada carga de un viaje, una entrada por carga y en el orden del viaje.
+ *
+ * Lo que necesita la lista de Viajes para dibujar un tick por carga: el tick tiene que saber
+ * a CUÁL le está cambiando el cobro, y por eso lleva el `sid` (estable) y no la posición.
+ * `clienteDelViaje` sigue siendo el resumen del viaje entero; esto es el detalle.
+ */
+export interface CobroDeCarga {
+  sid: string;
+  /** Posición en el viaje, desde 1: es como la nombra la oficina ("la carga 2"). */
+  numero: number;
+  /** A quién se le cobra, o null si todavía no hay a quién. */
+  nombre: string | null;
+  tipo: CobroTipo | null;
+  /** Lo fijó la oficina a mano: ninguna regla lo pisa después. */
+  manual: boolean;
+  /** Id de la libreta, si se eligió de ahí. */
+  cobroId: number | null;
+  /** Para reconocer la carga en un tooltip o un título: "Bella Unión → Agronorte". */
+  titulo: string;
+}
+
+export function cobroPorCarga(trip: {
+  segments?: Pick<TripSegment, "sid" | "remitente" | "clientes" | "cobro_a" | "cobro_tipo" | "cobro_manual" | "cobro_id">[];
+}): CobroDeCarga[] {
+  return (trip.segments ?? []).map((s, i) => {
+    const nombre = s.cobro_a?.trim() || null;
+    const destino = s.clientes?.filter(Boolean).join(" · ");
+    return {
+      sid: s.sid,
+      numero: i + 1,
+      nombre,
+      tipo: nombre ? (s.cobro_tipo ?? null) : null,
+      manual: !!s.cobro_manual,
+      cobroId: nombre ? (s.cobro_id ?? null) : null,
+      titulo: destino ? `${s.remitente} → ${destino}` : s.remitente,
+    };
+  });
 }
 
 /**

@@ -275,15 +275,15 @@ export function OpsTripsPage() {
                     para leerlo de un vistazo y para nombrar un viaje por teléfono. */}
                 <th className="px-3 py-3 text-right">N°</th>
                 <th className="px-3 py-3">Proveedor / Ruta</th>
-                <th className="px-3 py-3" title="A quién se le cobra">Cliente</th>
                 <th className="px-3 py-3">Chofer / Camión</th>
                 {/* Decía "Ton" y la celda muestra kilos desde la migración 0039. */}
-                <th className="px-3 py-3 text-right">Kilos</th>
+                <th className="px-2 py-3 text-right">Kilos</th>
                 <th className="px-3 py-3" title="Día de salida → día de descarga">Salida →<br />Descarga</th>
-                <th className="px-3 py-3">Estado</th>
-                <th className="px-3 py-3" title="Número de factura, S/F, o a quién se le cobra">Factura</th>
-                <th className="px-3 py-3">Pago</th>
-                <th className="px-3 py-3 text-right">Acciones</th>
+                <th className="px-2 py-3">Estado</th>
+                <th className="px-2 py-3" title="A quién se le cobra">Cliente</th>
+                <th className="px-2 py-3" title="Número de factura, S/F, o a quién se le cobra">Factura</th>
+                <th className="px-2 py-3">Pago</th>
+                <th className="px-2 py-3 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>

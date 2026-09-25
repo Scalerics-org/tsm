@@ -13,6 +13,7 @@ import {
 import { api, ApiError } from "../../lib/api";
 import { Spinner, StatusBadge } from "../../components/ui";
 import { fmtDateTime, fmtRangoDeDias } from "../../lib/format";
+import { ClientePorCarga } from "./ClientePorCarga";
 import { FechaInput } from "../../components/FechaInput";
 import { useSoloMirar } from "../../lib/auth";
 
@@ -75,6 +76,9 @@ export function FilaViaje({
   const estado = estadoDeCobro(t);
   const cliente = clienteDelViaje(t);
   const rango = fmtRangoDeDias(t.started_at, t.finished_at);
+  // Si no hay lugar, el rango parte después de la flecha ("24/09 →" / "25/09") y no en el medio
+  // de una fecha: la columna llega a ser la mitad de ancha y la tabla entra en el monitor de 1280.
+  const rangoEnDosLineas = rango.corto.replace(" → ", " → ");
 
   /**
    * El tilde de facturado. "No tengo cómo poner un tick, color tipo Excel, a los facturados."
@@ -214,43 +218,19 @@ export function FilaViaje({
         )}
         {error && <div className="mt-1 max-w-xs text-xs text-st-redTx">{error}</div>}
       </td>
-      {/* A quién se le cobra. Sólo se ve: no escribe nada ni toca el cobro. "Sin asignar" es el
-          estado normal de la mayoría de los viajes con cargas (80 de 112 en producción), así que
-          va en gris, en cursiva y sin pastilla: un dato que falta, no una alarma. El tipo de viaje
-          no se repite acá: ya está en la columna del recorrido. El ámbar queda sólo para el viaje
-          con una carga cobrada y otra sin cobrar, que sí es una inconsistencia. */}
-      <td className="px-3 py-3">
-        {cliente.nombres.length > 0 ? (
-          <div className="max-w-[10rem] text-ink/80" title={cliente.todos.join(", ")}>
-            {/* Hasta dos nombres, uno debajo del otro: con un "+1" se veía sólo el primero y
-                podía tapar al cliente que importa. Recién desde el tercero aparece el "+N". */}
-            {cliente.nombres.map((n) => (
-              <div key={n}>{n}</div>
-            ))}
-            {cliente.mas > 0 && <div className="text-ink/45">+{cliente.mas}</div>}
-          </div>
-        ) : (
-          <span className="whitespace-nowrap italic text-ink/40" title="Todavía no hay a quién cobrarle este viaje">
-            Sin asignar
-          </span>
-        )}
-        {cliente.nombres.length > 0 && cliente.faltaAsignar && (
-          <div className="mt-0.5 text-[11px] font-semibold text-st-amberTx">falta asignar una carga</div>
-        )}
-      </td>
       <td className="min-w-[7.5rem] px-3 py-3 text-ink/70">
         <div>{t.driver_name}</div>
         <div className="text-xs text-ink/50">{t.truck_plate}</div>
       </td>
-      <td className="whitespace-nowrap px-3 py-3 text-right text-ink/70">
+      <td className="whitespace-nowrap px-2 py-3 text-right text-ink/70">
         {fmtKilos(t.kilos_carga)}
       </td>
       {/* Salida y descarga en una sola columna: al lado de la salida lo que se compara son los
           días, así que va "24/09 → 25/09" y la fecha con hora completa en el tooltip. Un viaje
           en curso todavía no tiene descarga: no lleva flecha. Se sigue tocando para corregir la salida. */}
-      <td className="whitespace-nowrap px-3 py-3 text-ink/60">
+      <td className="px-3 py-3 text-ink/60">
         {soloMirar ? (
-          <span title={rango.detalle}>{rango.corto}</span>
+          <span title={rango.detalle}>{rangoEnDosLineas}</span>
         ) : editandoFecha ? (
           /* NO se guarda en cada `onChange`. Un input de fecha dispara un cambio por cada
              tramo que se completa: tipeando el día, el navegador ya entrega fechas enteras
@@ -280,14 +260,42 @@ export function FilaViaje({
             title={`${rango.detalle}
 Tocá para corregir la fecha`}
           >
-            {rango.corto}
+            {rangoEnDosLineas}
           </button>
         )}
       </td>
-<td className="px-3 py-3">
+      <td className="px-2 py-3">
         <StatusBadge status={t.status} compacto />
       </td>
-      <td className="px-3 py-3">
+      {/* A quién se le cobra. Junto a Factura y Pago, que es lo que la oficina mira de corrido.
+          Los viajes con cargas llevan un tick por carga y ahí la oficina asigna a quién cobrarle
+          (Rodrigo, 25/9); los clásicos, sin cargas, se ven como siempre: sólo el nombre. */}
+      <td className="px-2 py-3">
+        {t.segments.length > 0 ? (
+          <ClientePorCarga trip={t} soloMirar={soloMirar} onCambio={onCambio} />
+        ) : (
+          <>
+            {cliente.nombres.length > 0 ? (
+              <div className="max-w-[10rem] text-ink/80" title={cliente.todos.join(", ")}>
+                {/* Hasta dos nombres, uno debajo del otro: con un "+1" se veía sólo el primero y
+                    podía tapar al cliente que importa. Recién desde el tercero aparece el "+N". */}
+                {cliente.nombres.map((n) => (
+                  <div key={n}>{n}</div>
+                ))}
+                {cliente.mas > 0 && <div className="text-ink/45">+{cliente.mas}</div>}
+              </div>
+            ) : (
+              <span className="whitespace-nowrap italic text-ink/40" title="Todavía no hay a quién cobrarle este viaje">
+                Sin asignar
+              </span>
+            )}
+            {cliente.nombres.length > 0 && cliente.faltaAsignar && (
+              <div className="mt-0.5 text-[11px] font-semibold text-st-amberTx">falta asignar una carga</div>
+            )}
+          </>
+        )}
+      </td>
+      <td className="px-2 py-3">
         {/* El tilde se SIGUE VIENDO para el lector —es la mitad de lo que se mira en esta
             lista— pero apagado: mirar qué está facturado sí, cambiarlo no. */}
         {t.status === TRIP_STATUS.COMPLETADO || t.factura_numero ? (
@@ -323,7 +331,7 @@ Tocá para corregir la fecha`}
       </td>
       {/* El tilde de pago, en su propia columna. Apagado mientras el viaje no tenga factura o
           referencia, y para el lector: mirar qué está cobrado sí, cambiarlo no. */}
-      <td className="px-3 py-3">
+      <td className="px-2 py-3">
         {t.factura_numero ? (
           <button
             type="button"
@@ -353,7 +361,7 @@ Tocá para corregir la fecha`}
           </span>
         )}
       </td>
-      <td className="px-3 py-3 text-right">
+      <td className="px-2 py-3 text-right">
         {soloMirar ? (
           <span className="text-ink/30">—</span>
         ) : (
@@ -370,20 +378,20 @@ Tocá para corregir la fecha`}
               state={desde}
               title="Corregir"
               aria-label="Corregir el viaje"
-              className="flex h-8 w-8 items-center justify-center text-brand-700 hover:bg-brand/10"
+              className="flex h-8 w-7 items-center justify-center text-brand-700 hover:bg-brand/10"
             >
               <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M11 2.5l2.5 2.5L5.5 13H3v-2.5z" />
               </svg>
             </Link>
-            <span className="mx-2 h-5 w-px bg-ink/15" aria-hidden />
+            <span className="mx-1.5 h-5 w-px bg-ink/15" aria-hidden />
             <button
               type="button"
               onClick={borrar}
               disabled={busy}
               title="Borrar"
               aria-label="Borrar el viaje"
-              className="flex h-8 w-8 items-center justify-center text-st-redTx hover:bg-st-redTx/10 disabled:opacity-40"
+              className="flex h-8 w-7 items-center justify-center text-st-redTx hover:bg-st-redTx/10 disabled:opacity-40"
             >
               {busy ? (
                 <Spinner size={12} />

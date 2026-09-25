@@ -7,6 +7,7 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import {
   FIELD_STAGE,
   MENSAJE_LECTURA_PENDIENTE,
+  COBRO_TIPO,
   ROLES,
   bloqueaSalidaPorLectura,
   corrimientoEnDias,
@@ -572,7 +573,17 @@ trips.put("/:id/segments", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
     const conFijo = eranFijos.has(seg.sid) ? { ...seg, fijo: true } : seg;
     const m = manuales.get(seg.sid);
     if (!m) return conFijo;
-    return { ...conFijo, cobro_tipo: m.cobro_tipo ?? null, cobro_a: m.cobro_a ?? null, cobro_manual: true };
+    // El id de la libreta se conserva sólo si el nombre sigue siendo el mismo: si la oficina
+    // escribió otro a mano, el id viejo apuntaría a un cliente que ya no es.
+    const previo = trip.segments.find((x) => x.sid === seg.sid);
+    const cobroId = previo && previo.cobro_a === (m.cobro_a ?? null) ? (previo.cobro_id ?? null) : null;
+    return {
+      ...conFijo,
+      cobro_tipo: m.cobro_tipo ?? null,
+      cobro_a: m.cobro_a ?? null,
+      cobro_manual: true,
+      cobro_id: cobroId,
+    };
   });
 
   await tripsRepo.updateSegments(c.env.DB, trip.id, finales, {
@@ -585,6 +596,73 @@ trips.put("/:id/segments", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
     trip.template_id ? await templatesRepo.getTemplate(c.env.DB, trip.template_id) : null,
     finales,
   );
+  return ok(c, await tripsRepo.getTrip(c.env.DB, trip.id));
+});
+
+/**
+ * PUT /api/trips/:id/segments/:sid/cobro — la oficina fija a quién se le cobra UNA carga.
+ *
+ * Es el tick de la columna Cliente en la lista de Viajes. Existe aparte de `PUT /segments` porque
+ * ése recibe la lista entera y, por cada guardado, cuenta usos de la libreta, vuelve a resolver
+ * por regla las cargas que no son manuales y depende de que el navegador reenvíe bien todas las
+ * demás. Acá se toca una sola carga y las otras quedan exactamente como estaban.
+ *
+ * Body: { cobro_tipo: "cliente" | "proveedor", cobro_a?: string, cobro_id?: number }.
+ *  - Con `cobro_id` (cliente de la libreta) el nombre lo pone el servidor: el que manda el navegador
+ *    no puede contradecir a la entrada.
+ *  - `{ cobro_tipo: null }` saca la asignación y la carga vuelve a las reglas de la libreta.
+ *
+ * Lo que se guarda queda `cobro_manual: true`: ninguna regla lo pisa después. Un viaje facturado
+ * no se toca (409), igual que en las demás rutas de corrección.
+ */
+trips.put("/:id/segments/:sid/cobro", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+  const trip = await tripsRepo.getTripFacturable(c.env.DB, Number(c.req.param("id")));
+  if (!trip) return fail(c, "Viaje no encontrado", 404);
+  if (trip.factura_numero) {
+    return fail(
+      c,
+      `Ese viaje ya está en la factura ${trip.factura_numero}. Desmarcalo desde Facturación y después cambiá a quién se le cobra.`,
+      409,
+    );
+  }
+  if (trip.status === TRIP_STATUS.CANCELADO) return fail(c, "Un viaje cancelado no se factura.", 409);
+
+  const sid = c.req.param("sid");
+  if (!trip.segments.some((x) => x.sid === sid)) return fail(c, "Esa carga no existe en el viaje", 404);
+
+  const b = (await c.req.json().catch(() => ({}))) as { cobro_tipo?: unknown; cobro_a?: unknown; cobro_id?: unknown };
+
+  let cambio: Pick<TripSegment, "cobro_tipo" | "cobro_a" | "cobro_manual" | "cobro_id">;
+  if (b.cobro_tipo === null) {
+    cambio = { cobro_tipo: null, cobro_a: null, cobro_manual: false, cobro_id: null };
+  } else {
+    if (b.cobro_tipo !== COBRO_TIPO.CLIENTE && b.cobro_tipo !== COBRO_TIPO.PROVEEDOR) {
+      return fail(c, "Elegí si se le cobra a un cliente o a un proveedor.", 400);
+    }
+    let nombre = typeof b.cobro_a === "string" ? b.cobro_a.trim() : "";
+    let cobroId: number | null = null;
+    if (b.cobro_tipo === COBRO_TIPO.CLIENTE && b.cobro_id != null) {
+      const entrada = await libretaRepo.getEntry(c.env.DB, Number(b.cobro_id));
+      if (!entrada) return fail(c, "Ese cliente no está en la libreta", 404);
+      nombre = entrada.nombre;
+      cobroId = entrada.id;
+    }
+    if (!nombre) return fail(c, "Falta a quién se le cobra.", 400);
+    if (nombre.length > 120) return fail(c, "El nombre es demasiado largo.", 400);
+    cambio = { cobro_tipo: b.cobro_tipo, cobro_a: nombre, cobro_manual: true, cobro_id: cobroId };
+  }
+
+  let segments = trip.segments.map((x) => (x.sid === sid ? { ...x, ...cambio } : x));
+  if (cambio.cobro_tipo === null) {
+    // Sin asignación a mano, esa carga vuelve a lo que digan las reglas de hoy.
+    const reglas = await libretaRepo.listReglas(c.env.DB);
+    segments = segments.map((x) => (x.sid === sid ? aplicarCobro(reglas, [x])[0] : x));
+  }
+
+  await tripsRepo.updateSegments(c.env.DB, trip.id, segments, {
+    userId: c.get("user").id,
+    when: nowIso(),
+  });
   return ok(c, await tripsRepo.getTrip(c.env.DB, trip.id));
 });
 
