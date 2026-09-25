@@ -12,6 +12,7 @@ import {
 import { api, mensajeDe } from "../../lib/api";
 import { LibretaPicker } from "../../components/LibretaPicker";
 import { Button, ErrorText } from "../../components/ui";
+import { atajosDeCarga } from "./atajos-cobro";
 
 /** Un cliente de la libreta, o sólo el nombre si el viaje es anterior a que se guardara el id. */
 function comoEntrada(nombre: string, id: number | null): LibretaEntry {
@@ -57,6 +58,9 @@ export function CobroDeCargaDialog({
   );
   const [proveedor, setProveedor] = useState(cobro.tipo === COBRO_TIPO.PROVEEDOR ? (cobro.nombre ?? "") : "");
   const [proveedores, setProveedores] = useState<Provider[] | null>(null);
+  // Los clientes elegibles con su nombre de HOY. Los atajos y el nombre que ya tenía la carga se
+  // muestran con éste y no con el texto que quedó escrito cuando el chofer la cargó.
+  const [vigentes, setVigentes] = useState<LibretaEntry[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -69,6 +73,21 @@ export function CobroDeCargaDialog({
   }, [tipo, proveedores]);
 
   useEffect(() => {
+    api
+      .get<LibretaEntry[]>(`/libreta?tipo=${LIBRETA_TIPO.DESTINATARIO}&seleccionables=1`)
+      .then(setVigentes)
+      // Sin la lista no hay forma de mostrar el nombre actual: mejor sin atajos que con uno viejo.
+      .catch(() => setVigentes([]));
+  }, []);
+
+  // Si la carga ya tenía un cliente de la libreta, se muestra con el nombre actual.
+  useEffect(() => {
+    if (!vigentes || cobro.cobroId == null) return;
+    const actual = vigentes.find((e) => e.id === cobro.cobroId);
+    if (actual) setCliente((prev) => (prev && prev.id === actual.id ? comoEntrada(actual.nombre, actual.id) : prev));
+  }, [vigentes, cobro.cobroId]);
+
+  useEffect(() => {
     const cerrar = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", cerrar);
     return () => window.removeEventListener("keydown", cerrar);
@@ -77,9 +96,7 @@ export function CobroDeCargaDialog({
   // Atajos: los destinatarios de ESTA carga que están en la libreta. Sólo eligen —no guardan—,
   // y se rotulan como "cobrarle a", porque la palabra "cliente" ya dice otra cosa dos columnas
   // más allá: para quién va la carga. Cobrarle al destinatario es lo habitual, no lo seguro.
-  const atajos = carga.clientes
-    .map((nombre, i) => ({ nombre, id: carga.cliente_ids[i] ?? null }))
-    .filter((a): a is { nombre: string; id: number } => a.id != null);
+  const atajos = vigentes ? atajosDeCarga(carga, vigentes) : [];
 
   const aQuien = tipo === COBRO_TIPO.CLIENTE ? (cliente?.nombre ?? "") : proveedor;
 
