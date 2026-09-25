@@ -381,6 +381,25 @@ describe("recorridoVisible — el recorrido completo en la fila", () => {
     );
   });
 
+  // En producción el origen dice "Mdeo" (58), "Montevideo" (38) y "MONTEVIDEO" (3): son el mismo lugar.
+  it("la misma parada con otra grafía no sale repetida", () => {
+    expect(
+      recorridoVisible({ origin: "Mdeo", destination: "", segments: [carga("Montevideo", null), carga("Salto", null)] }),
+    ).toBe("Mdeo → Salto → destino a definir");
+    expect(
+      recorridoVisible({ origin: "MONTEVIDEO", destination: "Salto", segments: [carga("Mdeo", "Artigas"), carga("Artigas", "Salto")] }),
+    ).toBe("MONTEVIDEO → Artigas → Salto");
+    expect(recorridoVisible({ origin: "Mdeo", destination: "", segments: [carga("Montevideo", null)] })).toBe(
+      "Mdeo → destino a definir",
+    );
+  });
+
+  it("dos lugares distintos siguen siendo dos paradas", () => {
+    expect(
+      recorridoVisible({ origin: "Mdeo", destination: "", segments: [carga("Salto", null)] }),
+    ).toBe("Mdeo → Salto → destino a definir");
+  });
+
   it("cargar y descargar en el mismo lugar no queda como una parada suelta", () => {
     expect(recorridoVisible({ origin: "Rivera", destination: "Rivera", segments: [carga("Rivera", "Rivera")] })).toBe(
       "Rivera → Rivera",

@@ -1,4 +1,5 @@
 // Dominio compartido (v2) — modelo de viajes precargados.
+import { claveDeLugar } from "./distancias";
 
 export const ROLES = {
   CHOFER: "chofer",
@@ -1274,7 +1275,9 @@ export function origenVisible(trip: Pick<Trip, "origin">): string {
 export function recorridoVisible(
   trip: Pick<Trip, "origin" | "destination"> & { segments?: Pick<TripSegment, "origen" | "destino">[] },
 ): string {
-  const clave = (p: string) => p.toLocaleLowerCase("es");
+  // Se compara por la clave del lugar y no por el texto: "Mdeo" y "Montevideo" son la misma parada
+  // y no debe salir repetida. La fila muestra la primera grafía que aparece.
+  const clave = claveDeLugar;
   const limpio = (p: string | null | undefined) => p?.trim() || "";
   const cargas = (trip.segments ?? [])
     .map((s) => ({ origen: limpio(s.origen), destino: limpio(s.destino) }))

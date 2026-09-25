@@ -52,6 +52,14 @@ const CITIES: Record<string, LatLon> = {
   concordia: { lat: -31.3928, lon: -58.0209 },
 };
 
+/**
+ * Sinónimos de lugares, para reconocer que dos grafías son el mismo sitio.
+ *
+ * Esta lista es CORTA a propósito: sólo trae las grafías que aparecen hoy en los datos. En
+ * producción el origen de los viajes dice "Mdeo" (58), "Montevideo" (38) y "MONTEVIDEO" (3). Si
+ * aparece otra grafía ("Bs. As.", una abreviatura nueva) hay que sumarla acá; no se arregla
+ * tocando los datos, y sin la entrada el recorrido de la fila mostrará esa parada repetida.
+ */
 const ALIASES: Record<string, string> = {
   mdeo: "montevideo",
   mvd: "montevideo",
@@ -72,6 +80,12 @@ function norm(s: string): string {
     .trim();
   return ALIASES[n] ?? n;
 }
+
+/**
+ * La clave con la que se compara un lugar: sin mayúsculas ni acentos ni "(frontera)", y con los
+ * sinónimos de `ALIASES` resueltos. Dos lugares con la misma clave son el mismo sitio.
+ */
+export const claveDeLugar = norm;
 
 const R = 6371;
 const rad = (d: number) => (d * Math.PI) / 180;
