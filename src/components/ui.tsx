@@ -98,10 +98,12 @@ const STATUS: Record<
   },
 };
 
-export function StatusBadge({ status }: { status: TripStatus }) {
+export function StatusBadge({ status, compacto = false }: { status: TripStatus; compacto?: boolean }) {
   const s = STATUS[status];
   return (
-    <span className={`pill ${s.bg} ${s.bd} ${s.tx}`}>
+    <span
+      className={`pill ${s.bg} ${s.bd} ${s.tx} ${compacto ? "!gap-1.5 !px-1.5 !py-0.5 !text-[10.5px] !tracking-normal" : ""}`}
+    >
       <i className={`pill-dot ${s.dot} ${s.pulse ? "animate-fl" : ""}`} />
       {TRIP_STATUS_LABEL[status].toUpperCase()}
     </span>

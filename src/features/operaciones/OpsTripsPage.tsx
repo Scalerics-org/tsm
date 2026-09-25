@@ -139,7 +139,7 @@ export function OpsTripsPage() {
         </div>
       </div>
 
-      <Card className="grid gap-3 sm:grid-cols-4 lg:grid-cols-8">
+      <Card className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))]">
         {/* Éste lista los VIAJES ("Montevideo - BU", "UAM"). Decía "Todos los clientes" y por
             eso Rodrigo buscaba ahí a Armco o a Agronorte, que van adentro de un viaje. */}
         {/* Cambiar de viaje borra el tipo: un TYCSUR elegido no tiene sentido en UAM. */}
@@ -265,25 +265,25 @@ export function OpsTripsPage() {
       ) : trips.length === 0 ? (
         <Empty>No hay viajes con esos filtros.</Empty>
       ) : (
-        <Card className="overflow-x-auto p-0">
-          <table className="w-full min-w-[1000px] text-sm">
+        <Card className="p-0">
+          {/* El scroll va en un div de adentro: en el Card mismo, las esquinas decorativas que sobresalen 6px contaban como desborde y aparecía barra horizontal con la tabla entrando justa. */}
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm">
             <thead className="text-left text-ink/60">
               <tr className="border-b border-ink/15">
                 {/* El N° es del mes: reinicia en 1 cada mes. Va primero y angosto porque es
                     para leerlo de un vistazo y para nombrar un viaje por teléfono. */}
                 <th className="px-3 py-3 text-right">N°</th>
-                <th className="px-4 py-3">Proveedor / Ruta</th>
-                <th className="px-4 py-3" title="A quién se le cobra">Cliente</th>
-                <th className="px-4 py-3">Chofer</th>
-                <th className="px-4 py-3">Camión</th>
+                <th className="px-3 py-3">Proveedor / Ruta</th>
+                <th className="px-3 py-3" title="A quién se le cobra">Cliente</th>
+                <th className="px-3 py-3">Chofer / Camión</th>
                 {/* Decía "Ton" y la celda muestra kilos desde la migración 0039. */}
-                <th className="px-4 py-3 text-right">Kilos</th>
-                <th className="px-4 py-3">Salida</th>
-                <th className="px-4 py-3">Descarga</th>
-                <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3" title="Número de factura, S/F, o a quién se le cobra">Factura</th>
-                <th className="px-4 py-3">Pago</th>
-                <th className="px-4 py-3 text-right">Acciones</th>
+                <th className="px-3 py-3 text-right">Kilos</th>
+                <th className="px-3 py-3" title="Día de salida → día de descarga">Salida →<br />Descarga</th>
+                <th className="px-3 py-3">Estado</th>
+                <th className="px-3 py-3" title="Número de factura, S/F, o a quién se le cobra">Factura</th>
+                <th className="px-3 py-3">Pago</th>
+                <th className="px-3 py-3 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -292,6 +292,7 @@ export function OpsTripsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </Card>
       )}
     </div>
