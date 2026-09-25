@@ -25,3 +25,10 @@ describe("fmtRangoDeDias", () => {
     expect(fmtRangoDeDias(null, null, HOY).corto).toBe("—");
   });
 });
+
+describe("fmtRangoDeDias con un día solo", () => {
+  it("no lo corre un día por la zona horaria", () => {
+    expect(fmtRangoDeDias("2026-09-05", null, HOY).corto).toBe("05/09");
+    expect(fmtRangoDeDias("2026-10-01", null, HOY).corto).toBe("01/10");
+  });
+});

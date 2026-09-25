@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import type { Provider, TripTemplate } from "@shared/domain";
 import { api, downloadFile, mensajeDe } from "../../lib/api";
 import { Button, Card, Corners, Empty, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
-import { fmtDate } from "../../lib/format";
+import { fmtDate, fmtRangoDeDias } from "../../lib/format";
 import { FechaInput } from "../../components/FechaInput";
 
 interface Columna {
@@ -480,7 +480,7 @@ function GrupoTabla({
   const todos = ids.length > 0 && ids.every((id) => seleccion.includes(id));
 
   return (
-    <Card className="overflow-x-auto p-0">
+    <Card className="p-0">
       <Corners />
       {grupo.titulo && (
         <div className="flex items-baseline justify-between border-b border-ink/15 px-4 py-3">
@@ -499,10 +499,12 @@ function GrupoTabla({
           </span>
         </div>
       )}
-      <table className="w-full min-w-[780px] text-sm">
+      {/* El scroll en un div de adentro: en el Card, las esquinas que sobresalen contaban como desborde. */}
+      <div className="overflow-x-auto">
+      <table className="w-full text-sm">
         <thead className="text-left text-ink/60">
           <tr className="border-b border-ink/15">
-            <th className="w-10 px-4 py-2">
+            <th className="w-10 px-3 py-2">
               <input
                 type="checkbox"
                 aria-label="Puntear todos"
@@ -510,15 +512,15 @@ function GrupoTabla({
                 onChange={(e) => onAlternarGrupo(ids, e.target.checked)}
               />
             </th>
-            <th className="px-4 py-2">Fecha</th>
-            <th className="px-4 py-2">Viaje</th>
+            <th className="px-3 py-2">Fecha</th>
+            <th className="px-3 py-2">Viaje</th>
             {columnas.map((c) => (
-              <th key={c.key} className={`px-4 py-2 ${c.totaliza ? "text-right" : ""}`}>
+              <th key={c.key} className={`px-3 py-2 ${c.totaliza ? "text-right" : ""}`}>
                 {c.label}
               </th>
             ))}
-            <th className="px-4 py-2">Chofer</th>
-            <th className="px-4 py-2">Factura</th>
+            <th className="px-3 py-2">Chofer</th>
+            <th className="px-3 py-2">Factura</th>
           </tr>
         </thead>
         <tbody>
@@ -527,7 +529,7 @@ function GrupoTabla({
               key={f.trip_id}
               className={`border-b border-ink/10 ${f.factura_numero ? "bg-ink/[0.04]" : ""}`}
             >
-              <td className="px-4 py-2">
+              <td className="px-3 py-2">
                 <input
                   type="checkbox"
                   aria-label={`Puntear viaje ${f.trip_id}`}
@@ -535,8 +537,10 @@ function GrupoTabla({
                   onChange={() => onAlternar(f.trip_id)}
                 />
               </td>
-              <td className="whitespace-nowrap px-4 py-2 text-ink/70">{fmtDate(f.fecha)}</td>
-              <td className="px-4 py-2">
+              <td className="whitespace-nowrap px-3 py-2 text-ink/70" title={fmtDate(f.fecha)}>
+                {fmtRangoDeDias(f.fecha, null).corto}
+              </td>
+              <td className="px-3 py-2">
                 <Link to={`/panel/viajes/${f.trip_id}`} className="text-ink hover:underline">
                   {f.origen} → {f.destino}
                 </Link>
@@ -552,13 +556,13 @@ function GrupoTabla({
               {columnas.map((c) => (
                 <td
                   key={c.key}
-                  className={`px-4 py-2 text-ink/70 ${c.totaliza ? "text-right tabular-nums" : ""}`}
+                  className={`px-3 py-2 text-ink/70 ${c.totaliza ? "text-right tabular-nums" : ""}`}
                 >
                   {f.valores[c.key] || "—"}
                 </td>
               ))}
-              <td className="whitespace-nowrap px-4 py-2 text-ink/70">{f.chofer}</td>
-              <td className="whitespace-nowrap px-4 py-2">
+              <td className="whitespace-nowrap px-3 py-2 text-ink/70">{f.chofer}</td>
+              <td className="whitespace-nowrap px-3 py-2">
                 {f.factura_numero ? (
                   <span className="font-cond text-[12px] font-semibold uppercase tracking-[0.08em] text-ink">
                     ✓ {f.factura_numero}
@@ -579,11 +583,11 @@ function GrupoTabla({
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-asphalt/60 font-semibold">
-            <td className="px-4 py-2 text-ink/60" colSpan={3}>
+            <td className="px-3 py-2 text-ink/60" colSpan={3}>
               {grupo.viajes} viaje{grupo.viajes === 1 ? "" : "s"}
             </td>
             {columnas.map((c) => (
-              <td key={c.key} className="px-4 py-2 text-right tabular-nums text-ink">
+              <td key={c.key} className="px-3 py-2 text-right tabular-nums text-ink">
                 {c.totaliza ? (grupo.totales[c.key] ?? 0).toLocaleString("es-UY") : ""}
               </td>
             ))}
@@ -592,6 +596,7 @@ function GrupoTabla({
           </tr>
         </tfoot>
       </table>
+      </div>
     </Card>
   );
 }

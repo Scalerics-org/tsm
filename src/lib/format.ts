@@ -49,8 +49,13 @@ export function fmtRangoDeDias(
   hasta: string | null,
   hoy: Date = new Date(),
 ): { corto: string; detalle: string } {
-  const d1 = desde ? desdeServidor(desde) : null;
-  const d2 = hasta ? desdeServidor(hasta) : null;
+  // Un día solo ("2026-09-05") es ese día y no se convierte, igual que en fmtDate.
+  const aDia = (s: string) => {
+    const m = s.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : desdeServidor(s);
+  };
+  const d1 = desde ? aDia(desde) : null;
+  const d2 = hasta ? aDia(hasta) : null;
   const v1 = d1 && !isNaN(d1.getTime()) ? d1 : null;
   const v2 = d2 && !isNaN(d2.getTime()) ? d2 : null;
   const anios = [v1, v2].filter((d): d is Date => !!d).map((d) => d.getFullYear());
