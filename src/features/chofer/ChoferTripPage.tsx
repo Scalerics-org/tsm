@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   FIELD_STAGE,
   PHOTO_KIND,
+  SIN_FOTO_LLEGADA,
   PHOTO_KIND_LABEL,
   TRIP_STATUS,
   destinoVisible,
@@ -324,6 +325,10 @@ function ArrivalForm({
   const partesDestino = descargaPorCarga ? {} : partesAlCerrar(camposUbicacion, trip);
   // Otros Viajes: el cierre pregunta dónde descargó, por lugar. Siempre hay al menos uno.
   const [lugares, setLugares] = useState<LugarDeDescarga[]>(() => (descargaPorCarga ? [nuevoLugar()] : []));
+  // Contestó "¿Agregamos otro lugar de descarga?": obligatorio para confirmar la llegada.
+  const [respondioOtroLugar, setRespondioOtroLugar] = useState(false);
+  // "No pude sacar la foto de llegada": la salida para el chofer sin cámara o sin espacio.
+  const [sinFotoLlegada, setSinFotoLlegada] = useState(false);
   const [subiendoLugar, setSubiendoLugar] = useState<string | null>(null);
   const [errorBoleta, setErrorBoleta] = useState<string | null>(null);
   const pedidos = [...rutaPendientes, ...descargaFields];
@@ -385,15 +390,21 @@ function ArrivalForm({
     // Cada lugar lleva su boleta, o el "No pude sacar la boleta" que deja cerrar igual.
     const descargas = descargaPorCarga ? lugaresDeDescarga(lugares, fotosPorSid) : { descargas: [] };
     if ("error" in descargas) return setError(descargas.error);
+    if (descargaPorCarga && !respondioOtroLugar) return setError("Contestá si agregamos otro lugar de descarga.");
     for (const f of pedidos) {
       if (f.required && !String(values[f.key] ?? "").trim()) return setError(`Cargá ${f.label}.`);
     }
-    if (photoRequired && !fotosDescarga) return setError(`Sacá la foto: ${photoLabel}.`);
+    // La foto de llegada es obligatoria en Otros Viajes, pero no traba el cierre: si la cámara falla
+    // o no hay espacio, "No pude sacar la foto de llegada" deja cerrar y el viaje queda marcado.
+    if (descargaPorCarga && !fotosDescarga && !sinFotoLlegada) {
+      return setError('Sacá la foto de llegada o tocá "No pude sacar la foto de llegada".');
+    }
+    if (photoRequired && !fotosDescarga && !sinFotoLlegada) return setError(`Sacá la foto: ${photoLabel}.`);
     if (pideKilometros && !kilometros) return setError("Cargá los kilómetros del recorrido.");
     setBusy(true);
     try {
       await api.post(`/trips/${tripId}/finish`, {
-        field_values: values,
+        field_values: sinFotoLlegada ? { ...values, [SIN_FOTO_LLEGADA]: "1" } : values,
         notes: notes || undefined,
         kilometros: kilometros ? Number(kilometros) : undefined,
         // Sólo viajan si la plantilla los deja para el cierre; si no, el servidor los ignora.
@@ -426,6 +437,8 @@ function ArrivalForm({
           subiendoSid={subiendoLugar}
           errorFoto={errorBoleta}
           onFoto={subirBoleta}
+          respondido={respondioOtroLugar}
+          onRespondido={setRespondioOtroLugar}
         />
       )}
       {pedidos.map((f) => (
@@ -450,20 +463,36 @@ function ArrivalForm({
           />
         </Field>
       )}
-      {/* Con la boleta de cada lugar no hace falta otra foto "de descarga" suelta, salvo que la plantilla la pida. */}
-      <div className={descargaPorCarga && !photoLabel ? "hidden" : undefined}>
+      <div>
+        {descargaPorCarga && <span className="label">Foto de la llegada (obligatoria)</span>}
         {fotosDescarga > 0 && (
           <p className="mb-1 text-xs text-ink/50">Podés sumar otra foto si son más de una.</p>
         )}
-        {subiendoFoto ? (
+        {sinFotoLlegada ? (
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-ink/70">Queda marcado que falta la foto de llegada.</p>
+            <button
+              type="button"
+              onClick={() => setSinFotoLlegada(false)}
+              className="flex-none border border-ink/25 px-3 py-2 font-cond text-sm font-semibold text-ink/70"
+            >
+              Ya la saqué
+            </button>
+          </div>
+        ) : subiendoFoto ? (
           <div className="flex h-48 items-center justify-center gap-2 text-sm text-ink/60">
             <Spinner size={16} /> Subiendo…
           </div>
         ) : (
           <CameraCapture
-            label={photoLabel ? `Foto: ${photoLabel}` : "Foto de descarga (opcional)"}
+            label={photoLabel ? `Foto: ${photoLabel}` : descargaPorCarga ? "Foto de la llegada" : "Foto de descarga (opcional)"}
             onChange={subirFoto}
           />
+        )}
+        {descargaPorCarga && !sinFotoLlegada && fotosDescarga === 0 && (
+          <button type="button" onClick={() => setSinFotoLlegada(true)} className="mt-2 text-sm text-ink/60 underline">
+            No pude sacar la foto de llegada
+          </button>
         )}
         <ErrorText>{fotoError}</ErrorText>
       </div>
@@ -536,7 +565,7 @@ function FotoDelViaje({
     if (busy) return;
     // Si era la única foto de la carga, el viaje vuelve a quedar sin poder cerrarse.
     // Decirlo acá evita que lo descubra recién al intentar registrar la llegada.
-    if (!confirm(`¿Borrar esta foto (${etiqueta})?
+    if (!confirm(`¿Quitar esta foto (${etiqueta})?
 
 Vas a poder sacar otra en su lugar.`)) return;
     setBusy(true);
@@ -562,7 +591,7 @@ Vas a poder sacar otra en su lugar.`)) return;
             disabled={busy}
             className="text-xs text-st-redTx hover:underline disabled:opacity-40"
           >
-            {busy ? "…" : "Borrar"}
+            {busy ? "…" : "Quitar foto"}
           </button>
         )}
       </div>

@@ -11,6 +11,7 @@ import {
   MENSAJE_LECTURA_PENDIENTE,
   CODIGO_PIDE_CARGA_AL_SALIR,
   COBRO_TIPO,
+  SIN_FOTO_LLEGADA,
   ROLES,
   bloqueaSalidaPorLectura,
   corrimientoEnDias,
@@ -871,6 +872,15 @@ trips.post("/:id/finish", async (c) => {
   if (c.env.FOTOS) {
     const fotos = await photosRepo.listPhotos(c.env.DB, s.trip.id);
     const faltantes = fotosFaltantes(tpl, s.trip.segments, fotos);
+    // La foto de llegada es obligatoria en las plantillas con descargas por lugar, salvo que el chofer
+    // haya dicho que no pudo sacarla ("No pude sacar la foto de llegada": queda marcado en el viaje).
+    if (
+      tpl?.renglon_pide_ubicacion &&
+      merged[SIN_FOTO_LLEGADA] !== "1" &&
+      !fotos.some((p) => p.kind === PHOTO_KIND.DESCARGA && !p.segment_sid)
+    ) {
+      faltantes.push("la foto de la llegada");
+    }
     // La boleta de cada lugar es obligatoria, salvo que el chofer haya dicho que no pudo sacarla.
     const conBoleta = new Set(fotos.filter((p) => p.kind === PHOTO_KIND.DESCARGA && p.segment_sid).map((p) => p.segment_sid));
     for (const d of descargasNuevas) {

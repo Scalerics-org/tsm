@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { TIPO_DEPARTAMENTO, LIBRETA_ESTADO, LIBRETA_TIPO, type LibretaEntry } from "@shared/domain";
 import { lugarVacio, type LugarDeDescarga } from "@shared/en-ruta";
 import { Field, Spinner } from "../../components/ui";
@@ -42,6 +41,8 @@ export function DescargasAlCerrar({
   subiendoSid,
   errorFoto,
   onFoto,
+  respondido,
+  onRespondido,
 }: {
   lugares: LugarDeDescarga[];
   onChange: (lugares: LugarDeDescarga[]) => void;
@@ -50,9 +51,16 @@ export function DescargasAlCerrar({
   subiendoSid: string | null;
   errorFoto: string | null;
   onFoto: (sid: string, file: File | null) => void;
+  /**
+   * Ya contestó "¿Agregamos otro lugar de descarga?" para el último lugar. Vive en la pantalla y no
+   * acá: para confirmar la llegada tiene que haber dicho sí o no ("que sea requisito obligatorio
+   * para finalizar", Rodrigo). Agregar o sacar un lugar la vuelve a abrir.
+   */
+  respondido: boolean;
+  onRespondido: (r: boolean) => void;
 }) {
-  // Contestó "NO" a "¿Agregamos otro lugar?": la pregunta se cierra hasta que agregue uno.
-  const [terminado, setTerminado] = useState(false);
+  const terminado = respondido;
+  const setTerminado = onRespondido;
 
   const cambiar = (i: number, parcial: Partial<LugarDeDescarga>) =>
     onChange(lugares.map((l, j) => (j === i ? { ...l, ...parcial } : l)));

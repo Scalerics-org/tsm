@@ -4,6 +4,7 @@ import {
   TRIP_STATUS,
   cargasSinDescarga,
   descargasSinBoleta,
+  sinFotoDeLlegada,
   clienteDelViaje,
   destinoVisible,
   estadoDeCobro,
@@ -226,6 +227,14 @@ export function FilaViaje({
             title="El chofer cerró el viaje sin saber dónde descargó. Se completa desde la ficha del viaje, en Corregir lugares."
           >
             falta dónde descargó {sinDescarga === 1 ? "una carga" : `${sinDescarga} cargas`}
+          </div>
+        )}
+        {sinFotoDeLlegada(t) && (
+          <div
+            className="mt-0.5 text-[11px] font-semibold text-st-amberTx"
+            title="El chofer no pudo sacar la foto de llegada. Hay que pedírsela."
+          >
+            falta la foto de llegada
           </div>
         )}
         {sinBoleta > 0 && (

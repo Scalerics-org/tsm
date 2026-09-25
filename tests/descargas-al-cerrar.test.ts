@@ -112,3 +112,12 @@ describe("viajes del modelo anterior: cargasSinDescarga", () => {
     expect(cargasSinDescarga(viaje({ segments: [completa] }))).toBe(0);
   });
 });
+
+describe("sinFotoDeLlegada", () => {
+  it("lee la marca que deja el chofer cuando no pudo sacar la foto de llegada", async () => {
+    const { sinFotoDeLlegada } = await import("@shared/domain");
+    expect(sinFotoDeLlegada({ field_values: { sin_foto_llegada: "1" } })).toBe(true);
+    expect(sinFotoDeLlegada({ field_values: {} })).toBe(false);
+    expect(sinFotoDeLlegada({})).toBe(false);
+  });
+});

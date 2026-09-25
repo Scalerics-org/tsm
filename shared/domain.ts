@@ -1486,6 +1486,15 @@ export function descargasDelViaje(trip: {
 }
 
 /**
+ * Clave de `field_values` que deja el chofer cuando no pudo sacar la foto de llegada ("No pude sacar
+ * la foto de llegada"). Es una marca y no un campo de la plantilla: ningún export la lista.
+ */
+export const SIN_FOTO_LLEGADA = "sin_foto_llegada";
+
+export const sinFotoDeLlegada = (trip: { field_values?: Record<string, string> }): boolean =>
+  trip.field_values?.[SIN_FOTO_LLEGADA] === "1";
+
+/**
  * Cuántos lugares de descarga quedaron sin boleta: el chofer tocó "No pude sacar la boleta". Es lo
  * que la fila de la lista muestra para que se vea que falta y alguien la pida; si no se ve, el
  * viaje queda con el dato a medias y nadie se entera.
