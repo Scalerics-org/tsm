@@ -100,9 +100,14 @@ export function OpsTripDetailPage() {
    */
   async function eliminar() {
     const cargas = trip.segments.length;
-    const detalle = cargas
-      ? `Se van a borrar también sus ${cargas} carga${cargas === 1 ? "" : "s"} y sus fotos, que ya no van a aparecer en el Excel de facturación.`
-      : "El viaje no tiene cargas registradas.";
+    const fotosDelViaje = photos.length;
+    const detalle = [
+      cargas ? `${cargas} carga${cargas === 1 ? "" : "s"}` : null,
+      fotosDelViaje ? `${fotosDelViaje} foto${fotosDelViaje === 1 ? "" : "s"}` : null,
+    ].filter(Boolean);
+    const seLlevaPuesto = detalle.length
+      ? `Se va a borrar TODO el viaje, con sus ${detalle.join(" y ")}: ya no van a aparecer en el Excel de facturación.`
+      : "El viaje no tiene cargas ni fotos registradas.";
     // Un viaje en curso lo tiene abierto un chofer en el celular. Si se borra, lo que venía
     // cargando se pierde y la app le va a fallar contra un viaje que ya no existe.
     const enCurso =
@@ -111,7 +116,7 @@ export function OpsTripDetailPage() {
 
 OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abierto y va a perder lo que esté cargando.`
         : "";
-    if (!confirm(`¿Borrar el viaje ${origenVisible(trip)} → ${destinoVisible(trip)} del ${fmtDateTime(trip.started_at)}?\n\n${detalle}${enCurso}\n\nEsto no se puede deshacer. Si solo querés dejarlo sin efecto, usá Cancelar.`)) {
+    if (!confirm(`¿Borrar el viaje ${origenVisible(trip)} → ${destinoVisible(trip)} del ${fmtDateTime(trip.started_at)}?\n\n${seLlevaPuesto}${enCurso}\n\nEsto no se puede deshacer. Si solo querés dejarlo sin efecto, usá Cancelar.`)) {
       return;
     }
     setBorrando(true);
@@ -192,8 +197,10 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
                   Cancelar
                 </Button>
               )}
-              <Button variant="danger" onClick={eliminar} loading={borrando}>
-                Borrar
+              {/* "Borrar viaje" completo y con aire a la izquierda: en esta ficha también hay fotos
+                  que se pueden quitar, y la palabra suelta "Borrar" servía para las dos cosas. */}
+              <Button variant="danger" onClick={eliminar} loading={borrando} className="ml-4">
+                Borrar viaje
               </Button>
             </>
           )}

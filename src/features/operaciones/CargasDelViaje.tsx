@@ -351,7 +351,7 @@ export function BorrarFoto({
 
   async function borrar() {
     if (busy) return;
-    if (!confirm(`¿Borrar ${que}?\n\nNo se puede deshacer: la foto se borra también del archivo.`)) return;
+    if (!confirm(`¿Quitar ${que}?\n\nSólo se quita la foto, el viaje no se toca. No se puede deshacer: se borra también del archivo.`)) return;
     setBusy(true);
     setError(null);
     try {
@@ -371,7 +371,7 @@ export function BorrarFoto({
         disabled={busy}
         className="flex-none text-st-redTx hover:underline disabled:opacity-40"
       >
-        {busy ? "…" : "Borrar"}
+        {busy ? "…" : "Quitar foto"}
       </button>
       {error && <span className="text-st-redTx">{error}</span>}
     </>
