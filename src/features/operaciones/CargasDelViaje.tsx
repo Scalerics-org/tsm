@@ -15,6 +15,7 @@ import { PhotoImage } from "../../components/PhotoImage";
 import { VisorFotos, type FotoDelVisor } from "../../components/VisorFotos";
 import { fmtDateTime } from "../../lib/format";
 import { useSoloMirar } from "../../lib/auth";
+import { EditarLugaresDeCarga } from "./EditarLugaresDeCarga";
 
 interface Props {
   /** Con el id, cada carga se puede corregir desde acá (cantidad, unidad y remito). */
@@ -23,13 +24,18 @@ interface Props {
   photos: TripPhoto[];
   /** Para releer el viaje después de borrar una foto. */
   onChanged: () => void;
+  /**
+   * El recorrido sale de las cargas (Otros Viajes): acá se corrigen dónde cargó y dónde
+   * descargó, porque Corregir el viaje no deja tocar el origen ni el destino.
+   */
+  editarLugares?: boolean;
 }
 
 /**
  * Las cargas del viaje como las ve la oficina: una por lugar de carga, con su foto y a
  * quién se le factura. Es la misma fila que sale en el Excel, pero en pantalla.
  */
-export function CargasDelViaje({ tripId, segments, photos, onChanged }: Props) {
+export function CargasDelViaje({ tripId, segments, photos, onChanged, editarLugares = false }: Props) {
   // El lector ve las cargas y las fotos enteras; lo que no ve es el "Corregir" de cada carga
   // ni el "Borrar" de cada foto. El visor, que es lo que viene a mirar, queda igual.
   const soloMirar = useSoloMirar();
@@ -85,6 +91,9 @@ export function CargasDelViaje({ tripId, segments, photos, onChanged }: Props) {
                         {s.cantidad != null ? `${s.cantidad.toLocaleString("es-UY")} ${s.unidad}` : "sin cantidad"}
                         {s.remito && ` · remito ${s.remito}`}
                       </div>
+                    )}
+                    {editarLugares && tripId != null && !soloMirar && (
+                      <EditarLugaresDeCarga tripId={tripId} segments={segments} carga={s} onGuardado={onChanged} />
                     )}
                   </div>
 

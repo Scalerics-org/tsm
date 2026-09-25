@@ -148,8 +148,8 @@ export function EditarCabecera({ trip, recorridoPorCargas, onGuardado, onCancela
         </Field>
         {recorridoPorCargas && (
           <p className="text-xs text-ink/55 sm:col-span-2">
-            En esta plantilla el recorrido sale de las cargas: corregí el lugar en la carga y el
-            viaje se acomoda solo.
+            En esta plantilla el recorrido sale de las cargas: corregí dónde cargó y dónde descargó
+            con “Corregir lugares”, en cada carga de más abajo, y el viaje se acomoda solo.
           </p>
         )}
 

@@ -77,7 +77,7 @@ export function cabeceraCorregida(
   if (ctx.recorridoPorCargas && (cambia("origin") || cambia("destination"))) {
     return {
       error:
-        "En esta plantilla el recorrido sale de las cargas: corregí el lugar en la carga y el viaje se acomoda solo.",
+        "En esta plantilla el recorrido sale de las cargas: corregí dónde cargó y dónde descargó con \"Corregir lugares\", en cada carga de la ficha del viaje, y el viaje se acomoda solo.",
     };
   }
 
