@@ -86,3 +86,14 @@ Mdeo-Bella Unión—, no por una lista de plantillas. Los viajes clásicos se ve
   a contar "renglones sin cobro". Una combinación sin regla que la oficina resolvió carga por carga
   ya no aparece como pendiente, y la regla que la resolvería para siempre no se crea sola. No se
   tocó; queda para decidir si hace falta otro aviso.
+
+## `PUT /trips/:id/segments` descarta en silencio una carga sin lugar de carga
+
+Hueco conocido, **sin arreglar a propósito**. `parseSegments` (`api/routes/trips.ts`) filtra los
+renglones cuyo `remitente` viene vacío, y la ruta guarda lo que queda: si el cliente manda una carga
+sin lugar de carga, esa carga desaparece del viaje **sin ningún aviso** —con sus fotos colgando de un
+`sid` que ya no existe—. Hoy lo evitan las pantallas (`AgregarCargaOficina` y `EditarLugaresDeCarga`
+exigen el lugar antes de mandar), no el servidor. No se cambió porque cambiar lo que el servidor acepta
+toca a todos los que llaman a esa ruta y no estaba en el pedido; el arreglo natural es rechazar con 400
+"falta el lugar de carga" en vez de descartar, pero hay que mirar antes que nadie mande a propósito una
+fila vacía al final. Una carga que se pierde sin avisar es justo lo que ya nos mordió.
