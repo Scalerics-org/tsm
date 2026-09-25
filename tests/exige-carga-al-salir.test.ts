@@ -155,6 +155,8 @@ describe("el alta del chofer con una plantilla que pide la carga para salir", ()
     const { status, body, escrituras } = await alta(plantilla(), {});
     expect(status).toBe(400);
     expect(body.error).toBe("Para salir tenés que agregar la carga.");
+    // Con código: la pantalla, si estaba vieja, vuelve a traer la plantilla y dibuja el formulario.
+    expect(body.code).toBe("PIDE_CARGA_AL_SALIR");
     // No quedó ningún viaje creado.
     expect(escrituras.find((e) => e.sql.includes("insert into trips"))).toBeUndefined();
   });

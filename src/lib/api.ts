@@ -61,9 +61,12 @@ function sesionRechazada(tokenUsado: string | null, motivo?: string): void {
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  /** Ver `ApiErr.code`: el rechazo que la pantalla sabe resolver sola. */
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -113,7 +116,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   if (res.status === 401) sesionRechazada(token, json?.success === false ? json.error : undefined);
 
   if (!json) throw new ApiError("Respuesta inválida del servidor", res.status);
-  if (!json.success) throw new ApiError(json.error, res.status);
+  if (!json.success) throw new ApiError(json.error, res.status, json.code);
   return json.data;
 }
 

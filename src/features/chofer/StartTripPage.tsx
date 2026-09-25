@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   CAMPO_MODO,
+  CODIGO_PIDE_CARGA_AL_SALIR,
   FIELD_STAGE,
   PHOTO_KIND,
   requiereFotoCarga,
@@ -91,6 +92,27 @@ export function StartTripPage() {
       .catch((e) => setTplFalló(mensajeDe(e)));
   }, [templateId]);
   useEffect(cargarPlantilla, [cargarPlantilla]);
+
+  // Volver a traer la plantilla cuando la app vuelve al frente. El chofer deja la app abierta horas
+  // y la oficina cambia lo que se pide (el tilde de "pedir la carga antes de salir") con ella
+  // abierta: sin esto, la pantalla sigue dibujando la plantilla de cuando se abrió. Si falla
+  // (sin señal) se deja la que hay: no se le tapa la pantalla por un corte.
+  useEffect(() => {
+    const alVolver = () => {
+      if (document.visibilityState !== "visible") return;
+      api
+        .get<TripTemplate[]>("/templates")
+        .then((list) => {
+          const suya = list.find((t) => t.id === Number(templateId));
+          if (suya) setTpl(suya);
+        })
+        .catch(() => undefined);
+    };
+    document.addEventListener("visibilitychange", alVolver);
+    return () => document.removeEventListener("visibilitychange", alVolver);
+  }, [templateId]);
+  // Lo que se le explica DESPUÉS de mostrarle lo que tiene que hacer: primero el formulario, y acá por qué.
+  const [aviso, setAviso] = useState("");
 
   // Camión asignado por defecto; el chofer puede cambiarlo si hoy maneja otro.
   //
@@ -272,6 +294,14 @@ export function StartTripPage() {
       // viaje, se va a él en vez de decirle al chofer lo contrario de lo que pasó.
       const abierto = await api.get<Trip | null>("/trips/active").catch(() => null);
       if (abierto && abierto.template_id === tpl!.id) return navigate(`/viaje/${abierto.id}`);
+      // El servidor pide algo que esta pantalla no ofrecía (la plantilla cambió con la app abierta): se
+      // vuelve a traer y se dibuja lo que falta; el cartel rojo no, porque no tendría qué hacer con él.
+      if (e instanceof ApiError && e.code === CODIGO_PIDE_CARGA_AL_SALIR) {
+        cargarPlantilla();
+        setError("");
+        setAviso("Ahora este viaje pide la carga antes de salir. Completala y volvé a confirmar.");
+        return;
+      }
       setError(e instanceof ApiError ? e.message : "No se pudo iniciar el viaje");
     } finally {
       setBusy(false);
@@ -508,6 +538,9 @@ export function StartTripPage() {
         </Card>
       )}
 
+      {aviso && !error && (
+        <p className="border-l-4 border-st-amberDot bg-st-amberBg px-3 py-2 text-sm text-st-amberTx">{aviso}</p>
+      )}
       <ErrorText>{error}</ErrorText>
       <Button
         variant="success"

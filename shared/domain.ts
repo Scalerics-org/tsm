@@ -798,7 +798,16 @@ export interface ApiOk<T> {
 export interface ApiErr {
   success: false;
   error: string;
+  /**
+   * Para los rechazos que dependen de algo que la pantalla pudo haber traído viejo (la plantilla).
+   * El mensaje se lee; el código lo entiende la pantalla, que vuelve a traer lo que corresponda en
+   * vez de dejar al chofer mirando un cartel que le pide algo que ella no le ofrece.
+   */
+  code?: string;
 }
+
+/** Rechazos que significan "tu pantalla está vieja": ver `ApiErr.code`. */
+export const CODIGO_PIDE_CARGA_AL_SALIR = "PIDE_CARGA_AL_SALIR";
 export type ApiResponse<T> = ApiOk<T> | ApiErr;
 
 // ── Cálculos ──

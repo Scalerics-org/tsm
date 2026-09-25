@@ -9,6 +9,7 @@ import {
   PHOTO_KIND,
   type Descarga,
   MENSAJE_LECTURA_PENDIENTE,
+  CODIGO_PIDE_CARGA_AL_SALIR,
   COBRO_TIPO,
   ROLES,
   bloqueaSalidaPorLectura,
@@ -374,7 +375,9 @@ trips.post("/", async (c) => {
   // La foto de esa carga se sube en un pedido aparte, después del alta: acá no se puede exigir.
   // La pantalla no deja confirmar sin ella, y el cierre del viaje la sigue exigiendo.
   if (esChoferQueSale && tpl.exige_carga_al_salir && tpl.multi_renglon && fijos.length + propios.length === 0) {
-    return fail(c, "Para salir tenés que agregar la carga.", 400);
+    // Con código: la pantalla pudo haber traído la plantilla ANTES de que se prendiera el tilde, y
+    // entonces no dibujó el formulario. Sabiéndolo, vuelve a traerla y lo muestra.
+    return fail(c, "Para salir tenés que agregar la carga.", 400, CODIGO_PIDE_CARGA_AL_SALIR);
   }
 
   const cantidadMala = [...fijos, ...propios].map((x) => problemaDeCantidad(x.cantidad)).find(Boolean);
