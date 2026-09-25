@@ -1,0 +1,16 @@
+-- Plantillas que piden la carga ANTES de salir.
+--
+-- "En Otros Viajes ellos tienen que agregar una carga para que les deje iniciar, porque hoy les
+-- figura en curso sin ellos haber cargado nada." — Rodrigo, 24/9/2026.
+--
+-- No es parejo para todos: "el UAM Bella Unión → Mdeo sí está bien porque carga en el camino". Por
+-- eso es un tilde por plantilla y no una regla escrita en el código: qué viajes salen ya cargados y
+-- cuáles cargan en el camino lo decide la oficina, y las plantillas cambian sin que nadie del
+-- código se entere. Se tilda desde Plantillas.
+--
+-- Significa: para salir, el viaje tiene que tener al menos una carga y, si la plantilla pide foto
+-- de la carga, esa carga con su foto.
+--
+-- DEFAULT 0 y sin ningún id escrito acá: al aplicarla no cambia el comportamiento de ninguna
+-- plantilla. Los viajes que ya están en curso no se tocan.
+ALTER TABLE trip_templates ADD COLUMN exige_carga_al_salir INTEGER NOT NULL DEFAULT 0;

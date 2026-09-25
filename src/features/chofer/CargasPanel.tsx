@@ -260,7 +260,7 @@ function QuitarCarga({
   );
 }
 
-function NuevaCarga({
+export function NuevaCarga({
   tripId,
   providerId,
   pideFoto,
@@ -268,6 +268,7 @@ function NuevaCarga({
   pideDepartamento,
   onCancel,
   onSaved,
+  alGuardar,
 }: {
   tripId: number;
   providerId: number | null;
@@ -280,6 +281,12 @@ function NuevaCarga({
   pideDepartamento: boolean;
   onCancel: () => void;
   onSaved: (seguirCargando: boolean) => void;
+  /**
+   * MODO SALIDA. En las plantillas que piden la carga antes de salir el viaje todavía no existe,
+   * así que no hay dónde guardarla: en vez de hacer el pedido, entrega la carga armada y sus
+   * fotos, y la pantalla de salida las manda junto con el alta del viaje.
+   */
+  alGuardar?: (carga: Record<string, unknown>, fotos: File[]) => void;
 }) {
   // Vienen heredados y sólo se tocan si esta carga fue de otra ciudad o a otro destino.
   const [origen, setOrigen] = useState<LibretaEntry | null>(null);
@@ -325,6 +332,28 @@ function NuevaCarga({
       prev.some((c) => c.id === e.id) ? prev.filter((c) => c.id !== e.id) : [...prev, e],
     );
 
+  // La carga como la espera el servidor. Un solo lugar para el guardado del viaje en curso y para
+  // el de la salida: si las dos armaran su propio objeto, se desincronizarían.
+  function armarCarga(sid: string) {
+    return {
+      sid,
+      // En el ocasional el departamento sale de lista y el lugar se escribe: es un
+      // viaje puntual, y agendar nombres que se usan una vez ensucia la libreta.
+      // El departamento va en los dos modos. En el combinado, sin esto la carga heredaba
+      // el origen fijo del viaje ("Mdeo") y el lugar real de carga se perdía.
+      origen: origen?.nombre ?? null,
+      origen_id: null,
+      destino: destino?.nombre ?? null,
+      destino_id: null,
+      remitente: pideUbicacion ? lugarTexto.trim() : lugar!.nombre,
+      remitente_id: pideUbicacion ? null : lugar!.id,
+      clientes: pideUbicacion ? [descargaTexto.trim()] : clientes.map((c) => c.nombre),
+      cliente_ids: pideUbicacion ? [] : clientes.map((c) => c.id),
+      cantidad: cantidad ? Number(cantidad) : null,
+      unidad: cantidad ? unidad : null,
+    };
+  }
+
   async function guardar(seguirCargando: boolean) {
     if (pideUbicacion) {
       // El ocasional: cada renglón se completa entero, sin heredar nada del anterior.
@@ -339,33 +368,17 @@ function NuevaCarga({
     }
     if (pideFoto && fotos.length === 0) return setError("Sacá la foto de esta carga.");
     setError("");
+    if (alGuardar) {
+      alGuardar(armarCarga(crypto.randomUUID()), fotos);
+      return;
+    }
     setBusy(true);
     try {
       // El sid lo genera el celular para poder subir la foto sin esperar respuesta;
       // el backend lo respeta y garantiza que no choque con otro. Si la carga ya se guardó en un
       // intento anterior, se sigue con el mismo y no se crea otra.
       const sid = guardado.sid(() => crypto.randomUUID());
-      if (guardado.debeCrear()) await api.post(`/trips/${tripId}/segments`, {
-        segments: [
-          {
-            sid,
-            // En el ocasional el departamento sale de lista y el lugar se escribe: es un
-            // viaje puntual, y agendar nombres que se usan una vez ensucia la libreta.
-            // El departamento va en los dos modos. En el combinado, sin esto la carga heredaba
-            // el origen fijo del viaje ("Mdeo") y el lugar real de carga se perdía.
-            origen: origen?.nombre ?? null,
-            origen_id: null,
-            destino: destino?.nombre ?? null,
-            destino_id: null,
-            remitente: pideUbicacion ? lugarTexto.trim() : lugar!.nombre,
-            remitente_id: pideUbicacion ? null : lugar!.id,
-            clientes: pideUbicacion ? [descargaTexto.trim()] : clientes.map((c) => c.nombre),
-            cliente_ids: pideUbicacion ? [] : clientes.map((c) => c.id),
-            cantidad: cantidad ? Number(cantidad) : null,
-            unidad: cantidad ? unidad : null,
-          },
-        ],
-      });
+      if (guardado.debeCrear()) await api.post(`/trips/${tripId}/segments`, { segments: [armarCarga(sid)] });
       guardado.marcarCreada(sid);
       // Todas con el mismo `segment_sid`: son fotos de una misma carga. Si una falla, las que ya
       // subieron no se repiten al reintentar.
@@ -562,19 +575,26 @@ function NuevaCarga({
       {/* Dos salidas: la de siempre y la de seguir cargando. En un combinado el chofer
           registra 3 lugares seguidos, y volver a la lista para tocar "+" cada vez es el
           tipo de fricción por la que se abandona la app. */}
-      <div className="space-y-2">
-        <Button loading={busy} onClick={() => guardar(true)} className="w-full py-4 text-lg">
-          Guardar y agregar otra carga
+      {alGuardar ? (
+        // En la salida hay una sola carga que dejar lista: el botón de confirmar salida está más abajo.
+        <Button onClick={() => guardar(false)} className="w-full py-4 text-lg">
+          Dejar lista la carga
         </Button>
-        <div className="flex gap-2">
-          <Button variant="secondary" loading={busy} onClick={() => guardar(false)} className="flex-1 py-3">
-            Guardar y listo
+      ) : (
+        <div className="space-y-2">
+          <Button loading={busy} onClick={() => guardar(true)} className="w-full py-4 text-lg">
+            Guardar y agregar otra carga
           </Button>
-          <Button variant="ghost" onClick={onCancel} className="py-3">
-            Cancelar
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" loading={busy} onClick={() => guardar(false)} className="flex-1 py-3">
+              Guardar y listo
+            </Button>
+            <Button variant="ghost" onClick={onCancel} className="py-3">
+              Cancelar
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </Card>
   );
 }

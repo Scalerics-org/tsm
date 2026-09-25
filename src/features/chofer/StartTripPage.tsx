@@ -19,17 +19,19 @@ import { LibretaPicker } from "../../components/LibretaPicker";
 import { CampoDePlantilla } from "../../components/CampoDePlantilla";
 import { compressImage } from "../../lib/image";
 import { estimateTravel, fmtDuration, etaClock } from "../../lib/eta";
+import { NuevaCarga } from "./CargasPanel";
 
 interface TruckOption {
   id: number;
   plate: string;
 }
 
-async function uploadPhoto(tripId: number, file: File, kind: string) {
+async function uploadPhoto(tripId: number, file: File, kind: string, segmentSid?: string) {
   const fd = new FormData();
   fd.append("file", await compressImage(file));
   fd.append("trip_id", String(tripId));
   fd.append("kind", kind);
+  if (segmentSid) fd.append("segment_sid", segmentSid);
   await api.upload("/photos", fd);
 }
 
@@ -42,6 +44,8 @@ export function StartTripPage() {
   const [otroDest, setOtroDest] = useState("");
   const [values, setValues] = useState<Record<string, string>>({});
   const [file, setFile] = useState<File | null>(null);
+  // La carga que se dejó lista en la salida (plantillas que la piden antes de salir).
+  const [cargaLista, setCargaLista] = useState<{ carga: Record<string, unknown>; fotos: File[] } | null>(null);
   const [libreta, setLibreta] = useState<Record<string, LibretaEntry | null>>({});
   // Lo que el chofer escribe en los campos "completar" de la plantilla.
   const [textos, setTextos] = useState<Record<string, string>>({});
@@ -125,6 +129,19 @@ export function StartTripPage() {
   // La saca desde la pantalla del viaje, y el cierre la sigue exigiendo.
   const fotoEnElPuente = camposDeRuta(tpl.fields).length > 0;
   const pideFoto = requiereFotoCarga(tpl) && !tpl.multi_renglon && !fotoEnElPuente;
+
+  /**
+   * Las plantillas que salen ya cargadas piden la carga antes de salir (Otros Viajes; Rodrigo,
+   * 24/9): sin eso el viaje figura "en curso" sin que nadie haya cargado nada. La marca la pone la
+   * oficina plantilla por plantilla; UAM Bella Unión → Mdeo, que carga en el camino, no la lleva.
+   *
+   * Si la plantilla no trae la carga puesta, se arma acá y viaja en el mismo alta. Si ya la trae
+   * (un renglón fijo de la oficina), lo que falta es la foto de esa carga.
+   */
+  const exigeCarga = !!tpl.exige_carga_al_salir && !!tpl.multi_renglon;
+  const traeCargaPuesta = (tpl.renglones_fijos?.length ?? 0) > 0;
+  const pideCargaNueva = exigeCarga && !traeCargaPuesta;
+  const pideFotoDeLaCargaPuesta = exigeCarga && traeCargaPuesta && requiereFotoCarga(tpl);
 
   /**
    * Valor de una parte según su modo: fijo lo trae la plantilla, libreta lo elige el
@@ -216,6 +233,11 @@ export function StartTripPage() {
       if (f.required && !String(values[f.key] ?? "").trim()) return setError(`Cargá ${f.label}.`);
     }
     if (pideFoto && !file) return setError("Sacá la foto de la carga.");
+    if (pideCargaNueva && !cargaLista) return setError("Para salir tenés que agregar la carga.");
+    if (pideCargaNueva && cargaLista && requiereFotoCarga(tpl) && cargaLista.fotos.length === 0) {
+      return setError("Para salir tenés que sacarle la foto a la carga.");
+    }
+    if (pideFotoDeLaCargaPuesta && !file) return setError("Para salir tenés que sacar la foto de la carga.");
 
     setBusy(true);
     try {
@@ -227,12 +249,22 @@ export function StartTripPage() {
         destinatario: destinatarioFinal || undefined,
         field_values: values,
         truck_id: truckId ? Number(truckId) : undefined,
+        segments: cargaLista ? [cargaLista.carga] : undefined,
       });
       // El viaje ya existe. Si la foto falla —la señal que se corta en el galpón— NO es "no se
       // pudo iniciar": se sigue a la pantalla del viaje, que muestra "Falta la foto de la carga"
       // con su botón para volver a sacarla. Antes el error de la foto caía en el mismo catch y le
       // decía al chofer que el viaje no había arrancado.
-      if (file) await uploadPhoto(trip.id, file, PHOTO_KIND.CARGA).catch(() => undefined);
+      if (cargaLista) {
+        // Las fotos de la carga que se armó acá van con el mismo sid con el que se creó.
+        for (const foto of cargaLista.fotos) {
+          await uploadPhoto(trip.id, foto, PHOTO_KIND.CARGA, String(cargaLista.carga.sid)).catch(() => undefined);
+        }
+      } else if (file) {
+        // La foto de la carga que la plantilla ya trae puesta va al primer renglón; la clásica, al viaje.
+        const sidPuesto = pideFotoDeLaCargaPuesta ? trip.segments?.[0]?.sid : undefined;
+        await uploadPhoto(trip.id, file, PHOTO_KIND.CARGA, sidPuesto).catch(() => undefined);
+      }
       navigate(`/viaje/${trip.id}`);
     } catch (e) {
       // Si la respuesta se perdió pero el viaje se creó, reintentar da "Todavía tenés un viaje sin
@@ -419,6 +451,53 @@ export function StartTripPage() {
 
       {/* En el combinado no va: cada carga trae la suya al registrarla. Y en los que tienen
           datos del puente tampoco: esa foto se saca en el puente. */}
+      {/* Las plantillas que piden la carga antes de salir: el formulario de "Agregar carga", acá. */}
+      {pideCargaNueva && (
+        <Card className="space-y-3">
+          <Corners />
+          {cargaLista ? (
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-brand-700">
+                  Carga lista
+                </div>
+                <div className="font-cond text-lg font-semibold text-ink">{String(cargaLista.carga.remitente)}</div>
+                <div className="text-sm text-ink/60">
+                  {[cargaLista.carga.origen, cargaLista.carga.destino].filter(Boolean).join(" → ")}
+                  {cargaLista.fotos.length > 0 &&
+                    ` · ${cargaLista.fotos.length} foto${cargaLista.fotos.length === 1 ? "" : "s"}`}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCargaLista(null)}
+                className="flex-none border border-ink/25 px-3 py-2 font-cond text-sm font-semibold text-ink/70"
+              >
+                Cambiar
+              </button>
+            </div>
+          ) : (
+            <NuevaCarga
+              tripId={0}
+              providerId={tpl.provider_id}
+              pideFoto={requiereFotoCarga(tpl)}
+              pideUbicacion={!!tpl.renglon_pide_ubicacion}
+              pideDepartamento={!!tpl.renglon_pide_departamento}
+              onCancel={() => undefined}
+              onSaved={() => undefined}
+              alGuardar={(carga, fotos) => setCargaLista({ carga, fotos })}
+            />
+          )}
+        </Card>
+      )}
+
+      {pideFotoDeLaCargaPuesta && (
+        <Card className="space-y-3">
+          <Corners />
+          <CameraCapture label={tpl.carga_photo_label ?? "Foto de la carga"} onChange={setFile} />
+        </Card>
+      )}
+
       {!tpl.multi_renglon && !fotoEnElPuente && (
         <Card className="space-y-3">
           <Corners />

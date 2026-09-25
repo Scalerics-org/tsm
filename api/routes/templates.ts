@@ -167,6 +167,7 @@ function parse(b: any): repo.TemplateInput | null {
     renglon_pide_ubicacion: !!b.renglon_pide_ubicacion,
     renglon_pide_departamento: !!b.renglon_pide_departamento,
     renglones_fijos: parseRenglonesFijos(b.renglones_fijos),
+    exige_carga_al_salir: !!b.exige_carga_al_salir,
     pide_kilometros: !!b.pide_kilometros,
     viaje_vacio: !!b.viaje_vacio,
     // Si no viene, se pide la foto — salvo en los vacíos, que no tienen qué fotografiar.

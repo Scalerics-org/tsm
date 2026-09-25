@@ -23,6 +23,7 @@ interface TemplateRow {
   renglon_pide_ubicacion: number;
   renglon_pide_departamento: number;
   renglones_fijos: string | null; // JSON
+  exige_carga_al_salir: number;
   pide_kilometros: number;
   viaje_vacio: number;
   foto_carga_requerida: number;
@@ -56,6 +57,7 @@ function toTemplate(r: TemplateRow): TripTemplate {
     renglon_pide_ubicacion: !!r.renglon_pide_ubicacion,
     renglon_pide_departamento: !!r.renglon_pide_departamento,
     renglones_fijos: r.renglones_fijos ? parseJson<RenglonFijo[]>(r.renglones_fijos, []) : null,
+    exige_carga_al_salir: !!r.exige_carga_al_salir,
     pide_kilometros: !!r.pide_kilometros,
     viaje_vacio: !!r.viaje_vacio,
     foto_carga_requerida: !!r.foto_carga_requerida,
@@ -67,7 +69,7 @@ function toTemplate(r: TemplateRow): TripTemplate {
 const SELECT = `
   SELECT tt.id, tt.provider_id, tt.name, tt.origin, tt.remite, tt.cargo_type,
          tt.dest_options, tt.fields, tt.arrival_photo_label, tt.carga_photo_label, tt.campos_ubicacion,
-         tt.multi_renglon, tt.renglon_pide_ubicacion, tt.renglon_pide_departamento, tt.renglones_fijos, tt.pide_kilometros, tt.viaje_vacio, tt.foto_carga_requerida, tt.active,
+         tt.multi_renglon, tt.renglon_pide_ubicacion, tt.renglon_pide_departamento, tt.renglones_fijos, tt.exige_carga_al_salir, tt.pide_kilometros, tt.viaje_vacio, tt.foto_carga_requerida, tt.active,
          p.name AS provider_name,
          (SELECT group_concat(truck_id) FROM template_trucks WHERE template_id = tt.id) AS truck_ids
   FROM trip_templates tt JOIN providers p ON p.id = tt.provider_id
@@ -99,6 +101,7 @@ export interface TemplateInput {
   renglon_pide_ubicacion: boolean;
   renglon_pide_departamento: boolean;
   renglones_fijos: RenglonFijo[] | null;
+  exige_carga_al_salir: boolean;
   pide_kilometros: boolean;
   viaje_vacio: boolean;
   foto_carga_requerida: boolean;
@@ -133,6 +136,7 @@ function columnasYValores(t: TemplateInput): [string, unknown][] {
     ["renglon_pide_ubicacion", t.renglon_pide_ubicacion ? 1 : 0],
     ["renglon_pide_departamento", t.renglon_pide_departamento ? 1 : 0],
     ["renglones_fijos", t.renglones_fijos?.length ? JSON.stringify(t.renglones_fijos) : null],
+    ["exige_carga_al_salir", t.exige_carga_al_salir ? 1 : 0],
     ["pide_kilometros", t.pide_kilometros ? 1 : 0],
     ["viaje_vacio", t.viaje_vacio ? 1 : 0],
     ["foto_carga_requerida", t.foto_carga_requerida ? 1 : 0],

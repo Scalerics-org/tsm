@@ -258,6 +258,7 @@ function TemplateForm({
     multi_renglon: initial?.multi_renglon ?? false,
     renglon_pide_ubicacion: initial?.renglon_pide_ubicacion ?? false,
     renglon_pide_departamento: initial?.renglon_pide_departamento ?? false,
+    exige_carga_al_salir: initial?.exige_carga_al_salir ?? false,
     active: initial?.active ?? true,
   });
   const [origen, setOrigen] = useState(aFormulario(initial?.campos_ubicacion?.origen));
@@ -293,6 +294,9 @@ function TemplateForm({
       pide_kilometros: f.pide_kilometros,
       viaje_vacio: f.viaje_vacio,
       renglon_pide_departamento: f.renglon_pide_departamento,
+      // Sin este campo en el pedido, guardar la plantilla desde esta pantalla lo apagaría.
+      // Sin varias cargas no significa nada: el chofer no puede armar una carga en la salida.
+      exige_carga_al_salir: f.multi_renglon && f.exige_carga_al_salir,
       campos_ubicacion: armarCampos(initial?.campos_ubicacion ?? null, origen, destino),
       multi_renglon: f.multi_renglon,
       // Sin varias cargas, la ubicación por carga no significa nada: se apaga sola para que
@@ -403,6 +407,14 @@ function TemplateForm({
               ayuda="El chofer indica en cada carga de qué departamento salió y a cuál va, y escribe el lugar. El recorrido del viaje se arma solo con la primera y la última. Dejalo apagado si el viaje siempre hace el mismo recorrido."
               checked={f.renglon_pide_ubicacion}
               onChange={(v) => setF({ ...f, renglon_pide_ubicacion: v })}
+            />
+          )}
+          {f.multi_renglon && (
+            <Casilla
+              titulo="Pedir la carga antes de salir"
+              ayuda="Para los viajes que salen ya cargados (Otros Viajes): el chofer no puede confirmar la salida sin agregar la carga y sacarle la foto. Dejalo apagado si el camión carga en el camino."
+              checked={f.exige_carga_al_salir}
+              onChange={(v) => setF({ ...f, exige_carga_al_salir: v })}
             />
           )}
           {f.multi_renglon && !f.renglon_pide_ubicacion && (

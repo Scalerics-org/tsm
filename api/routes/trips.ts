@@ -361,6 +361,18 @@ trips.post("/", async (c) => {
       ? []
       : parseSegments(b.segments, new Set(fijos.map((x) => x.sid)));
 
+  // Las plantillas que salen ya cargadas piden la carga ANTES de salir: sin esto el viaje figura
+  // "en curso" sin que el chofer haya cargado nada (Rodrigo, 24/9, Otros Viajes). Cuenta también
+  // el renglón que la plantilla ya trae puesto. Sólo al chofer: la oficina carga viajes que ya
+  // pasaron y nacen cerrados. Y sólo si la plantilla admite cargas: en una de un solo tramo el
+  // chofer no las puede armar, y exigirlas lo dejaría sin poder salir nunca.
+  //
+  // La foto de esa carga se sube en un pedido aparte, después del alta: acá no se puede exigir.
+  // La pantalla no deja confirmar sin ella, y el cierre del viaje la sigue exigiendo.
+  if (esChoferQueSale && tpl.exige_carga_al_salir && tpl.multi_renglon && fijos.length + propios.length === 0) {
+    return fail(c, "Para salir tenés que agregar la carga.", 400);
+  }
+
   const cantidadMala = [...fijos, ...propios].map((x) => problemaDeCantidad(x.cantidad)).find(Boolean);
   if (cantidadMala) return fail(c, cantidadMala, 400);
 
@@ -401,6 +413,10 @@ trips.post("/", async (c) => {
       }
     : undefined,
   );
+  // Si el viaje nace con cargas propias (la salida de las plantillas que piden la carga antes de
+  // salir), el recorrido se arma ya con ellas: sin esto quedaba "origen a definir → destino a
+  // definir" hasta que se agregara otra carga, con la primera ya puesta.
+  await recalcularRecorrido(c.env.DB, id, tpl, [...fijos, ...extra]);
   return okViaje(c, await tripsRepo.getTrip(c.env.DB, id));
 });
 

@@ -188,6 +188,12 @@ export interface TripTemplate {
   renglon_pide_departamento: boolean;
   /** Renglones ya puestos por la oficina (ida y vuelta): el chofer solo completa. */
   renglones_fijos: RenglonFijo[] | null;
+  /**
+   * Para salir, el viaje tiene que tener al menos una carga y, si la plantilla pide foto de carga,
+   * esa carga con su foto. Es para los que salen ya cargados (Otros Viajes); los que cargan en el
+   * camino —UAM Bella Unión → Mdeo— no lo llevan. Lo decide la oficina, plantilla por plantilla.
+   */
+  exige_carga_al_salir: boolean;
   pide_kilometros: boolean;
   /** Viaje sin carga (retornos vacíos). No pide cargas ni fotos de carga. */
   viaje_vacio: boolean;
