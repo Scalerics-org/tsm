@@ -149,6 +149,30 @@ export function LibretaEntryRow({
         </label>
       )}
 
+      {/* Sólo para cobrar: el cliente está en la libreta para cobrarle y el chofer no lo ve en su
+          lista. Se pone solo desde el cuadro de cobro; acá se marca o se desmarca. Si ya se usó en
+          cargas, se avisa antes de guardar con el número: el que marca decide informado. */}
+      {entry.tipo === LIBRETA_TIPO.DESTINATARIO && (
+        <label className="flex items-center gap-2 text-xs text-ink/60">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-brand"
+            checked={!!entry.solo_cobro}
+            disabled={busy}
+            onChange={(e) => {
+              if (e.target.checked && entry.usos > 0) {
+                const ok = confirm(
+                  `"${entry.nombre}" se usó en ${entry.usos} carga${entry.usos === 1 ? "" : "s"}. Si lo marcás, los choferes dejan de verlo en la lista.\n\nSe puede desmarcar cuando quieras y no se pierde nada.`,
+                );
+                if (!ok) return;
+              }
+              run(() => api.put(`/libreta/${entry.id}`, { solo_cobro: e.target.checked }));
+            }}
+          />
+          Sólo para cobrar: los choferes no lo ven en su lista
+        </label>
+      )}
+
       {fusionando && (
         <div className="border border-ink/15 bg-bg p-3">
           <div className="mb-2 font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-ink/60">

@@ -24,6 +24,8 @@ interface Props {
    * todavía no tienen ninguno, y el que se dé de alta nace con él.
    */
   departamentoId?: number | null;
+  /** El alta entra marcada "sólo para cobrar": el cuadro de cobro de la oficina, no la lista del chofer. */
+  altaSoloCobro?: boolean;
   placeholder?: string;
 }
 
@@ -41,6 +43,7 @@ export function LibretaPicker({
   soloSeleccionables = false,
   permiteAlta = true,
   departamentoId = null,
+  altaSoloCobro = false,
   placeholder = "Buscar o escribir…",
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -111,6 +114,7 @@ export function LibretaPicker({
         nombre: query.trim(),
         provider_id: providerId ?? null,
         departamento_id: departamentoId,
+        ...(altaSoloCobro ? { solo_cobro: true } : {}),
       });
       setEntries((prev) => {
         const rest = (prev ?? []).filter((e) => e.id !== nueva.id);

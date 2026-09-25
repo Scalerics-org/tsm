@@ -370,6 +370,11 @@ export interface LibretaEntry {
   estado: LibretaEstado;
   usos: number;
   created_by: number | null;
+  /**
+   * El cliente está sólo para cobrarle: el chofer no lo ve en la lista, la oficina sí. Es una marca
+   * y no un tipo, porque alguien puede ser cliente de carga Y a quien se le cobra.
+   */
+  solo_cobro?: boolean;
 }
 
 export const CAMPO_MODO = {

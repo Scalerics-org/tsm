@@ -16,6 +16,7 @@ interface LibretaRow {
   estado: LibretaEstado;
   usos: number;
   created_by: number | null;
+  solo_cobro?: number;
 }
 
 function toEntry(r: LibretaRow): LibretaEntry {
@@ -28,6 +29,7 @@ function toEntry(r: LibretaRow): LibretaEntry {
     estado: r.estado,
     usos: r.usos,
     created_by: r.created_by,
+    solo_cobro: !!r.solo_cobro,
   };
 }
 
@@ -39,6 +41,12 @@ export interface LibretaFilters {
   /** Deja los lugares de ese departamento y los que todavía no tienen ninguno. */
   departamentoId?: number;
   estado?: LibretaEstado;
+  /**
+   * Deja afuera los marcados "sólo para cobrar". Sólo lo pide la lista del chofer, y va acá como
+   * opción y no fijo: `createEntry` también usa esta consulta para reconocer un nombre que ya
+   * existe, y si no viera a los de cobranza daría de alta un duplicado.
+   */
+  sinSoloCobro?: boolean;
 }
 
 /** Entradas del cliente + las globales, más usadas primero. */
@@ -65,12 +73,13 @@ export async function listLibreta(db: D1Database, f: LibretaFilters = {}): Promi
     binds.push(f.departamentoId);
   }
   if (f.soloSeleccionables) where.push("agrupador = 0");
+  if (f.sinSoloCobro) where.push("solo_cobro = 0");
   if (f.estado) {
     where.push("estado = ?");
     binds.push(f.estado);
   }
   const sql =
-    "SELECT id, tipo, nombre, provider_id, agrupador, estado, usos, created_by FROM libreta" +
+    "SELECT id, tipo, nombre, provider_id, agrupador, estado, usos, created_by, solo_cobro FROM libreta" +
     (where.length ? ` WHERE ${where.join(" AND ")}` : "") +
     " ORDER BY usos DESC, nombre";
   const { results } = await db.prepare(sql).bind(...binds).all<LibretaRow>();
@@ -79,7 +88,7 @@ export async function listLibreta(db: D1Database, f: LibretaFilters = {}): Promi
 
 export async function getEntry(db: D1Database, id: number): Promise<LibretaEntry | null> {
   const r = await db
-    .prepare("SELECT id, tipo, nombre, provider_id, agrupador, estado, usos, created_by FROM libreta WHERE id = ?")
+    .prepare("SELECT id, tipo, nombre, provider_id, agrupador, estado, usos, created_by, solo_cobro FROM libreta WHERE id = ?")
     .bind(id)
     .first<LibretaRow>();
   return r ? toEntry(r) : null;
@@ -109,6 +118,8 @@ export interface LibretaInput {
   created_by: number | null;
   /** Departamento del lugar, si quien lo da de alta ya lo sabe. */
   departamento_id?: number | null;
+  /** Alta desde el cuadro de cobro: el cliente nace marcado "sólo para cobrar". */
+  solo_cobro?: boolean;
 }
 
 /** Alta idempotente: si ya existe una equivalente, la devuelve en vez de duplicar. */
@@ -118,8 +129,8 @@ export async function createEntry(db: D1Database, e: LibretaInput): Promise<Libr
 
   const res = await db
     .prepare(
-      `INSERT INTO libreta (tipo, nombre, provider_id, agrupador, estado, created_by, departamento_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO libreta (tipo, nombre, provider_id, agrupador, estado, created_by, departamento_id, solo_cobro)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       e.tipo, e.nombre.trim(), e.provider_id, e.agrupador ? 1 : 0, e.estado, e.created_by,
@@ -127,6 +138,7 @@ export async function createEntry(db: D1Database, e: LibretaInput): Promise<Libr
       // parado en Artigas, es de Artigas. Sin esto el nombre que él escribe entra sin
       // clasificar y le vuelve a aparecer a todos.
       e.departamento_id ?? null,
+      e.solo_cobro ? 1 : 0,
     )
     .run();
   return (await getEntry(db, res.meta.last_row_id as number))!;
@@ -136,6 +148,7 @@ export interface LibretaPatch {
   nombre?: string;
   agrupador?: boolean;
   estado?: LibretaEstado;
+  solo_cobro?: boolean;
 }
 
 export async function updateEntry(db: D1Database, id: number, p: LibretaPatch): Promise<void> {
@@ -152,6 +165,10 @@ export async function updateEntry(db: D1Database, id: number, p: LibretaPatch): 
   if (p.estado != null) {
     sets.push("estado = ?");
     binds.push(p.estado);
+  }
+  if (p.solo_cobro != null) {
+    sets.push("solo_cobro = ?");
+    binds.push(p.solo_cobro ? 1 : 0);
   }
   if (!sets.length) return;
   await db.prepare(`UPDATE libreta SET ${sets.join(", ")} WHERE id = ?`).bind(...binds, id).run();

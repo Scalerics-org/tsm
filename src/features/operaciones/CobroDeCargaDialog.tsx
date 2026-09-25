@@ -198,6 +198,8 @@ export function CobroDeCargaDialog({
               onChange={setCliente}
               soloSeleccionables
               permiteAlta
+              // Un cliente que se da de alta acá es de cobranza: no le tiene que aparecer a los choferes.
+              altaSoloCobro
             />
             <p className="text-xs text-ink/50">
               Si el cliente todavía no está, escribí el nombre y tocá “Agregar”: queda en la libreta.

@@ -33,6 +33,8 @@ libreta.get("/", async (c) => {
       tipo: isTipo(q.tipo) ? q.tipo : undefined,
       providerId: q.provider ? Number(q.provider) : undefined,
       soloSeleccionables: q.seleccionables === "1",
+      // Al chofer no se le muestran los clientes que están sólo para cobrarles; la oficina ve todos.
+      sinSoloCobro: c.get("user").role === ROLES.CHOFER,
       departamentoId: q.departamento ? Number(q.departamento) : undefined,
       estado: q.estado === LIBRETA_ESTADO.NUEVO ? LIBRETA_ESTADO.NUEVO : undefined,
     }),
@@ -49,6 +51,7 @@ libreta.post("/", async (c) => {
     provider_id?: number | null;
     agrupador?: boolean;
     departamento_id?: number | null;
+    solo_cobro?: boolean;
   };
   if (!isTipo(b.tipo)) return fail(c, "Tipo de entrada inválido", 400);
   if (!b.nombre?.trim()) return fail(c, "El nombre es obligatorio", 400);
@@ -61,6 +64,8 @@ libreta.post("/", async (c) => {
     // Solo la oficina puede marcar un agrupador ("Varios"): no es algo que el chofer decida.
     agrupador: esChofer ? false : !!b.agrupador,
     departamento_id: b.departamento_id != null ? Number(b.departamento_id) : null,
+    // La marca "sólo para cobrar" la pone la oficina (el cuadro de cobro); si la manda un chofer se ignora.
+    solo_cobro: esChofer ? false : !!b.solo_cobro,
     estado: esChofer ? LIBRETA_ESTADO.NUEVO : LIBRETA_ESTADO.CONFIRMADO,
     created_by: user.driver_id,
   });
@@ -73,6 +78,7 @@ libreta.put("/:id", requireRole(ROLES.ADMIN), async (c) => {
     nombre?: string;
     agrupador?: boolean;
     estado?: string;
+    solo_cobro?: boolean;
   };
   if (b.nombre != null && !b.nombre.trim()) return fail(c, "El nombre no puede quedar vacío", 400);
   if (b.estado != null && b.estado !== LIBRETA_ESTADO.CONFIRMADO && b.estado !== LIBRETA_ESTADO.NUEVO) {
@@ -82,6 +88,7 @@ libreta.put("/:id", requireRole(ROLES.ADMIN), async (c) => {
     nombre: b.nombre,
     agrupador: b.agrupador,
     estado: b.estado as typeof LIBRETA_ESTADO.CONFIRMADO | undefined,
+    solo_cobro: typeof b.solo_cobro === "boolean" ? b.solo_cobro : undefined,
   });
   // Las cargas ya registradas guardan el nombre copiado: sin esto, el Excel y el resumen del
   // cliente seguían saliendo con el nombre viejo después de corregirlo acá.

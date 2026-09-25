@@ -1,0 +1,16 @@
+-- Clientes que están en la libreta sólo para cobrarles.
+--
+-- Rodrigo (25/9/2026): "no es lo mismo los lugares de carga que los que se le cobra. Y que se les
+-- llene la lista sería una locura." Los clientes que la oficina da de alta desde el cuadro
+-- "¿A quién se le cobra?" entran como destinatario sin proveedor, y un destinatario sin proveedor
+-- se le muestra a TODOS los choferes en todos los viajes donde eligen cliente de la lista.
+--
+-- Es una marca y no un tipo nuevo: un cliente puede ser de carga y a quien se le cobra, y el tipo
+-- de la libreta es excluyente. Marcado, el chofer no lo ve; la oficina sigue viendo todo. Se pone
+-- sola desde el cuadro de cobro, y la oficina la marca o desmarca desde Clientes.
+--
+-- DEFAULT 0 y sin ningún id escrito acá: al aplicarla no cambia lo que ve nadie. Los clientes que
+-- ya existen se marcan a mano después.
+--
+-- Va ANTES que el código en el deploy: el SELECT de la libreta ya lee la columna.
+ALTER TABLE libreta ADD COLUMN solo_cobro INTEGER NOT NULL DEFAULT 0;
