@@ -16,11 +16,10 @@ import {
 import {
   camposDeRuta,
   camposDeRutaPendientes,
-  descargasAlCerrar,
-  descargasFaltantes,
   destinoAlCierre,
+  lugaresDeDescarga,
   partesAlCerrar,
-  type EleccionDeDescarga,
+  type LugarDeDescarga,
 } from "@shared/en-ruta";
 import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner, StatusBadge } from "../../components/ui";
@@ -30,7 +29,7 @@ import { VisorFotos, type FotoDelVisor } from "../../components/VisorFotos";
 import { CargasPanel } from "./CargasPanel";
 import { EnElPuente } from "./EnElPuente";
 import { DestinoAlCerrar, type DestinoElegido } from "./DestinoAlCerrar";
-import { DescargasAlCerrar } from "./DescargasAlCerrar";
+import { DescargasAlCerrar, nuevoLugar } from "./DescargasAlCerrar";
 import { compressImage } from "../../lib/image";
 import { estimateTravel, fmtDuration } from "../../lib/eta";
 import { fmtDateTime } from "../../lib/format";
@@ -54,11 +53,12 @@ interface Detail {
   campos_ubicacion: CamposUbicacion | null;
 }
 
-async function uploadPhoto(tripId: number, file: File, kind: string) {
+async function uploadPhoto(tripId: number, file: File, kind: string, segmentSid?: string) {
   const fd = new FormData();
   fd.append("file", await compressImage(file));
   fd.append("trip_id", String(tripId));
   fd.append("kind", kind);
+  if (segmentSid) fd.append("segment_sid", segmentSid);
   await api.upload("/photos", fd);
 }
 
@@ -313,14 +313,35 @@ function ArrivalForm({
   );
   const [destinoElegido, setDestinoElegido] = useState<DestinoElegido>({ destino: "", destinatario: "" });
   const partesDestino = partesAlCerrar(camposUbicacion, trip);
-  const pendientesDeDescarga = descargaPorCarga ? descargasFaltantes(trip.segments) : [];
-  const [elecciones, setElecciones] = useState<Record<string, EleccionDeDescarga>>({});
+  // Otros Viajes: el cierre pregunta dónde descargó, por lugar. Siempre hay al menos uno.
+  const [lugares, setLugares] = useState<LugarDeDescarga[]>(() => (descargaPorCarga ? [nuevoLugar()] : []));
+  const [subiendoLugar, setSubiendoLugar] = useState<string | null>(null);
+  const [errorBoleta, setErrorBoleta] = useState<string | null>(null);
   const pedidos = [...rutaPendientes, ...descargaFields];
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const photoRequired = !!photoLabel;
-  const fotosDescarga = photos.filter((p) => p.kind === PHOTO_KIND.DESCARGA).length;
+  // La foto de llegada del viaje; las boletas de cada lugar (con su sid) van aparte.
+  const fotosDescarga = photos.filter((p) => p.kind === PHOTO_KIND.DESCARGA && !p.segment_sid).length;
+  const fotosPorSid: Record<string, number> = {};
+  for (const p of photos) {
+    if (p.kind === PHOTO_KIND.DESCARGA && p.segment_sid) fotosPorSid[p.segment_sid] = (fotosPorSid[p.segment_sid] ?? 0) + 1;
+  }
+
+  async function subirBoleta(sid: string, file: File | null) {
+    if (!file || subiendoLugar) return;
+    setSubiendoLugar(sid);
+    setErrorBoleta(null);
+    try {
+      await uploadPhoto(tripId, file, PHOTO_KIND.DESCARGA, sid);
+      onDone();
+    } catch (e) {
+      setErrorBoleta(e instanceof ApiError ? e.message : "No se pudo subir la foto");
+    } finally {
+      setSubiendoLugar(null);
+    }
+  }
 
   /**
    * "Molino para cerrar pide hora firmada. Pero da para sacar solo una foto, tiene q dar
@@ -350,7 +371,8 @@ function ArrivalForm({
     // La misma regla del cierre en el servidor, así no se entera recién al confirmar.
     const destino = destinoAlCierre(camposUbicacion, trip, destinoElegido);
     if ("error" in destino) return setError(`${destino.error}.`);
-    const descargas = descargasAlCerrar(pendientesDeDescarga, elecciones);
+    // Cada lugar lleva su boleta, o el "No pude sacar la boleta" que deja cerrar igual.
+    const descargas = descargaPorCarga ? lugaresDeDescarga(lugares, fotosPorSid) : { descargas: [] };
     if ("error" in descargas) return setError(descargas.error);
     for (const f of pedidos) {
       if (f.required && !String(values[f.key] ?? "").trim()) return setError(`Cargá ${f.label}.`);
@@ -366,7 +388,7 @@ function ArrivalForm({
         // Sólo viajan si la plantilla los deja para el cierre; si no, el servidor los ignora.
         destino: destinoElegido.destino || undefined,
         destinatario: destinoElegido.destinatario || undefined,
-        descargas: descargas.descargas.length ? descargas.descargas : undefined,
+        descargas: descargaPorCarga ? descargas.descargas : undefined,
       });
       onDone();
     } catch (e) {
@@ -385,11 +407,16 @@ function ArrivalForm({
     <Card className="space-y-4">
       <h2 className="text-lg font-semibold text-ink">Registrar llegada</h2>
       <DestinoAlCerrar partes={partesDestino} providerId={providerId} onChange={setDestinoElegido} />
-      <DescargasAlCerrar
-        pendientes={pendientesDeDescarga}
-        elecciones={elecciones}
-        onChange={(sid, e) => setElecciones((p) => ({ ...p, [sid]: e }))}
-      />
+      {descargaPorCarga && (
+        <DescargasAlCerrar
+          lugares={lugares}
+          onChange={setLugares}
+          fotosPorSid={fotosPorSid}
+          subiendoSid={subiendoLugar}
+          errorFoto={errorBoleta}
+          onFoto={subirBoleta}
+        />
+      )}
       {pedidos.map((f) => (
         <Field key={f.key} label={`${f.label}${f.required ? "" : " (opcional)"}`}>
           <input
@@ -412,7 +439,8 @@ function ArrivalForm({
           />
         </Field>
       )}
-      <div>
+      {/* Con la boleta de cada lugar no hace falta otra foto "de descarga" suelta, salvo que la plantilla la pida. */}
+      <div className={descargaPorCarga && !photoLabel ? "hidden" : undefined}>
         {fotosDescarga > 0 && (
           <p className="mb-1 text-xs text-ink/50">Podés sumar otra foto si son más de una.</p>
         )}

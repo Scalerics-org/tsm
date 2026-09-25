@@ -36,9 +36,14 @@ photos.post("/", async (c) => {
   if (user.role === ROLES.CHOFER && trip.driver_id !== user.driver_id) {
     return fail(c, "No podés subir fotos a este viaje", 403);
   }
-  // Una foto colgada de una carga que no existe no la encuentra nadie después.
-  if (segmentSid && !trip.segments.some((s) => s.sid === segmentSid)) {
-    return fail(c, "La carga de esa foto no existe en el viaje", 400);
+  // Una foto colgada de una carga que no existe no la encuentra nadie después. La boleta de un
+  // lugar de descarga es la excepción: ese lugar todavía no está guardado (se guarda al cerrar el
+  // viaje), así que su id lo genera el celular y acá sólo se mira que tenga forma de id.
+  if (segmentSid) {
+    const esBoleta = kind === PHOTO_KIND.DESCARGA && /^[\w-]{8,64}$/.test(segmentSid);
+    if (!esBoleta && !trip.segments.some((s) => s.sid === segmentSid)) {
+      return fail(c, "La carga de esa foto no existe en el viaje", 400);
+    }
   }
 
   // Por el contenido, no por lo que dice ser: ver `api/lib/archivo-foto.ts`.

@@ -1,154 +1,102 @@
 import { describe, it, expect } from "vitest";
-import { conDescargas, descargasAlCerrar, descargasFaltantes } from "../shared/en-ruta";
-import { cargasSinDescarga, faltaDescarga, type TripSegment } from "@shared/domain";
+import { descargasDelPedido, lugarVacio, lugaresDeDescarga, type LugarDeDescarga } from "../shared/en-ruta";
+import { cargasSinDescarga, faltaDescarga } from "@shared/domain";
 
 /**
- * Dónde descargó cada carga, al cerrar el viaje (Otros Viajes).
+ * Dónde descargó el viaje, por lugar, al cerrar (Otros Viajes).
  *
- * "Lugar de descarga lo tiene que pedir al final, para cerrar" (Rodrigo, 25/9). Al agregar la carga
- * sólo se dice dónde cargó; al cerrar, el chofer dice dónde descargó cada una o "todavía no sé".
- * Lo que tiene que ser cierto: no se pregunta lo que la carga ya trae, no queda ninguna sin
- * respuesta explícita, "no sé" no traba el cierre, y nada se aplica a la carga equivocada.
+ * Rodrigo (25/9): siempre se llena el primer lugar y después de cada uno se pregunta "¿Agregamos
+ * otro lugar de descarga?". Cada lugar: departamento, dónde descargó y la foto de la boleta; kilos o
+ * pallets, opcionales. Lo que tiene que ser cierto: siempre hay al menos un lugar, la boleta es
+ * obligatoria PERO "No pude sacar la boleta" deja cerrar (un chofer sin señal no queda atrapado), y
+ * los kilos y pallets no se exigen.
  */
 
-const carga = (sid: string, extra: Partial<TripSegment> = {}): TripSegment => ({
-  sid,
-  origen: "Artigas",
-  origen_id: null,
-  destino: null,
-  destino_id: null,
-  remitente: `Lugar ${sid}`,
-  remitente_id: null,
-  clientes: [],
-  cliente_ids: [],
-  cantidad: 5,
-  unidad: "pallets",
-  remito: null,
-  cobro_tipo: null,
-  cobro_a: null,
-  cobro_manual: false,
+const lugar = (sid: string, extra: Partial<LugarDeDescarga> = {}): LugarDeDescarga => ({
+  ...lugarVacio(sid),
+  departamento: "Salto",
+  lugar: "Molino",
   ...extra,
 });
 
-describe("qué cargas hay que preguntar", () => {
-  it("una carga con dónde cargó y nada más falta descargar", () => {
-    expect(faltaDescarga(carga("a"))).toBe(true);
+describe("lugaresDeDescarga", () => {
+  it("un lugar completo con su boleta se manda con la forma final", () => {
+    const r = lugaresDeDescarga([lugar("d1")], { d1: 1 });
+    expect(r).toEqual({ descargas: [{ sid: "d1", departamento: "Salto", lugar: "Molino", kilos: null, pallets: null }] });
   });
 
-  it("una carga con su destino y su lugar ya no se pregunta (las de antes del cambio)", () => {
-    const completa = carga("a", { destino: "Montevideo", clientes: ["Depósito"] });
-    expect(faltaDescarga(completa)).toBe(false);
-    expect(descargasFaltantes([completa, carga("b")]).map((p) => p.sid)).toEqual(["b"]);
+  it("sin ningún lugar no se cierra: siempre hay al menos uno", () => {
+    expect(lugaresDeDescarga([])).toEqual({ error: "Falta dónde descargaste." });
   });
 
-  it("si sólo falta una de las dos partes, se pregunta y se conserva la otra", () => {
-    const [p] = descargasFaltantes([carga("a", { destino: "Salto" })]);
-    expect(p).toMatchObject({ sid: "a", numero: 1, destino: "Salto", lugar: "" });
+  it("falta el departamento o dónde descargó: dice cuál y en qué lugar", () => {
+    const r = lugaresDeDescarga([lugar("a"), lugar("b", { departamento: "" })], { a: 1, b: 1 });
+    expect("error" in r && r.error).toBe("Lugar de descarga 2: indicá el departamento.");
+    const s = lugaresDeDescarga([lugar("a", { lugar: " " })], { a: 1 });
+    expect("error" in s && s.error).toBe("La descarga: escribí dónde descargaste.");
   });
 
-  it("el número es la posición en el viaje, no entre las pendientes", () => {
-    const r = descargasFaltantes([carga("a", { destino: "X", clientes: ["Y"] }), carga("b")]);
-    expect(r[0].numero).toBe(2);
+  it("la boleta es obligatoria: sin foto no se cierra...", () => {
+    const r = lugaresDeDescarga([lugar("a")], {});
+    expect("error" in r && r.error).toContain("No pude sacar la boleta");
   });
-});
 
-describe("la respuesta del chofer", () => {
-  const pendientes = descargasFaltantes([carga("a"), carga("b")]);
-
-  it("cada carga con sus dos partes se manda", () => {
-    const r = descargasAlCerrar(pendientes, {
-      a: { destino: "Montevideo", lugar: "Depósito", sinDefinir: false },
-      b: { destino: "Salto", lugar: "Molino", sinDefinir: false },
-    });
+  it("...pero 'No pude sacar la boleta' deja cerrar y queda marcado", () => {
+    const r = lugaresDeDescarga([lugar("a", { sinBoleta: true })], {});
     expect(r).toEqual({
-      descargas: [
-        { sid: "a", destino: "Montevideo", descarga: "Depósito" },
-        { sid: "b", destino: "Salto", descarga: "Molino" },
-      ],
+      descargas: [{ sid: "a", departamento: "Salto", lugar: "Molino", kilos: null, pallets: null, sin_boleta: true }],
     });
   });
 
-  it("una carga sin contestar frena el cierre y dice cuál", () => {
-    const r = descargasAlCerrar(pendientes, { a: { destino: "Montevideo", lugar: "Depósito", sinDefinir: false } });
-    expect("error" in r && r.error).toContain("Carga 2");
-    expect("error" in r && r.error).toContain("Todavía no sé");
+  it("los kilos y los pallets son opcionales, y si vienen tienen que ser un número", () => {
+    const ok = lugaresDeDescarga([lugar("a", { kilos: "1.500", pallets: "12" })], { a: 1 });
+    expect(ok).toMatchObject({ descargas: [{ kilos: 1.5, pallets: 12 }] });
+    const mal = lugaresDeDescarga([lugar("a", { kilos: "mucho" })], { a: 1 });
+    expect("error" in mal && mal.error).toContain("en número");
   });
 
-  it("con una sola de las dos partes tampoco alcanza", () => {
-    const r = descargasAlCerrar(pendientes, {
-      a: { destino: "Montevideo", lugar: "", sinDefinir: false },
-      b: { destino: "", lugar: "", sinDefinir: true },
-    });
-    expect("error" in r && r.error).toContain("Carga 1");
+  it("varios lugares: cada uno con lo suyo, en orden", () => {
+    const r = lugaresDeDescarga([lugar("a"), lugar("b", { departamento: "Artigas", lugar: "UAM" })], { a: 1, b: 2 });
+    expect("descargas" in r && r.descargas.map((d) => d.lugar)).toEqual(["Molino", "UAM"]);
   });
 
-  it("'todavía no sé' deja cerrar y esa carga no se manda", () => {
-    const r = descargasAlCerrar(pendientes, {
-      a: { destino: "", lugar: "", sinDefinir: true },
-      b: { destino: "Salto", lugar: "Molino", sinDefinir: false },
-    });
-    expect(r).toEqual({ descargas: [{ sid: "b", destino: "Salto", descarga: "Molino" }] });
+  it("un id repetido se rechaza", () => {
+    expect("error" in lugaresDeDescarga([lugar("a"), lugar("a")], { a: 1 })).toBe(true);
   });
 
-  it("si la carga ya traía una parte, sólo hace falta la otra", () => {
-    const p = descargasFaltantes([carga("a", { destino: "Salto" })]);
-    const r = descargasAlCerrar(p, { a: { destino: "", lugar: "Molino", sinDefinir: false } });
-    expect(r).toEqual({ descargas: [{ sid: "a", destino: "Salto", descarga: "Molino" }] });
+  it("el servidor (sin mirar fotos) sólo valida lo que llegó", () => {
+    expect(lugaresDeDescarga([lugar("a")])).toMatchObject({ descargas: [{ sid: "a" }] });
   });
 });
 
-describe("aplicar lo que dijo el chofer (servidor)", () => {
-  it("completa la carga que corresponde por sid y no toca las demás", () => {
-    const segs = [carga("a"), carga("b")];
-    const r = conDescargas(segs, [{ sid: "b", destino: "Salto", descarga: "Molino" }]);
-    if ("error" in r) throw new Error(r.error);
-    expect(r.cambia).toBe(true);
-    expect(r.segments[1]).toMatchObject({ destino: "Salto", clientes: ["Molino"] });
-    expect(r.segments[0]).toBe(segs[0]);
+describe("descargasDelPedido", () => {
+  it("lo que llega del celular se convierte a la forma final", () => {
+    const r = descargasDelPedido([{ sid: "d1", departamento: "Salto", lugar: "Molino", kilos: 500, pallets: null, sin_boleta: true }]);
+    expect(r).toEqual({
+      descargas: [{ sid: "d1", departamento: "Salto", lugar: "Molino", kilos: 500, pallets: null, sin_boleta: true }],
+    });
   });
 
-  it("no pisa lo que la carga ya tenía", () => {
-    const segs = [carga("a", { destino: "Montevideo", clientes: ["Depósito"] })];
-    const r = conDescargas(segs, [{ sid: "a", destino: "Salto", descarga: "Otro" }]);
-    if ("error" in r) throw new Error(r.error);
-    expect(r.cambia).toBe(false);
-    expect(r.segments[0]).toMatchObject({ destino: "Montevideo", clientes: ["Depósito"] });
-  });
-
-  it("un sid que no es del viaje se rechaza", () => {
-    const r = conDescargas([carga("a")], [{ sid: "zzz", destino: "Salto", descarga: "X" }]);
-    expect(r).toEqual({ error: "Esa carga no existe en el viaje" });
-  });
-
-  it("sin descargas no cambia nada", () => {
-    const r = conDescargas([carga("a")], []);
-    expect(r).toMatchObject({ cambia: false });
+  it("sin lista, o con basura, se rechaza", () => {
+    expect("error" in descargasDelPedido(undefined)).toBe(true);
+    expect("error" in descargasDelPedido([])).toBe(true);
+    expect("error" in descargasDelPedido([{ sid: "a" }])).toBe(true);
   });
 });
 
-describe("cargasSinDescarga: lo que quedó pendiente se ve en la lista", () => {
+describe("viajes del modelo anterior: cargasSinDescarga", () => {
   const pendiente = { destino: null, clientes: [] as string[] };
   const completa = { destino: "Salto", clientes: ["Molino"] };
   const viaje = (over: Record<string, unknown>) => ({ status: "COMPLETADO" as const, descarga_por_carga: true, ...over });
 
-  it("un viaje cerrado de Otros Viajes con una carga sin descargar la cuenta", () => {
+  it("un viaje cerrado con el cierre por carga y una carga sin descargar la cuenta", () => {
+    expect(faltaDescarga(pendiente)).toBe(true);
     expect(cargasSinDescarga(viaje({ segments: [pendiente, completa] }))).toBe(1);
   });
 
-  it("con sólo una de las dos partes también falta", () => {
-    expect(cargasSinDescarga(viaje({ segments: [{ destino: "Salto", clientes: [] }] }))).toBe(1);
-  });
-
-  it("en curso no cuenta: todavía no descargó", () => {
+  it("en curso, sin la marca de la plantilla, o con todas descargadas, no cuenta", () => {
     expect(cargasSinDescarga(viaje({ status: "EN_CURSO", segments: [pendiente] }))).toBe(0);
-  });
-
-  it("en las plantillas que guardan el destino en el viaje (Mdeo - Bella Unión) no cuenta, tenga o no destinatario", () => {
     expect(cargasSinDescarga(viaje({ descarga_por_carga: false, segments: [pendiente] }))).toBe(0);
-    expect(cargasSinDescarga({ status: "COMPLETADO", segments: [pendiente] })).toBe(0);
-  });
-
-  it("todas descargadas: nada pendiente", () => {
-    expect(cargasSinDescarga(viaje({ segments: [completa, completa] }))).toBe(0);
+    expect(cargasSinDescarga(viaje({ segments: [completa] }))).toBe(0);
   });
 });

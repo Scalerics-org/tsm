@@ -6,6 +6,8 @@ import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
 import {
   FIELD_STAGE,
+  PHOTO_KIND,
+  type Descarga,
   MENSAJE_LECTURA_PENDIENTE,
   COBRO_TIPO,
   ROLES,
@@ -33,7 +35,7 @@ import {
 import { kmEstimadosDelViaje } from "../../shared/vacios";
 import {
   camposDeRuta,
-  conDescargas,
+  descargasDelPedido,
   destinoAlCierre,
   destinoSeEligeAlCerrar,
   pesoDe,
@@ -753,29 +755,21 @@ trips.post("/:id/finish", async (c) => {
     return fail(c, "Falta: kilómetros del recorrido.", 400);
   }
 
-  // Dónde descargó cada carga (Otros Viajes): el chofer sólo dijo dónde cargó, y adónde va lo dice
-  // acá, cuando ya lo sabe. Sólo completa lo que falta —una carga con su destino no se pisa— y una
-  // carga que no menciona queda como está: "todavía no sé", y el viaje se cierra igual. Se guarda
-  // ANTES de estimar los km, que salen de las cargas, y se acomoda el recorrido del viaje.
+  // Dónde descargó el viaje, por LUGAR (Otros Viajes): el chofer sólo dijo dónde cargó, y acá dice
+  // dónde descargó, uno por lugar y sin atarlo a ninguna carga. Siempre hay al menos uno. Se guarda
+  // ANTES de estimar los km, que salen del recorrido, y el destino del viaje pasa a ser el
+  // departamento del último lugar.
   let base: Trip = s.trip;
-  if (tpl?.renglon_pide_ubicacion && Array.isArray(b.descargas) && b.descargas.length) {
-    const elegidas = b.descargas.map((d: any) => ({
-      sid: String(d?.sid ?? ""),
-      destino: String(d?.destino ?? ""),
-      descarga: String(d?.descarga ?? ""),
-    }));
-    const r = conDescargas(s.trip.segments, elegidas);
+  let descargasNuevas: Descarga[] = [];
+  if (tpl?.renglon_pide_ubicacion) {
+    const r = descargasDelPedido(b.descargas);
     if ("error" in r) return fail(c, r.error, 400);
-    if (r.cambia) {
-      await tripsRepo.updateSegments(c.env.DB, s.trip.id, r.segments);
-      await recalcularRecorrido(c.env.DB, s.trip.id, tpl, r.segments);
-      const recorrido = recorridoSegunCargas(r.segments);
-      base = {
-        ...s.trip,
-        segments: r.segments,
-        ...(recorrido ? { origin: recorrido.origin, destination: recorrido.destination } : {}),
-      };
-    }
+    descargasNuevas = r.descargas;
+    const origin = recorridoSegunCargas(s.trip.segments)?.origin || s.trip.origin;
+    const destination = descargasNuevas[descargasNuevas.length - 1].departamento;
+    await tripsRepo.setDescargas(c.env.DB, s.trip.id, descargasNuevas);
+    await tripsRepo.setRecorrido(c.env.DB, s.trip.id, origin, destination);
+    base = { ...s.trip, descargas: descargasNuevas, origin, destination };
   }
 
   // El destino elegido al cerrar se guarda ANTES de estimar los km: la estimación sale del
@@ -813,6 +807,11 @@ trips.post("/:id/finish", async (c) => {
   if (c.env.FOTOS) {
     const fotos = await photosRepo.listPhotos(c.env.DB, s.trip.id);
     const faltantes = fotosFaltantes(tpl, s.trip.segments, fotos);
+    // La boleta de cada lugar es obligatoria, salvo que el chofer haya dicho que no pudo sacarla.
+    const conBoleta = new Set(fotos.filter((p) => p.kind === PHOTO_KIND.DESCARGA && p.segment_sid).map((p) => p.segment_sid));
+    for (const d of descargasNuevas) {
+      if (!d.sin_boleta && !conBoleta.has(d.sid)) faltantes.push(`la foto de la boleta de ${d.lugar}`);
+    }
     if (faltantes.length) {
       return fail(c, `El viaje queda pendiente hasta que cargues ${faltantes.join(" y ")}.`, 409);
     }

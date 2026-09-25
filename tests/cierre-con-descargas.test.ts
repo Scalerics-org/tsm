@@ -1,22 +1,23 @@
 import { describe, it, expect } from "vitest";
 import { app } from "../api/app";
 import { signToken } from "../api/lib/crypto";
-import { ROLES, type TripSegment } from "@shared/domain";
+import { ROLES, type Descarga, type TripSegment } from "@shared/domain";
 
 /**
- * `POST /api/trips/:id/finish` con el lugar de descarga de cada carga (Otros Viajes).
+ * `POST /api/trips/:id/finish` con los lugares de descarga (Otros Viajes).
  *
- * El chofer sólo dice dónde cargó; al cerrar dice dónde descargó cada carga, o "todavía no sé" y
- * esa carga no se manda. Lo que tiene que ser cierto: se completan las cargas por sid y sólo lo
- * que falta, el recorrido del viaje se acomoda, el "no sé" NO traba el cierre, y un sid ajeno se
- * rechaza sin cerrar nada.
+ * Rodrigo (25/9): al cerrar se llena siempre el primer lugar y después de cada uno se pregunta si
+ * hay otro; cada lugar lleva departamento, dónde descargó y la foto de la boleta. Lo que tiene que
+ * ser cierto: siempre llega al menos un lugar, se guardan en su columna y el recorrido del viaje
+ * se acomoda, la boleta es obligatoria PERO "No pude sacar la boleta" cierra igual, y nada se
+ * escribe si el pedido está mal.
  */
 
 const SECRET = "test-secret-tsm";
 
-const carga = (sid: string, extra: Partial<TripSegment> = {}): TripSegment => ({
+const carga = (sid: string, origen: string): TripSegment => ({
   sid,
-  origen: "Artigas",
+  origen,
   origen_id: null,
   destino: null,
   destino_id: null,
@@ -30,7 +31,6 @@ const carga = (sid: string, extra: Partial<TripSegment> = {}): TripSegment => ({
   cobro_tipo: null,
   cobro_a: null,
   cobro_manual: false,
-  ...extra,
 });
 
 const TPL = {
@@ -75,6 +75,7 @@ const viaje = (segments: TripSegment[]) => ({
   notes: null,
   created_at: "2026-09-25 10:00:00",
   segments: JSON.stringify(segments),
+  descargas: null,
   kilometros: null,
   edited_by: null,
   edited_at: null,
@@ -86,8 +87,19 @@ const viaje = (segments: TripSegment[]) => ({
 });
 
 type Escritura = { sql: string; binds: unknown[] };
+type Foto = { kind: string; segment_sid: string | null };
 
-async function cerrar(segments: TripSegment[], cuerpo: Record<string, unknown>) {
+const d = (sid: string, extra: Record<string, unknown> = {}) => ({
+  sid,
+  departamento: "Montevideo",
+  lugar: "Depósito",
+  ...extra,
+});
+
+async function cerrar(
+  cuerpo: Record<string, unknown>,
+  { segments = [carga("a", "Artigas")], fotos }: { segments?: TripSegment[]; fotos?: Foto[] } = {},
+) {
   const escrituras: Escritura[] = [];
   const db = {
     prepare(sql: string) {
@@ -102,7 +114,11 @@ async function cerrar(segments: TripSegment[], cuerpo: Record<string, unknown>) 
           if (q.includes("from trips")) return viaje(segments);
           return null;
         },
-        all: async () => ({ results: [] }),
+        all: async () => ({
+          results: q.includes("from trip_photos")
+            ? (fotos ?? []).map((f, i) => ({ id: i + 1, trip_id: 1, r2_key: "k" + i, taken_at: "2026-09-25 12:00:00", ...f }))
+            : [],
+        }),
         run: async () => (escrituras.push({ sql: q, binds }), { meta: {} }),
       };
       return stmt;
@@ -120,64 +136,82 @@ async function cerrar(segments: TripSegment[], cuerpo: Record<string, unknown>) 
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: JSON.stringify(cuerpo),
     },
-    { DB: db, JWT_SECRET: SECRET } as any,
+    { DB: db, JWT_SECRET: SECRET, ...(fotos ? { FOTOS: {} } : {}) } as any,
     { waitUntil: () => {}, passThroughOnException: () => {} } as any,
   );
-  const guardado = escrituras.find((e) => e.sql.startsWith("update trips set segments"));
+  const guardado = escrituras.find((e) => e.sql.startsWith("update trips set descargas"));
   return {
     status: res.status,
     json: (await res.json()) as any,
-    segmentos: guardado ? (JSON.parse(guardado.binds[0] as string) as TripSegment[]) : null,
+    descargas: guardado?.binds[0] ? (JSON.parse(guardado.binds[0] as string) as Descarga[]) : null,
     recorrido: escrituras.find((e) => e.sql.startsWith("update trips set origin=?, destination=?"))?.binds.slice(0, 2),
     cerro: escrituras.some((e) => e.sql.startsWith("update trips set status")),
   };
 }
 
-describe("cerrar el viaje con el lugar de descarga de cada carga", () => {
-  it("completa las cargas por sid y cierra", async () => {
-    const r = await cerrar(
-      [carga("a"), carga("b", { origen: "Salto" })],
-      { descargas: [{ sid: "a", destino: "Montevideo", descarga: "Depósito" }, { sid: "b", destino: "Montevideo", descarga: "Molino" }] },
-    );
+describe("cerrar el viaje con los lugares de descarga", () => {
+  it("un lugar: se guarda en su columna, el recorrido se acomoda y cierra", async () => {
+    const r = await cerrar({ descargas: [d("d1", { kilos: 800 })] });
     expect(r.status).toBe(200);
-    expect(r.segmentos!.map((s) => [s.sid, s.destino, s.clientes[0]])).toEqual([
-      ["a", "Montevideo", "Depósito"],
-      ["b", "Montevideo", "Molino"],
-    ]);
-    expect(r.cerro).toBe(true);
-  });
-
-  it("el recorrido del viaje se acomoda con lo que dijo", async () => {
-    const r = await cerrar([carga("a")], { descargas: [{ sid: "a", destino: "Montevideo", descarga: "Depósito" }] });
+    expect(r.descargas).toEqual([{ sid: "d1", departamento: "Montevideo", lugar: "Depósito", kilos: 800, pallets: null }]);
     expect(r.recorrido).toEqual(["Artigas", "Montevideo"]);
-  });
-
-  it("'todavía no sé' no traba el cierre: la carga sin mencionar queda como estaba", async () => {
-    const r = await cerrar([carga("a"), carga("b")], { descargas: [{ sid: "b", destino: "Salto", descarga: "Molino" }] });
-    expect(r.status).toBe(200);
-    expect(r.cerro).toBe(true);
-    expect(r.segmentos!.find((s) => s.sid === "a")!.destino).toBeNull();
-  });
-
-  it("sin descargas en el pedido el viaje cierra igual, sin tocar las cargas", async () => {
-    const r = await cerrar([carga("a")], {});
-    expect(r.status).toBe(200);
-    expect(r.segmentos).toBeNull();
     expect(r.cerro).toBe(true);
   });
 
-  it("no pisa una carga que ya tenía su destino", async () => {
-    const r = await cerrar(
-      [carga("a", { destino: "Montevideo", clientes: ["Depósito"] })],
-      { descargas: [{ sid: "a", destino: "Salto", descarga: "Otro" }] },
-    );
-    expect(r.status).toBe(200);
-    expect(r.segmentos).toBeNull();
+  it("varios lugares: en orden, y el destino del viaje es el último", async () => {
+    const r = await cerrar({ descargas: [d("d1", { departamento: "Salto" }), d("d2", { departamento: "Artigas" })] });
+    expect(r.descargas!.map((x) => x.departamento)).toEqual(["Salto", "Artigas"]);
+    expect(r.recorrido).toEqual(["Artigas", "Artigas"]);
   });
 
-  it("una carga que no es del viaje se rechaza y el viaje NO se cierra", async () => {
-    const r = await cerrar([carga("a")], { descargas: [{ sid: "zzz", destino: "Salto", descarga: "X" }] });
+  it("sin lugares no se cierra: siempre hay al menos uno", async () => {
+    for (const cuerpo of [{}, { descargas: [] }]) {
+      const r = await cerrar(cuerpo);
+      expect(r.status).toBe(400);
+      expect(r.cerro).toBe(false);
+      expect(r.descargas).toBeNull();
+    }
+  });
+
+  it("un lugar incompleto se rechaza y no se escribe nada", async () => {
+    const r = await cerrar({ descargas: [d("d1", { lugar: "" })] });
     expect(r.status).toBe(400);
     expect(r.cerro).toBe(false);
+    expect(r.descargas).toBeNull();
+  });
+
+  it("los kilos y los pallets son opcionales", async () => {
+    const r = await cerrar({ descargas: [d("d1")] });
+    expect(r.status).toBe(200);
+    expect(r.descargas![0]).toMatchObject({ kilos: null, pallets: null });
+  });
+
+  it("con R2, la boleta de cada lugar es obligatoria: sin ella el viaje queda pendiente", async () => {
+    const r = await cerrar({ descargas: [d("d1"), d("d2", { lugar: "UAM" })] }, { fotos: [{ kind: "descarga", segment_sid: "d1" }] });
+    expect(r.status).toBe(409);
+    expect(r.json.error).toContain("la foto de la boleta de UAM");
+    expect(r.json.error).not.toContain("boleta de Depósito");
+    expect(r.cerro).toBe(false);
+  });
+
+  it("con la boleta de cada lugar, cierra", async () => {
+    const r = await cerrar(
+      { descargas: [d("d1"), d("d2")] },
+      { fotos: [{ kind: "descarga", segment_sid: "d1" }, { kind: "descarga", segment_sid: "d2" }] },
+    );
+    expect(r.status).toBe(200);
+    expect(r.cerro).toBe(true);
+  });
+
+  it("'No pude sacar la boleta' cierra igual y el lugar queda marcado", async () => {
+    const r = await cerrar({ descargas: [d("d1", { sin_boleta: true })] }, { fotos: [] });
+    expect(r.status).toBe(200);
+    expect(r.cerro).toBe(true);
+    expect(r.descargas![0]).toMatchObject({ sid: "d1", sin_boleta: true });
+  });
+
+  it("la foto de la CARGA no cuenta como boleta de la descarga", async () => {
+    const r = await cerrar({ descargas: [d("d1")] }, { fotos: [{ kind: "carga", segment_sid: "d1" }] });
+    expect(r.status).toBe(409);
   });
 });

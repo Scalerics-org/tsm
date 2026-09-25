@@ -1,13 +1,12 @@
 import {
-  faltaDescarga,
   CAMPO_MODO,
   FIELD_STAGE,
   FIELD_TYPE,
   type CampoUbicacion,
   type CamposUbicacion,
+  type Descarga,
   type TemplateField,
   type Trip,
-  type TripSegment,
 } from "./domain";
 
 /**
@@ -148,101 +147,95 @@ export function pesoDe(fields: TemplateField[], values: Record<string, string>):
   return Number.isFinite(n) ? n : null;
 }
 
-// ── Dónde descargó cada carga (viajes con ubicación por carga) ──
-
-export interface DescargaPendiente {
-  sid: string;
-  /** Posición en el viaje desde 1: cómo la nombra el chofer ("la carga 2"). */
-  numero: number;
-  remitente: string;
-  origen: string | null;
-  /** Lo que la carga ya trae, para no pedirlo de nuevo si sólo le falta una de las dos partes. */
-  destino: string;
-  lugar: string;
-}
-
-/** Las cargas a las que el cierre todavía tiene que preguntarles dónde descargaron. */
-export function descargasFaltantes(segments: Pick<TripSegment, "sid" | "remitente" | "origen" | "destino" | "clientes">[]): DescargaPendiente[] {
-  return segments
-    .map((s, i) => ({ s, numero: i + 1 }))
-    .filter(({ s }) => faltaDescarga(s))
-    .map(({ s, numero }) => ({
-      sid: s.sid,
-      numero,
-      remitente: s.remitente,
-      origen: s.origen,
-      destino: s.destino?.trim() ?? "",
-      lugar: s.clientes[0]?.trim() ?? "",
-    }));
-}
-
-/** Lo que el chofer puso en el bloque de una carga. `sinDefinir` es su "todavía no sé". */
-export interface EleccionDeDescarga {
-  destino: string;
-  lugar: string;
-  sinDefinir: boolean;
-}
+// ── Dónde descargó el viaje, por lugar (Otros Viajes) ──
 
 /**
- * Lo que se manda al cerrar, o qué falta.
+ * Lo que el chofer puso en un lugar de descarga, antes de cerrar.
  *
- * Cada carga pendiente tiene que tener una respuesta EXPLÍCITA: o dice dónde descargó (las dos
- * partes) o toca "Todavía no sé". Lo que no puede pasar es que quede sin contestar por no haber
- * mirado: eso sería un dato a medias sin que nadie se entere. El "no sé" no se manda: la carga
- * queda sin descarga y el viaje se cierra igual.
+ * Rodrigo (25/9): siempre se llena el primer lugar y después de cada uno se pregunta "¿Agregamos
+ * otro lugar de descarga?", hasta que diga que no. Cada lugar: departamento, dónde descargó y la
+ * foto de la boleta; kilos o pallets, si quiere. No cuelga de ninguna carga.
  */
-export function descargasAlCerrar(
-  pendientes: DescargaPendiente[],
-  elecciones: Record<string, EleccionDeDescarga | undefined>,
-): { error: string } | { descargas: DescargaElegida[] } {
-  const descargas: DescargaElegida[] = [];
-  for (const p of pendientes) {
-    const e = elecciones[p.sid];
-    if (e?.sinDefinir) continue;
-    const destino = e?.destino.trim() || p.destino;
-    const lugar = e?.lugar.trim() || p.lugar;
-    if (!destino || !lugar) {
-      return { error: `Carga ${p.numero} (${p.remitente}): elegí dónde descargó o tocá "Todavía no sé".` };
+export interface LugarDeDescarga {
+  /** Id de este lugar, generado en el celular: de él cuelgan sus fotos. */
+  sid: string;
+  departamento: string;
+  lugar: string;
+  kilos: string;
+  pallets: string;
+  /** "No pude sacar la boleta": deja cerrar sin foto y queda marcado. */
+  sinBoleta: boolean;
+}
+
+export const lugarVacio = (sid: string): LugarDeDescarga => ({
+  sid,
+  departamento: "",
+  lugar: "",
+  kilos: "",
+  pallets: "",
+  sinBoleta: false,
+});
+
+const numeroOpcional = (v: unknown): number | null | "mal" => {
+  if (v === null || v === undefined || String(v).trim() === "") return null;
+  const n = Number(String(v).replace(",", "."));
+  return Number.isFinite(n) && n > 0 ? n : "mal";
+};
+
+/**
+ * Los lugares de descarga que el chofer manda al cerrar, validados, o qué falta.
+ *
+ * Siempre hay al menos uno, y cada uno trae departamento y dónde descargó. La foto de la boleta es
+ * obligatoria, pero NO traba el cierre: sin señal, sin batería o con la cámara rota, el chofer toca
+ * "No pude sacar la boleta" y el viaje se cierra marcado. Un requisito nuestro no puede dejar a un
+ * camión sin poder terminar el viaje. `fotosPorSid` cuenta las ya subidas de cada lugar; si no se
+ * pasa (el servidor sin R2 configurado) no se mira la foto.
+ */
+export function lugaresDeDescarga(
+  lugares: LugarDeDescarga[],
+  fotosPorSid?: Record<string, number>,
+): { error: string } | { descargas: Descarga[] } {
+  if (!lugares.length) return { error: "Falta dónde descargaste." };
+  const vistos = new Set<string>();
+  const descargas: Descarga[] = [];
+  for (const [i, l] of lugares.entries()) {
+    const nombre = lugares.length > 1 ? `Lugar de descarga ${i + 1}` : "La descarga";
+    if (!l.sid.trim() || vistos.has(l.sid)) return { error: "Lugar de descarga repetido." };
+    vistos.add(l.sid);
+    if (!l.departamento.trim()) return { error: `${nombre}: indicá el departamento.` };
+    if (!l.lugar.trim()) return { error: `${nombre}: escribí dónde descargaste.` };
+    const kilos = numeroOpcional(l.kilos);
+    const pallets = numeroOpcional(l.pallets);
+    if (kilos === "mal" || pallets === "mal") return { error: `${nombre}: los kilos y los pallets van en número.` };
+    if (fotosPorSid && !l.sinBoleta && !fotosPorSid[l.sid]) {
+      return { error: `${nombre}: sacá la foto de la boleta o tocá "No pude sacar la boleta".` };
     }
-    descargas.push({ sid: p.sid, destino, descarga: lugar });
+    descargas.push({
+      sid: l.sid.trim(),
+      departamento: l.departamento.trim(),
+      lugar: l.lugar.trim(),
+      kilos,
+      pallets,
+      ...(l.sinBoleta ? { sin_boleta: true } : {}),
+    });
   }
   return { descargas };
 }
 
-/** Lo que el chofer eligió para una carga al cerrar. */
-export interface DescargaElegida {
-  sid: string;
-  destino: string;
-  descarga: string;
-}
-
 /**
- * Las cargas con lo que el chofer dijo al cerrar.
- *
- * Sólo completa lo que falta: una carga que ya trae su destino o su lugar de descarga (las de
- * antes del cambio, o las que cargó la oficina) no se pisa ni se vuelve a preguntar. Una carga
- * que el chofer no menciona queda como está —"todavía no sé"— y el viaje se cierra igual: la
- * oficina la completa después y la lista ya la muestra como "destino a definir". Un `sid` que no
- * es del viaje se rechaza: no se aplica a ciegas.
+ * Lo que llega al servidor en `descargas`, ya con la forma final. Un valor mal formado se rechaza:
+ * no se guarda a medias.
  */
-export function conDescargas(
-  segments: TripSegment[],
-  descargas: DescargaElegida[],
-): { error: string } | { segments: TripSegment[]; cambia: boolean } {
-  const porSid = new Map(descargas.map((d) => [d.sid, d]));
-  for (const sid of porSid.keys()) {
-    if (!segments.some((s) => s.sid === sid)) return { error: "Esa carga no existe en el viaje" };
-  }
-  let cambia = false;
-  const nuevas = segments.map((s) => {
-    const d = porSid.get(s.sid);
-    if (!d) return s;
-    const destino = s.destino?.trim() || d.destino.trim() || null;
-    const lugar = s.clientes[0]?.trim() || d.descarga.trim();
-    const clientes = lugar ? [lugar, ...s.clientes.slice(1)] : s.clientes;
-    if (destino === (s.destino ?? null) && clientes[0] === s.clientes[0]) return s;
-    cambia = true;
-    return { ...s, destino, clientes };
-  });
-  return { segments: nuevas, cambia };
+export function descargasDelPedido(raw: unknown): { error: string } | { descargas: Descarga[] } {
+  if (!Array.isArray(raw)) return { error: "Falta dónde descargaste." };
+  return lugaresDeDescarga(
+    raw.map((d: any) => ({
+      sid: String(d?.sid ?? ""),
+      departamento: String(d?.departamento ?? ""),
+      lugar: String(d?.lugar ?? ""),
+      kilos: d?.kilos == null ? "" : String(d.kilos),
+      pallets: d?.pallets == null ? "" : String(d.pallets),
+      sinBoleta: d?.sin_boleta === true,
+    })),
+  );
 }
