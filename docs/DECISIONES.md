@@ -105,3 +105,14 @@ Rodrigo probó el cierre en un celular (25/9/2026): al abrir el selector de depa
 Es un selector que usan varias pantallas del chofer y de la oficina, así que no se tocó de paso. Ideas
 para mirarlo aparte: que la lista se abra a pantalla completa en el teléfono, o con un alto máximo más
 chico, y que se cierre sola al elegir (eso ya lo hace).
+
+## Un cliente de cobranza marcado "sólo para cobrar" se ve para el chofer sólo si él mismo lo da de alta
+
+`libreta.solo_cobro` es literal: marcado, el chofer no lo ve en su lista, sin excepción por `usos`.
+La rareza que eso deja está anotada a propósito para que no parezca un error: si un chofer da de alta un
+nombre que ya existe como cliente de cobranza (el alta es idempotente y reutiliza la entrada existente),
+recibe esa entrada marcada, la puede usar en su carga y sube `usos`, pero sigue marcada y oculta para
+los demás choferes. Se prefirió esa rareza a una regla escondida del tipo "marcado, salvo que se use":
+un tilde que a veces no tilda es el que nadie vuelve a mirar. Si molesta, la salida es desmarcarlo desde
+Clientes (que avisa con el número de cargas). El filtro vive en la ruta `GET /libreta` (sólo para el
+chofer) y no en `listLibreta`, porque `createEntry` usa esa consulta para no duplicar nombres.
