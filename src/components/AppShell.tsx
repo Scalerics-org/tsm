@@ -255,6 +255,7 @@ function DesktopShell({ grupos, children }: { grupos: NavGroup[]; children: Reac
           ))}
         </nav>
         <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-6">
+          <AvisoVersionNueva />
           <InstalarApp />
           {children}
         </main>
