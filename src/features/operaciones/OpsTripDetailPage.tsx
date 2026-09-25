@@ -279,7 +279,7 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
         onChanged={load}
         editarLugares={data.renglon_pide_ubicacion}
       />
-      {data.renglon_pide_ubicacion && <DescargasDelViaje trip={trip} photos={photos} />}
+      {data.renglon_pide_ubicacion && <DescargasDelViaje trip={trip} photos={photos} onChanged={load} />}
       {/* Un viaje cancelado no se factura: agregarle cargas no tiene sentido. */}
       {trip.status !== TRIP_STATUS.CANCELADO && !soloMirar && (
         <AgregarCargaOficina

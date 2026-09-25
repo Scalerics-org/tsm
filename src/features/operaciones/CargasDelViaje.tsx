@@ -337,7 +337,7 @@ function FotosDeCarga({
  * chofer y sólo con el viaje en curso: una foto movida en un viaje ya cerrado no la podía
  * sacar nadie. Se lleva también el archivo de R2, así que se pregunta antes.
  */
-function BorrarFoto({
+export function BorrarFoto({
   foto,
   que,
   onChanged,

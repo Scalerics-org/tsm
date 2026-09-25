@@ -606,6 +606,63 @@ trips.put("/:id/segments", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
 });
 
 /**
+ * PUT /api/trips/:id/descargas — la oficina corrige dónde descargó un viaje del modelo nuevo.
+ *
+ * Por cada lugar: departamento, dónde descargó, kilos o pallets y la marca de "falta la boleta".
+ * Puede agregar o quitar un lugar: el chofer pudo olvidarse de uno o cargar uno de más. Un lugar
+ * con `sid` conserva sus fotos; uno sin `sid` es nuevo y recibe uno.
+ *
+ * Los viajes del modelo anterior (la descarga vive en cada carga) NO entran por acá: se siguen
+ * corrigiendo donde se corrigen hoy. Un viaje facturado no se toca (409), y quitar un lugar que
+ * tiene fotos de boleta tampoco: primero se borran las fotos, para no dejarlas colgando de un
+ * lugar que ya no existe. Queda registrado quién y cuándo.
+ */
+trips.put("/:id/descargas", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+  const trip = await tripsRepo.getTripFacturable(c.env.DB, Number(c.req.param("id")));
+  if (!trip) return fail(c, "Viaje no encontrado", 404);
+  if (trip.factura_numero) {
+    return fail(
+      c,
+      `Ese viaje ya está en la factura ${trip.factura_numero}. Desmarcalo desde Facturación y después corregí dónde descargó.`,
+      409,
+    );
+  }
+  if (!trip.descargas) {
+    return fail(
+      c,
+      "Este viaje es del modelo anterior: dónde descargó se corrige en cada carga, con Corregir lugares.",
+      409,
+    );
+  }
+
+  const b = (await c.req.json().catch(() => ({}))) as { descargas?: unknown };
+  const pedido = Array.isArray(b.descargas)
+    ? b.descargas.map((d: any) => ({ ...d, sid: String(d?.sid ?? "").trim() || crypto.randomUUID() }))
+    : b.descargas;
+  const r = descargasDelPedido(pedido);
+  if ("error" in r) return fail(c, r.error, 400);
+
+  // Un lugar con fotos no se quita: sus fotos quedarían colgando de algo que ya no existe.
+  const quedan = new Set(r.descargas.map((d) => d.sid));
+  const fotos = await photosRepo.listPhotos(c.env.DB, trip.id);
+  const conFotos = trip.descargas.filter(
+    (d) => !quedan.has(d.sid) && fotos.some((f) => f.kind === PHOTO_KIND.DESCARGA && f.segment_sid === d.sid),
+  );
+  if (conFotos.length) {
+    return fail(
+      c,
+      `Antes de sacar ${conFotos.map((d) => d.lugar).join(", ")} borrá las fotos de su boleta: no pueden quedar sin un lugar.`,
+      409,
+    );
+  }
+
+  const destination = r.descargas[r.descargas.length - 1].departamento;
+  await tripsRepo.setDescargas(c.env.DB, trip.id, r.descargas, { userId: c.get("user").id, when: nowIso() });
+  await tripsRepo.setRecorrido(c.env.DB, trip.id, trip.origin, destination);
+  return ok(c, await tripsRepo.getTrip(c.env.DB, trip.id));
+});
+
+/**
  * PUT /api/trips/:id/segments/:sid/cobro — la oficina fija a quién se le cobra UNA carga.
  *
  * Es el tick de la columna Cliente en la lista de Viajes. Existe aparte de `PUT /segments` porque

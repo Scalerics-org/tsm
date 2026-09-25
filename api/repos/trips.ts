@@ -193,12 +193,25 @@ function parseDescargas(raw: string | null | undefined): Descarga[] | null {
   }
 }
 
-/** Las descargas por lugar del viaje, que se escriben juntas al cerrar. */
-export async function setDescargas(db: D1Database, id: number, descargas: Descarga[]): Promise<void> {
-  await db
-    .prepare("UPDATE trips SET descargas=? WHERE id=?")
-    .bind(descargas.length ? JSON.stringify(descargas) : null, id)
-    .run();
+/**
+ * Las descargas por lugar del viaje, que se escriben juntas al cerrar. Con `editor` es una
+ * corrección de la oficina y queda registrado quién y cuándo, como el resto de las correcciones.
+ */
+export async function setDescargas(
+  db: D1Database,
+  id: number,
+  descargas: Descarga[],
+  editor?: { userId: number; when: string },
+): Promise<void> {
+  const json = descargas.length ? JSON.stringify(descargas) : null;
+  if (editor) {
+    await db
+      .prepare("UPDATE trips SET descargas=?, edited_by=?, edited_at=? WHERE id=?")
+      .bind(json, editor.userId, editor.when, id)
+      .run();
+    return;
+  }
+  await db.prepare("UPDATE trips SET descargas=? WHERE id=?").bind(json, id).run();
 }
 
 export interface TripFilters {
