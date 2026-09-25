@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "deploy": "npm run build && wrangler deploy",
+    "deploy": "node scripts/arbol-limpio.mjs && npm run build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply logistica_db --local",
     "db:migrate:remote": "wrangler d1 migrations apply logistica_db --remote",
     "db:seed:local": "wrangler d1 execute logistica_db --local --file=./migrations/0007_seed_real.sql",
