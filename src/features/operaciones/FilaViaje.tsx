@@ -4,6 +4,7 @@ import {
   TRIP_STATUS,
   cargasSinDescarga,
   descargasSinBoleta,
+  nombreDePila,
   sinFotoDeLlegada,
   clienteDelViaje,
   destinoVisible,
@@ -37,6 +38,8 @@ export type ViajeDeOficina = Trip & {
   factura_quitada?: string | null;
   /** Cuándo se cobró. Sólo tiene sentido con factura o referencia. */
   pago_at?: string | null;
+  /** Quién marcó el pago. Vacío en las marcas anteriores al registro. */
+  pago_by_name?: string | null;
 };
 
 /**
@@ -80,6 +83,7 @@ export function FilaViaje({
   const cliente = clienteDelViaje(t);
   const sinDescarga = cargasSinDescarga(t);
   const sinBoleta = descargasSinBoleta(t);
+  const quienPago = nombreDePila(t.pago_by_name);
   const rango = fmtRangoDeDias(t.started_at, t.finished_at);
   // Si no hay lugar, el rango parte después de la flecha ("24/09 →" / "25/09") y no en el medio
   // de una fecha: la columna llega a ser la mitad de ancha y la tabla entra en el monitor de 1280.
@@ -369,7 +373,7 @@ Tocá para corregir la fecha`}
             aria-pressed={estado === "pago"}
             title={
               estado === "pago"
-                ? `Pago.${soloMirar ? "" : " Tocá para sacarlo."}`
+                ? `Pago${quienPago ? ` (marcado por ${t.pago_by_name}${t.pago_at ? ` el ${fmtDateTime(t.pago_at)}` : ""})` : ""}.${soloMirar ? "" : " Tocá para sacarlo."}`
                 : soloMirar
                   ? "Sin pagar"
                   : "Marcar como pago"
@@ -388,6 +392,17 @@ Tocá para corregir la fecha`}
           <span className="text-ink/30" title="Primero tiene que tener factura o referencia: sin eso no hay nada que cobrar">
             —
           </span>
+        )}
+        {/* Quién marcó el pago, debajo del tilde, como el número debajo del de factura: si alguien lo
+            marca sin que estuviera cobrado, acá se ve quién fue. La fecha va en el tooltip. Las marcas
+            anteriores al registro no traen nombre y no muestran nada. Sin ancho propio: no ensancha la columna. */}
+        {estado === "pago" && quienPago && (
+          <div
+            className="mt-1 w-0 min-w-full truncate text-[11px] text-st-greenTx"
+            title={`Marcado por ${t.pago_by_name}${t.pago_at ? ` el ${fmtDateTime(t.pago_at)}` : ""}`}
+          >
+            {quienPago}
+          </div>
         )}
       </td>
       <td className="px-2 py-3 text-right">

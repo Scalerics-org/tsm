@@ -39,6 +39,8 @@ interface TripRow {
   /** Cuándo se cobró (migración 0032). `null` = todavía no pagó. Sólo tiene sentido con factura. */
   pago_at: string | null;
   pago_by: number | null;
+  /** Quién marcó el pago: el nombre del usuario, del JOIN. Null si no se sabe (marcas anteriores al registro). */
+  pago_by_name?: string | null;
   /** Lo calcula `NUMERADOS` con ROW_NUMBER; no es una columna de la tabla. */
   numero_mes: number;
   driver_name?: string;
@@ -75,6 +77,8 @@ export interface TripFacturacion {
   /** Cuándo se cobró (migración 0032). `null` = todavía no pagó. Sólo tiene sentido con factura. */
   pago_at: string | null;
   pago_by: number | null;
+  /** Nombre de quien marcó el pago, para mostrarlo en la lista. Null si no se sabe. */
+  pago_by_name?: string | null;
 }
 
 export type TripFacturable = Trip & TripFacturacion;
@@ -123,11 +127,16 @@ const SELECT = `
          tp.name AS template_name,
          -- Las cargas de esa plantilla dicen sólo dónde cargó y la descarga se pregunta al cerrar
          -- (Otros Viajes): la lista lo necesita para marcar lo que quedó sin descargar.
-         tp.renglon_pide_ubicacion AS descarga_por_carga
+         tp.renglon_pide_ubicacion AS descarga_por_carga,
+         -- Quién marcó el pago, en la misma consulta de la lista: un JOIN y no una consulta por fila.
+         -- LEFT porque las marcas de antes del registro no tienen usuario, y un usuario borrado
+         -- tampoco: el viaje no puede desaparecer de la lista por eso.
+         pu.name AS pago_by_name
   FROM (${NUMERADOS}) t
   JOIN drivers d ON d.id = t.driver_id
   JOIN trucks tr ON tr.id = t.truck_id
   LEFT JOIN users e ON e.id = t.edited_by
+  LEFT JOIN users pu ON pu.id = t.pago_by
   LEFT JOIN trip_templates tp ON tp.id = t.template_id
 `;
 
@@ -392,6 +401,7 @@ export async function listTripsFacturables(db: D1Database, f: TripFilters): Prom
     factura_quitada_at: r.factura_quitada_at,
     pago_at: r.pago_at,
     pago_by: r.pago_by,
+    pago_by_name: r.pago_by_name ?? null,
   }));
 }
 
@@ -612,6 +622,7 @@ export async function getTripFacturable(db: D1Database, id: number): Promise<Tri
     factura_quitada_at: r.factura_quitada_at,
     pago_at: r.pago_at,
     pago_by: r.pago_by,
+    pago_by_name: r.pago_by_name ?? null,
   };
 }
 

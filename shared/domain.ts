@@ -1491,6 +1491,17 @@ export function descargasDelViaje(trip: {
 }
 
 /**
+ * El nombre de pila de un usuario, para mostrarlo chico ("RODRIGO SILVA" → "Rodrigo"). Vacío si no se
+ * sabe: quien marcó algo antes de que existiera el registro no muestra ningún hueco raro.
+ */
+export function nombreDePila(nombre: string | null | undefined): string {
+  const primero = (nombre ?? "").trim().split(/\s+/)[0] ?? "";
+  const limpio = primero.replace(/[^\p{L}\p{N}]/gu, "");
+  if (!limpio) return "";
+  return limpio.charAt(0).toLocaleUpperCase("es") + limpio.slice(1).toLocaleLowerCase("es");
+}
+
+/**
  * Clave de `field_values` que deja el chofer cuando no pudo sacar la foto de llegada ("No pude sacar
  * la foto de llegada"). Es una marca y no un campo de la plantilla: ningún export la lista.
  */

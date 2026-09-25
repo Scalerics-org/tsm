@@ -121,3 +121,19 @@ describe("sinFotoDeLlegada", () => {
     expect(sinFotoDeLlegada({})).toBe(false);
   });
 });
+
+describe("nombreDePila", () => {
+  it("el nombre de pila, con mayúscula inicial, para mostrarlo chico", async () => {
+    const { nombreDePila } = await import("@shared/domain");
+    expect(nombreDePila("RODRIGO SILVA")).toBe("Rodrigo");
+    expect(nombreDePila("  ana maría  ")).toBe("Ana");
+    expect(nombreDePila("Local (prueba)")).toBe("Local");
+  });
+
+  it("sin nombre no hay nada que mostrar: ni hueco ni 'sin nombre'", async () => {
+    const { nombreDePila } = await import("@shared/domain");
+    expect(nombreDePila(null)).toBe("");
+    expect(nombreDePila(undefined)).toBe("");
+    expect(nombreDePila("   ")).toBe("");
+  });
+});
