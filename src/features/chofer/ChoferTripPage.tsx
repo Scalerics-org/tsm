@@ -318,7 +318,10 @@ function ArrivalForm({
     Object.fromEntries(descargaFields.map((f) => [f.key, trip.field_values[f.key] ?? ""])),
   );
   const [destinoElegido, setDestinoElegido] = useState<DestinoElegido>({ destino: "", destinatario: "" });
-  const partesDestino = partesAlCerrar(camposUbicacion, trip);
+  // Con las descargas por lugar cada lugar trae su departamento: el destino del viaje ya no se
+  // pregunta aparte (era el del flujo de un solo destino, y quedaba preguntado dos veces). Las demás
+  // plantillas, los internacionales entre ellas, siguen usándolo.
+  const partesDestino = descargaPorCarga ? {} : partesAlCerrar(camposUbicacion, trip);
   // Otros Viajes: el cierre pregunta dónde descargó, por lugar. Siempre hay al menos uno.
   const [lugares, setLugares] = useState<LugarDeDescarga[]>(() => (descargaPorCarga ? [nuevoLugar()] : []));
   const [subiendoLugar, setSubiendoLugar] = useState<string | null>(null);
@@ -375,8 +378,10 @@ function ArrivalForm({
   async function confirm() {
     setError("");
     // La misma regla del cierre en el servidor, así no se entera recién al confirmar.
-    const destino = destinoAlCierre(camposUbicacion, trip, destinoElegido);
-    if ("error" in destino) return setError(`${destino.error}.`);
+    if (!descargaPorCarga) {
+      const destino = destinoAlCierre(camposUbicacion, trip, destinoElegido);
+      if ("error" in destino) return setError(`${destino.error}.`);
+    }
     // Cada lugar lleva su boleta, o el "No pude sacar la boleta" que deja cerrar igual.
     const descargas = descargaPorCarga ? lugaresDeDescarga(lugares, fotosPorSid) : { descargas: [] };
     if ("error" in descargas) return setError(descargas.error);
@@ -392,8 +397,8 @@ function ArrivalForm({
         notes: notes || undefined,
         kilometros: kilometros ? Number(kilometros) : undefined,
         // Sólo viajan si la plantilla los deja para el cierre; si no, el servidor los ignora.
-        destino: destinoElegido.destino || undefined,
-        destinatario: destinoElegido.destinatario || undefined,
+        destino: descargaPorCarga ? undefined : destinoElegido.destino || undefined,
+        destinatario: descargaPorCarga ? undefined : destinoElegido.destinatario || undefined,
         descargas: descargaPorCarga ? descargas.descargas : undefined,
       });
       onDone();

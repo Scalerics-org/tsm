@@ -98,7 +98,7 @@ const d = (sid: string, extra: Record<string, unknown> = {}) => ({
 
 async function cerrar(
   cuerpo: Record<string, unknown>,
-  { segments = [carga("a", "Artigas")], fotos }: { segments?: TripSegment[]; fotos?: Foto[] } = {},
+  { segments = [carga("a", "Artigas")], fotos, campos }: { segments?: TripSegment[]; fotos?: Foto[]; campos?: string } = {},
 ) {
   const escrituras: Escritura[] = [];
   const db = {
@@ -110,7 +110,7 @@ async function cerrar(
         first: async () => {
           if (q.includes("from users")) return { id: 2, role: ROLES.CHOFER };
           if (q.includes("from drivers")) return { id: 1, status: "activo", default_truck_id: 1 };
-          if (q.includes("from trip_templates")) return TPL;
+          if (q.includes("from trip_templates")) return campos ? { ...TPL, campos_ubicacion: campos } : TPL;
           if (q.includes("from trips")) return viaje(segments);
           return null;
         },
@@ -162,6 +162,13 @@ describe("cerrar el viaje con los lugares de descarga", () => {
     const r = await cerrar({ descargas: [d("d1", { departamento: "Salto" }), d("d2", { departamento: "Artigas" })] });
     expect(r.descargas!.map((x) => x.departamento)).toEqual(["Salto", "Artigas"]);
     expect(r.recorrido).toEqual(["Artigas", "Artigas"]);
+  });
+
+  it("el destino de un solo destino ya no se pide: una plantilla que lo tenga al cerrar no frena el cierre", async () => {
+    const campos = JSON.stringify({ destino: { modo: "libreta", libreta_tipo: "lugar", requerido: true, al_cerrar: true } });
+    const r = await cerrar({ descargas: [d("d1")] }, { campos });
+    expect(r.status).toBe(200);
+    expect(r.cerro).toBe(true);
   });
 
   it("sin lugares no se cierra: siempre hay al menos uno", async () => {

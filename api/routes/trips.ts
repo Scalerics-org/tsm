@@ -803,7 +803,11 @@ trips.post("/:id/finish", async (c) => {
 
   // "Cuando lleguen: departamento, donde descargo…". Se valida con los campos, antes de
   // escribir nada: si falta el destino, el viaje queda como estaba.
-  const destino = destinoAlCierre(tpl?.campos_ubicacion, s.trip, b);
+  // Con las descargas por lugar el destino del viaje sale del último lugar (más abajo) y no se pide
+  // aparte: una plantilla que todavía tenga el destino "al cerrar" configurado no puede frenar el cierre.
+  const destino = tpl?.renglon_pide_ubicacion
+    ? { destination: s.trip.destination, destinatario: s.trip.destinatario, cambia: false }
+    : destinoAlCierre(tpl?.campos_ubicacion, s.trip, b);
   if ("error" in destino) return fail(c, destino.error, 400);
 
   // Un viaje combinado sin ninguna carga registrada no sirve para facturar.
