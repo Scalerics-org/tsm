@@ -7,6 +7,7 @@ import {
   MAX_FALLOS_IP,
   VENTANA_MIN,
   aTextoUtc,
+  claveIp,
   clavePatente,
   conFallo,
   minutosDeBloqueo,
@@ -135,9 +136,20 @@ describe("el login del chofer", () => {
   });
 
   it("20 fallos desde la misma IP la bloquean, aunque sean patentes distintas", async () => {
-    const { db } = fakeDB(await hashPassword("1234"));
-    for (let i = 0; i < MAX_FALLOS_IP; i++) await entrarChofer(db, "0000", `AAA ${1000 + i}`, "9.9.9.9");
+    // Cada intento verifica el PIN con PBKDF2 de verdad (100.000 vueltas): 20 seguidos tardaban
+    // más que el tiempo del test en cuanto la máquina estaba cargada. Lo que se prueba acá es el
+    // contador por IP, no la criptografía, así que la IP llega con 19 fallos ya anotados (armados
+    // con la misma regla que usa el código) y los dos últimos intentos sí son pedidos reales.
+    const { db, intentos } = fakeDB(await hashPassword("1234"));
+    let previo: ReturnType<typeof conFallo> | null = null;
+    for (let i = 0; i < MAX_FALLOS_IP - 1; i++) previo = conFallo(previo, new Date(), MAX_FALLOS_IP);
+    intentos.set(claveIp("9.9.9.9"), { clave: claveIp("9.9.9.9"), ...previo! });
+
+    // Con 19 todavía no está bloqueada: el fallo número 20 responde 401 y es el que la bloquea.
+    expect((await entrarChofer(db, "0000", "AAA 1000", "9.9.9.9")).status).toBe(401);
     expect((await entrarChofer(db, "1234", "ZZZ 9999", "9.9.9.9")).status).toBe(429);
+    // Otra IP, misma patente y PIN correcto: entra. El bloqueo era de la IP.
+    expect((await entrarChofer(db, "1234", "ZZZ 9999", "8.8.8.8")).status).toBe(200);
   });
 
   it("si la tabla no existe todavía, el login sigue andando como antes", async () => {
