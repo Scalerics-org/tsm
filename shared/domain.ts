@@ -250,6 +250,8 @@ export interface Trip {
   edited_by_name?: string | null;
   /** Nombre de la plantilla: el tipo de viaje adentro del cliente (Internacional TYCSUR). */
   template_name?: string | null;
+  /** La plantilla pregunta dónde descargó cada carga al cerrar el viaje (Otros Viajes). */
+  descarga_por_carga?: boolean;
   /**
    * Número del viaje dentro de su mes: 1, 2, 3… y de nuevo desde 1 el mes que viene.
    *
@@ -1372,6 +1374,33 @@ export function clienteDelViaje(trip: { segments?: Pick<TripSegment, "cobro_a">[
     return { nombres: cobros.slice(0, 2), mas: Math.max(0, cobros.length - 2), todos: cobros, faltaAsignar };
   }
   return { nombres: [], mas: 0, todos: [], faltaAsignar: true };
+}
+
+/**
+ * Si a una carga le falta dónde descargó: el departamento de destino (`destino`) o el lugar
+ * (`clientes[0]`, escrito). En los viajes con ubicación por carga (Otros Viajes) el chofer sólo
+ * dice dónde cargó al agregarla, porque adónde va todavía no siempre se sabe ("uno no sé para
+ * dónde va, no sé aún" — Rodrigo, 25/9), y la descarga se pregunta al cerrar.
+ */
+export const faltaDescarga = (c: Pick<TripSegment, "destino" | "clientes">): boolean =>
+  !c.destino?.trim() || !c.clientes[0]?.trim();
+
+/**
+ * Cuántas cargas de un viaje CERRADO quedaron sin dónde descargó.
+ *
+ * Al cerrar, el chofer puede contestar "todavía no sé" en una carga y el viaje se cierra igual:
+ * la carga queda sin destino. Si eso no se ve, nadie la completa nunca y quedan datos a medias sin
+ * enterarse. Sólo cuenta en las plantillas que preguntan la descarga por carga (Otros Viajes): las
+ * demás guardan el destino en el viaje, y sus cargas sin destino son lo normal. En un viaje en
+ * curso también es lo normal (todavía no descargó), así que no se cuenta.
+ */
+export function cargasSinDescarga(trip: {
+  status: Trip["status"];
+  descarga_por_carga?: boolean;
+  segments?: Pick<TripSegment, "destino" | "clientes">[];
+}): number {
+  if (trip.status !== TRIP_STATUS.COMPLETADO || !trip.descarga_por_carga) return 0;
+  return (trip.segments ?? []).filter(faltaDescarga).length;
 }
 
 /**

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  DESTINO_A_DEFINIR,
   LIBRETA_TIPO,
   PHOTO_KIND,
   TIPO_DEPARTAMENTO,
@@ -86,7 +87,9 @@ export function CargasPanel({
                   viejas tienen origen y destino en null y siguen mostrando los del viaje. */}
               {(s.origen || s.destino) && (
                 <div className="text-xs text-ink/45">
-                  {s.origen ?? origenViaje} → {s.destino ?? destinoViaje}
+                  {/* Sin destino todavía (se pregunta al cerrar) no puede quedar un "Montevideo →" a
+                      secas, que parece un renglón roto. */}
+                  {s.origen ?? origenViaje} → {s.destino || destinoViaje || DESTINO_A_DEFINIR}
                 </div>
               )}
               {pideFoto && editable && (

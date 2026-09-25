@@ -1,4 +1,5 @@
 import {
+  faltaDescarga,
   CAMPO_MODO,
   FIELD_STAGE,
   FIELD_TYPE,
@@ -148,15 +149,6 @@ export function pesoDe(fields: TemplateField[], values: Record<string, string>):
 }
 
 // ── Dónde descargó cada carga (viajes con ubicación por carga) ──
-
-/**
- * Si a una carga le falta dónde descargó: el departamento de destino (`destino`) o el lugar
- * (`clientes[0]`, escrito). En los viajes con ubicación por carga (Otros Viajes) el chofer sólo
- * dice dónde cargó al agregarla, porque adónde va todavía no siempre se sabe ("uno no sé para
- * dónde va, no sé aún" — Rodrigo, 25/9), y la descarga se pregunta al cerrar.
- */
-export const faltaDescarga = (c: Pick<TripSegment, "destino" | "clientes">): boolean =>
-  !c.destino?.trim() || !c.clientes[0]?.trim();
 
 export interface DescargaPendiente {
   sid: string;

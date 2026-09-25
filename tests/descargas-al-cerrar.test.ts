@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { conDescargas, descargasAlCerrar, descargasFaltantes, faltaDescarga } from "../shared/en-ruta";
-import type { TripSegment } from "@shared/domain";
+import { conDescargas, descargasAlCerrar, descargasFaltantes } from "../shared/en-ruta";
+import { cargasSinDescarga, faltaDescarga, type TripSegment } from "@shared/domain";
 
 /**
  * Dónde descargó cada carga, al cerrar el viaje (Otros Viajes).
@@ -123,5 +123,32 @@ describe("aplicar lo que dijo el chofer (servidor)", () => {
   it("sin descargas no cambia nada", () => {
     const r = conDescargas([carga("a")], []);
     expect(r).toMatchObject({ cambia: false });
+  });
+});
+
+describe("cargasSinDescarga: lo que quedó pendiente se ve en la lista", () => {
+  const pendiente = { destino: null, clientes: [] as string[] };
+  const completa = { destino: "Salto", clientes: ["Molino"] };
+  const viaje = (over: Record<string, unknown>) => ({ status: "COMPLETADO" as const, descarga_por_carga: true, ...over });
+
+  it("un viaje cerrado de Otros Viajes con una carga sin descargar la cuenta", () => {
+    expect(cargasSinDescarga(viaje({ segments: [pendiente, completa] }))).toBe(1);
+  });
+
+  it("con sólo una de las dos partes también falta", () => {
+    expect(cargasSinDescarga(viaje({ segments: [{ destino: "Salto", clientes: [] }] }))).toBe(1);
+  });
+
+  it("en curso no cuenta: todavía no descargó", () => {
+    expect(cargasSinDescarga(viaje({ status: "EN_CURSO", segments: [pendiente] }))).toBe(0);
+  });
+
+  it("en las plantillas que guardan el destino en el viaje (Mdeo - Bella Unión) no cuenta, tenga o no destinatario", () => {
+    expect(cargasSinDescarga(viaje({ descarga_por_carga: false, segments: [pendiente] }))).toBe(0);
+    expect(cargasSinDescarga({ status: "COMPLETADO", segments: [pendiente] })).toBe(0);
+  });
+
+  it("todas descargadas: nada pendiente", () => {
+    expect(cargasSinDescarga(viaje({ segments: [completa, completa] }))).toBe(0);
   });
 });

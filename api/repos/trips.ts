@@ -44,6 +44,7 @@ interface TripRow {
   truck_plate?: string;
   edited_by_name?: string | null;
   template_name?: string | null;
+  descarga_por_carga?: number | null;
 }
 
 /**
@@ -116,7 +117,10 @@ const SELECT = `
          e.name AS edited_by_name,
          -- El tipo de viaje: "Internacional TYCSUR" adentro del cliente Internacional. Para
          -- ver de cuál es cada viaje sin entrar (Rodrigo, 18/9).
-         tp.name AS template_name
+         tp.name AS template_name,
+         -- Las cargas de esa plantilla dicen sólo dónde cargó y la descarga se pregunta al cerrar
+         -- (Otros Viajes): la lista lo necesita para marcar lo que quedó sin descargar.
+         tp.renglon_pide_ubicacion AS descarga_por_carga
   FROM (${NUMERADOS}) t
   JOIN drivers d ON d.id = t.driver_id
   JOIN trucks tr ON tr.id = t.truck_id
@@ -171,6 +175,7 @@ function toTrip(r: TripRow): Trip {
     truck_plate: r.truck_plate,
     edited_by_name: r.edited_by_name ?? null,
     template_name: r.template_name ?? null,
+    descarga_por_carga: !!r.descarga_por_carga,
   };
 }
 
