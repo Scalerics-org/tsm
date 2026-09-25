@@ -97,3 +97,11 @@ exigen el lugar antes de mandar), no el servidor. No se cambió porque cambiar l
 toca a todos los que llaman a esa ruta y no estaba en el pedido; el arreglo natural es rechazar con 400
 "falta el lugar de carga" en vez de descartar, pero hay que mirar antes que nadie mande a propósito una
 fila vacía al final. Una carga que se pierde sin avisar es justo lo que ya nos mordió.
+
+## La lista de departamentos en el teléfono empuja el resto de la pantalla (anotado, sin arreglar)
+
+Rodrigo probó el cierre en un celular (25/9/2026): al abrir el selector de departamentos (`LibretaPicker`,
+19 opciones) el bloque "Lugar de descarga" pasa a medir unos 1.000 px de alto y empuja todo hacia abajo.
+Es un selector que usan varias pantallas del chofer y de la oficina, así que no se tocó de paso. Ideas
+para mirarlo aparte: que la lista se abra a pantalla completa en el teléfono, o con un alto máximo más
+chico, y que se cierre sola al elegir (eso ya lo hace).

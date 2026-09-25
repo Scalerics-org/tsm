@@ -181,14 +181,14 @@ export function DescargasAlCerrar({
                     onClick={() => setTerminado(true)}
                     className="flex-1 border border-ink/25 px-3 py-3 font-cond text-sm font-semibold text-ink/80"
                   >
-                    NO, seguir y confirmar llegada
+                    NO, descargué en un solo lugar
                   </button>
                   <button
                     type="button"
                     onClick={() => onChange([...lugares, nuevoLugar()])}
                     className="flex-1 border border-brand bg-brand/10 px-3 py-3 font-cond text-sm font-semibold text-brand-700"
                   >
-                    SÍ, agregamos otro lugar de descarga
+                    SÍ, descargué en otro lugar más
                   </button>
                 </div>
               </div>
