@@ -116,3 +116,12 @@ los demás choferes. Se prefirió esa rareza a una regla escondida del tipo "mar
 un tilde que a veces no tilda es el que nadie vuelve a mirar. Si molesta, la salida es desmarcarlo desde
 Clientes (que avisa con el número de cargas). El filtro vive en la ruta `GET /libreta` (sólo para el
 chofer) y no en `listLibreta`, porque `createEntry` usa esa consulta para no duplicar nombres.
+
+## La app no reintenta ningún pedido (anotado, sin arreglar)
+
+Si un pedido a la API falla por red o no responde en 30 s (120 s las fotos), `src/lib/api.ts` lanza
+`SIN_SENAL` ("Sin conexión: no llegó respuesta del servidor…") y ahí termina: no hay reintento
+automático ni cola de pendientes. Un corte de red lo resuelve el usuario volviendo a tocar. Rodrigo lo
+vio dos veces (25/9/2026) y "se recuperó" porque volvió a tocar, no porque la app lo reintentara.
+No sabemos cuántas veces pasa en la ruta; con mala señal y una carga a medio mandar no hay nada atrás
+que lo cubra. Para mirarlo en serio cuando haya aire.
