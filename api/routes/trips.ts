@@ -11,7 +11,6 @@ import {
   MENSAJE_LECTURA_PENDIENTE,
   CODIGO_PIDE_CARGA_AL_SALIR,
   COBRO_TIPO,
-  SIN_FOTO_LLEGADA,
   ROLES,
   bloqueaSalidaPorLectura,
   corrimientoEnDias,
@@ -871,16 +870,15 @@ trips.post("/:id/finish", async (c) => {
   // nunca podría cerrarse. Al habilitarlo, la regla empieza a aplicar sola.
   if (c.env.FOTOS) {
     const fotos = await photosRepo.listPhotos(c.env.DB, s.trip.id);
-    const faltantes = fotosFaltantes(tpl, s.trip.segments, fotos);
-    // La foto de llegada es obligatoria en las plantillas con descargas por lugar, salvo que el chofer
-    // haya dicho que no pudo sacarla ("No pude sacar la foto de llegada": queda marcado en el viaje).
-    if (
-      tpl?.renglon_pide_ubicacion &&
-      merged[SIN_FOTO_LLEGADA] !== "1" &&
-      !fotos.some((p) => p.kind === PHOTO_KIND.DESCARGA && !p.segment_sid)
-    ) {
-      faltantes.push("la foto de la llegada");
-    }
+    // Con descargas por lugar la evidencia de la llegada ES la boleta de cada lugar: una foto por lugar
+    // donde descargó, y no una foto de llegada aparte que en un viaje de un solo lugar es la misma.
+    // Por eso la foto de llegada de la plantilla no se pide acá (las viejas con SIN_FOTO_LLEGADA siguen
+    // leyéndose en la oficina, pero ya no se generan).
+    const faltantes = fotosFaltantes(
+      tpl?.renglon_pide_ubicacion ? { ...tpl, arrival_photo_label: null } : tpl,
+      s.trip.segments,
+      fotos,
+    );
     // La boleta de cada lugar es obligatoria, salvo que el chofer haya dicho que no pudo sacarla.
     const conBoleta = new Set(fotos.filter((p) => p.kind === PHOTO_KIND.DESCARGA && p.segment_sid).map((p) => p.segment_sid));
     for (const d of descargasNuevas) {

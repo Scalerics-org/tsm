@@ -88,8 +88,8 @@ const viaje = (segments: TripSegment[]) => ({
 
 type Escritura = { sql: string; binds: unknown[] };
 type Foto = { kind: string; segment_sid: string | null };
-/** La foto de llegada del viaje: una de descarga que no cuelga de ningún lugar. */
-const LLEGADA: Foto = { kind: "descarga", segment_sid: null };
+/** Una foto de descarga que no cuelga de ningún lugar (las de antes de las descargas por lugar). */
+const SUELTA: Foto = { kind: "descarga", segment_sid: null };
 
 const d = (sid: string, extra: Record<string, unknown> = {}) => ({
   sid,
@@ -100,7 +100,7 @@ const d = (sid: string, extra: Record<string, unknown> = {}) => ({
 
 async function cerrar(
   cuerpo: Record<string, unknown>,
-  { segments = [carga("a", "Artigas")], fotos, campos }: { segments?: TripSegment[]; fotos?: Foto[]; campos?: string } = {},
+  { segments = [carga("a", "Artigas")], fotos, campos, llegada }: { segments?: TripSegment[]; fotos?: Foto[]; campos?: string; llegada?: string } = {},
 ) {
   const escrituras: Escritura[] = [];
   const db = {
@@ -112,7 +112,7 @@ async function cerrar(
         first: async () => {
           if (q.includes("from users")) return { id: 2, role: ROLES.CHOFER };
           if (q.includes("from drivers")) return { id: 1, status: "activo", default_truck_id: 1 };
-          if (q.includes("from trip_templates")) return campos ? { ...TPL, campos_ubicacion: campos } : TPL;
+          if (q.includes("from trip_templates")) return { ...TPL, ...(campos ? { campos_ubicacion: campos } : {}), ...(llegada ? { arrival_photo_label: llegada } : {}) };
           if (q.includes("from trips")) return viaje(segments);
           return null;
         },
@@ -203,40 +203,33 @@ describe("cerrar el viaje con los lugares de descarga", () => {
     expect(r.cerro).toBe(false);
   });
 
-  it("con la boleta de cada lugar y la foto de llegada, cierra", async () => {
-    const r = await cerrar(
+  it("la boleta de cada lugar es la foto de la llegada: no se pide otra aparte", async () => {
+    const un = await cerrar({ descargas: [d("d1")] }, { fotos: [{ kind: "descarga", segment_sid: "d1" }] });
+    expect(un.status).toBe(200);
+    expect(un.cerro).toBe(true);
+    const dos = await cerrar(
       { descargas: [d("d1"), d("d2")] },
-      { fotos: [{ kind: "descarga", segment_sid: "d1" }, { kind: "descarga", segment_sid: "d2" }, LLEGADA] },
+      { fotos: [{ kind: "descarga", segment_sid: "d1" }, { kind: "descarga", segment_sid: "d2" }] },
     );
+    expect(dos.status).toBe(200);
+    expect(dos.cerro).toBe(true);
+  });
+
+  it("si la plantilla trae foto de llegada propia, con descargas por lugar tampoco se pide aparte", async () => {
+    const r = await cerrar({ descargas: [d("d1")] }, { fotos: [{ kind: "descarga", segment_sid: "d1" }], llegada: "Foto de la boleta" });
     expect(r.status).toBe(200);
     expect(r.cerro).toBe(true);
   });
 
-  it("la foto de llegada es obligatoria: sin ella el viaje queda pendiente", async () => {
-    const r = await cerrar({ descargas: [d("d1")] }, { fotos: [{ kind: "descarga", segment_sid: "d1" }] });
-    expect(r.status).toBe(409);
-    expect(r.json.error).toContain("la foto de la llegada");
-    expect(r.cerro).toBe(false);
-  });
-
-  it("'No pude sacar la foto de llegada' cierra igual: el chofer no queda atrapado por la cámara", async () => {
-    const r = await cerrar(
-      { descargas: [d("d1")], field_values: { sin_foto_llegada: "1" } },
-      { fotos: [{ kind: "descarga", segment_sid: "d1" }] },
-    );
-    expect(r.status).toBe(200);
-    expect(r.cerro).toBe(true);
-  });
-
-  it("'No pude sacar la boleta' cierra igual y el lugar queda marcado", async () => {
-    const r = await cerrar({ descargas: [d("d1", { sin_boleta: true })] }, { fotos: [LLEGADA] });
+  it("'No pude sacar la boleta' cierra igual y el lugar queda marcado, sin foto alguna", async () => {
+    const r = await cerrar({ descargas: [d("d1", { sin_boleta: true })] }, { fotos: [] });
     expect(r.status).toBe(200);
     expect(r.cerro).toBe(true);
     expect(r.descargas![0]).toMatchObject({ sid: "d1", sin_boleta: true });
   });
 
   it("la foto de la CARGA no cuenta como boleta de la descarga", async () => {
-    const r = await cerrar({ descargas: [d("d1")] }, { fotos: [{ kind: "carga", segment_sid: "d1" }, LLEGADA] });
+    const r = await cerrar({ descargas: [d("d1")] }, { fotos: [{ kind: "carga", segment_sid: "d1" }, SUELTA] });
     expect(r.status).toBe(409);
   });
 });
