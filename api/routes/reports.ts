@@ -6,7 +6,6 @@ import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
 import { requireAuth, requireRole } from "../middleware/auth";
 import {
-  DRIVER_STATUS,
   ROLES,
   TRIP_STATUS,
   monthlyConsumption,
@@ -227,17 +226,15 @@ reports.get("/alerts", async (c) => {
       missing: p.missing,
     }));
 
-  const DAY = 86_400_000;
-  const expiringLicenses = drivers
-    // La licencia de alguien que ya no trabaja acá no es una alerta, es ruido en Control.
-    .filter((d) => d.status === DRIVER_STATUS.ACTIVO && d.license_expiry)
-    .map((d) => {
-      const exp = Date.parse(d.license_expiry + "T00:00:00Z");
-      const days = isNaN(exp) ? 999 : Math.floor((exp - now) / DAY);
-      return { driver_id: d.id, name: d.name, license_expiry: d.license_expiry, days };
-    })
-    .filter((d) => d.days <= 60)
-    .sort((a, b) => a.days - b.days);
+  // Un solo criterio para todos los vencimientos: el mismo del Resumen (`/vencimientos`), con el mismo
+  // umbral (`DIAS_PARA_AVISAR`) y la misma cuenta de días de Uruguay. Control tenía la suya, a 60 días y
+  // con `Date.now()` en UTC: el mismo chofer podía figurar "por vencer" en una pantalla y no en la otra.
+  const vencimientos = avisosDeVencimientos({ camiones: trucks, choferes: drivers }, hoyEnUruguay());
+  // `expiringLicenses` se sigue mandando, con la misma cuenta, para una pestaña de Control abierta antes
+  // del deploy: leería `undefined.length` y se rompería. Ya no la usa la pantalla nueva.
+  const expiringLicenses = vencimientos
+    .filter((v) => v.de === "chofer" && v.documento === "Libreta de conducir")
+    .map((v) => ({ driver_id: v.id, name: v.quien, license_expiry: v.fecha, days: v.dias }));
 
   // 15% POR DEBAJO del rendimiento esperado. En km/L más es mejor, así que la comparación
   // va al revés que cuando esto se medía en L/100 km: rendir menos es la señal de problema.
@@ -266,7 +263,7 @@ reports.get("/alerts", async (c) => {
     })
     .filter(Boolean);
 
-  return ok(c, { overdue, missingPhotos, expiringLicenses, fuelAnomalies });
+  return ok(c, { overdue, missingPhotos, expiringLicenses, vencimientos, fuelAnomalies });
 });
 
 /**

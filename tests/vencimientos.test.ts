@@ -253,3 +253,46 @@ describe("GET /api/reports/vencimientos", () => {
     expect(r.body.data.dias_para_avisar).toBe(30);
   });
 });
+
+describe("GET /api/reports/alerts — Control usa el mismo criterio que el Resumen", () => {
+  it("una libreta a 45 días NO figura (el umbral es el de siempre, 30), y a 20 sí", async () => {
+    const hoy = hoyEnUruguay();
+    const en = (dias: number) => new Date(Date.parse(hoy + "T00:00:00Z") + dias * 86_400_000).toISOString().slice(0, 10);
+    const filas: Record<string, unknown[]> = {
+      "from drivers d": [
+        { id: 1, name: "A 45 días", status: "activo", license_expiry: en(45) },
+        { id: 2, name: "B 20 días", status: "activo", license_expiry: en(20) },
+      ],
+      "from trucks": [{ id: 1, plate: "GTP 1", venc_soa: en(5) }],
+    };
+    const token = await signToken(
+      { id: 2, name: "X", role: ROLES.ADMIN, driver_id: null, truck_id: null, email: null } as any,
+      SECRET,
+    );
+    const db = {
+      prepare(sql: string) {
+        const q = sql.replace(/\s+/g, " ").trim().toLowerCase();
+        const stmt: any = {
+          bind: () => stmt,
+          first: async () => (q.includes("from users") ? { id: 2, role: ROLES.ADMIN } : null),
+          all: async () => ({ results: Object.entries(filas).find(([k]) => q.includes(k))?.[1] ?? [] }),
+          run: async () => ({ meta: {} }),
+        };
+        return stmt;
+      },
+      batch: async () => [],
+    } as unknown as D1Database;
+    const res = await app.request(
+      "/api/reports/alerts",
+      { headers: { authorization: `Bearer ${token}` } },
+      { DB: db, JWT_SECRET: SECRET } as any,
+    );
+    const data = ((await res.json()) as any).data;
+    expect(data.vencimientos.map((v: any) => v.texto)).toEqual([
+      "SOA del GTP 1 vence en 5 días",
+      "Libreta de conducir de B 20 días vence en 20 días",
+    ]);
+    // La clave vieja sigue, con la misma cuenta, para una pestaña de Control abierta antes del deploy.
+    expect(data.expiringLicenses.map((l: any) => l.name)).toEqual(["B 20 días"]);
+  });
+});

@@ -157,6 +157,9 @@ lista es concreta y estable; el séptimo documento, si aparece, es una columna m
   en el pedido (`parseVencimientos` devuelve sólo las claves presentes); una clave vacía sí la borra.
 - **Es de oficina:** `GET /reports/vencimientos` es sólo encargado y admin (el lector y el chofer reciben
   403, y no está en la lista blanca del lector). Editan quienes ya editaban camiones y choferes.
-- El aviso del Resumen y la marca de las listas de Camiones y Choferes salen de la misma función
-  (`avisosDeVencimientos` / `resumenDeVencimientos`). Control tiene además su propia tarjeta de
-  licencias a 60 días, anterior a esto; no se tocó.
+- El aviso del Resumen, el de Control y la marca de las listas de Camiones y Choferes salen de la misma
+  función (`avisosDeVencimientos` / `resumenDeVencimientos`), con el mismo umbral. Control tenía su
+  tarjeta de licencias a 60 días y con `Date.now()` en UTC, sin ninguna razón escrita: el mismo chofer
+  podía figurar "por vencer" en una pantalla y no en la otra. Se unificó en 30 (decisión de Gonzalo).
+  `/reports/alerts` sigue mandando `expiringLicenses` (misma cuenta) sólo para una pestaña de Control
+  abierta antes del deploy; la pantalla nueva usa `vencimientos`.

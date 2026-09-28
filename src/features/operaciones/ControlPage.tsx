@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api, mensajeDe } from "../../lib/api";
 import { Card, Corners, ErrorDeCarga, Spinner } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
+import { DIAS_PARA_AVISAR, type AvisoDeVencimiento } from "@shared/vencimientos";
 
 interface Alerts {
   overdue: {
@@ -22,7 +23,8 @@ interface Alerts {
     driver_name: string;
     missing: string;
   }[];
-  expiringLicenses: { driver_id: number; name: string; license_expiry: string; days: number }[];
+  /** Documentos vencidos o por vencer, los mismos que muestra el Resumen (`shared/vencimientos.ts`). */
+  vencimientos: AvisoDeVencimiento[];
   fuelAnomalies: {
     truck_id: number;
     plate: string;
@@ -181,7 +183,7 @@ export function ControlPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         {aFalló && (
           <ErrorDeCarga
-            titulo="No se pudieron cargar las alertas de viajes, licencias y consumo."
+            titulo="No se pudieron cargar las alertas de viajes, documentos y consumo."
             mensaje={aFalló}
             onReintentar={reintentar}
           />
@@ -238,22 +240,19 @@ export function ControlPage() {
               ))}
             </Section>
 
+            {/* El mismo aviso que el Resumen, con el mismo criterio. Sólo avisa: no impide que nadie salga. */}
             <Section
-              title="Licencias por vencer"
-              count={a.expiringLicenses.length}
+              title="Documentos por vencer"
+              count={a.vencimientos.length}
               accent="amber"
-              empty="Ninguna licencia vence en los próximos 60 días."
+              empty={`Ningún documento vence en los próximos ${DIAS_PARA_AVISAR} días.`}
             >
-              {a.expiringLicenses.map((d) => (
+              {a.vencimientos.map((v) => (
                 <Row
-                  key={d.driver_id}
-                  to={`/panel/chofer/${d.driver_id}`}
-                  left={d.name}
-                  right={
-                    <span className={d.days < 0 ? "text-st-redTx" : ""}>
-                      {d.days < 0 ? `vencida (${fmtDate(d.license_expiry)})` : `${d.days} días`}
-                    </span>
-                  }
+                  key={`${v.de}-${v.id}-${v.documento}`}
+                  to={v.de === "camion" ? `/panel/camion/${v.id}` : `/panel/chofer/${v.id}`}
+                  left={v.texto}
+                  right={<span className={v.estado === "vencido" ? "text-st-redTx" : ""}>{fmtDate(v.fecha)}</span>}
                 />
               ))}
             </Section>
