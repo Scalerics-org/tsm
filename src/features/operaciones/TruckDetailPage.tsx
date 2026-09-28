@@ -7,6 +7,8 @@ import { SurtidaRow } from "./SurtidaRow";
 import { LecturasDelCamion } from "./LecturasDelCamion";
 import { CamaraFrioDelCamion } from "./CamaraFrioDelCamion";
 import { fmtDateTime } from "../../lib/format";
+import { DocumentosDeLaFicha } from "../../components/DocumentosDeLaFicha";
+import { DOCUMENTOS_DEL_CAMION } from "@shared/vencimientos";
 
 interface MonthRow {
   month: string;
@@ -92,6 +94,10 @@ export function TruckDetailPage() {
           {truck.brand} {truck.model} · {truck.year} · {truck.type}
         </p>
       </div>
+      <DocumentosDeLaFicha
+        documentos={DOCUMENTOS_DEL_CAMION.map((x) => ({ nombre: x.nombre, fecha: truck[x.campo] }))}
+        dondeCargar="Camiones → Editar"
+      />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Odómetro" value={`${truck.odometer_km.toLocaleString("es-UY")} km`} />

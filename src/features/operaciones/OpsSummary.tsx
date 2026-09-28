@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AvisosCard } from "./AvisosCard";
+import { VencimientosCard } from "./VencimientosCard";
 import { Link } from "react-router-dom";
 import { fmtConsumo, fmtKilos } from "@shared/domain";
 import { api, downloadFile, mensajeDe } from "../../lib/api";
@@ -91,6 +92,7 @@ export function OpsSummary() {
   return (
     <div className="space-y-6">
       <AvisosCard />
+      <VencimientosCard />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="kicker">Panel</div>

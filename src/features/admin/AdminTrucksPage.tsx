@@ -3,6 +3,9 @@ import { Link } from "react-router-dom";
 import { TRUCK_STATUS, fmtConsumo, type Truck, type TruckStatus, type TripTemplate } from "@shared/domain";
 import { api, mensajeDe } from "../../lib/api";
 import { Button, Card, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
+import { FechaInput } from "../../components/FechaInput";
+import { MarcaVencimientos } from "../../components/MarcaVencimientos";
+import { DOCUMENTOS_DEL_CAMION } from "@shared/vencimientos";
 
 const EMPTY: Omit<Truck, "id"> = {
   plate: "",
@@ -110,6 +113,8 @@ export function AdminTrucksPage() {
                     {t.plate}
                   </Link>
                   {!!t.camara_frio && <span className="ml-2 text-xs text-ink/50" title="Lleva cámara de frío">❄</span>}
+                  {/* Vencido o por vencer: sólo aparece si hay algo que avisar. */}
+                  <MarcaVencimientos className="ml-2" fechas={DOCUMENTOS_DEL_CAMION.map((d) => t[d.campo])} />
                 </td>
                 <td className="px-4 py-3 text-ink/70">
                   {t.brand} {t.model} · {t.year}
@@ -239,6 +244,18 @@ function TruckForm({
             ))}
           </select>
         </Field>
+        {/* Vencimientos: todos opcionales. Sin fecha = no se sabe (no "vencido"); sólo avisan en el
+            Resumen y en las listas, no impiden que el camión salga. */}
+        <div className="col-span-full space-y-2 border border-ink/15 p-3">
+          <span className="label">Vencimientos de documentos (opcionales)</span>
+          <div className="grid gap-3 sm:grid-cols-4">
+            {DOCUMENTOS_DEL_CAMION.map((d) => (
+              <Field key={d.campo} label={d.nombre}>
+                <FechaInput value={f[d.campo] ?? ""} onChange={(iso) => setF({ ...f, [d.campo]: iso })} />
+              </Field>
+            ))}
+          </div>
+        </div>
         {/* "El 4383 hace solo eso" (Rodrigo, 16/9): un camión puede tener su propia lista de
             viajes. Sin lista ve lo de siempre. */}
         <div className="col-span-full space-y-2 border border-ink/15 p-3">

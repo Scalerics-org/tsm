@@ -5,6 +5,8 @@ import { fmtKilos } from "@shared/domain";
 import { api, mensajeDe } from "../../lib/api";
 import { Card, Corners, ErrorDeCarga, Spinner, Stat, StatusBadge } from "../../components/ui";
 import { fmtDate, fmtDateTime } from "../../lib/format";
+import { DocumentosDeLaFicha } from "../../components/DocumentosDeLaFicha";
+import { DOCUMENTOS_DEL_CHOFER } from "@shared/vencimientos";
 
 interface Ficha {
   driver: Driver;
@@ -47,6 +49,10 @@ export function DriverDetailPage() {
           {driver.document} · 🚛 {driver.default_truck_plate ?? "sin camión"} · licencia vence {fmtDate(driver.license_expiry)}
         </p>
       </div>
+      <DocumentosDeLaFicha
+        documentos={DOCUMENTOS_DEL_CHOFER.map((x) => ({ nombre: x.nombre, fecha: driver[x.campo] }))}
+        dondeCargar="Choferes → Editar"
+      />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Viajes" value={stats.total} accent="blue" />

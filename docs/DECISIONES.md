@@ -139,3 +139,24 @@ corresponde". No es un lenguaje de reglas nuevo: es la misma idea de "obligatori
 campo al grupo, para que sirva en cualquier plantilla futura con el mismo problema sin tocar
 código de nuevo. Se configura desde Plantillas, poniéndole el mismo texto de grupo a los campos
 que corresponda.
+
+## Vencimientos de documentos: columnas, y sólo avisan
+
+Camión: SOA, Permiso Puerto, APPLUS y Sticker. Chofer: Permiso Puerto y Carnet de salud (la libreta de
+conducir ya existía y se queda en `drivers.license_expiry`). Migración 0053: seis columnas de fecha
+`TEXT` nulas, sin valor por defecto. Se eligieron **columnas y no una tabla de documentos** porque la
+lista es concreta y estable; el séptimo documento, si aparece, es una columna más.
+
+- **Avisa, no bloquea.** Nada de `shared/vencimientos.ts` se usa en la salida del chofer ni frena
+  ninguna ruta: un camión con el SOA vencido sale igual. No es la app la que decide si un camión sale.
+- **Sin fecha = no se sabe, no "vencido".** Las fichas y las listas sin nada cargado se ven como antes.
+- **Una fecha es un día, no un instante.** Se cuenta en días de calendario contra el "hoy" de Uruguay
+  (`hoyEnUruguay`, UTC−3); como instante UTC, a las 21 h el día del vencimiento ya sería "mañana".
+- **Umbral:** `DIAS_PARA_AVISAR = 30` (ámbar hasta 30 días, rojo cuando venció). Vive en una constante.
+- **Guardar desde una pantalla vieja no borra lo ya cargado:** el PUT sólo escribe las fechas que vienen
+  en el pedido (`parseVencimientos` devuelve sólo las claves presentes); una clave vacía sí la borra.
+- **Es de oficina:** `GET /reports/vencimientos` es sólo encargado y admin (el lector y el chofer reciben
+  403, y no está en la lista blanca del lector). Editan quienes ya editaban camiones y choferes.
+- El aviso del Resumen y la marca de las listas de Camiones y Choferes salen de la misma función
+  (`avisosDeVencimientos` / `resumenDeVencimientos`). Control tiene además su propia tarjeta de
+  licencias a 60 días, anterior a esto; no se tocó.

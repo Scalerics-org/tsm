@@ -6,6 +6,7 @@ import { api, mensajeDe } from "../../lib/api";
 import { Button, Card, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { FechaInput } from "../../components/FechaInput";
+import { MarcaVencimientos } from "../../components/MarcaVencimientos";
 
 export function AdminDriversPage() {
   const [drivers, setDrivers] = useState<Driver[] | null>(null);
@@ -100,7 +101,7 @@ export function AdminDriversPage() {
               <th className="px-4 py-3">Nombre</th>
               <th className="px-4 py-3">Documento</th>
               <th className="px-4 py-3">Camión habitual</th>
-              <th className="px-4 py-3">Licencia vence</th>
+              <th className="px-4 py-3">Licencia y documentos</th>
               <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3"></th>
             </tr>
@@ -111,7 +112,14 @@ export function AdminDriversPage() {
                 <td className="px-4 py-3 font-medium text-ink">{d.name}</td>
                 <td className="px-4 py-3 text-ink/70">{d.document}</td>
                 <td className="px-4 py-3 text-ink/70">{d.default_truck_plate ?? "—"}</td>
-                <td className="px-4 py-3 text-ink/60">{fmtDate(d.license_expiry)}</td>
+                <td className="px-4 py-3 text-ink/60">
+                  {fmtDate(d.license_expiry)}
+                  {/* Libreta, Permiso Puerto y Carnet de salud: sólo aparece si hay algo que avisar. */}
+                  <MarcaVencimientos
+                    className="ml-2"
+                    fechas={[d.license_expiry, d.venc_permiso_puerto, d.venc_carnet_salud]}
+                  />
+                </td>
                 <td className="px-4 py-3">
                   <span className={d.status === DRIVER_STATUS.ACTIVO ? "text-st-greenTx" : "text-ink/45"}>
                     {d.status}
@@ -167,6 +175,8 @@ function DriverForm({
     license_number: driver?.license_number ?? "",
     license_category: driver?.license_category ?? "",
     license_expiry: driver?.license_expiry ?? "",
+    venc_permiso_puerto: driver?.venc_permiso_puerto ?? "",
+    venc_carnet_salud: driver?.venc_carnet_salud ?? "",
     phone: driver?.phone ?? "",
     status: driver?.status ?? DRIVER_STATUS.ACTIVO,
     default_truck_id: driver?.default_truck_id ? String(driver.default_truck_id) : "",
@@ -231,6 +241,8 @@ function DriverForm({
       license_number: f.license_number,
       license_category: f.license_category,
       license_expiry: f.license_expiry,
+      venc_permiso_puerto: f.venc_permiso_puerto,
+      venc_carnet_salud: f.venc_carnet_salud,
       phone: f.phone,
       status: f.status,
       default_truck_id: f.default_truck_id ? Number(f.default_truck_id) : null,
@@ -293,6 +305,12 @@ function DriverForm({
         </Field>
         <Field label="Vencimiento licencia">
           <FechaInput value={f.license_expiry} onChange={(iso) => setF({ ...f, license_expiry: iso })} />
+        </Field>
+        <Field label="Vencimiento Permiso Puerto">
+          <FechaInput value={f.venc_permiso_puerto} onChange={(iso) => setF({ ...f, venc_permiso_puerto: iso })} />
+        </Field>
+        <Field label="Vencimiento Carnet de salud">
+          <FechaInput value={f.venc_carnet_salud} onChange={(iso) => setF({ ...f, venc_carnet_salud: iso })} />
         </Field>
         <Field label="Teléfono">
           <input className="input" value={f.phone} onChange={set("phone")} />
