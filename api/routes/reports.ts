@@ -24,6 +24,7 @@ import { listFuelLogs } from "../repos/fuel";
 import { listTrucks, getTruck } from "../repos/trucks";
 import { listDrivers, getDriver } from "../repos/drivers";
 import { tripPhotoStatus } from "../repos/photos";
+import { DIAS_PARA_AVISAR, avisosDeVencimientos, hoyEnUruguay } from "../../shared/vencimientos";
 
 const reports = new Hono<{ Bindings: Env; Variables: Vars }>();
 /**
@@ -266,6 +267,19 @@ reports.get("/alerts", async (c) => {
     .filter(Boolean);
 
   return ok(c, { overdue, missingPhotos, expiringLicenses, fuelAnomalies });
+});
+
+/**
+ * Los documentos vencidos o por vencer, para el Resumen: "SOA del GTP 4382 vence en 12 días".
+ *
+ * Sólo AVISA: nada de esto frena una salida ni una ruta. Es de oficina y el lector no lo ve —el
+ * `requireRole` de acá es explícito y además la ruta no está en su lista blanca—. Un pedido aparte
+ * y no parte del resumen: si esto falla, el Resumen sigue cargando.
+ */
+reports.get("/vencimientos", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+  const [camiones, choferes] = await Promise.all([listTrucks(c.env.DB), listDrivers(c.env.DB)]);
+  const hoy = hoyEnUruguay();
+  return ok(c, { hoy, dias_para_avisar: DIAS_PARA_AVISAR, avisos: avisosDeVencimientos({ camiones, choferes }, hoy) });
 });
 
 // ── Ficha por camión ──

@@ -5,6 +5,7 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import { ROLES, TRUCK_STATUS, type TruckStatus } from "../../shared/domain";
 import * as repo from "../repos/trucks";
 import { motivoParaNoBorrarCamion } from "../lib/frenos-de-borrado";
+import { CAMPOS_NUEVOS_DEL_CAMION, ETIQUETAS_CAMION, parseVencimientos } from "../../shared/vencimientos";
 
 const trucks = new Hono<{ Bindings: Env; Variables: Vars }>();
 trucks.use("*", requireAuth);
@@ -46,17 +47,27 @@ function parseTruck(b: any): repo.TruckInput | null {
 }
 
 trucks.post("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
-  const input = parseTruck(await c.req.json().catch(() => null));
+  const b = await c.req.json().catch(() => null);
+  const input = parseTruck(b);
   if (!input) return fail(c, "La patente es obligatoria", 400);
+  // Los vencimientos se validan ANTES de escribir nada: una fecha mal escrita no crea el camión.
+  const venc = parseVencimientos(b, CAMPOS_NUEVOS_DEL_CAMION, ETIQUETAS_CAMION);
+  if ("error" in venc) return fail(c, venc.error, 400);
   const id = await repo.createTruck(c.env.DB, input);
+  await repo.setVencimientosCamion(c.env.DB, id, venc.values);
   return ok(c, await repo.getTruck(c.env.DB, id), 201);
 });
 
 trucks.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const id = Number(c.req.param("id"));
-  const input = parseTruck(await c.req.json().catch(() => null));
+  const b = await c.req.json().catch(() => null);
+  const input = parseTruck(b);
   if (!input) return fail(c, "La patente es obligatoria", 400);
+  const venc = parseVencimientos(b, CAMPOS_NUEVOS_DEL_CAMION, ETIQUETAS_CAMION);
+  if ("error" in venc) return fail(c, venc.error, 400);
   await repo.updateTruck(c.env.DB, id, input);
+  // Sólo los que vinieron: ver `setVencimientosCamion`.
+  await repo.setVencimientosCamion(c.env.DB, id, venc.values);
   return ok(c, await repo.getTruck(c.env.DB, id));
 });
 

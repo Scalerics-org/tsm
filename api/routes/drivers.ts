@@ -6,6 +6,9 @@ import { ROLES, DRIVER_STATUS } from "../../shared/domain";
 import { hashPassword } from "../lib/crypto";
 import * as repo from "../repos/drivers";
 import { motivoParaNoBorrarChofer } from "../lib/frenos-de-borrado";
+import { ETIQUETAS_CHOFER_NUEVOS, parseVencimientos } from "../../shared/vencimientos";
+
+const CAMPOS_VENC_CHOFER = ["venc_permiso_puerto", "venc_carnet_salud"] as const;
 
 const drivers = new Hono<{ Bindings: Env; Variables: Vars }>();
 drivers.use("*", requireAuth);
@@ -43,8 +46,11 @@ drivers.post("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   if (!b.pin || String(b.pin).length < 4) {
     return fail(c, "Sin PIN el chofer no puede entrar: poné uno de 4 dígitos o más.", 400);
   }
+  const venc = parseVencimientos(b, CAMPOS_VENC_CHOFER, ETIQUETAS_CHOFER_NUEVOS);
+  if ("error" in venc) return fail(c, venc.error, 400);
   const pinHash = await hashPassword(String(b.pin));
   const id = await repo.createDriver(c.env.DB, input, pinHash);
+  await repo.setVencimientosChofer(c.env.DB, id, venc.values);
   return ok(c, await repo.getDriver(c.env.DB, id), 201);
 });
 
@@ -65,7 +71,11 @@ drivers.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   if (pin !== "" && c.get("user").role !== ROLES.ADMIN) {
     return fail(c, "Cambiarle el PIN a un chofer lo hace un admin.", 403);
   }
+  const venc = parseVencimientos(b, CAMPOS_VENC_CHOFER, ETIQUETAS_CHOFER_NUEVOS);
+  if ("error" in venc) return fail(c, venc.error, 400);
   await repo.updateDriver(c.env.DB, id, input);
+  // Sólo los que vinieron: ver `setVencimientosChofer`.
+  await repo.setVencimientosChofer(c.env.DB, id, venc.values);
   if (pin !== "") await repo.setPin(c.env.DB, id, await hashPassword(pin));
   return ok(c, await repo.getDriver(c.env.DB, id));
 });

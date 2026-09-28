@@ -138,6 +138,8 @@ describe("el lector no toca nada", () => {
     // Los reportes que no son el Excel de la lista.
     ["GET", "/api/reports/summary"],
     ["GET", "/api/reports/alerts"],
+    // Los vencimientos de documentos son de oficina.
+    ["GET", "/api/reports/vencimientos"],
     ["GET", "/api/reports/pendientes-cobro"],
     ["GET", "/api/reports/fuel.csv"],
     ["GET", "/api/reports/cliente.csv"],

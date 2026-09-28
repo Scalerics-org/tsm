@@ -6,6 +6,7 @@ import type { AtadoAlChofer } from "../lib/frenos-de-borrado";
 const SELECT = `
   SELECT d.id, d.name, d.document, d.license_number, d.license_category, d.license_expiry,
          d.phone, d.status, d.default_truck_id,
+         d.venc_permiso_puerto, d.venc_carnet_salud,
          t.plate AS default_truck_plate,
          (SELECT tr.id FROM trips tr
            WHERE tr.driver_id = d.id AND tr.status = 'EN_CURSO'
@@ -104,6 +105,24 @@ export async function updateDriver(db: D1Database, id: number, d: DriverInput): 
        WHERE id=?`,
     )
     .bind(d.name, d.document, d.license_number, d.license_category, d.license_expiry, d.phone, d.status, d.default_truck_id, id)
+    .run();
+}
+
+/**
+ * Los vencimientos nuevos del chofer. Sólo se escriben los que vienen en `v`: una pantalla abierta
+ * antes de que existieran no los manda, y guardar desde ahí no puede borrarle los que ya cargaron.
+ * `null` borra la fecha. Los nombres de columna salen de la lista cerrada de `parseVencimientos`.
+ */
+export async function setVencimientosChofer(
+  db: D1Database,
+  id: number,
+  v: Partial<Record<"venc_permiso_puerto" | "venc_carnet_salud", string | null>>,
+): Promise<void> {
+  const cols = Object.keys(v) as (keyof typeof v)[];
+  if (!cols.length) return;
+  await db
+    .prepare(`UPDATE drivers SET ${cols.map((c) => `${c}=?`).join(", ")} WHERE id=?`)
+    .bind(...cols.map((c) => v[c] ?? null), id)
     .run();
 }
 

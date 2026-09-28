@@ -1,4 +1,5 @@
 import type { Truck } from "../../shared/domain";
+import type { CampoVencimientoCamion } from "../../shared/vencimientos";
 import type { AtadoAlCamion } from "../lib/frenos-de-borrado";
 
 export async function listTrucks(db: D1Database): Promise<Truck[]> {
@@ -90,6 +91,24 @@ export async function guardarPlantillasDelCamion(db: D1Database, truckId: number
       db.prepare("INSERT OR IGNORE INTO camion_plantillas (truck_id, template_id) VALUES (?, ?)").bind(truckId, t),
     ),
   ]);
+}
+
+/**
+ * Los vencimientos del camión. Sólo se escriben los que vienen en `v`: una pantalla abierta antes
+ * de que existieran no los manda, y guardar desde ahí no puede borrarle los que ya cargaron.
+ * `null` borra la fecha. Los nombres de columna salen de la lista cerrada de `parseVencimientos`.
+ */
+export async function setVencimientosCamion(
+  db: D1Database,
+  id: number,
+  v: Partial<Record<CampoVencimientoCamion, string | null>>,
+): Promise<void> {
+  const cols = Object.keys(v) as CampoVencimientoCamion[];
+  if (!cols.length) return;
+  await db
+    .prepare(`UPDATE trucks SET ${cols.map((c) => `${c}=?`).join(", ")} WHERE id=?`)
+    .bind(...cols.map((c) => v[c] ?? null), id)
+    .run();
 }
 
 export async function deleteTruck(db: D1Database, id: number): Promise<void> {

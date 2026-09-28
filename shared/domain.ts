@@ -139,6 +139,14 @@ export interface Truck {
    * del equipo va aparte del camión, ver `shared/camara-frio.ts`. En la base es 0/1.
    */
   camara_frio?: boolean | number;
+  /**
+   * Vencimientos de documentos, "YYYY-MM-DD". Vacío (null) = no se sabe, no "vencido". Sólo avisan:
+   * un camión con el SOA vencido sale igual. Ver `shared/vencimientos.ts`.
+   */
+  venc_soa?: string | null;
+  venc_permiso_puerto?: string | null;
+  venc_applus?: string | null;
+  venc_sticker?: string | null;
 }
 
 export interface Driver {
@@ -152,6 +160,9 @@ export interface Driver {
   status: DriverStatus;
   default_truck_id: number | null;
   default_truck_plate?: string; // join
+  /** Vencimientos, "YYYY-MM-DD". La libreta de conducir es `license_expiry`. Ver `shared/vencimientos.ts`. */
+  venc_permiso_puerto?: string | null;
+  venc_carnet_salud?: string | null;
   /** El viaje que tiene abierto ahora, si tiene. Join: sirve para no darlo de baja a mitad. */
   viaje_en_curso?: number | null; // join
 }
