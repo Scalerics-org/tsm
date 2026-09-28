@@ -125,3 +125,17 @@ automático ni cola de pendientes. Un corte de red lo resuelve el usuario volvie
 vio dos veces (25/9/2026) y "se recuperó" porque volvió a tocar, no porque la app lo reintentara.
 No sabemos cuántas veces pasa en la ruta; con mala señal y una carga a medio mandar no hay nada atrás
 que lo cubra. Para mirarlo en serio cuando haya aire.
+
+## Un grupo de campos donde alcanza con uno
+
+`TemplateField.requiere_uno_de` (`shared/domain.ts`): dos o más campos de la misma plantilla y la
+misma etapa con el mismo texto ahí (cualquier texto, es sólo una etiqueta) forman un grupo donde
+alcanza con que uno tenga algo — `grupoIncompleto` lo valida, con el mensaje ya armado ("Completá
+uno de estos: A o B."). `missingField` ignora el `required` de un campo agrupado: lo exige el
+grupo entero, no cada uno. Nace de Molino Cañuelas (28/9/2026): "Cantidad de pallets" y "Si
+cargás en Logipark…" eran los dos obligatorios, y con carga sólo en Logipark había que poner un 0
+en el otro para poder seguir — un 0 que en el Excel se lee como "cargó cero pallets", no como "no
+corresponde". No es un lenguaje de reglas nuevo: es la misma idea de "obligatorio" corrida del
+campo al grupo, para que sirva en cualquier plantilla futura con el mismo problema sin tocar
+código de nuevo. Se configura desde Plantillas, poniéndole el mismo texto de grupo a los campos
+que corresponda.

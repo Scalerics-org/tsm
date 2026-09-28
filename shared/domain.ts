@@ -89,6 +89,14 @@ export interface TemplateField {
   required: boolean;
   stage: FieldStage; // se pide en la carga, en el camino (el puente) o en la descarga
   is_weight?: boolean; // marca el campo de peso/toneladas (para reportes)
+  /**
+   * Marca este campo como parte de un grupo "alcanza con uno": dos o más campos de la misma
+   * etapa con el mismo valor acá (cualquier texto, es sólo una etiqueta) no se exigen cada uno
+   * por separado —eso obligaría a poner 0 en el que no aplica, que en el Excel se lee como "cargó
+   * cero" y no como "no corresponde"— sino que alcanza con que UNO de ellos tenga algo. `required`
+   * no importa en un campo agrupado: lo exige el grupo, no el campo. Ver `grupoIncompleto`.
+   */
+  requiere_uno_de?: string;
 }
 
 /** Opción de destino que elige el chofer (destino + destinatario). */
@@ -2009,7 +2017,45 @@ export function missingField(
   values: Record<string, string>,
 ): string | null {
   for (const f of tpl.fields) {
-    if (f.stage === stage && f.required && !String(values[f.key] ?? "").trim()) return f.label;
+    // Un campo agrupado (`requiere_uno_de`) no se exige solo, aunque venga `required: true`:
+    // lo exige el grupo entero, en `grupoIncompleto`. Ver el comentario de `requiere_uno_de`.
+    if (f.stage === stage && f.required && !f.requiere_uno_de && !String(values[f.key] ?? "").trim()) {
+      return f.label;
+    }
+  }
+  return null;
+}
+
+/**
+ * El grupo "alcanza con uno" que quedó sin ninguno completo, con el mensaje ya armado para
+ * mostrar — o `null` si están bien.
+ *
+ * "Ahí cargó solo en Logipark, pero le decía que no podía estar vacío la cantidad de pallet.
+ * Puse cero y quedó bien. Estaría bueno que si ponen el logi y en el otro nada, los deje
+ * seguir." (Rodrigo, Molino Cañuelas, 28/9/2026). Un 0 puesto para pasar la validación se lee en
+ * el Excel como "cargó cero pallets", no como "no corresponde" — peor que el hueco que evita.
+ *
+ * Dos o más campos de la MISMA etapa con el mismo `requiere_uno_de` (cualquier texto, es sólo
+ * una etiqueta para juntarlos) forman un grupo: alcanza con que uno tenga algo. No es un
+ * lenguaje de reglas nuevo, es la misma idea de "obligatorio" pero aplicada al grupo entero en
+ * vez de a cada campo — así sirve para cualquier plantilla futura con el mismo problema, sin
+ * tocar código de nuevo.
+ */
+export function grupoIncompleto(
+  tpl: Pick<TripTemplate, "fields">,
+  stage: string,
+  values: Record<string, string>,
+): string | null {
+  const grupos = new Map<string, TemplateField[]>();
+  for (const f of tpl.fields) {
+    if (f.stage !== stage || !f.requiere_uno_de) continue;
+    const campos = grupos.get(f.requiere_uno_de) ?? [];
+    campos.push(f);
+    grupos.set(f.requiere_uno_de, campos);
+  }
+  for (const campos of grupos.values()) {
+    if (campos.some((f) => String(values[f.key] ?? "").trim())) continue;
+    return `Completá uno de estos: ${campos.map((f) => f.label).join(" o ")}.`;
   }
   return null;
 }

@@ -547,7 +547,7 @@ function TemplateForm({
           <div className="space-y-2">
             {fields.map((fld, i) => (
               <div key={i} className="grid grid-cols-2 gap-2 border border-ink/10 p-2 sm:grid-cols-12">
-                <input className="input sm:col-span-4" placeholder="Etiqueta (ej. Remito)" value={fld.label} onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
+                <input className="input sm:col-span-3" placeholder="Etiqueta (ej. Remito)" value={fld.label} onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
                 <select className="input sm:col-span-2" value={fld.type} onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, type: e.target.value as TemplateField["type"] } : x)))}>
                   <option value={FIELD_TYPE.TEXTO}>Texto</option>
                   <option value={FIELD_TYPE.NUMERO}>Número</option>
@@ -557,7 +557,14 @@ function TemplateForm({
                   <option value={FIELD_STAGE.RUTA}>En ruta (puente)</option>
                   <option value={FIELD_STAGE.DESCARGA}>En descarga</option>
                 </select>
-                <label className="flex items-center gap-1 text-xs text-ink sm:col-span-2">
+                <input
+                  className="input sm:col-span-2"
+                  placeholder="Grupo (alcanza con uno)"
+                  title='Dos campos con el mismo texto acá, de la misma etapa, forman un grupo: alcanza con completar uno. Ej.: "pallets" en Cantidad de pallets y en el de Logipark.'
+                  value={fld.requiere_uno_de ?? ""}
+                  onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, requiere_uno_de: e.target.value || undefined } : x)))}
+                />
+                <label className="flex items-center gap-1 text-xs text-ink sm:col-span-1">
                   <input type="checkbox" className="h-4 w-4 accent-brand" checked={fld.required} onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, required: e.target.checked } : x)))} />
                   Oblig.
                 </label>
@@ -581,7 +588,7 @@ function TemplateForm({
             + Agregar campo
           </button>
           <p className="mt-1 text-xs text-ink/45">
-            "Peso" marca el campo de toneladas para los reportes. "En ruta" = se pide con el viaje en curso (el N° de MIC en el puente) y, si no lo cargó, al cerrar. "En descarga" = se pide al registrar la llegada.
+            "Peso" marca el campo de toneladas para los reportes. "En ruta" = se pide con el viaje en curso (el N° de MIC en el puente) y, si no lo cargó, al cerrar. "En descarga" = se pide al registrar la llegada. "Grupo" es para cuando alcanza con uno de dos o más campos (ej. Cañuelas: pallets general o de Logipark, no los dos): ponele el mismo texto a los que forman el grupo, de la misma etapa, y ninguno se exige solo.
           </p>
         </div>
 

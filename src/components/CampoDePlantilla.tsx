@@ -27,8 +27,16 @@ export function CampoDePlantilla({
      Sin coma y con teclado numérico entero, ese error no se puede tipear. */
   const esPeso = !!campo.is_weight;
   const avisa = esPeso && pesoSospechoso(Number(valor));
+  // Un campo agrupado ("alcanza con uno") no es obligatorio por sí solo, pero tampoco es
+  // opcional sin más: llamarlo "opcional" es lo que llevaba a poner un 0 para no dejarlo en
+  // blanco. El grupo entero exige uno, así que el label lo dice.
+  const etiqueta = campo.requiere_uno_de
+    ? " (alcanza con uno)"
+    : campo.required
+      ? ""
+      : " (opcional)";
   return (
-    <Field label={`${campo.label}${campo.required ? "" : " (opcional)"}`}>
+    <Field label={`${campo.label}${etiqueta}`}>
       <input
         className="input"
         type={campo.type === "numero" ? "number" : "text"}

@@ -4,6 +4,7 @@ import {
   DRIVER_STATUS,
   FIELD_STAGE,
   UNIDAD,
+  grupoIncompleto,
   missingField,
   problemaDeCantidad,
   type Driver,
@@ -115,6 +116,8 @@ export function NuevoViajePage() {
     // después se rebota. Sólo los de la etapa de carga, que son los que exige al crear.
     const falta = tpl ? missingField(tpl, FIELD_STAGE.CARGA, values) : null;
     if (falta) return setError(`Falta: ${falta}.`);
+    const grupo = tpl ? grupoIncompleto(tpl, FIELD_STAGE.CARGA, values) : null;
+    if (grupo) return setError(grupo);
 
     // La cantidad de las fijas es obligatoria: el viaje nace cerrado y no hay después.
     const fijasDeLaPlantilla = tpl?.renglones_fijos ?? [];

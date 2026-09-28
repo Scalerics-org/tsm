@@ -5,6 +5,7 @@ import {
   CODIGO_PIDE_CARGA_AL_SALIR,
   FIELD_STAGE,
   PHOTO_KIND,
+  grupoIncompleto,
   requiereFotoCarga,
   type CampoUbicacion,
   type LibretaEntry,
@@ -252,8 +253,10 @@ export function StartTripPage() {
       return setError("Elegí el destino.");
     }
     for (const f of cargaFields) {
-      if (f.required && !String(values[f.key] ?? "").trim()) return setError(`Cargá ${f.label}.`);
+      if (f.required && !f.requiere_uno_de && !String(values[f.key] ?? "").trim()) return setError(`Cargá ${f.label}.`);
     }
+    const grupo = grupoIncompleto(tpl!, FIELD_STAGE.CARGA, values);
+    if (grupo) return setError(grupo);
     if (pideFoto && !file) return setError("Sacá la foto de la carga.");
     if (pideCargaNueva && !cargaLista) return setError("Para salir tenés que agregar la carga.");
     if (pideCargaNueva && cargaLista && requiereFotoCarga(tpl) && cargaLista.fotos.length === 0) {

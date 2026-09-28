@@ -1,5 +1,5 @@
 import { llegadaCorregida } from "../lib/llegada";
-import { conCantidadesFijas, missingField, problemaDeCantidad } from "../../shared/domain";
+import { conCantidadesFijas, grupoIncompleto, missingField, problemaDeCantidad } from "../../shared/domain";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
@@ -328,6 +328,8 @@ trips.post("/", async (c) => {
   const values: Record<string, string> = b.field_values ?? {};
   const missing = missingField(tpl, "carga", values);
   if (missing) return fail(c, `Falta: ${missing}`, 400);
+  const grupo = grupoIncompleto(tpl, "carga", values);
+  if (grupo) return fail(c, grupo, 400);
 
   const weightField = tpl.fields.find((f) => f.is_weight);
   const weight = weightField && values[weightField.key] ? Number(values[weightField.key]) : null;
@@ -799,6 +801,8 @@ trips.post("/:id/finish", async (c) => {
     // Los del camino también: si no los cargó en el puente, se los pide el cierre.
     const missing = missingField(tpl, FIELD_STAGE.DESCARGA, merged) ?? missingField(tpl, FIELD_STAGE.RUTA, merged);
     if (missing) return fail(c, `Falta: ${missing}`, 400);
+    const grupo = grupoIncompleto(tpl, FIELD_STAGE.DESCARGA, merged) ?? grupoIncompleto(tpl, FIELD_STAGE.RUTA, merged);
+    if (grupo) return fail(c, grupo, 400);
   }
 
   // "Cuando lleguen: departamento, donde descargo…". Se valida con los campos, antes de

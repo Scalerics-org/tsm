@@ -6,6 +6,7 @@ import {
   PHOTO_KIND_LABEL,
   TRIP_STATUS,
   destinoVisible,
+  grupoIncompleto,
   origenVisible,
   type CamposUbicacion,
   type PhotoKind,
@@ -389,8 +390,12 @@ function ArrivalForm({
     if ("error" in descargas) return setError(descargas.error);
     if (descargaPorCarga && !respondioOtroLugar) return setError("Contestá si agregamos otro lugar de descarga.");
     for (const f of pedidos) {
-      if (f.required && !String(values[f.key] ?? "").trim()) return setError(`Cargá ${f.label}.`);
+      if (f.required && !f.requiere_uno_de && !String(values[f.key] ?? "").trim()) return setError(`Cargá ${f.label}.`);
     }
+    const grupo =
+      grupoIncompleto({ fields: descargaFields }, FIELD_STAGE.DESCARGA, values) ??
+      grupoIncompleto({ fields: rutaPendientes }, FIELD_STAGE.RUTA, values);
+    if (grupo) return setError(grupo);
     // Con descargas por lugar la boleta de cada lugar es la foto de la llegada (ya se exigió arriba, con
     // su salida "No pude sacar la boleta"): no se pide otra. Las demás plantillas piden la suya.
     if (!descargaPorCarga && photoRequired && !fotosDescarga) return setError(`Sacá la foto: ${photoLabel}.`);
@@ -436,7 +441,10 @@ function ArrivalForm({
         />
       )}
       {pedidos.map((f) => (
-        <Field key={f.key} label={`${f.label}${f.required ? "" : " (opcional)"}`}>
+        <Field
+          key={f.key}
+          label={`${f.label}${f.requiere_uno_de ? " (alcanza con uno)" : f.required ? "" : " (opcional)"}`}
+        >
           <input
             className="input"
             type={f.type === "numero" ? "number" : "text"}

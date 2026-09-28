@@ -149,6 +149,12 @@ function parse(b: any): repo.TemplateInput | null {
           // salida, que es justo lo que Rodrigo pidió sacar de ahí.
           stage: ETAPAS.includes(f?.stage) ? f.stage : FIELD_STAGE.CARGA,
           is_weight: !!f?.is_weight,
+          // Grupo "alcanza con uno" (ver `grupoIncompleto`, shared/domain.ts): texto libre, y
+          // vacío = sin grupo. No se recorta a los campos de la misma etapa acá: si alguien arma
+          // un grupo entre etapas distintas, `grupoIncompleto` no lo va a completar nunca porque
+          // sólo mira una etapa por vez — queda como un campo obligatorio que nunca se puede
+          // cumplir. Se avisa en la pantalla, no acá.
+          ...(String(f?.requiere_uno_de ?? "").trim() ? { requiere_uno_de: String(f.requiere_uno_de).trim() } : {}),
         }))
         .filter((f: any) => f.label)
     : [];
