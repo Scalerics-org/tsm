@@ -32,6 +32,15 @@ export async function listRecentSurtidasFrio(db: D1Database, truckId: number, li
   return results ?? [];
 }
 
+/** Las surtidas de cámara de todos los camiones desde un día ("YYYY-MM-DD"), para buscar repetidas. */
+export async function listSurtidasFrioDesde(db: D1Database, desde: string): Promise<SurtidaFrio[]> {
+  const { results } = await db
+    .prepare("SELECT * FROM surtidas_frio WHERE substr(logged_at,1,10) >= ? ORDER BY logged_at DESC, id DESC")
+    .bind(desde)
+    .all<SurtidaFrio>();
+  return results ?? [];
+}
+
 export async function getSurtidaFrio(db: D1Database, id: number): Promise<SurtidaFrio | null> {
   return (await db.prepare("SELECT * FROM surtidas_frio WHERE id = ?").bind(id).first<SurtidaFrio>()) ?? null;
 }

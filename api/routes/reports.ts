@@ -20,6 +20,8 @@ import { vaciosEntreViajes, kmVacios, vaciosDelPeriodo, paraVacios } from "../..
 import { resumenCliente } from "../lib/resumen-cliente";
 import { listTemplates } from "../repos/templates";
 import { listFuelLogs } from "../repos/fuel";
+import { listSurtidasFrioDesde } from "../repos/camara-frio";
+import { DIAS_REPETIDAS_VIGENTES, repetidasVigentes, surtidasRepetidas } from "../../shared/surtidas-repetidas";
 import { listTrucks, getTruck } from "../repos/trucks";
 import { listDrivers, getDriver } from "../repos/drivers";
 import { tripPhotoStatus } from "../repos/photos";
@@ -183,12 +185,14 @@ reports.get("/consumo", async (c) => {
 // ── Alertas de control ──
 reports.get("/alerts", async (c) => {
   const now = Date.now();
-  const [trips, photoStatus, drivers, trucks, allFuel] = await Promise.all([
+  const desdeRepetidas = new Date(now - DIAS_REPETIDAS_VIGENTES * 86_400_000).toISOString().slice(0, 10);
+  const [trips, photoStatus, drivers, trucks, allFuel, frioReciente] = await Promise.all([
     listTrips(c.env.DB, { status: TRIP_STATUS.EN_CURSO }),
     tripPhotoStatus(c.env.DB, { status: TRIP_STATUS.COMPLETADO }),
     listDrivers(c.env.DB),
     listTrucks(c.env.DB),
     listFuelLogs(c.env.DB, {}),
+    listSurtidasFrioDesde(c.env.DB, desdeRepetidas),
   ]);
 
   const OVERDUE_HOURS = 24;
@@ -263,7 +267,26 @@ reports.get("/alerts", async (c) => {
     })
     .filter(Boolean);
 
-  return ok(c, { overdue, missingPhotos, expiringLicenses, vencimientos, fuelAnomalies });
+  // Surtidas que parecen la misma cargada dos veces (gasoil y cámara de frío). Sólo avisa: la oficina
+  // decide cuál sobra, con la boleta en la mano. Ver `shared/surtidas-repetidas.ts`.
+  const placa = new Map(trucks.map((t) => [t.id, t.plate]));
+  const ahoraD = new Date(now);
+  const repetida = (tipo: "gasoil" | "frio") => (p: ReturnType<typeof surtidasRepetidas>[number]) => ({
+    tipo,
+    truck_id: p.segunda.truck_id,
+    plate: placa.get(p.segunda.truck_id) ?? "",
+    liters: p.segunda.liters,
+    odometer_km: p.segunda.odometer_km ?? null,
+    primera: { id: p.primera.id, logged_at: p.primera.logged_at },
+    segunda: { id: p.segunda.id, logged_at: p.segunda.logged_at },
+    minutos: p.minutos,
+  });
+  const surtidasRepetidasAviso = [
+    ...repetidasVigentes(surtidasRepetidas(allFuel), ahoraD).map(repetida("gasoil")),
+    ...repetidasVigentes(surtidasRepetidas(frioReciente), ahoraD).map(repetida("frio")),
+  ].sort((a, b) => b.segunda.logged_at.localeCompare(a.segunda.logged_at));
+
+  return ok(c, { overdue, missingPhotos, expiringLicenses, vencimientos, fuelAnomalies, surtidasRepetidas: surtidasRepetidasAviso });
 });
 
 /**

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, mensajeDe } from "../../lib/api";
 import { Card, Corners, ErrorDeCarga, Spinner } from "../../components/ui";
-import { fmtDate } from "../../lib/format";
+import { fmtDate, fmtDateTime } from "../../lib/format";
 import { DIAS_PARA_AVISAR, type AvisoDeVencimiento } from "@shared/vencimientos";
 
 interface Alerts {
@@ -32,6 +32,17 @@ interface Alerts {
     expected: number;
     actual: number;
     pct: number;
+  }[];
+  /** Pares de surtidas idénticas cargadas con pocos minutos de diferencia (`shared/surtidas-repetidas.ts`). */
+  surtidasRepetidas?: {
+    tipo: "gasoil" | "frio";
+    truck_id: number;
+    plate: string;
+    liters: number;
+    odometer_km: number | null;
+    primera: { id: number; logged_at: string };
+    segunda: { id: number; logged_at: string };
+    minutos: number;
   }[];
 }
 
@@ -358,6 +369,36 @@ export function ControlPage() {
               ))}
             </Section>
           </>
+        )}
+
+        {a && (
+          <Section
+            title="Surtidas que parecen repetidas"
+            count={(a.surtidasRepetidas ?? []).length}
+            accent="amber"
+            empty="Ninguna surtida se cargó dos veces igual con pocos minutos de diferencia."
+          >
+            {/* Sólo avisa. Puede ser un reenvío por la señal, o dos cargas de verdad iguales: la oficina
+                lo decide mirando las boletas en la ficha del camión. */}
+            {(a.surtidasRepetidas ?? []).map((r) => (
+              <Row
+                key={`${r.tipo}-${r.segunda.id}`}
+                to={`/panel/camion/${r.truck_id}`}
+                left={
+                  <span className="min-w-0">
+                    {r.plate}
+                    <span className="text-ink/50"> · {fmtDateTime(r.segunda.logged_at)}</span>
+                    <span className="block font-cond text-xs uppercase tracking-[0.05em] text-ink/45 tabular-nums">
+                      {r.tipo === "frio" ? "cámara de frío" : "gasoil"}
+                      {r.odometer_km != null && ` · ${Math.round(r.odometer_km).toLocaleString("es-UY")} km`} ·{" "}
+                      {r.liters.toLocaleString("es-UY")} L
+                    </span>
+                  </span>
+                }
+                right={<span className="text-st-amberTx">dos veces, con {r.minutos} min de diferencia</span>}
+              />
+            ))}
+          </Section>
         )}
 
         {a && (

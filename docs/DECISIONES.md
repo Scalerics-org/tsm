@@ -179,6 +179,12 @@ nunca descarta nada por su cuenta.
   avisos) devuelven `ahora` junto a las últimas 20, porque el reloj de un celular puede estar corrido.
 - **Riesgo que queda:** si el primer pedido todavía se está guardando cuando se lee (más lento que 2 s), la
   lectura no lo ve y el reenvío lo duplica. Por eso existe el aviso de surtidas repetidas en Control.
+- **Aviso en Control: "Surtidas que parecen repetidas"** (`shared/surtidas-repetidas.ts`): pares del mismo
+  camión con el mismo odómetro (el gasoil) y los mismos litros, a 30 minutos o menos (`VENTANA_REPETIDA_MIN`),
+  de los últimos 30 días; la cámara de frío se compara por camión y litros. La ventana es más ancha que la de
+  reenvío a propósito: acá un falso positivo cuesta un vistazo, allá era tragarse una surtida real. **Sólo
+  avisa**: no borra ni marca nada, y el renglón lleva a la ficha del camión, donde la oficina decide cuál
+  sobra. Una vez borrada una de las dos, el aviso se va solo. El lector no lo ve (Control no está en su lista).
 
 ## Un grupo de campos donde alcanza con uno
 
