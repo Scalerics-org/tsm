@@ -137,10 +137,32 @@ volviendo a tocar (Rodrigo lo vio dos veces, 25/9/2026).
   seguro justamente porque las rutas de la lista toleran que el primer pedido sí haya llegado.
 - **Lo que ve el chofer:** una franja "Sin señal. Reintentando… (intento 2 de 3)" (`AvisoReintentando`)
   mientras dura; si fallan los tres, el mismo `SIN_SENAL` de hoy.
-- **Sigue sin reintento** (un solo intento): surtida, cámara de frío, fotos, salir, cerrar, cancelar,
-  lecturas y borrar una carga. Para surtida, frío y fotos hace falta una clave de reenvío (migración) y
-  para salir/cerrar/lecturas decidir cuándo un pedido repetido es "el mismo". Un corte ahí lo sigue
-  resolviendo el chofer volviendo a tocar.
+- **Sin reintento a ciegas:** surtida, cámara de frío, salir, cerrar y lecturas no se reenvían sin mirar antes si
+  ya llegaron (ver "Antes de reenviar, mirar si ya llegó"). Fotos, cancelar y borrar una carga siguen con un
+  solo intento: un corte ahí lo resuelve el chofer volviendo a tocar. Las fotos necesitan una clave de
+  reenvío (migración).
+
+## Qué altas del chofer se pueden reenviar sin duplicar (29/9/2026)
+
+Punto de partida de cualquier reintento automático: si el pedido llegó y se perdió la respuesta, ¿qué pasa
+al mandarlo otra vez? Revisado ruta por ruta.
+
+| Alta / cambio | Reenviarla | Por qué |
+|---|---|---|
+| `POST /trips/:id/segments` (sumar una carga) | **Segura** | El celular manda su `sid`; si ya está guardado con el mismo lugar de carga es un reenvío y se devuelve el viaje sin crear nada (`shared/reenvio-de-carga.ts`). Antes le inventaba otro sid y duplicaba. Un sid repetido con OTRO lugar de carga sigue recibiendo uno nuevo, para no pisar la foto de otra. |
+| `PATCH /trips/:id/segments/:sid` (cantidad) | **Segura** | Pone un valor, no suma. |
+| `PATCH /trips/:id/campos` (datos del camino) | **Segura** | Pone valores, no suma. |
+| `POST /libreta` (alta rápida de nombre) | **Segura** | Reutiliza la entrada si el nombre ya existe. |
+| `POST /fuel` (surtida de gasoil) | Verificando | Sin clave de reenvío guardaría otra surtida (y otro aviso a la oficina, y el consumo del camión). Tras un corte la app lee las recientes del camión y compara. |
+| `POST /frio` (gasoil de cámara) | Verificando | Igual: guardaría otra surtida de litros; se verifica igual. |
+| `POST /trips/:id/finish` (cerrar) | Verificando | Ya cerrado responde 409 "no está en curso". Tras un corte la app lee el viaje: si está completado, es éxito. |
+| `POST /trips` (salir) | Verificando | El freno "un viaje a la vez" da 409 "todavía tenés un viaje sin cerrar". Tras un corte la app lee el viaje en curso: si es de la misma plantilla y camión, es el que salió. |
+| `POST /lecturas` (tacógrafo del mes) | Verificando | Una por mes: el segundo da 409 "ya está cargada". Tras un corte la app lee la lectura del mes: la misma es éxito, una distinta es el conflicto real. |
+| `DELETE /trips/:id/segments/:sid` | Un solo intento | Los datos no se dañan (va por `sid`, no borra otra), pero el reenvío recibe 404 "ya no está": el chofer vería un error de algo que salió bien. |
+| `POST /photos` (foto) | **No** | Una carga puede tener varias fotos con el mismo `segment_sid`, así que no hay cómo reconocer un reenvío: cada envío suma una foto. Hace falta una clave de reenvío (migración). |
+
+"Verificando" = no se reenvía a ciegas: ver la sección siguiente. Las de arriba se reintentan solas (ver
+"Reintentos cuando no llega respuesta"); las verificables, con la lectura de por medio.
 
 ## Antes de reenviar, mirar si ya llegó (29/9/2026)
 
