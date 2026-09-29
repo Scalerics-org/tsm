@@ -117,37 +117,30 @@ un tilde que a veces no tilda es el que nadie vuelve a mirar. Si molesta, la sal
 Clientes (que avisa con el número de cargas). El filtro vive en la ruta `GET /libreta` (sólo para el
 chofer) y no en `listLibreta`, porque `createEntry` usa esa consulta para no duplicar nombres.
 
-## La app no reintenta ningún pedido (anotado, sin arreglar)
+## Reintentos cuando no llega respuesta (29/9/2026)
 
-Si un pedido a la API falla por red o no responde en 30 s (120 s las fotos), `src/lib/api.ts` lanza
-`SIN_SENAL` ("Sin conexión: no llegó respuesta del servidor…") y ahí termina: no hay reintento
-automático ni cola de pendientes. Un corte de red lo resuelve el usuario volviendo a tocar. Rodrigo lo
-vio dos veces (25/9/2026) y "se recuperó" porque volvió a tocar, no porque la app lo reintentara.
-No sabemos cuántas veces pasa en la ruta; con mala señal y una carga a medio mandar no hay nada atrás
-que lo cubra. Para mirarlo en serio cuando haya aire.
+`src/lib/api.ts` envuelve cada pedido con `conReintentos` (`src/lib/reintentos.ts`); ninguna pantalla cambia
+cómo llama a `api.get` / `api.post`. Antes había un solo intento y un corte lo resolvía el usuario
+volviendo a tocar (Rodrigo lo vio dos veces, 25/9/2026).
 
-## Qué altas del chofer se pueden reenviar sin duplicar (29/9/2026)
-
-Punto de partida de cualquier reintento automático: si el pedido llegó y se perdió la respuesta, ¿qué pasa
-al mandarlo otra vez? Revisado ruta por ruta.
-
-| Alta / cambio | Reenviarla | Por qué |
-|---|---|---|
-| `POST /trips/:id/segments` (sumar una carga) | **Segura** desde este cambio | El celular manda su `sid`; si ya está guardado con el mismo lugar de carga es un reenvío y se devuelve el viaje sin crear nada (`shared/reenvio-de-carga.ts`). Antes le inventaba otro sid y duplicaba. |
-| `PATCH /trips/:id/segments/:sid` (cantidad) | **Segura** | Pone un valor, no suma. |
-| `PATCH /trips/:id/campos` (datos del camino) | **Segura** | Pone valores, no suma. |
-| `POST /libreta` (alta rápida de nombre) | **Segura** | Reutiliza la entrada si el nombre ya existe. |
-| `DELETE /trips/:id/segments/:sid` | Los datos no se dañan, la respuesta engaña | Va por `sid`, no borra otra. Pero el reenvío recibe 404 "ya no está": el chofer vería un error de algo que salió bien. |
-| `POST /trips/:id/finish` (cerrar) | No duplica, pero el reenvío se ve como error | Ya cerrado responde 409 "no está en curso". Devolver 200 acá exige decidir cuándo un cierre repetido es "el mismo". |
-| `POST /trips` (salir) | No duplica, pero el reenvío se ve como error | El freno "un viaje a la vez" da 409 "todavía tenés un viaje sin cerrar". Sin una clave del celular no se distingue un reenvío de un segundo viaje. |
-| `POST /fuel` (surtida) | **No** | Sin clave de reenvío: guarda otra surtida (y otro aviso a la oficina), y con ella el consumo del camión. |
-| `POST /frio` (gasoil de cámara) | **No** | Igual: guarda otra surtida de litros. |
-| `POST /photos` (foto) | **No** | Una carga puede tener varias fotos con el mismo `segment_sid`, así que no sirve para reconocer un reenvío: cada envío suma una foto. |
-| `POST /lecturas` (tacógrafo del mes) | No duplica, pero el reenvío se ve como error | Una por mes: el segundo da 409 "ya está cargada". |
-
-Lo que no se puede volver seguro hoy (surtidas, cámara de frío, fotos) necesita una clave de reenvío que
-mande el celular y guarde el servidor: una columna nueva, o sea migración, o una decisión de producto sobre
-cuándo dos surtidas iguales son la misma. No se resolvió acá.
+- **Sólo cuando NO llegó respuesta** (`ApiError` con status 0). Una respuesta con error (4xx, 5xx) nunca
+  se reintenta: el servidor contestó y repetir no cambia nada.
+- **Qué se reintenta está en una lista explícita**, no inferida por método (`sePuedeReintentar`): todos los
+  GET (menos `/auth/*`, para que al abrir sin señal la app siga enseguida con el usuario guardado) y
+  cuatro escrituras que el servidor reconoce como reenvío: sumar una carga, corregir su cantidad, los
+  datos del camino y el alta de libreta. Todo lo demás se manda una sola vez, como antes. Sumar una ruta a
+  la lista es decidir que reenviarla es seguro; ver la tabla de arriba.
+- **Tiempo:** 3 intentos en total, con 1 s y 3 s de espera entre ellos. El primer intento espera lo de
+  siempre (30 s); cada reintento espera como mucho 15 s (`ESPERA_REINTENTO_MS`). Peor caso: 30 + 1 + 15 + 3 +
+  15 = 64 s, contra 30 s antes. Se eligió 15 s y no 30 porque ya hubo una falla y quien espera es el chofer;
+  y el corte de señal de verdad (sin red, no lenta) falla al instante, así que ahí son 4 s. Reenviar es
+  seguro justamente porque las rutas de la lista toleran que el primer pedido sí haya llegado.
+- **Lo que ve el chofer:** una franja "Sin señal. Reintentando… (intento 2 de 3)" (`AvisoReintentando`)
+  mientras dura; si fallan los tres, el mismo `SIN_SENAL` de hoy.
+- **Sigue sin reintento** (un solo intento): surtida, cámara de frío, fotos, salir, cerrar, cancelar,
+  lecturas y borrar una carga. Para surtida, frío y fotos hace falta una clave de reenvío (migración) y
+  para salir/cerrar/lecturas decidir cuándo un pedido repetido es "el mismo". Un corte ahí lo sigue
+  resolviendo el chofer volviendo a tocar.
 
 ## Un grupo de campos donde alcanza con uno
 

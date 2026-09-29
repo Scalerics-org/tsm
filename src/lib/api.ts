@@ -1,4 +1,5 @@
 import type { ApiResponse, AuthUser } from "@shared/domain";
+import { conReintentos, EVENTO_REINTENTANDO, sePuedeReintentar } from "./reintentos";
 
 const TOKEN_KEY = "logistica_token";
 /**
@@ -80,7 +81,21 @@ interface RequestOptions {
   formData?: FormData;
 }
 
-async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+/**
+ * Un pedido, con los reintentos de `reintentos.ts` cuando no llega respuesta. Ninguna pantalla
+ * cambia cómo llama a `api.get` / `api.post`: el decorador está acá, alrededor de un solo intento.
+ */
+function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+  return conReintentos((esperaMs) => intentoUnico<T>(path, opts, esperaMs), {
+    reintentable: sePuedeReintentar(opts.method ?? "GET", path),
+    sinRespuesta: (e) => e instanceof ApiError && e.status === 0,
+    avisar: (estado) => {
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(EVENTO_REINTENTANDO, { detail: estado }));
+    },
+  });
+}
+
+async function intentoUnico<T>(path: string, opts: RequestOptions, esperaMs?: number): Promise<T> {
   const headers: Record<string, string> = {};
   const token = getToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -94,7 +109,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   }
 
   const control = new AbortController();
-  const espera = setTimeout(() => control.abort(), opts.formData ? ESPERA_SUBIDA_MS : ESPERA_MS);
+  const espera = setTimeout(() => control.abort(), esperaMs ?? (opts.formData ? ESPERA_SUBIDA_MS : ESPERA_MS));
   let res: Response;
   let json: ApiResponse<T> | null;
   try {

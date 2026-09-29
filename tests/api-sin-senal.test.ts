@@ -39,7 +39,7 @@ const USUARIO = { id: 3, name: "Charlie Rosano", role: "CHOFER", driver_id: 3, t
 describe("sin señal", () => {
   it("un fetch que no llega es un error claro, con status 0", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
-    const e = await api.get("/trips/active").catch((x) => x);
+    const e = await api.post("/trips/1/finish", {}).catch((x) => x);
     expect(e).toBeInstanceOf(ApiError);
     expect(e.status).toBe(0);
     expect(e.message).toBe(SIN_SENAL);

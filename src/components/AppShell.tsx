@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { InstalarApp } from "./InstalarApp";
 import { AvisoVersionNueva } from "./AvisoVersionNueva";
+import { AvisoReintentando } from "./AvisoReintentando";
 import { ROLE_LABEL, ROLES } from "@shared/domain";
 
 export function TruckMark({ size = 20, stroke = "#f2f2f3" }: { size?: number; stroke?: string }) {
@@ -144,6 +145,7 @@ function ChoferShell({ children }: { children: ReactNode }) {
         </button>
       </header>
       <main className="flex-1 px-4 py-5 pb-24">
+        <AvisoReintentando />
         <AvisoVersionNueva />
         <InstalarApp />
         {children}
