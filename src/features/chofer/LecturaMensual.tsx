@@ -3,12 +3,16 @@ import { api, ApiError } from "../../lib/api";
 import { Button, Corners, ErrorText } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
 import { compressImage } from "../../lib/image";
+import { compararLectura } from "@shared/envio-de-viaje";
+import { enviarVerificando } from "../../lib/verificar-envio";
 
 export interface Pendiente {
   periodo: string; // "YYYY-MM"
   truck_id: number | null;
   truck_plate: string | null;
   falta: boolean;
+  /** La lectura del mes si ya está cargada (el servidor la manda; el aviso sólo mira `falta`). */
+  lectura?: { kilometraje: number } | null;
   km_anterior: number | null;
   exige_foto: boolean;
 }
@@ -66,7 +70,13 @@ export function AvisoLecturaMensual({
       const fd = new FormData();
       fd.append("kilometraje", km);
       if (foto) fd.append("file", await compressImage(foto));
-      await api.upload("/lecturas", fd);
+      // Si la señal se corta después de que llegó, se mira cómo quedó: la misma lectura es éxito; una
+      // distinta es el conflicto real y sale como hoy ("ya está cargada").
+      await enviarVerificando(
+        () => api.upload("/lecturas", fd),
+        async () =>
+          compararLectura(Number(km), (await api.get<Pendiente>("/lecturas/pendiente")).lectura ?? null) === "misma",
+      );
       setListo(true);
       // Recién ahora se le habilita salir: el aviso y el bloqueo miran el mismo dato.
       onGuardada();

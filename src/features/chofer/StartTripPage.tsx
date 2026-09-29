@@ -20,6 +20,8 @@ import { CameraCapture } from "../../components/CameraCapture";
 import { LibretaPicker } from "../../components/LibretaPicker";
 import { CampoDePlantilla } from "../../components/CampoDePlantilla";
 import { compressImage } from "../../lib/image";
+import { salidaYaCreada } from "@shared/envio-de-viaje";
+import { enviarVerificando } from "../../lib/verificar-envio";
 import { estimateTravel, fmtDuration, etaClock } from "../../lib/eta";
 import { NuevaCarga } from "./CargasPanel";
 
@@ -266,16 +268,27 @@ export function StartTripPage() {
 
     setBusy(true);
     try {
-      const trip = await api.post<Trip>("/trips", {
-        template_id: tpl!.id,
-        origin: origenFinal,
-        remitente: remitenteFinal || undefined,
-        destino: destinoFinal,
-        destinatario: destinatarioFinal || undefined,
-        field_values: values,
-        truck_id: truckId ? Number(truckId) : undefined,
-        segments: cargaLista ? [cargaLista.carga] : undefined,
-      });
+      // Si se corta la señal, se busca el viaje abierto antes de reenviar: si es de esta misma
+      // plantilla y camión, es el que acaba de salir y se sigue con él (sus fotos incluidas).
+      let abierto: Trip | null = null;
+      const salida = await enviarVerificando(
+        () =>
+          api.post<Trip>("/trips", {
+            template_id: tpl!.id,
+            origin: origenFinal,
+            remitente: remitenteFinal || undefined,
+            destino: destinoFinal,
+            destinatario: destinatarioFinal || undefined,
+            field_values: values,
+            truck_id: truckId ? Number(truckId) : undefined,
+            segments: cargaLista ? [cargaLista.carga] : undefined,
+          }),
+        async () => {
+          abierto = await api.get<Trip | null>("/trips/active");
+          return salidaYaCreada({ template_id: tpl!.id, truck_id: truckId ? Number(truckId) : null }, abierto);
+        },
+      );
+      const trip = salida.yaEstaba ? (abierto as unknown as Trip) : salida.dato;
       // El viaje ya existe. Si la foto falla —la señal que se corta en el galpón— NO es "no se
       // pudo iniciar": se sigue a la pantalla del viaje, que muestra "Falta la foto de la carga"
       // con su botón para volver a sacarla. Antes el error de la foto caía en el mismo catch y le

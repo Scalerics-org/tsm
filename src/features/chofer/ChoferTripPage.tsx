@@ -32,6 +32,8 @@ import { EnElPuente } from "./EnElPuente";
 import { DestinoAlCerrar, type DestinoElegido } from "./DestinoAlCerrar";
 import { DescargasAlCerrar, nuevoLugar } from "./DescargasAlCerrar";
 import { compressImage } from "../../lib/image";
+import { viajeYaCerrado } from "@shared/envio-de-viaje";
+import { enviarVerificando } from "../../lib/verificar-envio";
 import { estimateTravel, fmtDuration } from "../../lib/eta";
 import { fmtDateTime } from "../../lib/format";
 
@@ -402,22 +404,29 @@ function ArrivalForm({
     if (pideKilometros && !kilometros) return setError("Cargá los kilómetros del recorrido.");
     setBusy(true);
     try {
-      await api.post(`/trips/${tripId}/finish`, {
-        field_values: values,
-        notes: notes || undefined,
-        kilometros: kilometros ? Number(kilometros) : undefined,
-        // Sólo viajan si la plantilla los deja para el cierre; si no, el servidor los ignora.
-        destino: descargaPorCarga ? undefined : destinoElegido.destino || undefined,
-        destinatario: descargaPorCarga ? undefined : destinoElegido.destinatario || undefined,
-        descargas: descargaPorCarga ? descargas.descargas : undefined,
-      });
+      // Si se corta la señal, se mira cómo quedó el viaje antes de reenviar: ya completado es éxito.
+      await enviarVerificando(
+        () =>
+          api.post(`/trips/${tripId}/finish`, {
+            field_values: values,
+            notes: notes || undefined,
+            kilometros: kilometros ? Number(kilometros) : undefined,
+            // Sólo viajan si la plantilla los deja para el cierre; si no, el servidor los ignora.
+            destino: descargaPorCarga ? undefined : destinoElegido.destino || undefined,
+            destinatario: descargaPorCarga ? undefined : destinoElegido.destinatario || undefined,
+            descargas: descargaPorCarga ? descargas.descargas : undefined,
+          }),
+        async () => viajeYaCerrado((await api.get<{ trip: Trip }>(`/trips/${tripId}`)).trip),
+      );
       onDone();
     } catch (e) {
       // Si la respuesta se perdió pero el viaje sí se cerró, reintentar da "El viaje no está en
       // curso", que no le dice al chofer que su llegada quedó registrada. Antes de mostrar un
       // error se mira cómo quedó el viaje: si ya está completado, salió bien.
-      const t = await api.get<Trip>(`/trips/${tripId}`).catch(() => null);
-      if (t?.status === TRIP_STATUS.COMPLETADO) return onDone();
+      // (El detalle viene como `{ trip, photos, … }`: antes se leía `status` de la raíz, que no existe,
+      // y esta comprobación nunca daba por cerrado un viaje que sí se había cerrado.)
+      const t = await api.get<{ trip: Trip }>(`/trips/${tripId}`).catch(() => null);
+      if (viajeYaCerrado(t?.trip ?? null)) return onDone();
       setError(e instanceof ApiError ? e.message : "No se pudo registrar la llegada");
     } finally {
       setBusy(false);
