@@ -138,3 +138,14 @@ describe("esReenvioDeCarga", () => {
   it("sin sid", () => expect(esReenvioDeCarga({ remitente: "TIMBER" }, ya)).toBe(false));
   it("basura", () => expect(esReenvioDeCarga(null, ya)).toBe(false));
 });
+
+describe("el reenvío con el lugar de carga como lo escribió el celular", () => {
+  it("un lugar con espacios de más se reconoce igual, porque se guarda recortado", async () => {
+    const { db, cargas } = baseConViaje([]);
+    const conEspacios = { ...timber, remitente: "  TIMBER " };
+    await postCarga(db, [conEspacios]);
+    await postCarga(db, [conEspacios]);
+    expect(cargas()).toHaveLength(1);
+    expect(cargas()[0].remitente).toBe("TIMBER");
+  });
+});
