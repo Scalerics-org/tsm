@@ -1,5 +1,6 @@
 import { llegadaCorregida } from "../lib/llegada";
 import { bloqueoPorFacturacion } from "../../shared/bloqueo-facturacion";
+import { esReenvioDeCarga } from "../../shared/reenvio-de-carga";
 import { conCantidadesFijas, grupoIncompleto, missingField, problemaDeCantidad } from "../../shared/domain";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
@@ -447,9 +448,16 @@ trips.post("/:id/segments", async (c) => {
   }
 
   const b = (await c.req.json().catch(() => ({}))) as { segments?: unknown };
+  // Un renglón con un sid que ya está guardado (y el mismo lugar de carga) es un reenvío: el
+  // pedido llegó, se perdió la respuesta y el celular lo mandó otra vez. No se guarda de nuevo,
+  // y si eran todos reenvíos se devuelve el viaje tal cual.
+  const pedidas = Array.isArray(b.segments) ? b.segments : [];
+  const sinReenvios = pedidas.filter((r) => !esReenvioDeCarga(r, s.trip.segments));
+  if (pedidas.length && !sinReenvios.length) return okViaje(c, s.trip);
+
   // Los sid ya usados entran al set para que una carga nueva no pise el de otra —
   // y con él, la foto de otra.
-  const nuevos = parseSegments(b.segments, new Set(s.trip.segments.map((x) => x.sid)));
+  const nuevos = parseSegments(sinReenvios, new Set(s.trip.segments.map((x) => x.sid)));
   if (!nuevos.length) return fail(c, "Falta el lugar de carga", 400);
   const cantidadMala = nuevos.map((x) => problemaDeCantidad(x.cantidad)).find(Boolean);
   if (cantidadMala) return fail(c, cantidadMala, 400);

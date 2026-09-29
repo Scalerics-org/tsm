@@ -126,6 +126,29 @@ vio dos veces (25/9/2026) y "se recuperó" porque volvió a tocar, no porque la 
 No sabemos cuántas veces pasa en la ruta; con mala señal y una carga a medio mandar no hay nada atrás
 que lo cubra. Para mirarlo en serio cuando haya aire.
 
+## Qué altas del chofer se pueden reenviar sin duplicar (29/9/2026)
+
+Punto de partida de cualquier reintento automático: si el pedido llegó y se perdió la respuesta, ¿qué pasa
+al mandarlo otra vez? Revisado ruta por ruta.
+
+| Alta / cambio | Reenviarla | Por qué |
+|---|---|---|
+| `POST /trips/:id/segments` (sumar una carga) | **Segura** desde este cambio | El celular manda su `sid`; si ya está guardado con el mismo lugar de carga es un reenvío y se devuelve el viaje sin crear nada (`shared/reenvio-de-carga.ts`). Antes le inventaba otro sid y duplicaba. |
+| `PATCH /trips/:id/segments/:sid` (cantidad) | **Segura** | Pone un valor, no suma. |
+| `PATCH /trips/:id/campos` (datos del camino) | **Segura** | Pone valores, no suma. |
+| `POST /libreta` (alta rápida de nombre) | **Segura** | Reutiliza la entrada si el nombre ya existe. |
+| `DELETE /trips/:id/segments/:sid` | Los datos no se dañan, la respuesta engaña | Va por `sid`, no borra otra. Pero el reenvío recibe 404 "ya no está": el chofer vería un error de algo que salió bien. |
+| `POST /trips/:id/finish` (cerrar) | No duplica, pero el reenvío se ve como error | Ya cerrado responde 409 "no está en curso". Devolver 200 acá exige decidir cuándo un cierre repetido es "el mismo". |
+| `POST /trips` (salir) | No duplica, pero el reenvío se ve como error | El freno "un viaje a la vez" da 409 "todavía tenés un viaje sin cerrar". Sin una clave del celular no se distingue un reenvío de un segundo viaje. |
+| `POST /fuel` (surtida) | **No** | Sin clave de reenvío: guarda otra surtida (y otro aviso a la oficina), y con ella el consumo del camión. |
+| `POST /frio` (gasoil de cámara) | **No** | Igual: guarda otra surtida de litros. |
+| `POST /photos` (foto) | **No** | Una carga puede tener varias fotos con el mismo `segment_sid`, así que no sirve para reconocer un reenvío: cada envío suma una foto. |
+| `POST /lecturas` (tacógrafo del mes) | No duplica, pero el reenvío se ve como error | Una por mes: el segundo da 409 "ya está cargada". |
+
+Lo que no se puede volver seguro hoy (surtidas, cámara de frío, fotos) necesita una clave de reenvío que
+mande el celular y guarde el servidor: una columna nueva, o sea migración, o una decisión de producto sobre
+cuándo dos surtidas iguales son la misma. No se resolvió acá.
+
 ## Un grupo de campos donde alcanza con uno
 
 `TemplateField.requiere_uno_de` (`shared/domain.ts`): dos o más campos de la misma plantilla y la
