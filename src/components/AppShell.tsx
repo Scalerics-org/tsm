@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { InstalarApp } from "./InstalarApp";
 import { AvisoVersionNueva } from "./AvisoVersionNueva";
@@ -238,28 +238,96 @@ function DesktopShell({ grupos, children }: { grupos: NavGroup[]; children: Reac
             Salir
           </button>
         </header>
-        <nav className="flex items-center gap-1 overflow-x-auto border-b border-ink/10 bg-surface px-3 py-2 md:hidden">
-          {items.map((it) => (
-            <NavLink
-              key={it.to}
-              to={it.to}
-              end={it.to === "/panel"}
-              className={({ isActive }) =>
-                `flex shrink-0 items-center gap-1.5 px-3 py-1.5 font-cond text-sm font-semibold uppercase tracking-[0.06em] ${
-                  isActive ? "bg-navy text-bg" : "text-ink/60"
-                }`
-              }
-            >
-              {it.label}
-            </NavLink>
-          ))}
-        </nav>
+        <BarraDeMenuEnCelular items={items} />
         <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-6">
           <AvisoVersionNueva />
           <InstalarApp />
           {children}
         </main>
       </div>
+    </div>
+  );
+}
+
+/**
+ * El menú de oficina en el celular: una barra que se desliza dentro de su propio lugar.
+ *
+ * Son hasta once opciones y entran cuatro, así que la quinta aparece cortada y nada dice que hay más:
+ * Camiones, Choferes y Usuarios quedaban escondidas, y quien mira desde el teléfono podía creer que no
+ * existen. Dos ayudas, sin cambiar cómo funciona la barra:
+ *
+ * - Un degradé en el borde donde hay más para ver. Se va cuando ya no hay más: si deslizó hasta el final,
+ *   el de la derecha desaparece y aparece el de la izquierda. Un degradé que queda de más miente.
+ *   Con un menú corto que entra entero (el del solo mirar) no aparece ninguno.
+ * - La opción activa se centra al entrar a la pantalla: abrir Camiones, que está al final, la muestra
+ *   marcada en vez de dejar la barra corrida al principio con la opción activa escondida.
+ */
+function BarraDeMenuEnCelular({ items }: { items: NavItem[] }) {
+  const barra = useRef<HTMLElement>(null);
+  const [hayMas, setHayMas] = useState({ izq: false, der: false });
+  const { pathname } = useLocation();
+
+  const medir = useCallback(() => {
+    const el = barra.current;
+    if (!el) return;
+    // 1 px de tolerancia: el navegador redondea el scroll y en pantallas con zoom nunca llega justo.
+    const izq = el.scrollLeft > 1;
+    const der = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+    setHayMas((prev) => (prev.izq === izq && prev.der === der ? prev : { izq, der }));
+  }, []);
+
+  // Al entrar a una pantalla: la opción activa a la vista, en el medio.
+  const centrarLaActiva = useCallback(() => {
+    const el = barra.current;
+    const activa = el?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (el && activa) {
+      const centrada = activa.offsetLeft - (el.clientWidth - activa.offsetWidth) / 2;
+      el.scrollLeft = Math.max(0, centrada);
+    }
+    medir();
+  }, [medir]);
+
+  useEffect(() => {
+    centrarLaActiva();
+    // Las opciones cambian de ancho cuando carga la tipografía del menú: centrada antes de eso, la
+    // última (Usuarios) quedaba con el borde derecho cortado. Se vuelve a centrar cuando está lista.
+    let vigente = true;
+    document.fonts?.ready.then(() => vigente && centrarLaActiva());
+    return () => {
+      vigente = false;
+    };
+  }, [pathname, centrarLaActiva]);
+
+  useEffect(() => {
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  }, [medir]);
+
+  const degradado = "pointer-events-none absolute inset-y-0 w-10 from-surface via-surface/80 to-transparent";
+  return (
+    <div className="relative md:hidden">
+      <nav
+        ref={barra}
+        onScroll={medir}
+        className="relative flex items-center gap-1 overflow-x-auto border-b border-ink/10 bg-surface px-3 py-2"
+      >
+        {items.map((it) => (
+          <NavLink
+            key={it.to}
+            to={it.to}
+            end={it.to === "/panel"}
+            className={({ isActive }) =>
+              `flex shrink-0 items-center gap-1.5 px-3 py-1.5 font-cond text-sm font-semibold uppercase tracking-[0.06em] ${
+                isActive ? "bg-navy text-bg" : "text-ink/60"
+              }`
+            }
+          >
+            {it.label}
+          </NavLink>
+        ))}
+      </nav>
+      {hayMas.izq && <div aria-hidden className={`${degradado} left-0 bg-gradient-to-r`} />}
+      {hayMas.der && <div aria-hidden className={`${degradado} right-0 bg-gradient-to-l`} />}
     </div>
   );
 }
