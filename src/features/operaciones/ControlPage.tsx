@@ -70,7 +70,7 @@ const Row = ({ to, left, right }: { to?: string; left: React.ReactNode; right: R
        no entra, baja entera en vez de aplastar. */
     <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-0.5 border-t border-ink/10 py-2 text-sm first:border-t-0">
       <span className="min-w-0 text-ink">{left}</span>
-      <span className="shrink-0 text-ink/60">{right}</span>
+      <span className="max-w-full shrink-0 text-ink/60">{right}</span>
     </div>
   );
   return to ? (
