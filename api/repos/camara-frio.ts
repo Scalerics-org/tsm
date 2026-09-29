@@ -23,6 +23,15 @@ export async function listSurtidasFrio(db: D1Database, truckId: number): Promise
   return results ?? [];
 }
 
+/** Las últimas surtidas de cámara de un camión: para que la app vea si la que mandó ya quedó guardada. */
+export async function listRecentSurtidasFrio(db: D1Database, truckId: number, limit = 20): Promise<SurtidaFrio[]> {
+  const { results } = await db
+    .prepare("SELECT * FROM surtidas_frio WHERE truck_id = ? ORDER BY logged_at DESC, id DESC LIMIT ?")
+    .bind(truckId, limit)
+    .all<SurtidaFrio>();
+  return results ?? [];
+}
+
 export async function getSurtidaFrio(db: D1Database, id: number): Promise<SurtidaFrio | null> {
   return (await db.prepare("SELECT * FROM surtidas_frio WHERE id = ?").bind(id).first<SurtidaFrio>()) ?? null;
 }

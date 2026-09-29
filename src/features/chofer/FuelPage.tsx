@@ -17,6 +17,8 @@ import { CameraCapture } from "../../components/CameraCapture";
 import { compressImage } from "../../lib/image";
 import { LitrosInput } from "../../components/LitrosInput";
 import { litrosTipeados } from "@shared/litros";
+import { surtidaYaGuardada, type SurtidaDeGasoil, type SurtidasRecientes } from "@shared/envio-ya-llego";
+import { enviarVerificando } from "../../lib/verificar-envio";
 
 /** Cuando no hay de dónde sacar el km de arranque, lo tipea el chofer. */
 /**
@@ -39,6 +41,8 @@ export function FuelPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<FuelFeedback | null>(null);
+  // La surtida ya estaba guardada (se cortó la señal después de que llegó): no hay consumo para mostrar.
+  const [yaEstaba, setYaEstaba] = useState(false);
 
   // El km inicial no se pide: lo resuelve el servidor —última surtida de este camión, o el
   // odómetro que le cargó la oficina— y viene con de dónde salió, para poder mostrarlo.
@@ -145,8 +149,17 @@ export function FuelPage() {
       if (litrosT1 != null) fd.append("liters_tanque1", String(litrosT1));
       if (litrosT2 != null) fd.append("liters_tanque2", String(litrosT2));
       fd.append("is_full", String(isFull));
-      const res = await api.upload<{ feedback: FuelFeedback }>("/fuel", fd);
-      setResult(res.feedback);
+      const odometro = Number(isFull ? kmFinal : kmInicial);
+      const res = await enviarVerificando(
+        () => api.upload<{ feedback: FuelFeedback }>("/fuel", fd),
+        async () =>
+          surtidaYaGuardada(
+            { driver_id: user?.driver_id ?? null, odometer_km: odometro, liters: litros },
+            await api.get<SurtidasRecientes<SurtidaDeGasoil>>("/fuel/recientes"),
+          ),
+      );
+      if (res.yaEstaba) setYaEstaba(true);
+      else setResult(res.dato.feedback);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "No se pudo registrar la surtida");
     } finally {
@@ -154,6 +167,7 @@ export function FuelPage() {
     }
   }
 
+  if (yaEstaba) return <YaEstabaView onDone={() => navigate("/")} />;
   if (result) return <ResultView r={result} onDone={() => navigate("/")} />;
   if (inicial === null) {
     return iniciaFalló ? (
@@ -378,6 +392,27 @@ function ResultView({ r, onDone }: { r: FuelFeedback; onDone: () => void }) {
         <div className="mt-1 text-sm text-ink/60">km por litro acumulado</div>
       </Card>
 
+      <Button variant="navy" onClick={onDone} className="w-full py-4 text-lg">
+        Listo
+      </Button>
+    </div>
+  );
+}
+
+/** La señal se cortó justo después de que la surtida llegó: se la encontró guardada, no se manda otra. */
+function YaEstabaView({ onDone }: { onDone: () => void }) {
+  return (
+    <div className="space-y-5">
+      <div>
+        <div className="kicker">Combustible</div>
+        <h1 className="text-3xl text-ink">Ya estaba guardada</h1>
+      </div>
+      <Card className="border-l-4 border-l-st-greenDot">
+        <Corners />
+        <p className="text-sm text-ink/75">
+          Se cortó la señal, pero la surtida ya había llegado. No hace falta cargarla de nuevo.
+        </p>
+      </Card>
       <Button variant="navy" onClick={onDone} className="w-full py-4 text-lg">
         Listo
       </Button>

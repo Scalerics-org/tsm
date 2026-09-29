@@ -26,6 +26,22 @@ fuel.get("/", async (c) => {
 });
 
 /**
+ * GET /api/fuel/recientes — las últimas surtidas del camión, con la hora del servidor.
+ *
+ * Es de sólo lectura y no dispara nada (ni avisos ni cuentas). La usa la app cuando una surtida
+ * termina en "sin respuesta": antes de dejar que el chofer la vuelva a mandar, mira si ya quedó
+ * guardada. La hora va del servidor porque el reloj del celular puede estar corrido.
+ */
+fuel.get("/recientes", async (c) => {
+  const user = c.get("user");
+  const truckId =
+    user.role === ROLES.CHOFER ? await camionDelChofer(c, user) : c.req.query("truck") ? Number(c.req.query("truck")) : null;
+  const ahora = new Date().toISOString().replace("T", " ").slice(0, 19);
+  if (!truckId) return ok(c, { ahora, surtidas: [] });
+  return ok(c, { ahora, surtidas: await repo.listRecentFuelLogs(c.env.DB, truckId) });
+});
+
+/**
  * GET /api/fuel/inicial — con qué km arranca el tacógrafo en la pantalla de surtida.
  *
  * Se resuelve acá y no en la pantalla porque el odómetro del camión vive en `trucks` y el

@@ -32,6 +32,16 @@ frio.get("/estado", async (c) => {
   return ok(c, { camara_frio: truckId != null && (await repo.tieneCamaraFrio(c.env.DB, truckId)) });
 });
 
+// GET /api/frio/recientes — las últimas surtidas de cámara del camión, con la hora del servidor.
+// Sólo lectura: la app la usa tras un corte de señal para ver si la que mandó ya quedó guardada.
+frio.get("/recientes", async (c) => {
+  const user = c.get("user");
+  const truckId =
+    user.role === ROLES.CHOFER ? await camionDelChofer(c, user) : c.req.query("truck") ? Number(c.req.query("truck")) : null;
+  if (!truckId) return ok(c, { ahora: ahora(), surtidas: [] });
+  return ok(c, { ahora: ahora(), surtidas: await repo.listRecentSurtidasFrio(c.env.DB, truckId) });
+});
+
 // GET /api/frio?truck=N — la ficha del camión: sus surtidas de cámara y el consumo por mes.
 frio.get("/", OFICINA, async (c) => {
   const truckId = Number(c.req.query("truck"));

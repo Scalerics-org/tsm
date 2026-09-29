@@ -142,6 +142,22 @@ volviendo a tocar (Rodrigo lo vio dos veces, 25/9/2026).
   para salir/cerrar/lecturas decidir cuándo un pedido repetido es "el mismo". Un corte ahí lo sigue
   resolviendo el chofer volviendo a tocar.
 
+## Antes de reenviar, mirar si ya llegó (29/9/2026)
+
+Lo que no tiene clave de reenvío no se reintenta a ciegas. Tras un "sin respuesta", `enviarVerificando`
+(`src/lib/verificar-envio.ts`) espera 2 s, lee cómo quedó con un GET y compara con lo que mandó: si ya está,
+sale como si hubiera salido bien; si no, manda UNA vez más; si la lectura tampoco contesta, el `SIN_SENAL` de
+siempre. Un 409 del reenvío tampoco se muestra sin volver a mirar. **El servidor no cambia su forma de guardar**:
+nunca descarta nada por su cuenta.
+
+- **Surtida de gasoil y de cámara de frío** (`shared/envio-ya-llego.ts`): "ya está" = mismo chofer, mismos
+  litros y, en el gasoil, mismo odómetro, cargada en los últimos 10 minutos (`VENTANA_REENVIO_MIN`). Dos
+  surtidas parecidas con otro odómetro NO son la misma; una igual de hace una hora tampoco. La hora es la del
+  servidor: `GET /fuel/recientes` y `GET /frio/recientes` (sólo lectura, del camión del chofer, no disparan
+  avisos) devuelven `ahora` junto a las últimas 20, porque el reloj de un celular puede estar corrido.
+- **Riesgo que queda:** si el primer pedido todavía se está guardando cuando se lee (más lento que 2 s), la
+  lectura no lo ve y el reenvío lo duplica. Por eso existe el aviso de surtidas repetidas en Control.
+
 ## Un grupo de campos donde alcanza con uno
 
 `TemplateField.requiere_uno_de` (`shared/domain.ts`): dos o más campos de la misma plantilla y la

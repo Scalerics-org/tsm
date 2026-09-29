@@ -6,6 +6,9 @@ import { CameraCapture } from "../../components/CameraCapture";
 import { compressImage } from "../../lib/image";
 import { LitrosInput } from "../../components/LitrosInput";
 import { litrosTipeados } from "@shared/litros";
+import { surtidaFrioYaGuardada, type SurtidaDeFrio, type SurtidasRecientes } from "@shared/envio-ya-llego";
+import { enviarVerificando } from "../../lib/verificar-envio";
+import { useAuth } from "../../lib/auth";
 
 /**
  * Registrar surtida de la cámara de frío.
@@ -19,11 +22,14 @@ import { litrosTipeados } from "@shared/litros";
  */
 export function FrioFuelPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [litros, setLitros] = useState("");
   const [fotoBoleta, setFotoBoleta] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [guardada, setGuardada] = useState(false);
+  // Se cortó la señal después de que llegó: se la encontró guardada.
+  const [yaEstaba, setYaEstaba] = useState(false);
 
   async function confirm() {
     setError("");
@@ -36,7 +42,15 @@ export function FrioFuelPage() {
       const fd = new FormData();
       fd.append("liters", String(n));
       fd.append("boleta", await compressImage(fotoBoleta));
-      await api.upload("/frio", fd);
+      const res = await enviarVerificando(
+        () => api.upload("/frio", fd),
+        async () =>
+          surtidaFrioYaGuardada(
+            { driver_id: user?.driver_id ?? null, liters: n },
+            await api.get<SurtidasRecientes<SurtidaDeFrio>>("/frio/recientes"),
+          ),
+      );
+      setYaEstaba(res.yaEstaba);
       setGuardada(true);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "No se pudo registrar la surtida");
@@ -50,7 +64,7 @@ export function FrioFuelPage() {
       <div className="space-y-5">
         <div>
           <div className="kicker">Cámara de frío</div>
-          <h1 className="text-3xl text-ink">Surtida registrada</h1>
+          <h1 className="text-3xl text-ink">{yaEstaba ? "Ya estaba guardada" : "Surtida registrada"}</h1>
         </div>
         <Card className="border-l-4 border-l-st-greenDot">
           <Corners />

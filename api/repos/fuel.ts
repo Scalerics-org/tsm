@@ -1,5 +1,8 @@
 import type { FuelLog, OdometroCamion } from "../../shared/domain";
 
+/** Cuántas se leen para buscar la que se acaba de mandar: sobra con las de los últimos minutos. */
+const RECIENTES = 20;
+
 const SELECT = `
   SELECT f.*, tr.plate AS truck_plate, d.name AS driver_name, u.name AS verificado_por
   FROM fuel_logs f
@@ -28,6 +31,18 @@ export async function listFuelLogs(
   }
   const sql = SELECT + (where.length ? ` WHERE ${where.join(" AND ")}` : "") + " ORDER BY f.logged_at DESC";
   const { results } = await db.prepare(sql).bind(...binds).all<FuelLog>();
+  return results ?? [];
+}
+
+/**
+ * Las últimas surtidas de un camión, sin traer todo su historial. Es para que la app, tras un corte
+ * de señal, mire si la que acaba de mandar ya quedó guardada.
+ */
+export async function listRecentFuelLogs(db: D1Database, truckId: number, limit = RECIENTES): Promise<FuelLog[]> {
+  const { results } = await db
+    .prepare(`${SELECT} WHERE f.truck_id = ? ORDER BY f.logged_at DESC, f.id DESC LIMIT ?`)
+    .bind(truckId, limit)
+    .all<FuelLog>();
   return results ?? [];
 }
 
