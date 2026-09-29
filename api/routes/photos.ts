@@ -1,4 +1,5 @@
 import { leerFoto } from "../lib/archivo-foto";
+import { bloqueoPorFacturacion } from "../../shared/bloqueo-facturacion";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
@@ -88,13 +89,8 @@ photos.delete("/:id", async (c) => {
   // Un viaje ya facturado no se toca, y ésta era la única corrección de oficina sin el freno.
   // Acá pesa más que en las otras: la foto es el remito, la evidencia de que ese viaje se
   // hizo, y el borrado se lleva el objeto de R2 — no hay forma de recuperarlo.
-  if (trip.factura_numero) {
-    return fail(
-      c,
-      `Ese viaje ya está en la factura ${trip.factura_numero}. Esa foto es el respaldo: desmarcalo desde Facturación si de verdad hay que sacarla.`,
-      409,
-    );
-  }
+  const bloqueo = bloqueoPorFacturacion(trip, { tipo: "foto" });
+  if (bloqueo) return fail(c, bloqueo, 409);
 
   if (user.role === ROLES.CHOFER) {
     if (trip.driver_id !== user.driver_id) return fail(c, "No podés borrar fotos de este viaje", 403);

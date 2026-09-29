@@ -1,4 +1,5 @@
 import { llegadaCorregida } from "../lib/llegada";
+import { bloqueoPorFacturacion } from "../../shared/bloqueo-facturacion";
 import { conCantidadesFijas, grupoIncompleto, missingField, problemaDeCantidad } from "../../shared/domain";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
@@ -539,13 +540,8 @@ trips.put("/:id/segments", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
   if (!facturable) return fail(c, "Viaje no encontrado", 404);
   // Borrar y cambiar la fecha ya frenaban acá; esto se había quedado afuera y dejaba
   // cambiar cantidades — y con ellas el cobro— de un viaje que ya está en una factura emitida.
-  if (facturable.factura_numero) {
-    return fail(
-      c,
-      `Ese viaje ya está en la factura ${facturable.factura_numero}. Desmarcalo desde Facturación y después corregí las cargas.`,
-      409,
-    );
-  }
+  const bloqueo = bloqueoPorFacturacion(facturable, { tipo: "viaje", cambio: "cargas" });
+  if (bloqueo) return fail(c, bloqueo, 409);
   const trip = facturable;
   const b = (await c.req.json().catch(() => ({}))) as { segments?: unknown };
   const segs = parseSegments(b.segments);
@@ -622,13 +618,8 @@ trips.put("/:id/segments", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
 trips.put("/:id/descargas", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const trip = await tripsRepo.getTripFacturable(c.env.DB, Number(c.req.param("id")));
   if (!trip) return fail(c, "Viaje no encontrado", 404);
-  if (trip.factura_numero) {
-    return fail(
-      c,
-      `Ese viaje ya está en la factura ${trip.factura_numero}. Desmarcalo desde Facturación y después corregí dónde descargó.`,
-      409,
-    );
-  }
+  const bloqueo = bloqueoPorFacturacion(trip, { tipo: "viaje", cambio: "descargas" });
+  if (bloqueo) return fail(c, bloqueo, 409);
   if (!trip.descargas) {
     return fail(
       c,
@@ -683,13 +674,8 @@ trips.put("/:id/descargas", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c)
 trips.put("/:id/segments/:sid/cobro", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const trip = await tripsRepo.getTripFacturable(c.env.DB, Number(c.req.param("id")));
   if (!trip) return fail(c, "Viaje no encontrado", 404);
-  if (trip.factura_numero) {
-    return fail(
-      c,
-      `Ese viaje ya está en la factura ${trip.factura_numero}. Desmarcalo desde Facturación y después cambiá a quién se le cobra.`,
-      409,
-    );
-  }
+  const bloqueo = bloqueoPorFacturacion(trip, { tipo: "carga", sid: c.req.param("sid") });
+  if (bloqueo) return fail(c, bloqueo, 409);
   if (trip.status === TRIP_STATUS.CANCELADO) return fail(c, "Un viaje cancelado no se factura.", 409);
 
   const sid = c.req.param("sid");
@@ -934,13 +920,8 @@ trips.post("/:id/cancel", async (c) => {
 
   // `scoped` trae el viaje sin la facturación: hay que volver a pedirlo para poder mirarla.
   const facturable = await tripsRepo.getTripFacturable(c.env.DB, s.trip.id);
-  if (facturable?.factura_numero) {
-    return fail(
-      c,
-      `Ese viaje ya está en la factura ${facturable.factura_numero}. Desmarcalo desde Facturación y después cancelalo.`,
-      409,
-    );
-  }
+  const bloqueo = bloqueoPorFacturacion(facturable, { tipo: "viaje", cambio: "cancelar" });
+  if (bloqueo) return fail(c, bloqueo, 409);
 
   // El chofer cancela lo que está haciendo —arrancó un viaje por error, que es para lo que
   // existe el botón—, no lo que ya cerró. Un viaje COMPLETADO cancelado sale del resumen y no
@@ -976,13 +957,8 @@ trips.post("/:id/cancel", async (c) => {
 trips.patch("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const trip = await tripsRepo.getTripFacturable(c.env.DB, Number(c.req.param("id")));
   if (!trip) return fail(c, "Viaje no encontrado", 404);
-  if (trip.factura_numero) {
-    return fail(
-      c,
-      `Ese viaje ya está en la factura ${trip.factura_numero}. Desmarcalo desde Facturación y después corregilo.`,
-      409,
-    );
-  }
+  const bloqueo = bloqueoPorFacturacion(trip, { tipo: "viaje", cambio: "cabecera" });
+  if (bloqueo) return fail(c, bloqueo, 409);
 
   const b = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!b) return fail(c, "Faltan datos", 400);
@@ -1027,13 +1003,8 @@ trips.patch("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
 trips.patch("/:id/fecha", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const trip = await tripsRepo.getTripFacturable(c.env.DB, Number(c.req.param("id")));
   if (!trip) return fail(c, "Viaje no encontrado", 404);
-  if (trip.factura_numero) {
-    return fail(
-      c,
-      `Ese viaje ya está en la factura ${trip.factura_numero}. Desmarcalo desde Facturación y después cambiale la fecha.`,
-      409,
-    );
-  }
+  const bloqueo = bloqueoPorFacturacion(trip, { tipo: "viaje", cambio: "fecha" });
+  if (bloqueo) return fail(c, bloqueo, 409);
 
   const b = (await c.req.json().catch(() => null)) as { fecha?: unknown } | null;
   if (!esFechaValida(b?.fecha)) return fail(c, "La fecha va como 2026-08-21", 400);
@@ -1058,13 +1029,8 @@ trips.patch("/:id/fecha", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) =
 trips.patch("/:id/llegada", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const trip = await tripsRepo.getTripFacturable(c.env.DB, Number(c.req.param("id")));
   if (!trip) return fail(c, "Viaje no encontrado", 404);
-  if (trip.factura_numero) {
-    return fail(
-      c,
-      `Ese viaje ya está en la factura ${trip.factura_numero}. Desmarcalo desde Facturación y después corregí la llegada.`,
-      409,
-    );
-  }
+  const bloqueo = bloqueoPorFacturacion(trip, { tipo: "viaje", cambio: "llegada" });
+  if (bloqueo) return fail(c, bloqueo, 409);
   if (trip.status !== TRIP_STATUS.COMPLETADO) return fail(c, "Sólo se corrige la llegada de un viaje cerrado", 409);
 
   const b = (await c.req.json().catch(() => null)) as { llegada?: unknown } | null;
@@ -1089,13 +1055,8 @@ trips.patch("/:id/llegada", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c)
 trips.delete("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const trip = await tripsRepo.getTripFacturable(c.env.DB, Number(c.req.param("id")));
   if (!trip) return fail(c, "Viaje no encontrado", 404);
-  if (trip.factura_numero) {
-    return fail(
-      c,
-      `Ese viaje ya está en la factura ${trip.factura_numero}. Si de verdad hay que sacarlo, desmarcalo desde Facturación primero.`,
-      409,
-    );
-  }
+  const bloqueo = bloqueoPorFacturacion(trip, { tipo: "viaje", cambio: "borrar" });
+  if (bloqueo) return fail(c, bloqueo, 409);
 
   // Las claves se leen ANTES: después del DELETE la fila ya no está y no habría contra qué
   // borrar en R2.
