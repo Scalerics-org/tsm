@@ -87,7 +87,10 @@ export function ChoferTripPage() {
   const rutaFields = camposDeRuta(fields);
   // En los viajes con datos del puente, la foto del papel (la hoja del MIC) se saca ahí y no
   // al salir: "después para continuar, que le pida el nro del MIC y la foto".
-  const fotoEnElPuente = rutaFields.length > 0 && !multi_renglon && data.foto_carga_requerida;
+  // Con la foto obligatoria, o con una etiqueta puesta ("Hoja MIC") aunque no lo sea: el internacional
+  // "Otros" la ofrece sin exigirla. Una plantilla sin etiqueta y sin exigencia no muestra nada, como antes.
+  const fotoEnElPuente =
+    rutaFields.length > 0 && !multi_renglon && (data.foto_carga_requerida || !!data.carga_photo_label);
 
   return (
     <div className="space-y-5">
@@ -178,7 +181,11 @@ export function ChoferTripPage() {
           tripId={trip.id}
           campos={rutaFields}
           valores={trip.field_values}
-          fotoLabel={fotoEnElPuente ? data.carga_photo_label ?? "Foto de la carga" : null}
+          fotoLabel={
+            fotoEnElPuente
+              ? (data.carga_photo_label ?? "Foto de la carga") + (data.foto_carga_requerida ? "" : " (opcional)")
+              : null
+          }
           fotosCarga={photos.filter((p) => p.kind === PHOTO_KIND.CARGA).length}
           onDone={load}
         />
