@@ -158,3 +158,46 @@ export function estadoDeCobroDelViaje(
   if (e.facturacion !== "facturado") return "sin_facturar";
   return e.pago === "pago" ? "pago" : "facturado";
 }
+
+// ── Qué se puede marcar ──
+
+/** Lo que hace falta saber de un viaje para marcarle un cliente. */
+export interface ViajeParaMarcar {
+  status: string;
+  factura_numero?: string | null;
+  segments?: readonly CargaParaFacturar[] | null;
+}
+
+/**
+ * Por qué NO se le puede marcar (factura o pago) este cliente a este viaje; `null` si se puede.
+ *
+ * Lo verifica el servidor por cada ítem, con las cargas de AHORA: la pantalla pudo haber traído la lista
+ * vieja, y un cliente que dejó de figurar no puede quedar facturado en una fila que ya no lo muestra.
+ */
+export function motivoParaMarcarCliente(viaje: ViajeParaMarcar | null | undefined, clave: string): string | null {
+  if (!viaje) return "Ese viaje ya no está.";
+  if (estrategiaDeFacturacion(viaje) === "por_viaje") {
+    return viaje.factura_numero
+      ? `Este viaje ya salió entero en la factura ${viaje.factura_numero}.`
+      : "Este viaje no tiene cargas: se factura entero, no por cliente.";
+  }
+  if (viaje.status !== "COMPLETADO") return "Sólo se factura un viaje completado.";
+  if (!clientesDelViaje(viaje.segments).clientes.some((c) => c.clave === clave)) {
+    return "Ese cliente ya no figura en las cargas del viaje.";
+  }
+  return null;
+}
+
+/**
+ * Qué hace un atajo viejo (`{ trip_ids }`, pensado para un viaje entero) con un viaje por cliente.
+ * Con UN cliente marca a ese; con varios no marca nada, para que ningún atajo le ponga un solo número
+ * a clientes que se facturan aparte; sin ninguno (todo sin asignar) tampoco hay a quién marcar.
+ */
+export function clienteUnicoDelViaje(
+  segments: readonly CargaParaFacturar[] | null | undefined,
+): { ok: true; cliente: ClienteDelViaje } | { ok: false; motivo: string } {
+  const { clientes, sinAsignar } = clientesDelViaje(segments);
+  if (clientes.length === 1 && sinAsignar === 0) return { ok: true, cliente: clientes[0] };
+  if (clientes.length === 0) return { ok: false, motivo: "Todavía no tiene a quién cobrarle: asignalo antes." };
+  return { ok: false, motivo: "Tiene varios clientes (o cargas sin asignar): marcalos por cliente." };
+}

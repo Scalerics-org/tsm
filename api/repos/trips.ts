@@ -1,3 +1,5 @@
+import { marcasDeViajes } from "./facturacion-clientes";
+import type { FacturaDeCliente } from "../../shared/facturacion-por-cliente";
 import {
   TRIP_STATUS,
   aplicarCobro,
@@ -79,6 +81,11 @@ export interface TripFacturacion {
   pago_by: number | null;
   /** Nombre de quien marcó el pago, para mostrarlo en la lista. Null si no se sabe. */
   pago_by_name?: string | null;
+  /**
+   * La factura y el pago de cada cliente del viaje (migración 0055). Sólo los viajes "por cliente" tienen
+   * marcas acá; los demás vienen con la lista vacía y siguen con las columnas de arriba.
+   */
+  clientes_facturacion?: FacturaDeCliente[];
 }
 
 export type TripFacturable = Trip & TripFacturacion;
@@ -392,7 +399,14 @@ export async function listTrips(db: D1Database, f: TripFilters): Promise<Trip[]>
 export async function listTripsFacturables(db: D1Database, f: TripFilters): Promise<TripFacturable[]> {
   const { sql, binds } = filtrar(f);
   const { results } = await db.prepare(sql).bind(...binds).all<TripRow>();
-  return (results ?? []).map((r) => ({
+  const filas = results ?? [];
+  const marcas = await marcasDeViajes(db, filas.map((r) => r.id));
+  return filas.map((r) => aFacturable(r, marcas.get(r.id) ?? []));
+}
+
+/** La fila del viaje con su marca de facturación (la del viaje entero y la de cada cliente). */
+function aFacturable(r: TripRow, clientes: FacturaDeCliente[]): TripFacturable {
+  return {
     ...toTrip(r),
     factura_numero: r.factura_numero,
     facturado_at: r.facturado_at,
@@ -402,7 +416,23 @@ export async function listTripsFacturables(db: D1Database, f: TripFilters): Prom
     pago_at: r.pago_at,
     pago_by: r.pago_by,
     pago_by_name: r.pago_by_name ?? null,
-  }));
+    clientes_facturacion: clientes,
+  };
+}
+
+/** Varios viajes con su marca de facturación, de una vez. Los que no existen no vienen. */
+export async function getTripsFacturables(db: D1Database, ids: number[]): Promise<TripFacturable[]> {
+  const out: TripFacturable[] = [];
+  for (const tanda of enTandas(ids)) {
+    const { results } = await db
+      .prepare(`${SELECT} WHERE t.id IN (${tanda.map(() => "?").join(",")})`)
+      .bind(...tanda)
+      .all<TripRow>();
+    const filas = results ?? [];
+    const marcas = await marcasDeViajes(db, filas.map((r) => r.id));
+    out.push(...filas.map((r) => aFacturable(r, marcas.get(r.id) ?? [])));
+  }
+  return out;
 }
 
 export async function getTrip(db: D1Database, id: number): Promise<Trip | null> {
@@ -613,17 +643,7 @@ export async function updateCabecera(
 export async function getTripFacturable(db: D1Database, id: number): Promise<TripFacturable | null> {
   const r = await db.prepare(`${SELECT} WHERE t.id = ?`).bind(id).first<TripRow>();
   if (!r) return null;
-  return {
-    ...toTrip(r),
-    factura_numero: r.factura_numero,
-    facturado_at: r.facturado_at,
-    facturado_by: r.facturado_by,
-    factura_quitada: r.factura_quitada,
-    factura_quitada_at: r.factura_quitada_at,
-    pago_at: r.pago_at,
-    pago_by: r.pago_by,
-    pago_by_name: r.pago_by_name ?? null,
-  };
+  return aFacturable(r, (await marcasDeViajes(db, [id])).get(id) ?? []);
 }
 
 export async function deleteTrip(db: D1Database, id: number): Promise<void> {
@@ -780,7 +800,9 @@ export async function marcarFacturados(
       .prepare(
         `UPDATE trips SET factura_numero=?, facturado_at=?, facturado_by=?
           WHERE id IN (${tanda.map(() => "?").join(",")})
-            AND factura_numero IS NULL AND status = 'COMPLETADO'`,
+            AND factura_numero IS NULL AND status = 'COMPLETADO'
+            AND NOT EXISTS (SELECT 1 FROM viaje_cliente_facturacion v
+                             WHERE v.trip_id = trips.id AND v.factura_numero IS NOT NULL)`,
       )
       .bind(numero, quien.when, quien.userId, ...tanda),
   );
