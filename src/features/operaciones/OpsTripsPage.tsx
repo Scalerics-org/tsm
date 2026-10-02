@@ -281,8 +281,8 @@ export function OpsTripsPage() {
                 <th className="px-3 py-3" title="Día de salida → día de descarga">Salida →<br />Descarga</th>
                 <th className="px-2 py-3">Estado</th>
                 <th className="px-2 py-3" title="A quién se le cobra">Cliente</th>
-                <th className="px-2 py-3" title="Número de factura, S/F, o a quién se le cobra">Factura</th>
-                <th className="px-2 py-3">Pago</th>
+                <th className="w-16 min-w-[4rem] px-2 py-3" title="Número de factura, S/F, o a quién se le cobra">Factura</th>
+                <th className="w-16 min-w-[4rem] px-2 py-3">Pago</th>
                 <th className="px-2 py-3 text-right">Acciones</th>
               </tr>
             </thead>

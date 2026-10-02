@@ -1,6 +1,6 @@
 # Factura y pago por cliente dentro del viaje — diseño (paso A)
 
-Estado: **propuesta, sin migrar ni escribir código.** Pedido de Rodrigo: al lado de cada cliente del viaje, una
+Estado: **implementado en local (migración 0055, rutas, bloqueos, pantalla, resumen y Excel), sin desplegar; pendiente de que Rodrigo confirme la unidad (ver "Pregunta abierta: cobro o cliente").** Pedido de Rodrigo: al lado de cada cliente del viaje, una
 cajita de "facturado" y otra de "pagado", porque un viaje puede llevar carga para varios clientes. Datos de
 producción del 28/9: 24 viajes completados esperando factura llevan varios clientes; 18 se le cobran a gente
 distinta.
@@ -13,11 +13,13 @@ de un mismo cliente son una sola unidad (una factura); tres cargas de tres clien
 La clave de la unidad (`cliente_clave`) sale de la carga, y se calcula en una función pura de `shared/`:
 
 ```
-clave = cobro_tipo + ":" + (cobro_id ?? nombre normalizado)      p. ej. "cliente:74", "proveedor:saman"
+clave = cobro_tipo + ":" + nombre normalizado                     p. ej. "cliente:jair", "proveedor:saman"
 ```
 
-- Usa el id de la libreta cuando la oficina lo eligió de ahí; si no, el nombre normalizado (el mismo criterio de
-  comparación de nombres de la libreta: sin mayúsculas, acentos ni espacios de más).
+- **Siempre el nombre normalizado** (sin mayúsculas, acentos ni espacios de más), aunque la carga lleve `cobro_id`.
+  Las cargas que resuelve una regla no llevan id y las que se eligen de la libreta sí; con el id en la clave el
+  mismo cliente salía con dos claves en un viaje (dos cajitas, dos facturas). Un renombre de la libreta no se
+  propaga hoy a las cargas, así que el nombre es igual de estable.
 - Una carga **sin cobro asignado** no tiene clave: no se puede facturar y se muestra como "sin asignar". Mientras
   haya una, el viaje no puede figurar "facturado" del todo.
 - Un viaje **sin cargas** (los clásicos: Casarone, Manassi…) no tiene clientes adentro: sigue facturándose por
@@ -55,8 +57,8 @@ CREATE INDEX idx_vcf_factura ON viaje_cliente_facturacion (factura_numero);
 | Viaje | Estrategia | Dónde vive la factura |
 |---|---|---|
 | tiene `trips.factura_numero` (todo lo facturado hasta hoy) | **por viaje** | `trips.factura_numero` / `pago_at`, como hoy |
-| sin factura de viaje y **con cargas** | **por cliente** | `viaje_cliente_facturacion` |
-| sin factura de viaje y sin cargas (clásicos) | **por viaje** | `trips`, como hoy |
+| sin factura de viaje y **con algún cobro asignado** | **por cliente** | `viaje_cliente_facturacion` |
+| sin factura de viaje y sin cargas, o con cargas y **ningún** cobro asignado | **por viaje** | `trips`, como hoy |
 
 Los viajes ya facturados **no se migran ni se tocan**: siguen en `trips`, con su estado, su color y su bloqueo de
 hoy. Un viaje con cargas que nunca se facturó pasa a "por cliente" desde el despliegue. Un viaje por cliente nunca
@@ -125,16 +127,19 @@ varios clientes con un solo número.
 
 ## 7. Pantallas
 
-- **Viajes, columna Cliente:** hoy muestra un tick por carga (asignar a quién se le cobra). Para un viaje por
-  cliente se agrupa **por cliente** y cada uno lleva sus dos cajitas: `[✓ Jair] [F] [P]`. Tocar F pide el número
-  (con el último usado de sugerencia, como hoy) y deja el número debajo; tocar P marca el pago. Debajo, un enlace
-  "todos" que aplica a todos los clientes pendientes del viaje con un solo número / un solo pago.
-- **Columnas Factura y Pago** del viaje: en un viaje por cliente muestran el resumen (`2/3`), sin tick propio. Los
-  viajes por viaje (todo lo de hoy y los clásicos) se ven y se tocan igual.
-- **Color de la fila:** el de la sección 4, más la marca "a medias".
-- **Filtros** (`facturado`, `pago`, `factura`): "facturado = sí" = completamente facturado; "no" = algo por
-  facturar (el "a medias" figura acá, que es donde lo va a buscar); `factura = X` encuentra también la de un
-  cliente. Como el estado por cliente depende de las cargas (JSON), se resuelve **en memoria sobre la lista ya
+- **Viajes:** para un viaje por cliente, Cliente, Factura y Pago son una sola celda de tres columnas (las de la
+  tabla): cada renglón de la columna Cliente (el tilde de asignar y el nombre de a quién se le cobra, como el
+  dibujo de Rodrigo del 30/9) lleva a su derecha una cajita de Factura y una de Pago, a la altura de su renglón
+  también cuando el nombre ocupa dos líneas. Tres cargas de un mismo cliente son un solo cliente: las cajitas van
+  en la primera. Cada cajita de factura lleva su número abajo. Un renglón **Sin asignar** tiene las cajitas
+  apagadas (sin saber a quién, no hay a quién facturar). Debajo: "Factura 1/3 · Pago 0/1" y, si hay más de uno
+  pendiente, los enlaces "facturar a todos" y "pagaron todos". Los viajes por viaje (todo lo de hoy) se ven y se
+  tocan igual, con una sola cajita por columna.
+- **Color de la fila:** el de la sección 4.
+- **Filtros** (`facturado`, `pago`, `factura`): por cliente buscan "algo" y el "a medias" figura de los dos lados:
+  "facturado = sí" es lo que ya salió en alguna factura, "no" lo que todavía tiene algo por facturar; "pago = sí"
+  lo que ya cobró y no debe nada de lo facturado, "pago = no" lo facturado que falta cobrar (aunque falte facturar
+  a otro cliente del mismo viaje); `factura = X` encuentra también la de un cliente, y el desplegable las lista. Como el estado por cliente depende de las cargas (JSON), se resuelve **en memoria sobre la lista ya
   acotada por fechas**, no en SQL.
 - **Resumen por cliente (para facturar):** un viaje por cliente se queda en el resumen mientras le falte facturar
   algún cliente. Sus cargas ya facturadas **no suman** a los totales (el total es lo que se factura ahora), y el
@@ -166,3 +171,36 @@ Revisión adversarial del diff completo antes de reportar.
   color propio (p. ej. ámbar) se agrega sin tocar nada más.
 - **Un viaje con cargas ya facturado por viaje entero** no se parte nunca: para pasarlo a por cliente habría que
   sacarle la factura (como hoy) y volver a facturarlo.
+
+## 11. Cambios tras la revisión adversarial (3 revisores sobre el diff completo)
+
+- Un viaje con cargas y **ningún** cobro asignado se sigue facturando por viaje (si no, no había forma de
+  facturarlo: en producción son la mayoría de los viajes con cargas).
+- Los atajos viejos (`{ trip_ids }`) no marcan un viaje en curso o cancelado, y el INSERT lo verifica al escribir
+  (viaje completado y sin factura de viaje). Sacar una factura anda con una carga sin asignar; marcarla no.
+- La clave no depende de `cobro_id` (ver sección 1).
+- El peso del viaje entero no se puede repartir entre clientes: en un viaje a medias no suma al total del
+  resumen y la planilla y el Excel para facturar traen sólo lo pendiente (las cargas de un cliente facturado no
+  vuelven a salir). `cantidades` por carga ya descontaba lo facturado.
+- Las marcas se leen en una sola consulta cuando son muchos viajes (una por cada 50 hacía crecer las consultas
+  por pedido con el historial; el plan gratis de Workers tiene tope por invocación).
+- Se corrigen los textos y estados: la factura que se sacó de un cliente se avisa en el resumen ("tuvo la…"),
+  el desplegable de facturas incluye las de cada cliente, y una fecha mal escrita no tira el resumen.
+- **Conocido y sin arreglar (anotado):** (a) carreras de milisegundos entre `PUT /segments` y marcar un cliente
+  (la validación lee y después escribe); (b) renombrar un proveedor reescribe `trips.provider_name` también de
+  los viajes facturados (ya pasaba con los facturados por viaje); (c) `viajesSinFacturarDe` (al borrar una
+  plantilla) cuenta como "sin facturar" a un viaje por cliente ya facturado del todo (frena de más, no de
+  menos); (d) cualquier migración futura que rehaga `trips` o `users` con DROP TABLE se lleva la tabla de
+  facturas por cliente (hay que resguardarla y reponerla); (e) **orden de despliegue:** código nuevo contra una
+  base sin la 0055 da 500 en la lista de viajes de oficina y en cancelar viaje / borrar foto del chofer, y
+  `/api/health` da 200 igual: migrar SIEMPRE antes de desplegar.
+
+## 12. Pregunta abierta: ¿cobro o cliente?
+
+La unidad implementada es a quién se le cobra (`cobro_a`), que es lo que muestra el dibujo de Rodrigo: los renglones
+con tilde azul y la marca "PROV." de la columna Cliente son `cobro_a`/`cobro_tipo` (los proveedores no son entradas
+de `clientes`). El análisis de producción dice que 71 de 125 viajes completados sin facturar con cargas tienen al
+menos una carga sin `cobro_a`: con esta unidad esas cargas quedan con las cajitas apagadas hasta asignarles a
+quién se cobra. Si se prefiere que la unidad sean los `clientes` de la carga (el destino físico), la clave y el
+renglón cambian en un solo lugar (`shared/facturacion-por-cliente.ts`), pero la columna del dibujo cambiaría de
+contenido. Pendiente de confirmar.

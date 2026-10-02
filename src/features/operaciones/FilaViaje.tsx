@@ -18,12 +18,11 @@ import { Spinner, StatusBadge } from "../../components/ui";
 import { fmtDateTime, fmtRangoDeDias } from "../../lib/format";
 import {
   estadoDeCobroDelViaje,
-  estadoPorCliente,
   estrategiaDeFacturacion,
   type FacturaDeCliente,
 } from "@shared/facturacion-por-cliente";
 import { ClientePorCarga } from "./ClientePorCarga";
-import { FacturacionPorCliente } from "./FacturacionPorCliente";
+import { TEXTO_FACTURA, useFacturacionPorCliente } from "./FacturacionPorCliente";
 import { recordarFactura, ultimaFactura } from "./ultima-factura";
 import { FechaInput } from "../../components/FechaInput";
 import { useSoloMirar } from "../../lib/auth";
@@ -50,13 +49,6 @@ export type ViajeDeOficina = Trip & {
   /** La factura y el pago de cada cliente, en los viajes que se facturan por cliente. */
   clientes_facturacion?: FacturaDeCliente[];
 };
-
-/**
- * Lo que pide el diálogo, y cómo se llama la columna. El campo es texto libre y la oficina lo usa
- * para dos cosas: el número de la factura, o —cuando el viaje se arregla sin factura— a quién le
- * corresponde pagarlo ("SAMAN"), o "S/F". Cualquiera de las tres lo deja como facturado.
- */
-const TEXTO_FACTURA = "N° de factura, S/F, o a quién se le cobra (por ejemplo SAMAN)";
 
 const COLOR_DE_FILA: Record<ReturnType<typeof estadoDeCobroDelViaje>, string> = {
   sin_facturar: "hover:bg-surface",
@@ -86,7 +78,8 @@ export function FilaViaje({
   // fila toma el color de "lo peor que falta". Por viaje —todo lo de siempre—, un solo tilde de cada uno.
   const porCliente = estrategiaDeFacturacion(t) === "por_cliente";
   const estado = estadoDeCobroDelViaje(t, t.clientes_facturacion ?? []);
-  const cuentas = porCliente ? estadoPorCliente(t.segments, t.clientes_facturacion ?? []) : null;
+  // Las cajitas de cada cliente (viajes por cliente). Los hooks se llaman siempre; sólo se usan si es por cliente.
+  const porClienteUI = useFacturacionPorCliente({ trip: t, soloMirar, onCambio });
   const cliente = clienteDelViaje(t);
   const sinDescarga = cargasSinDescarga(t);
   const sinBoleta = descargasSinBoleta(t);
@@ -310,12 +303,18 @@ Tocá para corregir la fecha`}
       {/* A quién se le cobra. Junto a Factura y Pago, que es lo que la oficina mira de corrido.
           Los viajes con cargas llevan un tick por carga y ahí la oficina asigna a quién cobrarle
           (Rodrigo, 25/9); los clásicos, sin cargas, se ven como siempre: sólo el nombre. */}
+      {porCliente ? (
+        /* Por cliente: Cliente, Factura y Pago son una sola celda de tres columnas (las de `OpsTripsPage`), para
+           que cada par de cajitas quede a la altura de su renglón, también cuando el nombre ocupa dos líneas. */
+        <td colSpan={3} className="px-0 py-3">
+          <ClientePorCarga trip={t} soloMirar={soloMirar} onCambio={onCambio} cajitas={porClienteUI.cajitas} />
+          {porClienteUI.pie}
+        </td>
+      ) : (
+        <>
       <td className="px-2 py-3">
         {t.segments.length > 0 ? (
-          <>
-            <ClientePorCarga trip={t} soloMirar={soloMirar} onCambio={onCambio} />
-            {porCliente && <FacturacionPorCliente trip={t} soloMirar={soloMirar} onCambio={onCambio} />}
-          </>
+          <ClientePorCarga trip={t} soloMirar={soloMirar} onCambio={onCambio} />
         ) : (
           <>
             {cliente.nombres.length > 0 ? (
@@ -339,15 +338,6 @@ Tocá para corregir la fecha`}
         )}
       </td>
       <td className="px-2 py-3">
-        {cuentas ? (
-          <ResumenDeCuentas
-            hecho={cuentas.facturados}
-            de={cuentas.clientes}
-            visible={t.status === TRIP_STATUS.COMPLETADO}
-            titulo={`Facturado a ${cuentas.facturados} de ${cuentas.clientes} cliente${cuentas.clientes === 1 ? "" : "s"}${cuentas.sinAsignar ? `; ${cuentas.sinAsignar === 1 ? "una carga" : `${cuentas.sinAsignar} cargas`} sin asignar` : ""}. Se marca en la columna Cliente.`}
-            faltaAsignar={cuentas.sinAsignar > 0}
-          />
-        ) : (<>
         {/* El tilde se SIGUE VIENDO para el lector —es la mitad de lo que se mira en esta
             lista— pero apagado: mirar qué está facturado sí, cambiarlo no. */}
         {t.status === TRIP_STATUS.COMPLETADO || t.factura_numero ? (
@@ -380,19 +370,10 @@ Tocá para corregir la fecha`}
         {t.factura_numero && (
           <div className={`mt-1 text-[11px] ${estado === "pago" ? "text-st-greenTx" : "text-st-redTx"}`}>{t.factura_numero}</div>
         )}
-        </>)}
       </td>
       {/* El tilde de pago, en su propia columna. Apagado mientras el viaje no tenga factura o
           referencia, y para el lector: mirar qué está cobrado sí, cambiarlo no. */}
       <td className="px-2 py-3">
-        {cuentas ? (
-          <ResumenDeCuentas
-            hecho={cuentas.pagados}
-            de={cuentas.facturados}
-            visible={cuentas.facturados > 0}
-            titulo={`Pago de ${cuentas.pagados} de los ${cuentas.facturados} cliente${cuentas.facturados === 1 ? "" : "s"} facturado${cuentas.facturados === 1 ? "" : "s"}. Se marca en la columna Cliente.`}
-          />
-        ) : (<>
         {t.factura_numero ? (
           <button
             type="button"
@@ -432,8 +413,9 @@ Tocá para corregir la fecha`}
             {quienPago}
           </div>
         )}
-        </>)}
       </td>
+        </>
+      )}
       <td className="px-2 py-3 text-right">
         {soloMirar ? (
           <span className="text-ink/30">—</span>
@@ -479,41 +461,6 @@ Tocá para corregir la fecha`}
         )}
       </td>
     </tr>
-  );
-}
-
-/**
- * "2/3": cuántos clientes del viaje llevan la marca, en las columnas Factura y Pago de un viaje por cliente.
- * Sólo lee: las cajitas están en la columna Cliente, al lado de cada nombre. Completo (todos) va marcado.
- */
-function ResumenDeCuentas({
-  hecho,
-  de,
-  visible,
-  titulo,
-  faltaAsignar = false,
-}: {
-  hecho: number;
-  de: number;
-  visible: boolean;
-  titulo: string;
-  faltaAsignar?: boolean;
-}) {
-  if (!visible) return <span className="text-ink/30" title="Todavía no hay nada que mostrar">—</span>;
-  const completo = de > 0 && hecho === de && !faltaAsignar;
-  return (
-    <span
-      title={titulo}
-      className={`inline-block whitespace-nowrap border px-1.5 py-0.5 font-cond text-xs font-semibold tabular-nums ${
-        completo
-          ? "border-st-greenDot bg-st-greenDot text-bg"
-          : hecho > 0
-            ? "border-st-amberDot text-st-amberTx"
-            : "border-ink/25 text-ink/45"
-      }`}
-    >
-      {hecho}/{de}
-    </span>
   );
 }
 

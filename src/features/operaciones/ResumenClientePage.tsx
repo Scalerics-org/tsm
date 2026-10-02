@@ -34,7 +34,9 @@ interface Fila {
   factura_numero: string | null;
   factura_quitada: string | null;
   /** Los clientes del viaje con su factura, si se factura por cliente; `null` si es por viaje, como siempre. */
-  clientes?: { clave: string; nombre: string; factura_numero: string | null; pago_at: string | null }[] | null;
+  clientes?:
+    | { clave: string; nombre: string; factura_numero: string | null; pago_at: string | null; factura_quitada: string | null }[]
+    | null;
 }
 
 interface Grupo {
@@ -537,7 +539,7 @@ function GrupoTabla({
           {grupo.filas.map((f) => (
             <tr
               key={f.trip_id}
-              className={`border-b border-ink/10 ${f.factura_numero ? "bg-ink/[0.04]" : ""}`}
+              className={`border-b border-ink/10 ${f.factura_numero || (f.clientes?.length && f.clientes.every((c) => c.factura_numero)) ? "bg-ink/[0.04]" : ""}`}
             >
               <td className="px-3 py-2">
                 <input
@@ -574,7 +576,14 @@ function GrupoTabla({
               <td className="whitespace-nowrap px-3 py-2 text-ink/70">{f.chofer}</td>
               <td className="whitespace-nowrap px-3 py-2">
                 {f.clientes && f.clientes.length > 0 ? (
-                  <FacturaPorCliente clientes={f.clientes} />
+                  <>
+                    <FacturaPorCliente clientes={f.clientes} />
+                    {f.factura_quitada && (
+                      <div className="mt-0.5 font-cond text-[12px] font-semibold uppercase tracking-[0.08em] text-st-amberTx">
+                        el viaje tuvo la {f.factura_quitada}
+                      </div>
+                    )}
+                  </>
                 ) : f.factura_numero ? (
                   <span className="font-cond text-[12px] font-semibold uppercase tracking-[0.08em] text-ink">
                     ✓ {f.factura_numero}
@@ -633,6 +642,10 @@ function FacturaPorCliente({ clientes }: { clientes: NonNullable<Fila["clientes"
           </span>
           {c.factura_numero ? (
             <span className="font-cond font-semibold uppercase tracking-[0.08em] text-ink">✓ {c.factura_numero}</span>
+          ) : c.factura_quitada ? (
+            /* Ya salió una vez en una factura y se la sacaron: si se factura de nuevo con otro número, en DGI
+               quedan las dos. Es lo mismo que el aviso de siempre, por cliente. */
+            <span className="font-cond font-semibold uppercase tracking-[0.08em] text-st-amberTx">tuvo la {c.factura_quitada}</span>
           ) : (
             <span className="text-ink/35">sin facturar</span>
           )}

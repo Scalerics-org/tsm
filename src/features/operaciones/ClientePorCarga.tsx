@@ -3,6 +3,7 @@ import { COBRO_TIPO, TRIP_STATUS, cobroPorCarga, type Trip } from "@shared/domai
 import { bloqueoPorFacturacion } from "@shared/bloqueo-facturacion";
 import type { FacturaDeCliente } from "@shared/facturacion-por-cliente";
 import { CobroDeCargaDialog } from "./CobroDeCargaDialog";
+import type { Cajitas } from "./FacturacionPorCliente";
 
 /**
  * Cuántos ticks se ven de entrada. Rodrigo habla de dos o tres cargas por viaje y en Otros Viajes
@@ -28,10 +29,13 @@ export function ClientePorCarga({
   trip,
   soloMirar,
   onCambio,
+  cajitas,
 }: {
   trip: Trip & { factura_numero?: string | null; clientes_facturacion?: FacturaDeCliente[] };
   soloMirar: boolean;
   onCambio: () => void;
+  /** Las cajitas de factura y de pago de cada renglón, en las dos columnas de al lado (viajes por cliente). */
+  cajitas?: Cajitas;
 }) {
   const cargas = cobroPorCarga(trip);
   const [abierta, setAbierta] = useState<string | null>(null);
@@ -65,7 +69,7 @@ export function ClientePorCarga({
             asignada ? `Se le cobra a ${c.nombre} (${c.tipo ?? COBRO_TIPO.CLIENTE}).` : "Todavía no tiene a quién cobrarle."
           }`;
           return (
-            <li key={c.sid}>
+            <li key={c.sid} className={cajitas ? "grid grid-cols-[minmax(0,1fr)_4rem_4rem] items-start" : undefined}>
               <button
                 type="button"
                 onClick={() => setAbierta(c.sid)}
@@ -95,6 +99,12 @@ export function ClientePorCarga({
                   <span className="whitespace-nowrap italic text-ink/40">Sin asignar</span>
                 )}
               </button>
+              {cajitas && (
+                <>
+                  <div className="px-2">{cajitas.f(c.sid)}</div>
+                  <div className="px-2">{cajitas.p(c.sid)}</div>
+                </>
+              )}
             </li>
           );
         })}
