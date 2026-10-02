@@ -223,7 +223,9 @@ async function reapuntarCargas(
   const { results } = await db
     .prepare(
       `SELECT id, segments FROM trips
-        WHERE segments IS NOT NULL AND segments != '[]' AND factura_numero IS NULL`,
+        WHERE segments IS NOT NULL AND segments != '[]' AND factura_numero IS NULL
+          AND NOT EXISTS (SELECT 1 FROM viaje_cliente_facturacion v
+                           WHERE v.trip_id = trips.id AND v.factura_numero IS NOT NULL)`,
     )
     .all<{ id: number; segments: string }>();
 

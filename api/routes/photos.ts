@@ -89,7 +89,7 @@ photos.delete("/:id", async (c) => {
   // Un viaje ya facturado no se toca, y ésta era la única corrección de oficina sin el freno.
   // Acá pesa más que en las otras: la foto es el remito, la evidencia de que ese viaje se
   // hizo, y el borrado se lleva el objeto de R2 — no hay forma de recuperarlo.
-  const bloqueo = bloqueoPorFacturacion(trip, { tipo: "foto" });
+  const bloqueo = bloqueoPorFacturacion(trip, { tipo: "foto", sid: foto.segment_sid });
   if (bloqueo) return fail(c, bloqueo, 409);
 
   if (user.role === ROLES.CHOFER) {

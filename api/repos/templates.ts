@@ -188,6 +188,8 @@ export async function updateTemplate(db: D1Database, id: number, t: TemplateInpu
       .prepare(
         `UPDATE trips SET provider_name = (SELECT name FROM providers WHERE id = ?)
           WHERE template_id = ? AND factura_numero IS NULL
+            AND NOT EXISTS (SELECT 1 FROM viaje_cliente_facturacion v
+                             WHERE v.trip_id = trips.id AND v.factura_numero IS NOT NULL)
             AND provider_name IS NOT (SELECT name FROM providers WHERE id = ?)`,
       )
       .bind(t.provider_id, id, t.provider_id),

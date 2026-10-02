@@ -1,4 +1,5 @@
 import { marcasDeViajes } from "./facturacion-clientes";
+import { tieneAlgoFacturado } from "../../shared/bloqueo-facturacion";
 import type { FacturaDeCliente } from "../../shared/facturacion-por-cliente";
 import {
   TRIP_STATUS,
@@ -549,7 +550,7 @@ export async function restamparCobros(
   let cambiadas = 0;
 
   for (const t of trips) {
-    if (t.factura_numero || t.status === TRIP_STATUS.CANCELADO) continue;
+    if (tieneAlgoFacturado(t) || t.status === TRIP_STATUS.CANCELADO) continue;
     if (!t.segments.some((s) => s.remitente_id === remitenteId && !s.cobro_manual)) continue;
 
     const actualizados = t.segments.map((s) =>
@@ -577,7 +578,7 @@ export async function completarCobrosPendientes(
   let destrabadas = 0;
 
   for (const t of trips) {
-    if (t.factura_numero) continue;
+    if (tieneAlgoFacturado(t)) continue;
     if (!t.segments.some((s) => !s.cobro_tipo && !s.cobro_manual)) continue;
 
     const actualizados = completarPendientes(reglas, t.segments);

@@ -1,5 +1,5 @@
 import { llegadaCorregida } from "../lib/llegada";
-import { bloqueoPorFacturacion } from "../../shared/bloqueo-facturacion";
+import { bloqueoPorCambioDeCargas, bloqueoPorFacturacion } from "../../shared/bloqueo-facturacion";
 import { esReenvioDeCarga } from "../../shared/reenvio-de-carga";
 import { conCantidadesFijas, grupoIncompleto, missingField, problemaDeCantidad } from "../../shared/domain";
 import { Hono } from "hono";
@@ -598,6 +598,10 @@ trips.put("/:id/segments", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
     };
   });
 
+  // En un viaje por cliente, lo único que se frena es lo que toca a un cliente ya facturado.
+  const bloqueoCargas = bloqueoPorCambioDeCargas(facturable, finales);
+  if (bloqueoCargas) return fail(c, bloqueoCargas, 409);
+
   await tripsRepo.updateSegments(c.env.DB, trip.id, finales, {
     userId: c.get("user").id,
     when: nowIso(),
@@ -717,6 +721,10 @@ trips.put("/:id/segments/:sid/cobro", requireRole(ROLES.ENCARGADO, ROLES.ADMIN),
     const reglas = await libretaRepo.listReglas(c.env.DB);
     segments = segments.map((x) => (x.sid === sid ? aplicarCobro(reglas, [x])[0] : x));
   }
+
+  // La carga de un cliente facturado no se mueve (arriba), y tampoco se le suma una a uno ya facturado.
+  const bloqueoNuevo = bloqueoPorCambioDeCargas(trip, segments);
+  if (bloqueoNuevo) return fail(c, bloqueoNuevo, 409);
 
   await tripsRepo.updateSegments(c.env.DB, trip.id, segments, {
     userId: c.get("user").id,

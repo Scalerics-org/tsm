@@ -1,3 +1,4 @@
+import { tieneAlgoFacturado } from "../../shared/bloqueo-facturacion";
 import { TRIP_STATUS, completarPendientes, type CobroRegla, type Trip, type TripSegment } from "../../shared/domain";
 
 /**
@@ -24,6 +25,8 @@ const normalizar = (s: string): string =>
 
 export interface ViajeEnganchable extends Pick<Trip, "id" | "status" | "segments"> {
   factura_numero?: string | null;
+  /** La factura de cada cliente: un viaje con algo facturado no se reescribe. */
+  clientes_facturacion?: { cliente_clave: string; cliente_nombre: string; factura_numero: string | null }[];
 }
 
 export interface Enganche {
@@ -59,7 +62,7 @@ export function engancharEnViajes(
   const out: ViajeConCargasNuevas[] = [];
 
   for (const v of viajes) {
-    if (v.factura_numero || v.status === TRIP_STATUS.CANCELADO) continue;
+    if (tieneAlgoFacturado({ factura_numero: v.factura_numero ?? null, clientes_facturacion: v.clientes_facturacion }) || v.status === TRIP_STATUS.CANCELADO) continue;
     let cargas = 0;
     const nuevas = v.segments.map((s) => {
       if (s.remitente_id != null || normalizar(s.remitente) !== buscado) return s;
