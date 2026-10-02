@@ -63,7 +63,11 @@ export interface FilaResumen {
    * Los clientes del viaje con su factura, SÓLO en los que se facturan por cliente (`null` = por viaje, como
    * siempre). Un cliente sin `factura_numero` es lo que todavía falta facturar de ese viaje.
    */
-  clientes: { clave: string; nombre: string; factura_numero: string | null; pago_at: string | null }[] | null;
+  clientes:
+    | { clave: string; nombre: string; factura_numero: string | null; pago_at: string | null; factura_quitada: string | null }[]
+    | null;
+  /** Por cliente y con algo ya facturado: su peso de viaje entero no se puede repartir y no suma al total. */
+  a_medias: boolean;
   /** El número que TUVO y le sacaron: avisa que este viaje ya salió una vez en una factura. */
   factura_quitada: string | null;
 }
@@ -166,6 +170,7 @@ function conPesoNormalizado(t: ViajeDelResumen, pesos: Set<string>): Record<stri
 function fila(t: ViajeDelResumen, pesos: Set<string>): FilaResumen {
   const porCliente = estrategiaDeFacturacion(t) === "por_cliente";
   const marcas = new Map((t.clientes_facturacion ?? []).filter((m) => m.factura_numero).map((m) => [m.cliente_clave, m]));
+  const trazas = new Map((t.clientes_facturacion ?? []).map((m) => [m.cliente_clave, m]));
   return {
     trip_id: t.id,
     fecha: t.started_at.slice(0, 10),
@@ -191,8 +196,11 @@ function fila(t: ViajeDelResumen, pesos: Set<string>): FilaResumen {
           nombre: c.nombre,
           factura_numero: marcas.get(c.clave)?.factura_numero ?? null,
           pago_at: marcas.get(c.clave)?.pago_at ?? null,
+          // El número que TUVO y le sacaron: avisa que ya salió una vez en otra factura.
+          factura_quitada: trazas.get(c.clave)?.factura_quitada ?? null,
         }))
       : null,
+    a_medias: porCliente && marcas.size > 0,
     factura_numero: t.factura_numero ?? null,
     // Para que al volver a facturarlo se vea que ese viaje ya salió una vez en otra factura.
     factura_quitada: t.factura_quitada ?? null,
@@ -278,6 +286,8 @@ export function resumenCliente(
   cantidades: Record<string, number>;
   /** Cuántos quedaron escondidos por estar facturados, para poder ofrecer verlos. */
   facturados: number;
+  /** Viajes por cliente con algo ya facturado: su peso no suma a `totales`. */
+  a_medias: number;
   /** Cargas que la regla manda cobrarle a otro. Vacío = todo se le cobra a este cliente. */
   cobros_ajenos: { cobro_a: string; cargas: number }[];
   /**
@@ -310,7 +320,7 @@ export function resumenCliente(
         titulo,
         filas: suyas,
         viajes: suyas.length,
-        totales: totalizar(suyas, columnas),
+        totales: totalizar(suyas.filter((f) => !f.a_medias), columnas),
         cantidades: cantidadesDeCargas(suyas),
       });
     }
@@ -319,7 +329,7 @@ export function resumenCliente(
       titulo: "",
       filas,
       viajes: filas.length,
-      totales: totalizar(filas, columnas),
+      totales: totalizar(filas.filter((f) => !f.a_medias), columnas),
       cantidades: cantidadesDeCargas(filas),
     });
   }
@@ -328,8 +338,11 @@ export function resumenCliente(
     columnas,
     grupos,
     viajes: filas.length,
-    totales: totalizar(filas, columnas),
+    // El peso es del viaje entero: en uno a medias ya se facturó parte y no hay cómo repartirlo, así que no suma
+    // (sí lo que suman las cargas pendientes, en `cantidades`). `a_medias` lo cuenta para que la pantalla lo diga.
+    totales: totalizar(filas.filter((f) => !f.a_medias), columnas),
     cantidades: cantidadesDeCargas(filas),
+    a_medias: filas.filter((f) => f.a_medias).length,
     facturados,
     cobros_ajenos: opts.cliente ? cobrosAjenos(filas, opts.cliente) : [],
     en_curso: trips.filter((t) => t.status === TRIP_STATUS.EN_CURSO).length,

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { resumenCliente, viajesAFacturar } from "../api/lib/resumen-cliente";
-import { planillaParaFacturar } from "../api/lib/export-viajes";
+import { planillaParaFacturar, soloLoPendiente } from "../api/lib/export-viajes";
 import { facturaDelViaje, tieneAlgoPorFacturar } from "../shared/facturacion-por-cliente";
 
 /**
@@ -64,9 +64,9 @@ describe("resumenCliente con viajes por cliente", () => {
     );
     const [porCliente, deSiempre] = r.grupos[0].filas;
     expect(porCliente.clientes).toEqual([
-      { clave: "cliente:jair", nombre: "Jair", factura_numero: "A-1", pago_at: null },
-      { clave: "cliente:bmr", nombre: "BMR", factura_numero: null, pago_at: null },
-      { clave: "cliente:uam", nombre: "UAM", factura_numero: null, pago_at: null },
+      { clave: "cliente:jair", nombre: "Jair", factura_numero: "A-1", pago_at: null, factura_quitada: null },
+      { clave: "cliente:bmr", nombre: "BMR", factura_numero: null, pago_at: null, factura_quitada: null },
+      { clave: "cliente:uam", nombre: "UAM", factura_numero: null, pago_at: null, factura_quitada: null },
     ]);
     expect(deSiempre.clientes).toBeNull();
   });
@@ -118,5 +118,40 @@ describe("facturaDelViaje y tieneAlgoPorFacturar", () => {
     expect(tieneAlgoPorFacturar(v, v.clientes_facturacion)).toBe(true);
     const todos = [JAIR, BMR, UAM];
     expect(tieneAlgoPorFacturar(v, todos)).toBe(false);
+  });
+});
+
+describe("lo ya facturado no se vuelve a cobrar desde los totales ni desde el Excel", () => {
+  const conPeso = (marcas: any[]) => viaje(1, { segments: tres, kilos_carga: 3000, field_values: { peso: "3000" }, clientes_facturacion: marcas });
+  const plantilla = [{ id: 1, provider_name: "Combinados Varios", fields: [{ key: "peso", label: "Kilos", type: "numero", stage: "carga", required: false, is_weight: true }] }] as any;
+
+  it("el peso de un viaje a medias no suma al total (no hay cómo repartirlo), y se cuenta aparte", () => {
+    const sinNada = resumenCliente([conPeso([])], plantilla);
+    expect(sinNada.totales.peso).toBe(3000);
+    expect(sinNada.a_medias).toBe(0);
+    const aMedias = resumenCliente([conPeso([JAIR])], plantilla);
+    expect(aMedias.totales.peso ?? 0).toBe(0);
+    expect(aMedias.a_medias).toBe(1);
+  });
+
+  it("la planilla de facturar no trae el peso ni los clientes ya facturados de un viaje a medias, ni lo suma al total", () => {
+    const filas = planillaParaFacturar([conPeso([JAIR])], []);
+    const [encabezado, fila, total] = filas;
+    expect(fila[encabezado.indexOf("Kilos")]).toBe("");
+    expect(total[encabezado.indexOf("Kilos")]).toBe(0);
+  });
+
+  it("soloLoPendiente saca las cargas de los clientes facturados y deja el viaje de siempre como está", () => {
+    expect(soloLoPendiente(conPeso([JAIR])).segments.map((s: any) => s.sid)).toEqual(["b", "c"]);
+    const deSiempre = viaje(2, { factura_numero: "A-1", segments: tres });
+    expect(soloLoPendiente(deSiempre)).toBe(deSiempre);
+    const sinNada = conPeso([]);
+    expect(soloLoPendiente(sinNada)).toBe(sinNada);
+  });
+
+  it("el resumen avisa la factura que se sacó de un cliente: ya salió una vez", () => {
+    const v = viaje(1, { segments: tres, clientes_facturacion: [{ ...marca("cliente:jair", "Jair", null), factura_quitada: "A-0" }] });
+    const r = resumenCliente([v], []);
+    expect(r.grupos[0].filas[0].clientes![0]).toMatchObject({ factura_numero: null, factura_quitada: "A-0" });
   });
 });

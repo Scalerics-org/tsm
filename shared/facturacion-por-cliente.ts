@@ -34,7 +34,11 @@ export function claveDeCliente(carga: Pick<CargaParaFacturar, "cobro_a" | "cobro
   const nombre = carga.cobro_a?.trim();
   if (!nombre) return null;
   const tipo = carga.cobro_tipo ?? "cliente";
-  return `${tipo}:${carga.cobro_id != null ? carga.cobro_id : normalizeNombre(nombre)}`;
+  // SIEMPRE el nombre normalizado, aunque la carga lleve `cobro_id`: las cargas que resuelve una regla no
+  // llevan id y las que se eligen de la libreta sí, y con el id en la clave el mismo cliente salía con dos
+  // claves en un viaje (dos cajitas, dos facturas). Hoy un renombre de la libreta no se propaga a las cargas,
+  // así que el nombre es igual de estable.
+  return `${tipo}:${normalizeNombre(nombre)}`;
 }
 
 /** Los clientes distintos del viaje, en el orden en que aparecen sus cargas, y cuántas cargas quedaron sin asignar. */
@@ -76,7 +80,10 @@ export function estrategiaDeFacturacion(viaje: {
   segments?: readonly unknown[] | null;
 }): EstrategiaDeFacturacion {
   if (viaje.factura_numero) return "por_viaje";
-  return viaje.segments && viaje.segments.length > 0 ? "por_cliente" : "por_viaje";
+  // Por cliente sólo si hay a quién separar: un viaje con cargas pero NINGÚN cobro asignado se sigue
+  // facturando por viaje, con el tilde de siempre (si no, quedaba sin forma de facturarse).
+  const cargas = (viaje.segments ?? []) as readonly CargaParaFacturar[];
+  return clientesDelViaje(cargas).clientes.length > 0 ? "por_cliente" : "por_viaje";
 }
 
 // ── El estado ──
@@ -195,9 +202,11 @@ export function motivoParaMarcarCliente(viaje: ViajeParaMarcar | null | undefine
  */
 export function clienteUnicoDelViaje(
   segments: readonly CargaParaFacturar[] | null | undefined,
+  /** Sacar una factura o un pago no necesita que todas las cargas estén asignadas; marcarla sí. */
+  opts: { ignorarSinAsignar?: boolean } = {},
 ): { ok: true; cliente: ClienteDelViaje } | { ok: false; motivo: string } {
   const { clientes, sinAsignar } = clientesDelViaje(segments);
-  if (clientes.length === 1 && sinAsignar === 0) return { ok: true, cliente: clientes[0] };
+  if (clientes.length === 1 && (sinAsignar === 0 || opts.ignorarSinAsignar)) return { ok: true, cliente: clientes[0] };
   if (clientes.length === 0) return { ok: false, motivo: "Todavía no tiene a quién cobrarle: asignalo antes." };
   return { ok: false, motivo: "Tiene varios clientes (o cargas sin asignar): marcalos por cliente." };
 }
@@ -216,11 +225,12 @@ const igual = (a: string | null | undefined, b: string) => (a ?? "").trim().toLo
 /**
  * ¿Pasa este viaje los filtros de facturación de la lista?
  *
- * Por viaje es EXACTAMENTE lo que antes hacía el SQL (`t.factura_numero IS NOT NULL`, etc.). Por cliente
- * se lee del color de la fila, para que lo que se filtra sea lo que se ve: "facturado = sí" es lo rojo y
- * lo verde (todo facturado), "no" es lo blanco de un viaje completado (algo por facturar, el "a medias"
- * incluido), "pago = sí" es lo verde, "pago = no" es lo rojo (todo facturado y algo sin cobrar), y la
- * factura se busca también entre las de cada cliente.
+ * Por viaje es EXACTAMENTE lo que antes hacía el SQL (`t.factura_numero IS NOT NULL`, etc.). Por cliente los
+ * filtros buscan "algo" y el "a medias" figura de los dos lados, para que nada quede escondido: "facturado = sí"
+ * es lo que ya salió en alguna factura, "no" lo que todavía tiene algo por facturar; "pago = sí" lo que ya cobró y
+ * no debe nada de lo facturado, "pago = no" lo facturado que falta cobrar (aunque falte facturar a otro cliente
+ * del mismo viaje); y la factura se busca también entre las de cada cliente. El color de la fila es otra cosa:
+ * dice "lo peor que falta".
  */
 export function pasaFiltroDeCobro(
   viaje: {
@@ -240,11 +250,15 @@ export function pasaFiltroDeCobro(
     if (f.factura && !igual(viaje.factura_numero, f.factura)) return false;
     return true;
   }
-  const color = estadoDeCobroDelViaje(viaje, marcas);
-  if (f.facturado === "si" && color === "sin_facturar") return false;
-  if (f.facturado === "no" && !(color === "sin_facturar" && viaje.status === "COMPLETADO")) return false;
-  if (f.pago === "si" && color !== "pago") return false;
-  if (f.pago === "no" && color !== "facturado") return false;
+  // Por cliente los filtros buscan "algo": el "a medias" figura de los dos lados para que nada quede
+  // escondido. "Facturado = sí" es lo que ya salió en alguna factura; "no", lo que todavía tiene algo por
+  // facturar; "pago = sí", lo que ya cobró y no debe nada de lo facturado; "pago = no", lo facturado que
+  // todavía no se cobró (aunque falte facturar a otro cliente del mismo viaje).
+  const e = estadoPorCliente(viaje.segments, marcas);
+  if (f.facturado === "si" && e.facturados === 0) return false;
+  if (f.facturado === "no" && !(viaje.status === "COMPLETADO" && e.facturacion !== "facturado")) return false;
+  if (f.pago === "si" && !(e.facturados > 0 && e.pagados === e.facturados)) return false;
+  if (f.pago === "no" && !(e.facturados > e.pagados)) return false;
   if (f.factura && !marcas.some((m) => igual(m.factura_numero, f.factura!))) return false;
   return true;
 }

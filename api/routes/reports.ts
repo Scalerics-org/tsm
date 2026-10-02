@@ -12,7 +12,7 @@ import {
   type PendienteCobro,
   type Trip, destinoVisible, origenVisible } from "../../shared/domain";
 import { listTrips, listTripsFacturables } from "../repos/trips";
-import { columnasDeCampos, encabezado, filasDeViaje, resumenParaElCliente, planillaParaFacturar } from "../lib/export-viajes";
+import { columnasDeCampos, encabezado, filasDeViaje, resumenParaElCliente, planillaParaFacturar, soloLoPendiente } from "../lib/export-viajes";
 import { csvResponse } from "../lib/csv";
 import { consumoDelCamion, consumoMensualDelCamion } from "../lib/consumo-camiones";
 import { verificarMeses } from "../../shared/verificacion-mensual";
@@ -435,7 +435,9 @@ reports.get("/trips.csv", async (c) => {
       planillaParaFacturar(trips, campos),
     );
   }
-  const rows = trips.flatMap((t) => filasDeViaje(t, campos));
+  // Para facturar, lo ya facturado a un cliente no vuelve a salir: las cargas de un cliente facturado se
+  // sacan del Excel por carga igual que los viajes facturados enteros no vienen sin `incluirFacturados`.
+  const rows = trips.flatMap((t) => filasDeViaje(soloFacturables && q.incluirFacturados !== "1" ? soloLoPendiente(t as any) : t, campos));
   return csvResponse(q.provider ? `viajes-${q.provider}.csv` : "viajes.csv", [encabezado(campos), ...rows]);
 });
 

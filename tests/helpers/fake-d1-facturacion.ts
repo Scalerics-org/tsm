@@ -102,6 +102,9 @@ export function fakeD1Facturacion(viajes: FilaViaje[], marcas: FilaMarca[] = [],
 
     if (q.startsWith("insert into viaje_cliente_facturacion")) {
       const [trip_id, clave, nombre, numero, when, by] = b as [number, string, string, string, string, number];
+      // El INSERT…SELECT sólo escribe si el viaje sigue completado y sin factura de viaje.
+      const viaje = viajes.find((v) => v.id === trip_id);
+      if (!viaje || viaje.status !== "COMPLETADO" || viaje.factura_numero !== null) return 0;
       const ya = marca(trip_id, clave);
       if (!ya) {
         marcas.push({

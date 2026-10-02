@@ -1,4 +1,4 @@
-import { facturaDelViaje, type FacturaDeCliente } from "../../shared/facturacion-por-cliente";
+import { claveDeCliente, estrategiaDeFacturacion, facturaDelViaje, type FacturaDeCliente } from "../../shared/facturacion-por-cliente";
 import { TRIP_STATUS, UNIDAD, paraQuienDelViaje, type Trip, type TripTemplate } from "../../shared/domain";
 import { columnasDe } from "./resumen-cliente";
 
@@ -308,18 +308,34 @@ export const ENCABEZADO_FACTURAR = [
   "Observaciones",
 ];
 
+/**
+ * Lo que falta facturar de un viaje por cliente: sus cargas pendientes, sin las que ya salieron en la factura de
+ * su cliente. Un viaje por viaje, o por cliente sin nada facturado, vuelve tal cual. El peso del viaje entero no
+ * se puede repartir entre clientes: en uno a medias queda vacío, para que nadie lo vuelva a cobrar.
+ */
+export function soloLoPendiente<T extends Trip & { factura_numero?: string | null; clientes_facturacion?: FacturaDeCliente[] }>(t: T): T {
+  if (estrategiaDeFacturacion(t) !== "por_cliente") return t;
+  const facturadas = new Set((t.clientes_facturacion ?? []).filter((m) => m.factura_numero).map((m) => m.cliente_clave));
+  if (facturadas.size === 0) return t;
+  return {
+    ...t,
+    segments: t.segments.filter((s) => !facturadas.has(claveDeCliente(s) ?? "")),
+    kilos_carga: null,
+  };
+}
+
 export function planillaParaFacturar(
   trips: (Trip & { factura_numero?: string | null; clientes_facturacion?: FacturaDeCliente[] })[],
   campos: ColumnaCampo[],
 ): Celda[][] {
   const encabezado = [...ENCABEZADO_FACTURAR.slice(0, 5), ...campos.map((c) => c.label), ...ENCABEZADO_FACTURAR.slice(5)];
   const filas: Celda[][] = trips.map((t) => {
-    const clientes = [...new Set(t.segments.flatMap((s) => s.clientes))];
+    const clientes = [...new Set(soloLoPendiente(t).segments.flatMap((s) => s.clientes))];
     return [
       t.started_at.slice(0, 10),
       t.provider_name,
       clientes.join(" / ") || (t.destinatario ?? ""),
-      t.kilos_carga ?? "",
+      soloLoPendiente(t).kilos_carga ?? "",
       // Por cliente, el número de cada cliente facturado ("A-1 (Jair) · A-2 (BMR)"); por viaje, el de siempre.
       facturaDelViaje(t, t.clientes_facturacion ?? []),
       ...campos.map((c) => valorDeCampo(t.field_values?.[c.key], c)),
@@ -329,7 +345,7 @@ export function planillaParaFacturar(
       t.notes ?? "",
     ];
   });
-  const kilos = trips.reduce((s, t) => s + (t.kilos_carga ?? 0), 0);
+  const kilos = trips.reduce((s, t) => s + (soloLoPendiente(t).kilos_carga ?? 0), 0);
   const total: Celda[] = ["", "", "Total", kilos, ...Array(encabezado.length - 4).fill("")];
   return [encabezado, ...filas, total];
 }

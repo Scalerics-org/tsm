@@ -201,3 +201,41 @@ describe("los atajos de siempre ({ trip_ids }) con un viaje por cliente", () => 
     expect(r.viajes[0].pago_at).toBeNull();
   });
 });
+
+describe("los atajos de siempre no pasan por encima de lo que las rutas por cliente frenan", () => {
+  it("un viaje por cliente EN CURSO o CANCELADO, de un solo cliente, no se marca por el atajo viejo", async () => {
+    for (const status of ["EN_CURSO", "CANCELADO"]) {
+      const v = viajeBase({ id: 2, status, segments: JSON.stringify([cargaJson("a", "Jair")]) });
+      const r = await llamar("marcar", { trip_ids: [2], factura_numero: "A-5" }, [v]);
+      expect(r.json.data.marcados).toBe(0);
+      expect(r.json.data.rechazados[0].motivo).toMatch(/completado/);
+      expect(r.marcas).toEqual([]);
+    }
+  });
+
+  it("aunque el viaje cambie entre la lectura y la escritura, el INSERT no deja una marca en un viaje que ya no la admite", async () => {
+    // Se salta la validación de la ruta y va directo al repo, como en una carrera.
+    const { marcarClientes } = await import("../api/repos/facturacion-clientes");
+    const d1 = fakeD1Facturacion([viajeBase({ id: 9, status: "CANCELADO", segments: JSON.stringify([cargaJson("a", "Jair")]) })]);
+    const r = await marcarClientes(d1.db, [{ trip_id: 9, cliente_clave: JAIR, cliente_nombre: "Jair" }], "A-1", { userId: 2, when: "2026-10-01 10:00:00" });
+    expect(r).toEqual([false]);
+    expect(d1.marcas).toEqual([]);
+  });
+
+  it("sacar la factura por el atajo viejo anda aunque haya una carga sin asignar (marcarla sí lo exige)", async () => {
+    const segs = JSON.stringify([cargaJson("a", "Jair"), cargaJson("b", null)]);
+    const marcaJair = { trip_id: 2, cliente_clave: JAIR, cliente_nombre: "Jair", factura_numero: "A-1", facturado_at: "2026-10-01 10:00:00", facturado_by: 2, factura_quitada: null, factura_quitada_at: null, pago_at: null, pago_by: null };
+    const sacar = await llamar("desmarcar", { trip_ids: [2] }, [viajeBase({ id: 2, segments: segs })], [marcaJair]);
+    expect(sacar.json.data.desmarcados).toBe(1);
+    const marcar = await llamar("marcar", { trip_ids: [2], factura_numero: "B-1" }, [viajeBase({ id: 2, segments: segs })]);
+    expect(marcar.json.data.marcados).toBe(0);
+  });
+
+  it("un viaje con cargas y NINGÚN cobro asignado se factura por viaje, con el tilde de siempre", async () => {
+    const v = viajeBase({ id: 3, segments: JSON.stringify([cargaJson("a", null), cargaJson("b", null)]) });
+    const r = await llamar("marcar", { trip_ids: [3], factura_numero: "A-7" }, [v]);
+    expect(r.json.data.marcados).toBe(1);
+    expect(r.viajes[0].factura_numero).toBe("A-7");
+    expect(r.marcas).toEqual([]);
+  });
+});

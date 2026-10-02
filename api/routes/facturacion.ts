@@ -53,6 +53,8 @@ function idsValidos(v: unknown): number[] | null {
 
 /** Cuántos viajes del cliente quedaron sin facturar (del todo) antes del día `desde`. */
 async function sinFacturarAntes(db: D1Database, provider: string, desde: string, templateId?: number): Promise<number> {
+  // Una fecha mal escrita no tira el resumen entero: no hay "anteriores" que contar.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || Number.isNaN(Date.parse(`${desde}T00:00:00Z`))) return 0;
   const ayer = new Date(Date.parse(`${desde}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
   const previos = await listTripsFacturables(db, { provider, templateId, to: ayer });
   return viajesAFacturar(previos).length;
@@ -147,7 +149,7 @@ facturacion.post("/marcar", async (c) => {
   // Un viaje por cliente con UN cliente se marca por ese cliente; con varios (o ninguno) no se toca: este
   // atajo no tiene cómo decir a quién va cada número, y no le va a poner uno solo a clientes que se
   // facturan aparte. Los demás (todo lo de siempre) siguen exactamente como estaban.
-  const { porViaje, deClientes, rechazados } = await repartir(c.env.DB, ids);
+  const { porViaje, deClientes, rechazados } = await repartir(c.env.DB, ids, true);
   const marcadosViaje = await marcarFacturados(c.env.DB, porViaje, numero, quien);
   const hechos = await marcarClientes(
     c.env.DB,
@@ -177,7 +179,7 @@ facturacion.post("/desmarcar", async (c) => {
   const ids = idsValidos(body?.trip_ids);
   if (!ids) return fail(c, "Elegí al menos un viaje", 400);
 
-  const { porViaje, deClientes, rechazados } = await repartir(c.env.DB, ids);
+  const { porViaje, deClientes, rechazados } = await repartir(c.env.DB, ids, false);
   const desmarcadosViaje = await desmarcarFacturados(c.env.DB, porViaje);
   const hechos = await desmarcarClientes(
     c.env.DB,
@@ -204,7 +206,7 @@ facturacion.post("/marcar-pago", async (c) => {
 
   const user = c.get("user");
   const quien = { userId: user.id, when: ahora() };
-  const { porViaje, deClientes, rechazados } = await repartir(c.env.DB, ids);
+  const { porViaje, deClientes, rechazados } = await repartir(c.env.DB, ids, false);
   const marcadosViaje = await marcarPagos(c.env.DB, porViaje, quien);
   const hechos = await marcarPagosClientes(
     c.env.DB,
@@ -228,7 +230,7 @@ facturacion.post("/desmarcar-pago", async (c) => {
   const ids = idsValidos(body?.trip_ids);
   if (!ids) return fail(c, "Elegí al menos un viaje", 400);
 
-  const { porViaje, deClientes, rechazados } = await repartir(c.env.DB, ids);
+  const { porViaje, deClientes, rechazados } = await repartir(c.env.DB, ids, false);
   const desmarcadosViaje = await desmarcarPagos(c.env.DB, porViaje);
   const hechos = await desmarcarPagosClientes(
     c.env.DB,
@@ -243,7 +245,7 @@ facturacion.post("/desmarcar-pago", async (c) => {
  * por las funciones de siempre; los por cliente con un único cliente van por ese cliente; el resto se
  * rechaza diciendo por qué. Un viaje que no existe pasa por las de siempre, que ya lo dejan como `sin_tocar`.
  */
-async function repartir(db: D1Database, ids: number[]) {
+async function repartir(db: D1Database, ids: number[], paraMarcar: boolean) {
   const viajes = await getTripsFacturables(db, ids);
   const porId = new Map(viajes.map((v) => [v.id, v]));
   const porViaje: number[] = [];
@@ -255,9 +257,16 @@ async function repartir(db: D1Database, ids: number[]) {
       porViaje.push(id);
       continue;
     }
-    const unico = clienteUnicoDelViaje(v.segments);
-    if (unico.ok) deClientes.push({ trip_id: id, cliente: unico.cliente });
-    else rechazados.push({ trip_id: id, cliente_clave: "", motivo: unico.motivo });
+    // Sacar una factura o un pago no necesita que todas las cargas estén asignadas; marcarla sí.
+    const unico = clienteUnicoDelViaje(v.segments, { ignorarSinAsignar: !paraMarcar });
+    if (!unico.ok) {
+      rechazados.push({ trip_id: id, cliente_clave: "", motivo: unico.motivo });
+      continue;
+    }
+    // Marcar sólo un viaje completado: este atajo no puede facturar uno en curso o cancelado.
+    const motivo = paraMarcar ? motivoParaMarcarCliente(v, unico.cliente.clave) : null;
+    if (motivo) rechazados.push({ trip_id: id, cliente_clave: unico.cliente.clave, motivo });
+    else deClientes.push({ trip_id: id, cliente: unico.cliente });
   }
   return { porViaje, deClientes, rechazados };
 }

@@ -23,8 +23,14 @@ const marca = (cliente_clave: string, factura_numero: string | null, pago_at: st
 });
 
 describe("claveDeCliente", () => {
-  it("usa el id de la libreta cuando lo hay", () => {
-    expect(claveDeCliente({ cobro_a: "Jair", cobro_tipo: "cliente", cobro_id: 74 })).toBe("cliente:74");
+  it("no depende del id de la libreta: con o sin id el mismo cliente tiene la misma clave", () => {
+    expect(claveDeCliente({ cobro_a: "Jair", cobro_tipo: "cliente", cobro_id: 74 })).toBe("cliente:jair");
+    expect(claveDeCliente({ cobro_a: "Jair", cobro_tipo: "cliente" })).toBe("cliente:jair");
+  });
+  it("una carga cobrada por regla (sin id) y otra elegida de la libreta (con id) son UN cliente", () => {
+    const r = clientesDelViaje([carga("a", "Jair"), carga("b", "Jair", { cobro_id: 74 })]);
+    expect(r.clientes).toHaveLength(1);
+    expect(r.clientes[0].sids).toEqual(["a", "b"]);
   });
   it("sin id, el nombre normalizado: 'Galpón' y 'GALPON ' son el mismo", () => {
     expect(claveDeCliente({ cobro_a: "Galpón", cobro_tipo: "cliente" })).toBe(claveDeCliente({ cobro_a: " GALPON ", cobro_tipo: "cliente" }));
@@ -60,6 +66,10 @@ describe("estrategiaDeFacturacion", () => {
   });
   it("sin factura y con cargas: por cliente", () => {
     expect(estrategiaDeFacturacion({ factura_numero: null, segments: [carga("a", "Jair")] })).toBe("por_cliente");
+  });
+  it("con cargas pero NINGÚN cobro asignado: por viaje, con el tilde de siempre (si no, no se podría facturar)", () => {
+    expect(estrategiaDeFacturacion({ factura_numero: null, segments: [carga("a", null), carga("b", null)] })).toBe("por_viaje");
+    expect(estrategiaDeFacturacion({ factura_numero: null, segments: [carga("a", null), carga("b", "Jair")] })).toBe("por_cliente");
   });
   it("sin factura y sin cargas (los clásicos): por viaje", () => {
     expect(estrategiaDeFacturacion({ factura_numero: null, segments: [] })).toBe("por_viaje");
@@ -206,9 +216,16 @@ describe("pasaFiltroDeCobro: los filtros de Viajes", () => {
     const todos = [marca("cliente:jair", "A-1", "2026-10-01"), marca("cliente:bmr", "B-2")];
     const pagos = todos.map((m) => ({ ...m, pago_at: "2026-10-02" }));
 
-    it("el 'a medias' figura entre lo que falta facturar, y no entre lo facturado", () => {
+    it("el 'a medias' figura de los dos lados: nada queda escondido", () => {
       expect(pasaFiltroDeCobro(v({ segments }), aMedias, { facturado: "no" })).toBe(true);
-      expect(pasaFiltroDeCobro(v({ segments }), aMedias, { facturado: "si" })).toBe(false);
+      expect(pasaFiltroDeCobro(v({ segments }), aMedias, { facturado: "si" })).toBe(true);
+    });
+    it("lo facturado y sin cobrar de un viaje a medias sale en 'pago = no' (la plata que falta cobrar)", () => {
+      const sinPagar = [marca("cliente:jair", "A-1")];
+      expect(pasaFiltroDeCobro(v({ segments }), sinPagar, { pago: "no" })).toBe(true);
+      expect(pasaFiltroDeCobro(v({ segments }), sinPagar, { pago: "si" })).toBe(false);
+      expect(pasaFiltroDeCobro(v({ segments }), aMedias, { pago: "si" })).toBe(true);
+      expect(pasaFiltroDeCobro(v({ segments }), aMedias, { pago: "no" })).toBe(false);
     });
     it("todo facturado: sí; y sin pagar del todo es 'pago = no'", () => {
       expect(pasaFiltroDeCobro(v({ segments }), todos, { facturado: "si" })).toBe(true);
