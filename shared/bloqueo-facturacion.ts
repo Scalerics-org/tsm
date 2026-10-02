@@ -41,7 +41,7 @@ type MarcaDeFactura = Pick<FacturaDeCliente, "cliente_clave" | "cliente_nombre" 
 
 /** Lo único que la regla necesita saber del viaje. */
 export interface ViajeConFactura {
-  factura_numero: string | null;
+  factura_numero?: string | null;
   /** Las cargas, para saber a qué cliente pertenece cada una. */
   segments?: readonly CargaParaFacturar[] | null;
   /** La factura de cada cliente (viajes por cliente). */

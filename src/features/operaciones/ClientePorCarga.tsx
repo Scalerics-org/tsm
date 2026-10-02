@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { COBRO_TIPO, TRIP_STATUS, cobroPorCarga, type Trip } from "@shared/domain";
+import { bloqueoPorFacturacion } from "@shared/bloqueo-facturacion";
+import type { FacturaDeCliente } from "@shared/facturacion-por-cliente";
 import { CobroDeCargaDialog } from "./CobroDeCargaDialog";
 
 /**
@@ -27,7 +29,7 @@ export function ClientePorCarga({
   soloMirar,
   onCambio,
 }: {
-  trip: Trip & { factura_numero?: string | null };
+  trip: Trip & { factura_numero?: string | null; clientes_facturacion?: FacturaDeCliente[] };
   soloMirar: boolean;
   onCambio: () => void;
 }) {
@@ -35,13 +37,17 @@ export function ClientePorCarga({
   const [abierta, setAbierta] = useState<string | null>(null);
   const [verTodas, setVerTodas] = useState(false);
 
-  const motivoApagado = trip.factura_numero
+  // Por cliente, lo apagado es la carga de un cliente ya facturado (la de otro cliente del mismo viaje se puede
+  // reasignar); la razón la da la misma función que usa el servidor.
+  const motivoGeneral = trip.factura_numero
     ? `Ya está en la factura ${trip.factura_numero}. Sacala desde el tick de Factura para cambiar a quién se le cobra.`
     : trip.status === TRIP_STATUS.CANCELADO
       ? "Un viaje cancelado no se factura."
       : soloMirar
         ? "Sólo lectura."
         : null;
+  const motivoDe = (sid: string): string | null =>
+    motivoGeneral ?? bloqueoPorFacturacion(trip, { tipo: "carga", sid });
 
   const ocultas = verTodas ? [] : cargas.slice(TICKS_VISIBLES);
   const visibles = verTodas ? cargas : cargas.slice(0, TICKS_VISIBLES);
@@ -54,6 +60,7 @@ export function ClientePorCarga({
       <ul className="space-y-1">
         {visibles.map((c) => {
           const asignada = !!c.nombre;
+          const motivoApagado = motivoDe(c.sid);
           const detalle = `Carga ${c.numero}: ${c.titulo}. ${
             asignada ? `Se le cobra a ${c.nombre} (${c.tipo ?? COBRO_TIPO.CLIENTE}).` : "Todavía no tiene a quién cobrarle."
           }`;

@@ -1,6 +1,6 @@
 import { marcasDeViajes } from "./facturacion-clientes";
 import { tieneAlgoFacturado } from "../../shared/bloqueo-facturacion";
-import type { FacturaDeCliente } from "../../shared/facturacion-por-cliente";
+import { pasaFiltroDeCobro, type FacturaDeCliente } from "../../shared/facturacion-por-cliente";
 import {
   TRIP_STATUS,
   aplicarCobro,
@@ -398,11 +398,17 @@ export async function listTrips(db: D1Database, f: TripFilters): Promise<Trip[]>
  * factura, y eso no baja al celular del chofer.
  */
 export async function listTripsFacturables(db: D1Database, f: TripFilters): Promise<TripFacturable[]> {
-  const { sql, binds } = filtrar(f);
+  // Facturado, pago y factura NO van en el SQL: en un viaje por cliente el estado depende de las cargas
+  // (JSON) y de las marcas de cada cliente, así que se resuelven acá sobre la lista ya acotada por fecha,
+  // camión, etc. Para los viajes por viaje `pasaFiltroDeCobro` hace exactamente lo que hacía el SQL.
+  const { facturado, pago, factura, ...resto } = f;
+  const { sql, binds } = filtrar(resto);
   const { results } = await db.prepare(sql).bind(...binds).all<TripRow>();
   const filas = results ?? [];
   const marcas = await marcasDeViajes(db, filas.map((r) => r.id));
-  return filas.map((r) => aFacturable(r, marcas.get(r.id) ?? []));
+  const viajes = filas.map((r) => aFacturable(r, marcas.get(r.id) ?? []));
+  if (!facturado && !pago && !factura) return viajes;
+  return viajes.filter((t) => pasaFiltroDeCobro(t, t.clientes_facturacion ?? [], { facturado, pago, factura }));
 }
 
 /** La fila del viaje con su marca de facturación (la del viaje entero y la de cada cliente). */

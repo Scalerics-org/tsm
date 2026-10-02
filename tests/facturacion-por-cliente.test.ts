@@ -6,6 +6,7 @@ import {
   estadoDeCobroDelViaje,
   estadoPorCliente,
   estrategiaDeFacturacion,
+  pasaFiltroDeCobro,
   type CargaParaFacturar,
 } from "../shared/facturacion-por-cliente";
 
@@ -161,5 +162,71 @@ describe("lo facturado hasta hoy no cambia de estado ni de color", () => {
     const segs = [carga("a", "Jair"), carga("b", "BMR")];
     expect(estadoDeCobroDelViaje({ factura_numero: "A-1", pago_at: null, segments: segs })).toBe("facturado");
     expect(estadoDeCobroDelViaje({ factura_numero: "A-1", pago_at: "2026-09-23", segments: segs })).toBe("pago");
+  });
+});
+
+describe("pasaFiltroDeCobro: los filtros de Viajes", () => {
+  const v = (o: Record<string, unknown> = {}) => ({ status: "COMPLETADO", factura_numero: null as string | null, pago_at: null as string | null, segments: [] as CargaParaFacturar[], ...o });
+
+  describe("por viaje: exactamente lo que hacía el SQL", () => {
+    it("facturado = sí: tiene número; no: completado y sin número", () => {
+      expect(pasaFiltroDeCobro(v({ factura_numero: "A-1" }), [], { facturado: "si" })).toBe(true);
+      expect(pasaFiltroDeCobro(v(), [], { facturado: "si" })).toBe(false);
+      expect(pasaFiltroDeCobro(v(), [], { facturado: "no" })).toBe(true);
+      expect(pasaFiltroDeCobro(v({ factura_numero: "A-1" }), [], { facturado: "no" })).toBe(false);
+      // Un viaje en curso o cancelado no está "sin facturar".
+      expect(pasaFiltroDeCobro(v({ status: "EN_CURSO" }), [], { facturado: "no" })).toBe(false);
+      expect(pasaFiltroDeCobro(v({ status: "CANCELADO" }), [], { facturado: "no" })).toBe(false);
+    });
+    it("pago = sí: tiene pago; no: facturado y sin pago", () => {
+      expect(pasaFiltroDeCobro(v({ factura_numero: "A-1", pago_at: "2026-10-01" }), [], { pago: "si" })).toBe(true);
+      expect(pasaFiltroDeCobro(v({ factura_numero: "A-1" }), [], { pago: "si" })).toBe(false);
+      expect(pasaFiltroDeCobro(v({ factura_numero: "A-1" }), [], { pago: "no" })).toBe(true);
+      expect(pasaFiltroDeCobro(v(), [], { pago: "no" })).toBe(false);
+      expect(pasaFiltroDeCobro(v({ factura_numero: "A-1", pago_at: "2026-10-01" }), [], { pago: "no" })).toBe(false);
+    });
+    it("factura exacta, sin distinguir mayúsculas ni espacios", () => {
+      expect(pasaFiltroDeCobro(v({ factura_numero: " Saman " }), [], { factura: "SAMAN" })).toBe(true);
+      expect(pasaFiltroDeCobro(v({ factura_numero: "6029" }), [], { factura: "6030" })).toBe(false);
+      expect(pasaFiltroDeCobro(v(), [], { factura: "6029" })).toBe(false);
+    });
+    it("sin filtros pasa todo", () => {
+      expect(pasaFiltroDeCobro(v(), [], {})).toBe(true);
+    });
+    it("un viaje con cargas facturado por viaje entero se filtra como siempre", () => {
+      const viaje = v({ factura_numero: "A-1", segments: [carga("a", "Jair"), carga("b", "BMR")] });
+      expect(pasaFiltroDeCobro(viaje, [], { facturado: "si" })).toBe(true);
+      expect(pasaFiltroDeCobro(viaje, [], { pago: "no" })).toBe(true);
+    });
+  });
+
+  describe("por cliente: lo que se filtra es lo que se ve", () => {
+    const segments = [carga("a", "Jair"), carga("b", "BMR")];
+    const aMedias = [marca("cliente:jair", "A-1", "2026-10-01")];
+    const todos = [marca("cliente:jair", "A-1", "2026-10-01"), marca("cliente:bmr", "B-2")];
+    const pagos = todos.map((m) => ({ ...m, pago_at: "2026-10-02" }));
+
+    it("el 'a medias' figura entre lo que falta facturar, y no entre lo facturado", () => {
+      expect(pasaFiltroDeCobro(v({ segments }), aMedias, { facturado: "no" })).toBe(true);
+      expect(pasaFiltroDeCobro(v({ segments }), aMedias, { facturado: "si" })).toBe(false);
+    });
+    it("todo facturado: sí; y sin pagar del todo es 'pago = no'", () => {
+      expect(pasaFiltroDeCobro(v({ segments }), todos, { facturado: "si" })).toBe(true);
+      expect(pasaFiltroDeCobro(v({ segments }), todos, { facturado: "no" })).toBe(false);
+      expect(pasaFiltroDeCobro(v({ segments }), todos, { pago: "no" })).toBe(true);
+      expect(pasaFiltroDeCobro(v({ segments }), todos, { pago: "si" })).toBe(false);
+    });
+    it("todo pago: 'pago = sí'", () => {
+      expect(pasaFiltroDeCobro(v({ segments }), pagos, { pago: "si" })).toBe(true);
+      expect(pasaFiltroDeCobro(v({ segments }), pagos, { pago: "no" })).toBe(false);
+    });
+    it("sin nada marcado es 'sin facturar' mientras esté completado", () => {
+      expect(pasaFiltroDeCobro(v({ segments }), [], { facturado: "no" })).toBe(true);
+      expect(pasaFiltroDeCobro(v({ segments, status: "EN_CURSO" }), [], { facturado: "no" })).toBe(false);
+    });
+    it("la factura se encuentra entre las de cada cliente", () => {
+      expect(pasaFiltroDeCobro(v({ segments }), todos, { factura: "b-2" })).toBe(true);
+      expect(pasaFiltroDeCobro(v({ segments }), todos, { factura: "Z-9" })).toBe(false);
+    });
   });
 });

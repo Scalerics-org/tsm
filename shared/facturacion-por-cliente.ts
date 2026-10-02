@@ -201,3 +201,50 @@ export function clienteUnicoDelViaje(
   if (clientes.length === 0) return { ok: false, motivo: "Todavía no tiene a quién cobrarle: asignalo antes." };
   return { ok: false, motivo: "Tiene varios clientes (o cargas sin asignar): marcalos por cliente." };
 }
+
+// ── Los filtros de Viajes (Facturado, Pago, Factura) ──
+
+export interface FiltroDeCobro {
+  facturado?: "si" | "no";
+  pago?: "si" | "no";
+  /** La factura o referencia exacta, sin distinguir mayúsculas. */
+  factura?: string;
+}
+
+const igual = (a: string | null | undefined, b: string) => (a ?? "").trim().toLowerCase() === b.trim().toLowerCase();
+
+/**
+ * ¿Pasa este viaje los filtros de facturación de la lista?
+ *
+ * Por viaje es EXACTAMENTE lo que antes hacía el SQL (`t.factura_numero IS NOT NULL`, etc.). Por cliente
+ * se lee del color de la fila, para que lo que se filtra sea lo que se ve: "facturado = sí" es lo rojo y
+ * lo verde (todo facturado), "no" es lo blanco de un viaje completado (algo por facturar, el "a medias"
+ * incluido), "pago = sí" es lo verde, "pago = no" es lo rojo (todo facturado y algo sin cobrar), y la
+ * factura se busca también entre las de cada cliente.
+ */
+export function pasaFiltroDeCobro(
+  viaje: {
+    status: string;
+    factura_numero?: string | null;
+    pago_at?: string | null;
+    segments?: readonly CargaParaFacturar[] | null;
+  },
+  marcas: readonly Pick<FacturaDeCliente, "cliente_clave" | "factura_numero" | "pago_at">[],
+  f: FiltroDeCobro,
+): boolean {
+  if (estrategiaDeFacturacion(viaje) === "por_viaje") {
+    if (f.facturado === "si" && !viaje.factura_numero) return false;
+    if (f.facturado === "no" && !(!viaje.factura_numero && viaje.status === "COMPLETADO")) return false;
+    if (f.pago === "si" && !viaje.pago_at) return false;
+    if (f.pago === "no" && !(viaje.factura_numero && !viaje.pago_at)) return false;
+    if (f.factura && !igual(viaje.factura_numero, f.factura)) return false;
+    return true;
+  }
+  const color = estadoDeCobroDelViaje(viaje, marcas);
+  if (f.facturado === "si" && color === "sin_facturar") return false;
+  if (f.facturado === "no" && !(color === "sin_facturar" && viaje.status === "COMPLETADO")) return false;
+  if (f.pago === "si" && color !== "pago") return false;
+  if (f.pago === "no" && color !== "facturado") return false;
+  if (f.factura && !marcas.some((m) => igual(m.factura_numero, f.factura!))) return false;
+  return true;
+}
