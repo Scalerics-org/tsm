@@ -16,7 +16,9 @@ import { columnasDeCampos, encabezado, filasDeViaje, resumenParaElCliente, plani
 import { csvResponse } from "../lib/csv";
 import { consumoDelCamion, consumoMensualDelCamion } from "../lib/consumo-camiones";
 import { verificarMeses } from "../../shared/verificacion-mensual";
-import { tramosDelPeriodo, kmVacios, vaciosDelPeriodo, paraVacios } from "../../shared/vacios";
+import { tramosDelPeriodo, tramosDeLaVentana, ventanaDeFotos, kmVacios, vaciosDelPeriodo, paraVacios } from "../../shared/vacios";
+import { periodoAnterior } from "../../shared/domain";
+import { getLectura } from "../repos/lecturas";
 import { esMes, mesDe, rangoDelMes } from "../../shared/periodo-mes";
 import { resumenCliente } from "../lib/resumen-cliente";
 import { listTemplates } from "../repos/templates";
@@ -311,8 +313,20 @@ reports.get("/truck/:id", async (c) => {
   // ?mes=2026-09 filtra viajes, vacíos y kilos a ese mes (los días son los de siempre: el día UTC de la fecha
   // guardada, igual que el Resumen). Sin `mes`, o con cualquier otra cosa, es todo el historial como antes.
   const mes = esMes(c.req.query("mes")) ? (c.req.query("mes") as string) : null;
-  const rango = mes ? rangoDelMes(mes) : null;
+  // ?por=fotos (desde Control): la ventana de foto a foto del tacógrafo, la MISMA cuenta de la tarjeta "Kilómetros
+  // sin justificar" (`/lecturas/auditoria`), en vez del mes calendario del Resumen. Cuentan distinto a propósito:
+  // acá el tramo del borde (del último viaje antes de la foto previa al primero de adentro) no entra.
+  const porFotos = mes != null && c.req.query("por") === "fotos";
+  const [fotoPrevia, fotoDelMes] = porFotos
+    ? await Promise.all([
+        getLectura(c.env.DB, id, periodoAnterior(mes as string)),
+        getLectura(c.env.DB, id, mes as string),
+      ])
+    : [null, null];
+  const ventana = porFotos ? ventanaDeFotos(mes as string, fotoPrevia?.tomada_at, fotoDelMes?.tomada_at) : null;
+  const rango = mes && !porFotos ? rangoDelMes(mes) : null;
   const enPeriodo = (t: { started_at: string }) => {
+    if (ventana) return t.started_at >= ventana.desde && t.started_at <= ventana.hasta;
     const dia = t.started_at.slice(0, 10);
     return !rango || (dia >= rango.desde && dia <= rango.hasta);
   };
@@ -340,7 +354,9 @@ reports.get("/truck/:id", async (c) => {
   const hechos = trips.filter((t) => t.status !== TRIP_STATUS.CANCELADO);
   // Con un mes elegido cada tramo cuenta en el mes en que arranca el viaje siguiente (cuando el camión fue a buscar
   // la carga), y se calcula sobre TODOS los viajes del camión: el tramo del borde necesita al último del mes anterior.
-  const vacios = tramosDelPeriodo(hechos.map(paraVacios), rango?.desde, rango?.hasta);
+  const vacios = ventana
+    ? tramosDeLaVentana(hechos.map(paraVacios), ventana)
+    : tramosDelPeriodo(hechos.map(paraVacios), rango?.desde, rango?.hasta);
   const delPeriodo = trips.filter(enPeriodo);
   const hechosDelPeriodo = hechos.filter(enPeriodo);
 
@@ -353,18 +369,26 @@ reports.get("/truck/:id", async (c) => {
   return ok(c, {
     truck,
     // Con un mes se ven todos los de ese mes (hasta 100); sin mes, los 20 últimos como siempre.
-    trips: delPeriodo.slice(0, rango ? 100 : 20),
+    trips: delPeriodo.slice(0, rango || ventana ? 100 : 20),
     viajes_total: delPeriodo.length,
     // Los meses en que el camión tuvo viajes, del más nuevo al más viejo: lo que ofrece el selector.
     meses: [...new Set(trips.map((t) => mesDe(t.started_at)))].sort().reverse(),
-    periodo: { mes, desde: rango?.desde ?? null, hasta: rango?.hasta ?? null },
+    periodo: {
+      mes,
+      por: porFotos ? "fotos" : "calendario",
+      desde: ventana?.desde ?? rango?.desde ?? null,
+      hasta: ventana?.hasta ?? rango?.hasta ?? null,
+      // Con la ventana de fotos, si falta alguna de las dos el borde es el del mes (lo mismo que hace Control).
+      foto_previa: fotoPrevia?.tomada_at ?? null,
+      foto_del_mes: fotoDelMes?.tomada_at ?? null,
+    },
     monthly,
     fuel: surtidasParaLaFicha(fuel, marcadas),
     surtidas_a_revisar: Object.fromEntries(aRevisar.sospechosas.map((s) => [s.id, s.motivo])),
     // El km/L de cada llenado, con TODAS las surtidas (el primer tramo de la lista necesita la
     // anterior, que puede no venir entre las 20).
     consumo_por_surtida: consumoPorSurtida(fuel),
-    vacios: (rango ? vacios : vacios.slice(-20)).slice().reverse(),
+    vacios: (rango || ventana ? vacios : vacios.slice(-20)).slice().reverse(),
     km_vacios: kmVacios(vacios),
     // Retorno y "a buscar carga" por separado, como en el Resumen.
     km_retorno: kmVacios(vacios.filter((t) => t.tipo === "retorno")),

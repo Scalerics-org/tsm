@@ -69,20 +69,28 @@ describe("tramosDelPeriodo", () => {
 });
 
 /** Una base que sirve el camión y sus viajes, para pedir la ficha y el Resumen a las rutas de verdad. */
+const lecturas = [
+  { id: 1, truck_id: 1, periodo: "2026-08", kilometraje: 1000, tomada_at: "2026-08-30 12:00:00", truck_plate: "GTP 4383", driver_name: null },
+  { id: 2, truck_id: 1, periodo: "2026-09", kilometraje: 5000, tomada_at: "2026-09-12 12:00:00", truck_plate: "GTP 4383", driver_name: null },
+];
+
 function dbDelCamion() {
   const camion = { id: 1, plate: "GTP 4383", brand: "", model: "", year: 2020, type: "", odometer_km: 1000, avg_km_litro: 3, camara_frio: 0 };
   return {
     prepare(sql: string) {
       const q = sql.replace(/\s+/g, " ").trim().toLowerCase();
+      let binds: unknown[] = [];
       const stmt: any = {
-        bind: () => stmt,
+        bind: (...b: unknown[]) => ((binds = b), stmt),
         first: async () => {
           if (q.includes("from users")) return { id: 2, role: "admin" };
           if (q.includes("from trucks")) return camion;
+          if (q.includes("lecturas_odometro")) return lecturas.find((l) => binds.includes(l.periodo)) ?? null;
           return null;
         },
         all: async () => {
           if (q.includes("from trucks")) return { results: [camion] };
+          if (q.includes("lecturas_odometro")) return { results: lecturas.filter((l) => binds.includes(l.periodo)) };
           if (q.includes("from trips t")) return { results: viajes };
           return { results: [] };
         },
@@ -105,7 +113,7 @@ describe("GET /reports/truck/:id?mes=", () => {
     const todo = await pedir("/api/reports/truck/1");
     const setiembre = await pedir("/api/reports/truck/1?mes=2026-09");
     expect(setiembre.status).toBe(200);
-    expect(setiembre.data.periodo).toEqual({ mes: "2026-09", desde: "2026-09-01", hasta: "2026-09-30" });
+    expect(setiembre.data.periodo).toMatchObject({ mes: "2026-09", por: "calendario", desde: "2026-09-01", hasta: "2026-09-30" });
     // Viajes del mes: los dos de setiembre y el cancelado de setiembre (se ve, pero no suma kilos).
     expect(setiembre.data.trips.map((t: any) => t.id).sort()).toEqual([2, 3, 5]);
     expect(setiembre.data.viajes_total).toBe(3);
@@ -148,5 +156,30 @@ describe("GET /reports/truck/:id?mes=", () => {
     const r = await pedir("/api/reports/truck/1?mes=septiembre");
     expect(r.status).toBe(200);
     expect(r.data.periodo.mes).toBeNull();
+  });
+});
+
+describe("la ficha desde Control (?por=fotos): los mismos km que la tarjeta 'Kilómetros sin justificar'", () => {
+  it("retornos, 'a buscar carga' y tramos de la ficha son EXACTAMENTE los de /lecturas/auditoria para ese camión y mes", async () => {
+    const control = (await pedir("/api/lecturas/auditoria?mes=2026-09")).data.camiones.find((c: any) => c.truck_id === 1);
+    const ficha = (await pedir("/api/reports/truck/1?mes=2026-09&por=fotos")).data;
+    expect(ficha.periodo).toMatchObject({ por: "fotos", desde: "2026-08-30 12:00:00", hasta: "2026-09-12 12:00:00" });
+    expect(ficha.km_retorno).toBe(control.auditoria.km_retorno);
+    expect(ficha.km_reposicion).toBe(control.auditoria.km_reposicion);
+    expect(ficha.vacios.length).toBe(control.auditoria.tramos_vacios);
+    // Y los viajes de la ficha son los que Control cuenta: los que arrancan entre las dos fotos.
+    expect(ficha.trips.map((t: any) => t.id).sort()).toEqual([2, 3]);
+  });
+
+  it("es OTRA cuenta que la del calendario (Resumen): el tramo del borde de la foto previa no entra en Control", async () => {
+    const fotos = (await pedir("/api/reports/truck/1?mes=2026-09&por=fotos")).data;
+    const calendario = (await pedir("/api/reports/truck/1?mes=2026-09")).data;
+    expect(calendario.vacios.length).toBe(2);
+    expect(fotos.vacios.length).toBe(1);
+    expect(calendario.km_retorno).toBeGreaterThan(fotos.km_retorno);
+  });
+
+  it("?por=fotos sin mes o con 'todo' se ignora", async () => {
+    expect((await pedir("/api/reports/truck/1?por=fotos")).data.periodo.por).toBe("calendario");
   });
 });

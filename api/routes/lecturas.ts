@@ -15,7 +15,7 @@ import {
   type ViajeAuditado,
 } from "../../shared/domain";
 import { periodoDeHoy } from "../lib/periodo";
-import { vaciosEntreViajes, paraVacios, kmEstimadosDelViaje } from "../../shared/vacios";
+import { tramosDeLaVentana, ventanaDeFotos, paraVacios, kmEstimadosDelViaje } from "../../shared/vacios";
 import { DESVIO_SURTIDA } from "../../shared/rango-surtidas";
 import { claveMovida, esPeriodo, fechaDeFoto, moverLectura } from "../lib/lectura-periodo";
 import * as repo from "../repos/lecturas";
@@ -246,18 +246,15 @@ lecturas.get("/auditoria", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
       // Sin las dos fotos no hay ventana que recortar y tampoco hay con qué comparar: la
       // auditoría va a devolver "falta la lectura", así que alcanza con el mes calendario
       // para mostrar cuántos viajes hubo.
-      const desde = previa?.tomada_at ?? `${mes}-01`;
-      const hasta = lectura?.tomada_at ?? `${mes}-31 23:59:59`;
+      const ventana = ventanaDeFotos(mes, previa?.tomada_at, lectura?.tomada_at);
       const crudos = delPeriodo.filter(
-        (t) => t.truck_id === camion.id && t.started_at >= desde && t.started_at <= hasta,
+        (t) => t.truck_id === camion.id && t.started_at >= ventana.desde && t.started_at <= ventana.hasta,
       );
 
       // Los vacíos salen de la seguidilla de viajes, no de que alguien los registre: las
       // plantillas de viaje vacío existen hace un mes y NUNCA se usaron. Entre dónde descargó
       // y dónde volvió a cargar está el tramo, y ese dato ya está cargado.
-      const tramos = vaciosEntreViajes(
-        crudos.map(paraVacios),
-      );
+      const tramos = tramosDeLaVentana(crudos.map(paraVacios), ventana);
 
       const suyos: ViajeAuditado[] = crudos
         .map((t) => {

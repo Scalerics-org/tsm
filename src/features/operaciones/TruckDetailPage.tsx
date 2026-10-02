@@ -56,6 +56,7 @@ interface Ficha {
   km_reposicion: number;
   vacios_sin_km: number;
   tons: number;
+  periodo: { mes: string | null; por: "calendario" | "fotos"; foto_previa: string | null; foto_del_mes: string | null };
   /** Cuántos viajes tiene el período (la lista trae sólo algunos). */
   viajes_total: number;
   /** Los meses en que el camión tuvo viajes, del más nuevo al más viejo. */
@@ -69,6 +70,9 @@ export function TruckDetailPage() {
   const [params, setParams] = useSearchParams();
   const pedido = params.get("mes");
   const mes = pedido === "todo" ? "todo" : esMes(pedido) ? pedido : mesActual();
+  // Desde Control se llega con ?por=fotos: la ventana de foto a foto del tacógrafo, la misma cuenta de la tarjeta
+  // "Kilómetros sin justificar". Elegir otro período en el selector la deja.
+  const porFotos = params.get("por") === "fotos" && mes !== "todo";
   const [d, setD] = useState<Ficha | null>(null);
   const [falló, setFalló] = useState<string | null>(null);
 
@@ -81,11 +85,11 @@ export function TruckDetailPage() {
   const load = () => {
     setFalló(null);
     api
-      .get<Ficha>(`/reports/truck/${id}${mes === "todo" ? "" : `?mes=${mes}`}`)
+      .get<Ficha>(`/reports/truck/${id}${mes === "todo" ? "" : `?mes=${mes}${porFotos ? "&por=fotos" : ""}`}`)
       .then(setD)
       .catch((e) => setFalló(mensajeDe(e)));
   };
-  useEffect(load, [id, mes]);
+  useEffect(load, [id, mes, porFotos]);
 
   if (!d) {
     return falló ? (
@@ -96,7 +100,7 @@ export function TruckDetailPage() {
   }
 
   const { truck } = d;
-  const periodo = mes === "todo" ? null : nombreDelMes(mes);
+  const periodo = mes === "todo" ? null : porFotos ? `${nombreDelMes(mes)} (de foto a foto)` : nombreDelMes(mes);
   // Los meses con viajes, y el elegido aunque no tenga (el mes en curso recién empezado).
   const opciones = [...new Set([...(mes === "todo" ? [] : [mes]), ...d.meses])].sort().reverse();
 
@@ -133,17 +137,36 @@ export function TruckDetailPage() {
         <select
           id="periodo"
           className="input w-auto py-1.5"
-          value={mes}
-          onChange={(e) => setParams({ mes: e.target.value })}
+          value={porFotos ? `${mes}:fotos` : mes}
+          onChange={(e) => {
+            const [m, por] = e.target.value.split(":");
+            setParams(por ? { mes: m, por } : { mes: m });
+          }}
         >
           <option value="todo">Todo</option>
-          {opciones.map((m) => (
+          {opciones.flatMap((m) => [
             <option key={m} value={m}>
               {nombreDelMes(m)}
-            </option>
-          ))}
+            </option>,
+            // La ventana de Control: de la foto del tacógrafo del mes anterior a la de éste.
+            ...(porFotos && m === mes
+              ? [
+                  <option key={`${m}:fotos`} value={`${m}:fotos`}>
+                    {nombreDelMes(m)} · de foto a foto del tacógrafo
+                  </option>,
+                ]
+              : []),
+          ])}
         </select>
       </div>
+
+      {porFotos && (
+        <p className="-mt-3 text-xs text-ink/55">
+          {d.periodo.foto_previa ? `Desde la foto del ${fmtDate(d.periodo.foto_previa)}` : "Desde el 1° del mes"}
+          {d.periodo.foto_del_mes ? ` hasta la del ${fmtDate(d.periodo.foto_del_mes)}` : " hasta fin de mes"}: la
+          misma ventana que Control, que cuenta sólo los viajes que arrancan adentro.
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Odómetro" value={`${truck.odometer_km.toLocaleString("es-UY")} km`} />

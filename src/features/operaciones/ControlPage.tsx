@@ -46,6 +46,12 @@ interface Alerts {
   }[];
 }
 
+/**
+ * La ficha del camión en el mes de la auditoría, con la misma ventana de foto a foto del tacógrafo que muestra la
+ * tarjeta (?por=fotos): así los km de retornos y de "a buscar carga" que se ven acá son los mismos de allá.
+ */
+const fichaDelMes = (truckId: number, mes: string) => `/panel/camion/${truckId}?mes=${mes}&por=fotos`;
+
 function Section({
   title,
   count,
@@ -281,7 +287,7 @@ export function ControlPage() {
               {descuadrados.map((c) => (
                 <Row
                   key={c.truck_id}
-                  to={`/panel/camion/${c.truck_id}`}
+                  to={fichaDelMes(c.truck_id, audit.mes)}
                   left={
                     /* El desglose va en su propio renglón y no pegado a la patente: con cuatro
                        cifras adentro, el de arriba se partía en tres líneas y no alineaba con
@@ -316,7 +322,7 @@ export function ControlPage() {
               {sinLectura.map((c) => (
                 <Row
                   key={c.truck_id}
-                  to={`/panel/camion/${c.truck_id}`}
+                  to={fichaDelMes(c.truck_id, audit.mes)}
                   left={
                     <span className="block">
                       <span className="block text-ink">{c.plate}</span>
@@ -348,7 +354,7 @@ export function ControlPage() {
               {litrosRaros.map((s) => (
                 <Row
                   key={s.id}
-                  to={`/panel/camion/${s.truck_id}`}
+                  to={fichaDelMes(s.truck_id, audit.mes)}
                   left={
                     <span className="min-w-0">
                       {s.plate}

@@ -202,6 +202,33 @@ export function tramosDelPeriodo(viajes: ViajeParaVacios[], desde?: string, hast
   });
 }
 
+/**
+ * La ventana que compara Control: de la foto del tacógrafo del mes anterior a la de éste (no el mes calendario:
+ * las fotos nunca se sacan el 1° a las 00:00). Sin la foto previa arranca el 1° del mes; sin la de éste, termina
+ * el 31. Son fechas con hora ("2026-09-04 18:30:00") que se comparan contra `started_at`.
+ */
+export function ventanaDeFotos(
+  mes: string,
+  fotoPrevia: string | null | undefined,
+  fotoDelMes: string | null | undefined,
+): { desde: string; hasta: string } {
+  return { desde: fotoPrevia ?? `${mes}-01`, hasta: fotoDelMes ?? `${mes}-31 23:59:59` };
+}
+
+/**
+ * Los tramos vacíos de la ventana de Control: sólo con los viajes que ARRANCAN adentro, así que el tramo entre el
+ * último viaje de antes de la ventana y el primero de adentro no cuenta (en el calendario, `tramosDelPeriodo`, sí).
+ * Es la cuenta de la tarjeta "Kilómetros sin justificar" y de la ficha del camión cuando se llega desde ahí.
+ */
+export function tramosDeLaVentana(
+  viajes: ViajeParaVacios[],
+  ventana: { desde: string; hasta: string },
+): TramoConFecha[] {
+  const adentro = viajes.filter((v) => v.started_at >= ventana.desde && v.started_at <= ventana.hasta);
+  const inicio = new Map(adentro.map((v) => [v.id, v.started_at.slice(0, 10)]));
+  return vaciosEntreViajes(adentro).map((t) => ({ ...t, fecha: inicio.get(t.antes_de) as string }));
+}
+
 export function vaciosDelPeriodo(
   viajes: ViajeParaVacios[],
   desde?: string,
