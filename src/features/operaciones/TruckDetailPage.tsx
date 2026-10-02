@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { destinoVisible, origenVisible, fmtConsumo, fmtKilos, type FuelLog, type Trip, type Truck } from "@shared/domain";
 import { api, mensajeDe } from "../../lib/api";
 import { Card, Corners, ErrorDeCarga, Spinner, Stat, StatusBadge } from "../../components/ui";
 import { SurtidaRow } from "./SurtidaRow";
 import { LecturasDelCamion } from "./LecturasDelCamion";
 import { CamaraFrioDelCamion } from "./CamaraFrioDelCamion";
-import { fmtDateTime } from "../../lib/format";
+import { fmtDate, fmtDateTime } from "../../lib/format";
+import { esMes } from "@shared/periodo-mes";
 import { DocumentosDeLaFicha } from "../../components/DocumentosDeLaFicha";
 import { DOCUMENTOS_DEL_CAMION } from "@shared/vencimientos";
 
@@ -25,7 +26,16 @@ interface TramoVacio {
   tipo: "retorno" | "reposicion";
   despues_de: number;
   antes_de: number;
+  /** El día en que cuenta: el del viaje siguiente, cuando el camión fue a buscar la carga. */
+  fecha: string;
 }
+
+/** El mes en curso en hora uruguaya ("2026-10"): el que se abre por defecto. */
+const mesActual = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Montevideo" }).slice(0, 7);
+
+/** "2026-09" → "septiembre de 2026". */
+const nombreDelMes = (mes: string) =>
+  new Date(`${mes}-01T12:00:00Z`).toLocaleDateString("es-UY", { month: "long", year: "numeric", timeZone: "UTC" });
 
 interface Ficha {
   truck: Truck;
@@ -42,11 +52,23 @@ interface Ficha {
   consumo_por_surtida: Record<number, { kml: number; km: number; litros: number }>;
   vacios: TramoVacio[];
   km_vacios: number;
+  km_retorno: number;
+  km_reposicion: number;
+  vacios_sin_km: number;
   tons: number;
+  /** Cuántos viajes tiene el período (la lista trae sólo algunos). */
+  viajes_total: number;
+  /** Los meses en que el camión tuvo viajes, del más nuevo al más viejo. */
+  meses: string[];
 }
 
 export function TruckDetailPage() {
   const { id } = useParams();
+  // El período vive en la URL (?mes=2026-09, o ?mes=todo) para poder volver atrás y compartirlo. Sin nada, el
+  // mes en curso.
+  const [params, setParams] = useSearchParams();
+  const pedido = params.get("mes");
+  const mes = pedido === "todo" ? "todo" : esMes(pedido) ? pedido : mesActual();
   const [d, setD] = useState<Ficha | null>(null);
   const [falló, setFalló] = useState<string | null>(null);
 
@@ -59,11 +81,11 @@ export function TruckDetailPage() {
   const load = () => {
     setFalló(null);
     api
-      .get<Ficha>(`/reports/truck/${id}`)
+      .get<Ficha>(`/reports/truck/${id}${mes === "todo" ? "" : `?mes=${mes}`}`)
       .then(setD)
       .catch((e) => setFalló(mensajeDe(e)));
   };
-  useEffect(load, [id]);
+  useEffect(load, [id, mes]);
 
   if (!d) {
     return falló ? (
@@ -74,6 +96,9 @@ export function TruckDetailPage() {
   }
 
   const { truck } = d;
+  const periodo = mes === "todo" ? null : nombreDelMes(mes);
+  // Los meses con viajes, y el elegido aunque no tenga (el mes en curso recién empezado).
+  const opciones = [...new Set([...(mes === "todo" ? [] : [mes]), ...d.meses])].sort().reverse();
 
   return (
     <div className="space-y-5">
@@ -99,11 +124,32 @@ export function TruckDetailPage() {
         dondeCargar="Camiones → Editar"
       />
 
+      {/* El período de lo que sigue: viajes, vacíos y kilos. Lo demás (odómetro, rendimiento, documentos, consumo
+          mensual, surtidas, lecturas) no depende del mes y queda igual. */}
+      <div className="flex flex-wrap items-center gap-3">
+        <label htmlFor="periodo" className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-ink/60">
+          Período de viajes, vacíos y kilos
+        </label>
+        <select
+          id="periodo"
+          className="input w-auto py-1.5"
+          value={mes}
+          onChange={(e) => setParams({ mes: e.target.value })}
+        >
+          <option value="todo">Todo</option>
+          {opciones.map((m) => (
+            <option key={m} value={m}>
+              {nombreDelMes(m)}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Odómetro" value={`${truck.odometer_km.toLocaleString("es-UY")} km`} />
         <Stat label="Rendimiento" value={`${fmtConsumo(truck.avg_km_litro)} km/L`} hint="esperado" />
-        <Stat label="Viajes" value={d.trips.length} accent="blue" />
-        <Stat label="Kilos" value={fmtKilos(d.tons)} accent="green" />
+        <Stat label="Viajes" value={d.viajes_total} accent="blue" hint={periodo ?? "en total"} />
+        <Stat label="Kilos" value={fmtKilos(d.tons)} accent="green" hint={periodo ?? "en total"} />
       </div>
 
       {d.monthly.length > 0 && (
@@ -135,7 +181,9 @@ export function TruckDetailPage() {
 
       <Card className="overflow-x-auto p-0">
         <Corners />
-        <div className="border-b border-ink/15 px-4 py-3 font-cond text-lg font-semibold text-ink">Últimos viajes</div>
+        <div className="border-b border-ink/15 px-4 py-3 font-cond text-lg font-semibold text-ink">
+          {periodo ? `Viajes de ${periodo}` : "Últimos viajes"}
+        </div>
         <table className="w-full min-w-[560px] text-sm">
           <tbody>
             {d.trips.map((t) => (
@@ -154,7 +202,7 @@ export function TruckDetailPage() {
             ))}
             {d.trips.length === 0 && (
               <tr>
-                <td className="px-4 py-3 text-ink/50">Sin viajes.</td>
+                <td className="px-4 py-3 text-ink/50">{periodo ? `Sin viajes en ${periodo}.` : "Sin viajes."}</td>
               </tr>
             )}
           </tbody>
@@ -169,8 +217,15 @@ export function TruckDetailPage() {
         <div className="flex items-baseline justify-between border-b border-ink/15 px-4 py-3">
           <span className="font-cond text-lg font-semibold text-ink">Viajes vacíos</span>
           <span className="font-cond text-sm text-ink/55 tabular-nums">
-            {d.km_vacios.toLocaleString("es-UY")} km en total
+            {d.km_vacios.toLocaleString("es-UY")} km {periodo ? `en ${periodo}` : "en total"}
           </span>
+        </div>
+        {/* Los dos tipos por separado, como en el Resumen: lo que vuelve a cargar donde ya cargó y lo que va a
+            buscar carga a otro lado. */}
+        <div className="flex flex-wrap gap-x-5 gap-y-1 border-b border-ink/10 px-4 py-2 font-cond text-xs uppercase tracking-[0.06em] text-ink/55 tabular-nums">
+          <span>Retornos: {d.km_retorno.toLocaleString("es-UY")} km</span>
+          <span>A buscar carga: {d.km_reposicion.toLocaleString("es-UY")} km</span>
+          {d.vacios_sin_km > 0 && <span>{d.vacios_sin_km} sin estimar</span>}
         </div>
         <table className="w-full min-w-[560px] text-sm">
           <tbody>
@@ -180,6 +235,7 @@ export function TruckDetailPage() {
                   <span className="text-ink">
                     {t.desde} → {t.hasta}
                   </span>
+                  <span className="ml-2 text-xs text-ink/45">{fmtDate(t.fecha)}</span>
                   <div className="font-cond text-xs uppercase tracking-[0.06em] text-ink/45">
                     {t.tipo === "retorno" ? "Retorno · vuelve a cargar donde ya cargó" : "Va a buscar carga"}
                   </div>
@@ -198,7 +254,7 @@ export function TruckDetailPage() {
             {d.vacios.length === 0 && (
               <tr>
                 <td className="px-4 py-3 text-ink/50">
-                  Sin tramos vacíos: cada viaje arranca donde terminó el anterior.
+                  {periodo ? `Sin tramos vacíos en ${periodo}.` : "Sin tramos vacíos: cada viaje arranca donde terminó el anterior."}
                 </td>
               </tr>
             )}

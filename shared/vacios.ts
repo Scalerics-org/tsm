@@ -183,17 +183,31 @@ export interface VaciosDelPeriodo {
  * Los viajes cancelados los tiene que sacar quien llama, igual que en el resto de las
  * pantallas: un cancelado no se hizo y parte la cadena.
  */
+/** Un tramo vacío con el día en que cuenta: el del viaje siguiente, cuando el camión fue a buscar la carga. */
+export interface TramoConFecha extends TramoVacio {
+  fecha: string;
+}
+
+/**
+ * Los tramos vacíos de un camión que caen en un período, cada uno con su fecha. Es la ÚNICA cuenta: el resumen
+ * por camión (`vaciosDelPeriodo`) y la ficha del camión salen de acá, así un mes da lo mismo en las dos pantallas.
+ */
+export function tramosDelPeriodo(viajes: ViajeParaVacios[], desde?: string, hasta?: string): TramoConFecha[] {
+  const inicio = new Map(viajes.map((v) => [v.id, v.started_at.slice(0, 10)]));
+  const enRango = (dia: string | undefined): dia is string =>
+    dia != null && (!desde || dia >= desde) && (!hasta || dia <= hasta);
+  return vaciosEntreViajes(viajes).flatMap((t) => {
+    const fecha = inicio.get(t.antes_de);
+    return enRango(fecha) ? [{ ...t, fecha }] : [];
+  });
+}
+
 export function vaciosDelPeriodo(
   viajes: ViajeParaVacios[],
   desde?: string,
   hasta?: string,
 ): VaciosDelPeriodo {
-  const inicio = new Map(viajes.map((v) => [v.id, v.started_at.slice(0, 10)]));
-  const enRango = (id: number) => {
-    const dia = inicio.get(id);
-    return dia != null && (!desde || dia >= desde) && (!hasta || dia <= hasta);
-  };
-  const tramos = vaciosEntreViajes(viajes).filter((t) => enRango(t.antes_de));
+  const tramos = tramosDelPeriodo(viajes, desde, hasta);
   return {
     km_retorno: kmVacios(tramos.filter((t) => t.tipo === "retorno")),
     km_reposicion: kmVacios(tramos.filter((t) => t.tipo === "reposicion")),

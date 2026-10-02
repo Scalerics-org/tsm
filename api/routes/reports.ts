@@ -16,7 +16,8 @@ import { columnasDeCampos, encabezado, filasDeViaje, resumenParaElCliente, plani
 import { csvResponse } from "../lib/csv";
 import { consumoDelCamion, consumoMensualDelCamion } from "../lib/consumo-camiones";
 import { verificarMeses } from "../../shared/verificacion-mensual";
-import { vaciosEntreViajes, kmVacios, vaciosDelPeriodo, paraVacios } from "../../shared/vacios";
+import { tramosDelPeriodo, kmVacios, vaciosDelPeriodo, paraVacios } from "../../shared/vacios";
+import { esMes, mesDe, rangoDelMes } from "../../shared/periodo-mes";
 import { resumenCliente } from "../lib/resumen-cliente";
 import { listTemplates } from "../repos/templates";
 import { listFuelLogs } from "../repos/fuel";
@@ -307,6 +308,14 @@ reports.get("/truck/:id", async (c) => {
   const id = Number(c.req.param("id"));
   const truck = await getTruck(c.env.DB, id);
   if (!truck) return fail(c, "Camión no encontrado", 404);
+  // ?mes=2026-09 filtra viajes, vacíos y kilos a ese mes (los días son los de siempre: el día UTC de la fecha
+  // guardada, igual que el Resumen). Sin `mes`, o con cualquier otra cosa, es todo el historial como antes.
+  const mes = esMes(c.req.query("mes")) ? (c.req.query("mes") as string) : null;
+  const rango = mes ? rangoDelMes(mes) : null;
+  const enPeriodo = (t: { started_at: string }) => {
+    const dia = t.started_at.slice(0, 10);
+    return !rango || (dia >= rango.desde && dia <= rango.hasta);
+  };
   const [trips, fuel] = await Promise.all([
     listTrips(c.env.DB, { truckId: id }),
     listFuelLogs(c.env.DB, { truckId: id }),
@@ -329,10 +338,11 @@ reports.get("/truck/:id", async (c) => {
   // Lo encontró el cliente probando: arrancó tres viajes, los canceló, y le quedaron
   // figurando como vacíos en la ficha. Control ya los filtraba; esta pantalla no.
   const hechos = trips.filter((t) => t.status !== TRIP_STATUS.CANCELADO);
-  const vacios = vaciosEntreViajes(
-    hechos
-      .map(paraVacios),
-  );
+  // Con un mes elegido cada tramo cuenta en el mes en que arranca el viaje siguiente (cuando el camión fue a buscar
+  // la carga), y se calcula sobre TODOS los viajes del camión: el tramo del borde necesita al último del mes anterior.
+  const vacios = tramosDelPeriodo(hechos.map(paraVacios), rango?.desde, rango?.hasta);
+  const delPeriodo = trips.filter(enPeriodo);
+  const hechosDelPeriodo = hechos.filter(enPeriodo);
 
   // El aviso de litros se calcula con TODAS las surtidas y con la misma función que Control
   // (`surtidasARevisar`). Antes lo recalculaba la pantalla con las 20 que le llegaban: con más
@@ -342,19 +352,28 @@ reports.get("/truck/:id", async (c) => {
 
   return ok(c, {
     truck,
-    trips: trips.slice(0, 20),
+    // Con un mes se ven todos los de ese mes (hasta 100); sin mes, los 20 últimos como siempre.
+    trips: delPeriodo.slice(0, rango ? 100 : 20),
+    viajes_total: delPeriodo.length,
+    // Los meses en que el camión tuvo viajes, del más nuevo al más viejo: lo que ofrece el selector.
+    meses: [...new Set(trips.map((t) => mesDe(t.started_at)))].sort().reverse(),
+    periodo: { mes, desde: rango?.desde ?? null, hasta: rango?.hasta ?? null },
     monthly,
     fuel: surtidasParaLaFicha(fuel, marcadas),
     surtidas_a_revisar: Object.fromEntries(aRevisar.sospechosas.map((s) => [s.id, s.motivo])),
     // El km/L de cada llenado, con TODAS las surtidas (el primer tramo de la lista necesita la
     // anterior, que puede no venir entre las 20).
     consumo_por_surtida: consumoPorSurtida(fuel),
-    vacios: vacios.slice(-20).reverse(),
+    vacios: (rango ? vacios : vacios.slice(-20)).slice().reverse(),
     km_vacios: kmVacios(vacios),
+    // Retorno y "a buscar carga" por separado, como en el Resumen.
+    km_retorno: kmVacios(vacios.filter((t) => t.tipo === "retorno")),
+    km_reposicion: kmVacios(vacios.filter((t) => t.tipo === "reposicion")),
+    vacios_sin_km: vacios.filter((t) => t.km == null).length,
     // Mismo criterio que los vacíos: un viaje cancelado no cargó nada, así que sus kilos
     // no son toneladas transportadas. La lista de arriba SÍ los sigue mostrando — la
     // oficina tiene que poder ver que existieron—, pero no entran en el total.
-    tons: roundTo(hechos.reduce((s, t) => s + (t.kilos_carga ?? 0), 0)),
+    tons: roundTo(hechosDelPeriodo.reduce((s, t) => s + (t.kilos_carga ?? 0), 0)),
   });
 });
 
