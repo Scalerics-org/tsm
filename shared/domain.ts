@@ -1419,8 +1419,30 @@ export interface ClienteDelViaje {
   faltaAsignar: boolean;
 }
 
-export function clienteDelViaje(trip: { segments?: Pick<TripSegment, "cobro_a">[] }): ClienteDelViaje {
+/**
+ * La clave del campo de plantilla con el que el chofer dice PARA QUIÉN cargó, en los viajes sin cargas
+ * (Internacional Otros: la empresa todavía no es un cliente de la libreta, y la oficina la da de alta
+ * después). Una plantilla opta por esto poniéndole esta clave a un campo de texto de la etapa de carga.
+ */
+export const CLIENTE_DE_CARGA_KEY = "para_quien";
+
+/** La empresa para la que se cargó, si la plantilla la pide y el chofer la completó. */
+export function paraQuienDelViaje(trip: { field_values?: Record<string, string> | null }): string | null {
+  const nombre = trip.field_values?.[CLIENTE_DE_CARGA_KEY]?.trim();
+  return nombre || null;
+}
+
+export function clienteDelViaje(trip: {
+  segments?: Pick<TripSegment, "cobro_a">[];
+  field_values?: Record<string, string> | null;
+}): ClienteDelViaje {
   const cargas = trip.segments ?? [];
+  // Un viaje sin cargas que dice para quién se cargó (Internacional Otros) muestra esa empresa: es a quien
+  // la oficina le va a facturar. Los clásicos, que no tienen ese campo, siguen sin asignar como siempre.
+  if (!cargas.length) {
+    const paraQuien = paraQuienDelViaje(trip);
+    if (paraQuien) return { nombres: [paraQuien], mas: 0, todos: [paraQuien], faltaAsignar: false };
+  }
   const cobros: string[] = [];
   for (const c of cargas) {
     const nombre = c.cobro_a?.trim();

@@ -1,4 +1,4 @@
-import { TRIP_STATUS, UNIDAD, type Trip, type TripTemplate } from "../../shared/domain";
+import { TRIP_STATUS, UNIDAD, paraQuienDelViaje, type Trip, type TripTemplate } from "../../shared/domain";
 import { columnasDe } from "./resumen-cliente";
 
 /**
@@ -211,8 +211,9 @@ export function filasDeViaje(t: Trip, campos: ColumnaCampo[]): Celda[][] {
         t.destinatario ?? "",
         ...COLUMNAS_CANTIDAD.map(() => "" as Celda),
         "",
-        "",
-        "",
+        // "Se cobra a" y "Tipo": en un viaje sin cargas, la empresa para la que se cargó (Internacional Otros).
+        paraQuienDelViaje(t) ?? "",
+        paraQuienDelViaje(t) ? "cliente" : "",
         ...cola,
       ],
     ];

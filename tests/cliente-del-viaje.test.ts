@@ -57,3 +57,21 @@ describe("clienteDelViaje", () => {
     expect(r.faltaAsignar).toBe(true);
   });
 });
+
+describe("para quién se cargó (Internacional Otros)", () => {
+  it("un viaje sin cargas que dice la empresa la muestra como el cliente", () => {
+    expect(clienteDelViaje({ segments: [], field_values: { para_quien: " Teske S.A. " } })).toEqual({
+      nombres: ["Teske S.A."],
+      mas: 0,
+      todos: ["Teske S.A."],
+      faltaAsignar: false,
+    });
+  });
+  it("sin el campo, o vacío, sigue sin asignar como siempre", () => {
+    expect(clienteDelViaje({ segments: [], field_values: {} }).nombres).toEqual([]);
+    expect(clienteDelViaje({ segments: [], field_values: { para_quien: "  " } }).faltaAsignar).toBe(true);
+  });
+  it("con cargas manda el cobro de las cargas, no el campo", () => {
+    expect(clienteDelViaje({ segments: [carga("Agencia")], field_values: { para_quien: "Otra" } }).nombres).toEqual(["Agencia"]);
+  });
+});

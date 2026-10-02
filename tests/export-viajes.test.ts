@@ -242,3 +242,17 @@ describe("columnasDeCampos (cada campo de plantilla, su columna)", () => {
     expect(campos).toEqual([]);
   });
 });
+
+describe("para quién se cargó (Internacional Otros)", () => {
+  it("un viaje sin cargas que dice la empresa la pone en 'Se cobra a', para que la oficina sepa a quién facturarle", () => {
+    const t = viaje({ segments: [], field_values: { para_quien: "Teske S.A." } });
+    const [fila] = filasDeViaje(t, []);
+    expect(fila[COL["Se cobra a"]]).toBe("Teske S.A.");
+    expect(fila[COL["Tipo"]]).toBe("cliente");
+  });
+  it("sin el dato, las celdas quedan vacías como siempre", () => {
+    const [fila] = filasDeViaje(viaje({ segments: [] }), []);
+    expect(fila[COL["Se cobra a"]]).toBe("");
+    expect(fila[COL["Tipo"]]).toBe("");
+  });
+});
