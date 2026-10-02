@@ -29,7 +29,7 @@ SELECT
   NULL,
   'Internacional',
   '[]',
-  '[{"key":"nro_mic","label":"N° de MIC","type":"texto","required":true,"stage":"ruta"},{"key":"ton_carga","label":"Kilos de descarga","type":"numero","required":true,"stage":"descarga","is_weight":true}]',
+  '[{"key":"para_quien","label":"¿Para quién cargaste?","type":"texto","required":true,"stage":"carga"},{"key":"nro_mic","label":"N° de MIC","type":"texto","required":true,"stage":"ruta"},{"key":"ton_carga","label":"Kilos de descarga","type":"numero","required":true,"stage":"descarga","is_weight":true}]',
   'Remito de descarga',
   '{"origen":{"modo":"libreta","label":"Origen","libreta_tipo":"lugar","permite_alta":true},"remitente":{"modo":"texto","label":"Lugar de carga","requerido":false},"destino":{"modo":"libreta","label":"Destino","libreta_tipo":"departamento","permite_alta":false,"al_cerrar":true},"destinatario":{"modo":"texto","label":"Lugar de descarga","al_cerrar":true}}',
   0, 0, NULL, 0, 0, 0, 'Hoja MIC', 1
