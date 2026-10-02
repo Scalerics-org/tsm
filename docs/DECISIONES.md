@@ -186,6 +186,25 @@ nunca descarta nada por su cuenta.
   avisa**: no borra ni marca nada, y el renglón lleva a la ficha del camión, donde la oficina decide cuál
   sobra. Una vez borrada una de las dos, el aviso se va solo. El lector no lo ve (Control no está en su lista).
 
+## "Internacional Otros": el cuarto internacional, una plantilla más (migración 0054)
+
+Rodrigo (26/9/2026): hace falta un internacional que diga "otros" para el transportista que no sea ninguno de
+los cargados, o "van a quedar colgados". Es una plantilla del cliente "Internacional" con la forma de Valvis:
+al salir, origen (lista de lugares, con alta) y lugar de carga opcional; en el puente, N° de MIC (si no se
+cargó ahí lo pide el cierre) y la foto "Hoja MIC", **opcional**; al cerrar, departamento de destino, lugar de
+descarga, kilos de descarga (obligatorios, para que el viaje tenga con qué facturarse) y foto "Remito de
+descarga". La migración escribe la forma completa y no la copia de la fila de Valvis, para no heredar a
+escondidas lo que la oficina haya editado ahí, y no inserta nada si ya existe una "Internacional Otros".
+
+- **Un cambio de código mínimo:** la foto del puente sólo se ofrecía si `foto_carga_requerida`. Ahora también
+  se ofrece, marcada "(opcional)", si la plantilla tiene `carga_photo_label` aunque no la exija. Ninguna
+  plantilla existente cambia: las que tienen etiqueta ("Hoja MIC") la exigen.
+- **Camiones con lista de plantillas:** un camión al que la oficina le restringió las plantillas
+  (`camion_plantillas`) no ve la nueva hasta que se la agreguen desde Camiones.
+- **Preguntas abiertas para Rodrigo:** si un "Otros" puede terminar en Argentina (la lista de departamentos
+  es de Uruguay), si siempre hay MIC, y si los kilos van obligatorios. Si alguna respuesta cambia algo, se
+  ajusta la plantilla.
+
 ## Un grupo de campos donde alcanza con uno
 
 `TemplateField.requiere_uno_de` (`shared/domain.ts`): dos o más campos de la misma plantilla y la
