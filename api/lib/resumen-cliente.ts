@@ -1,3 +1,9 @@
+import {
+  claveDeCliente,
+  clientesDelViaje,
+  estrategiaDeFacturacion,
+  tieneAlgoPorFacturar,
+} from "../../shared/facturacion-por-cliente";
 import { TRIP_STATUS, type Trip, type TripTemplate } from "../../shared/domain";
 import type { TripFacturacion } from "../repos/trips";
 
@@ -48,9 +54,16 @@ export interface FilaResumen {
     remito: string | null;
     /** A quién dice la regla que se le cobra ESTA carga. Puede no ser el cliente del viaje. */
     cobro_a: string | null;
+    /** Ya salió en la factura de su cliente (viaje por cliente): no suma a lo que se factura ahora. */
+    facturada: boolean;
   }[];
   /** El número de la factura en la que ya salió. `null` = todavía está para facturar. */
   factura_numero: string | null;
+  /**
+   * Los clientes del viaje con su factura, SÓLO en los que se facturan por cliente (`null` = por viaje, como
+   * siempre). Un cliente sin `factura_numero` es lo que todavía falta facturar de ese viaje.
+   */
+  clientes: { clave: string; nombre: string; factura_numero: string | null; pago_at: string | null }[] | null;
   /** El número que TUVO y le sacaron: avisa que este viaje ya salió una vez en una factura. */
   factura_quitada: string | null;
 }
@@ -122,8 +135,12 @@ export function viajesAFacturar<T extends ViajeDelResumen>(
   // ya facturado, y eso no se volvía a cobrar nunca. Los que nacen con cargas fijas (Agencia,
   // Manassi) aparecían desde el primer minuto, con la cantidad vacía. Un viaje en curso entra
   // al resumen cuando se cierra.
+  // Por viaje, mientras no tenga número. Por cliente, mientras falte facturar a alguno: un viaje a medias
+  // sigue en la lista —con lo ya facturado marcado— hasta que salga a todos.
   return trips.filter(
-    (t) => t.status === TRIP_STATUS.COMPLETADO && (opts.incluirFacturados || !t.factura_numero),
+    (t) =>
+      t.status === TRIP_STATUS.COMPLETADO &&
+      (opts.incluirFacturados || tieneAlgoPorFacturar(t, t.clientes_facturacion ?? [])),
   );
 }
 
@@ -147,6 +164,8 @@ function conPesoNormalizado(t: ViajeDelResumen, pesos: Set<string>): Record<stri
 }
 
 function fila(t: ViajeDelResumen, pesos: Set<string>): FilaResumen {
+  const porCliente = estrategiaDeFacturacion(t) === "por_cliente";
+  const marcas = new Map((t.clientes_facturacion ?? []).filter((m) => m.factura_numero).map((m) => [m.cliente_clave, m]));
   return {
     trip_id: t.id,
     fecha: t.started_at.slice(0, 10),
@@ -164,7 +183,16 @@ function fila(t: ViajeDelResumen, pesos: Set<string>): FilaResumen {
       unidad: s.unidad,
       remito: s.remito,
       cobro_a: s.cobro_a ?? null,
+      facturada: porCliente && marcas.has(claveDeCliente(s) ?? ""),
     })),
+    clientes: porCliente
+      ? clientesDelViaje(t.segments).clientes.map((c) => ({
+          clave: c.clave,
+          nombre: c.nombre,
+          factura_numero: marcas.get(c.clave)?.factura_numero ?? null,
+          pago_at: marcas.get(c.clave)?.pago_at ?? null,
+        }))
+      : null,
     factura_numero: t.factura_numero ?? null,
     // Para que al volver a facturarlo se vea que ese viaje ya salió una vez en otra factura.
     factura_quitada: t.factura_quitada ?? null,
@@ -185,6 +213,8 @@ export function cantidadesDeCargas(filas: FilaResumen[]): Record<string, number>
   const out: Record<string, number> = {};
   for (const f of filas) {
     for (const c of f.cargas) {
+      // Lo que ya salió en la factura de su cliente no vuelve a sumar: el total es lo que se factura ahora.
+      if (c.facturada) continue;
       if (c.cantidad == null || !Number.isFinite(c.cantidad)) continue;
       const unidad = c.unidad ?? "sin unidad";
       out[unidad] = Math.round(((out[unidad] ?? 0) + c.cantidad) * 100) / 100;

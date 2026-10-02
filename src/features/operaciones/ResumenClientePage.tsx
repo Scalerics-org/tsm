@@ -28,9 +28,13 @@ interface Fila {
     cantidad: number | null;
     unidad: string | null;
     cobro_a: string | null;
+    /** Ya salió en la factura de su cliente: no suma a lo que se factura ahora. */
+    facturada?: boolean;
   }[];
   factura_numero: string | null;
   factura_quitada: string | null;
+  /** Los clientes del viaje con su factura, si se factura por cliente; `null` si es por viaje, como siempre. */
+  clientes?: { clave: string; nombre: string; factura_numero: string | null; pago_at: string | null }[] | null;
 }
 
 interface Grupo {
@@ -180,12 +184,18 @@ export function ResumenClientePage() {
 
   const marcar = (numero: string) =>
     accion(async () => {
-      const r = await api.post<{ marcados: number; sin_tocar: number; factura_numero: string }>(
-        "/facturacion/marcar",
-        { trip_ids: seleccion, factura_numero: numero },
-      );
-      const yaEstaban = r.sin_tocar > 0 ? ` ${r.sin_tocar} ya tenían factura y quedaron como estaban.` : "";
-      return `${r.marcados} viaje${r.marcados === 1 ? "" : "s"} con la factura ${r.factura_numero}.${yaEstaban}`;
+      const r = await api.post<{
+        marcados: number;
+        sin_tocar: number;
+        factura_numero: string;
+        rechazados?: { motivo: string }[];
+      }>("/facturacion/marcar", { trip_ids: seleccion, factura_numero: numero });
+      // Los de varios clientes no se marcan por acá: llevan una factura por cliente, y esa se pone en Viajes.
+      const porCliente = r.rechazados?.length
+        ? ` ${r.rechazados.length} no se marcaron: ${r.rechazados[0].motivo}`
+        : "";
+      const yaEstaban = r.sin_tocar - (r.rechazados?.length ?? 0) > 0 ? ` ${r.sin_tocar - (r.rechazados?.length ?? 0)} ya tenían factura y quedaron como estaban.` : "";
+      return `${r.marcados} viaje${r.marcados === 1 ? "" : "s"} con la factura ${r.factura_numero}.${yaEstaban}${porCliente}`;
     });
 
   /**
@@ -198,12 +208,12 @@ export function ResumenClientePage() {
     // en la pregunta era prometer algo que no iba a pasar.
     const conFactura = (data?.grupos ?? [])
       .flatMap((g) => g.filas)
-      .filter((f) => seleccion.includes(f.trip_id) && f.factura_numero);
+      .filter((f) => seleccion.includes(f.trip_id) && (f.factura_numero || unicoFacturado(f)));
     if (conFactura.length === 0) {
       setError("Ninguno de los viajes que marcaste tiene factura puesta.");
       return;
     }
-    const numeros = [...new Set(conFactura.map((f) => f.factura_numero as string))];
+    const numeros = [...new Set(conFactura.map((f) => (f.factura_numero ?? unicoFacturado(f)) as string))];
     if (
       !confirm(
         `Les vas a sacar la factura (${numeros.join(", ")}) a ${conFactura.length} viaje(s). Vuelven al resumen y se pueden volver a facturar: si les ponés otro número, en DGI van a quedar las dos. ¿Seguir?`,
@@ -563,7 +573,9 @@ function GrupoTabla({
               ))}
               <td className="whitespace-nowrap px-3 py-2 text-ink/70">{f.chofer}</td>
               <td className="whitespace-nowrap px-3 py-2">
-                {f.factura_numero ? (
+                {f.clientes && f.clientes.length > 0 ? (
+                  <FacturaPorCliente clientes={f.clientes} />
+                ) : f.factura_numero ? (
                   <span className="font-cond text-[12px] font-semibold uppercase tracking-[0.08em] text-ink">
                     ✓ {f.factura_numero}
                   </span>
@@ -598,6 +610,35 @@ function GrupoTabla({
       </table>
       </div>
     </Card>
+  );
+}
+
+/** El número del único cliente de un viaje por cliente, si ya está facturado: es lo que el atajo de sacar la factura alcanza. */
+function unicoFacturado(f: Fila): string | null {
+  return f.clientes?.length === 1 ? f.clientes[0].factura_numero : null;
+}
+
+/**
+ * La factura de cada cliente de un viaje que se factura por cliente. Un cliente sin número es lo que todavía
+ * falta de ese viaje: el viaje se queda en la lista mientras falte alguno. Se marcan en Viajes, cliente por
+ * cliente; con un solo cliente, el tilde de acá lo marca igual que a un viaje de siempre.
+ */
+function FacturaPorCliente({ clientes }: { clientes: NonNullable<Fila["clientes"]> }) {
+  return (
+    <ul className="space-y-0.5">
+      {clientes.map((c) => (
+        <li key={c.clave} className="flex items-baseline gap-1.5 text-xs">
+          <span className="max-w-[7rem] truncate text-ink/70" title={c.nombre}>
+            {c.nombre}
+          </span>
+          {c.factura_numero ? (
+            <span className="font-cond font-semibold uppercase tracking-[0.08em] text-ink">✓ {c.factura_numero}</span>
+          ) : (
+            <span className="text-ink/35">sin facturar</span>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 

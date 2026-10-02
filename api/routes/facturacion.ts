@@ -9,7 +9,6 @@ import {
   desmarcarFacturados,
   marcarPagos,
   desmarcarPagos,
-  sinFacturarAntesDe,
 } from "../repos/trips";
 import { getTripsFacturables } from "../repos/trips";
 import {
@@ -25,7 +24,7 @@ import {
   motivoParaMarcarCliente,
 } from "../../shared/facturacion-por-cliente";
 import { listTemplates } from "../repos/templates";
-import { resumenCliente } from "../lib/resumen-cliente";
+import { resumenCliente, viajesAFacturar } from "../lib/resumen-cliente";
 
 /**
  * Facturación: qué viajes ya salieron en una factura y cuáles quedan por facturar.
@@ -50,6 +49,13 @@ function idsValidos(v: unknown): number[] | null {
   if (!Array.isArray(v) || v.length === 0) return null;
   const ids = v.map(Number).filter((n) => Number.isInteger(n) && n > 0);
   return ids.length === v.length ? [...new Set(ids)] : null;
+}
+
+/** Cuántos viajes del cliente quedaron sin facturar (del todo) antes del día `desde`. */
+async function sinFacturarAntes(db: D1Database, provider: string, desde: string, templateId?: number): Promise<number> {
+  const ayer = new Date(Date.parse(`${desde}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  const previos = await listTripsFacturables(db, { provider, templateId, to: ayer });
+  return viajesAFacturar(previos).length;
 }
 
 const ahora = () => new Date().toISOString().replace("T", " ").slice(0, 19);
@@ -102,8 +108,9 @@ facturacion.get("/resumen", async (c) => {
     listTripsFacturables(c.env.DB, { provider, templateId, from: q.from, to: q.to }),
     listTemplates(c.env.DB),
     // Lo que quedó afuera por la fecha de arriba. La pantalla abre en el 1° del mes, así que
-    // sin esto los viajes viejos sin facturar no los nombra nadie: hoy son 82.
-    q.from ? sinFacturarAntesDe(c.env.DB, provider, q.from, templateId) : Promise.resolve(0),
+    // sin esto los viajes viejos sin facturar no los nombra nadie: hoy son 82. Se cuenta con la misma
+    // regla que el resumen (`viajesAFacturar`), que por cliente mira cada cliente del viaje.
+    q.from ? sinFacturarAntes(c.env.DB, provider, q.from, templateId) : Promise.resolve(0),
   ]);
 
   return ok(c, {

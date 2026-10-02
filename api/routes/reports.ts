@@ -412,12 +412,17 @@ reports.get("/trips.csv", async (c) => {
   // columna que los distinguiera—, así que el total del Excel no coincidía con el de la
   // pantalla, y facturando desde el Excel se podía cobrar dos veces un viaje.
   const soloFacturables = q.facturables === "1";
+  // Con filtros de facturación, o para la planilla de facturar, hace falta la factura de cada cliente: por
+  // cliente el estado no está en las columnas del viaje. Sin eso, el Excel filtraba distinto que la pantalla.
+  const conFacturacion = soloFacturables || !!(filtros.facturado || filtros.pago || filtros.factura) || q.planilla === "facturar";
   const [trips, templates] = await Promise.all([
     soloFacturables
       ? listTripsFacturables(c.env.DB, filtros).then((ts) =>
           viajesAFacturar(ts, { incluirFacturados: q.incluirFacturados === "1" }),
         )
-      : listTrips(c.env.DB, filtros),
+      : conFacturacion
+        ? listTripsFacturables(c.env.DB, filtros)
+        : listTrips(c.env.DB, filtros),
     listTemplates(c.env.DB),
   ]);
   // El remito, la boleta y el número de orden salen cada uno en su columna, no apelmazados

@@ -248,3 +248,30 @@ export function pasaFiltroDeCobro(
   if (f.factura && !marcas.some((m) => igual(m.factura_numero, f.factura!))) return false;
   return true;
 }
+
+// ── Para el resumen y el Excel ──
+
+/**
+ * Lo que va en la columna "Nro Fac." de un viaje: el número de siempre, o —por cliente— el de cada cliente
+ * facturado. Con más de un cliente se aclara de quién es cada número: "A-1 (Jair) · A-2 (BMR)".
+ */
+export function facturaDelViaje(
+  viaje: { factura_numero?: string | null; segments?: readonly CargaParaFacturar[] | null },
+  marcas: readonly Pick<FacturaDeCliente, "cliente_clave" | "cliente_nombre" | "factura_numero">[] = [],
+): string {
+  if (estrategiaDeFacturacion(viaje) === "por_viaje") return viaje.factura_numero ?? "";
+  const { clientes } = clientesDelViaje(viaje.segments);
+  const facturadas = new Map(marcas.filter((m) => m.factura_numero).map((m) => [m.cliente_clave, m]));
+  const delViaje = clientes.filter((c) => facturadas.has(c.clave));
+  if (clientes.length <= 1) return delViaje.length ? (facturadas.get(delViaje[0].clave)!.factura_numero as string) : "";
+  return delViaje.map((c) => `${facturadas.get(c.clave)!.factura_numero} (${c.nombre})`).join(" · ");
+}
+
+/** ¿Falta facturar algo de este viaje? Por viaje, mientras no tenga número; por cliente, mientras no esté todo. */
+export function tieneAlgoPorFacturar(
+  viaje: { factura_numero?: string | null; segments?: readonly CargaParaFacturar[] | null },
+  marcas: readonly Pick<FacturaDeCliente, "cliente_clave" | "factura_numero" | "pago_at">[] = [],
+): boolean {
+  if (estrategiaDeFacturacion(viaje) === "por_viaje") return !viaje.factura_numero;
+  return estadoPorCliente(viaje.segments, marcas).facturacion !== "facturado";
+}

@@ -9,6 +9,7 @@ import {
   sqlFiltros,
 } from "../api/repos/trips";
 import { viajesAFacturar } from "../api/lib/resumen-cliente";
+import { fakeD1Facturacion, viajeBase } from "./helpers/fake-d1-facturacion";
 import { ROLES, TRIP_STATUS, estadoDeCobro, recorridoVisible } from "@shared/domain";
 
 /**
@@ -209,8 +210,17 @@ describe("las rutas de pago", () => {
 });
 
 describe("el Excel respeta los dos filtros nuevos", () => {
-  it("trips.csv pide los viajes con el mismo pago y la misma factura que la lista", async () => {
-    const lecturas: Escritura[] = [];
+  // Facturado, pago y factura se resuelven sobre la lista (en `listTripsFacturables`), no en el SQL: por
+  // cliente el estado depende de las cargas y de la factura de cada cliente. El Excel tiene que dar lo mismo
+  // que la pantalla, así que se prueba con viajes de verdad y no mirando la consulta.
+  it("trips.csv trae los viajes con el mismo pago y la misma factura que la lista", async () => {
+    const viajes = [
+      viajeBase({ id: 11, factura_numero: "SAMAN", pago_at: null }),
+      viajeBase({ id: 12, factura_numero: "SAMAN", pago_at: "2026-09-25 10:00:00" }),
+      viajeBase({ id: 13, factura_numero: "6029", pago_at: null }),
+      viajeBase({ id: 14, factura_numero: null }),
+    ];
+    const d1 = fakeD1Facturacion(viajes, [], ROLES.ENCARGADO);
     const token = await signToken(
       { id: 2, name: "Quien sea", role: ROLES.ENCARGADO, driver_id: null, truck_id: null, email: null } as any,
       SECRET,
@@ -218,14 +228,12 @@ describe("el Excel respeta los dos filtros nuevos", () => {
     const res = await app.request(
       "/api/reports/trips.csv?pago=no&factura=SAMAN",
       { headers: { authorization: `Bearer ${token}` } },
-      { DB: fakeDB([], 1, lecturas), JWT_SECRET: SECRET } as any,
+      { DB: d1.db, JWT_SECRET: SECRET } as any,
       { waitUntil: () => {}, passThroughOnException: () => {} } as any,
     );
     expect(res.status).toBe(200);
-    const deViajes = lecturas.find((l) => l.sql.includes("t.pago_at IS NULL"));
-    expect(deViajes).toBeDefined();
-    expect(deViajes!.sql).toContain("lower(trim(t.factura_numero)) = lower(trim(?))");
-    expect(deViajes!.binds).toEqual(["SAMAN"]);
+    const filas = (await res.text()).trim().split(/\r?\n/).slice(1);
+    expect(filas.map((f) => f.split(";")[0])).toEqual(["11"]);
   });
 });
 

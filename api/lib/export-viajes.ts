@@ -1,3 +1,4 @@
+import { facturaDelViaje, type FacturaDeCliente } from "../../shared/facturacion-por-cliente";
 import { TRIP_STATUS, UNIDAD, paraQuienDelViaje, type Trip, type TripTemplate } from "../../shared/domain";
 import { columnasDe } from "./resumen-cliente";
 
@@ -308,7 +309,7 @@ export const ENCABEZADO_FACTURAR = [
 ];
 
 export function planillaParaFacturar(
-  trips: (Trip & { factura_numero?: string | null })[],
+  trips: (Trip & { factura_numero?: string | null; clientes_facturacion?: FacturaDeCliente[] })[],
   campos: ColumnaCampo[],
 ): Celda[][] {
   const encabezado = [...ENCABEZADO_FACTURAR.slice(0, 5), ...campos.map((c) => c.label), ...ENCABEZADO_FACTURAR.slice(5)];
@@ -319,7 +320,8 @@ export function planillaParaFacturar(
       t.provider_name,
       clientes.join(" / ") || (t.destinatario ?? ""),
       t.kilos_carga ?? "",
-      t.factura_numero ?? "",
+      // Por cliente, el número de cada cliente facturado ("A-1 (Jair) · A-2 (BMR)"); por viaje, el de siempre.
+      facturaDelViaje(t, t.clientes_facturacion ?? []),
       ...campos.map((c) => valorDeCampo(t.field_values?.[c.key], c)),
       t.driver_name ?? "",
       t.truck_plate ?? "",

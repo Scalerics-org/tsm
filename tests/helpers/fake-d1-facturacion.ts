@@ -196,6 +196,8 @@ export function fakeD1Facturacion(viajes: FilaViaje[], marcas: FilaMarca[] = [],
           if (q.includes("from trips") && q.includes("t.id in")) {
             return { results: viajes.filter((v) => (binds as number[]).includes(v.id)) };
           }
+          // Una lista de viajes (la del Excel, la de la pantalla): todos; el filtro por cliente va en JS.
+          if (q.includes("from trips t") && q.includes("order by")) return { results: viajes };
           return { results: [] };
         },
         run: async () => ({ meta: { changes: ejecutar(sql, binds) } }),
