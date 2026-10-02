@@ -117,6 +117,17 @@ un tilde que a veces no tilda es el que nadie vuelve a mirar. Si molesta, la sal
 Clientes (que avisa con el número de cargas). El filtro vive en la ruta `GET /libreta` (sólo para el
 chofer) y no en `listLibreta`, porque `createEntry` usa esa consulta para no duplicar nombres.
 
+## Sin señal al abrir la app: una página propia, la única excepción al "no cachea nada" (2/10/2026)
+
+Un chofer con 4G de una rayita abrió el sitio y vio el "No se puede acceder a este sitio / ERR_FAILED" de Chrome:
+el service worker hacía `respondWith(fetch(...))` y, sin red, la promesa se rechazaba. Ahora `public/sw.js` guarda UNA
+página, `/sin-senal.html` (HTML suelto, sin JS, con el botón Reintentar como enlace: la política de contenido no
+deja scripts en línea), en un caché versionado (`tsm-2`), y la muestra sólo cuando una NAVEGACIÓN falla por falta de
+red. Un 404 o un 500 se devuelve tal cual; la API, los assets y la app siguen yendo sólo a la red.
+- Se guarda una **copia limpia** de la respuesta: el hosting redirige `/sin-senal.html` a `/sin-senal` y Chrome no
+  muestra en una navegación una respuesta que vino de una redirección (volvía a dar ERR_FAILED; se vio probando).
+- Si la instalación no pudo guardarla (mala señal justo ahí), se reintenta en la próxima navegación con red.
+
 ## Reintentos cuando no llega respuesta (29/9/2026)
 
 `src/lib/api.ts` envuelve cada pedido con `conReintentos` (`src/lib/reintentos.ts`); ninguna pantalla cambia

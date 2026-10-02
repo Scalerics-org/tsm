@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#1d2d3d" />
+<title>Sin señal · TSM</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #f2f2f3;
+    color: #1d2d3d;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  header { background: #1d2d3d; color: #f2f2f3; padding: 16px; font-size: 22px; font-weight: 700; letter-spacing: 0.04em; }
+  main { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 32px 16px; max-width: 28rem; margin: 0 auto; width: 100%; }
+  .icono { width: 56px; height: 56px; margin-bottom: 16px; }
+  h1 { margin: 0 0 12px; font-size: 32px; line-height: 1.1; }
+  p { margin: 0 0 12px; font-size: 18px; line-height: 1.4; color: #3d4a57; }
+  a.boton {
+    display: block; margin-top: 20px; padding: 18px 16px; text-align: center;
+    background: #3f7f50; color: #fff; text-decoration: none; font-size: 18px; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  a.boton:active { background: #336641; }
+</style>
+</head>
+<body>
+<header>TSM</header>
+<main>
+  <svg class="icono" viewBox="0 0 24 24" fill="none" stroke="#1d2d3d" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+    <path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0" />
+    <circle cx="12" cy="19.5" r="1" fill="#1d2d3d" />
+    <path d="M3 3l18 18" stroke="#b3382c" />
+  </svg>
+  <h1>Sin señal</h1>
+  <p>Probá de nuevo cuando tengas cobertura.</p>
+  <p>No se perdió nada de lo que ya guardaste.</p>
+  <!-- Sin JS: la política de contenido no deja scripts en línea. Un enlace vacío vuelve a pedir esta misma dirección. -->
+  <a class="boton" href="">Reintentar</a>
+</main>
+</body>
+</html>

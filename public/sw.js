@@ -4,17 +4,36 @@
  * Hace dos cosas y ninguna más: habilita que la app se instale en el celular, y —cuando se
  * conecte el aviso de viaje cerrado— recibe las notificaciones.
  *
- * NO cachea nada. Es a propósito: un chofer con una versión vieja guardada en el celular es
+ * NO cachea la app. Es a propósito: un chofer con una versión vieja guardada en el celular es
  * peor que un chofer sin app. Acá se corrigen cosas seguido y todas tienen que llegarle en
- * el próximo arranque, no cuando al navegador se le ocurra. Si algún día hace falta que
- * funcione sin señal, se agrega con cuidado y para pantallas puntuales — no para todo.
+ * el próximo arranque, no cuando al navegador se le ocurra.
+ *
+ * LA ÚNICA EXCEPCIÓN: la página "sin señal" (/sin-senal.html), que se guarda sola y se muestra cuando una
+ * NAVEGACIÓN falla porque no hay red. Sin ella Chrome mostraba su ERR_FAILED, que asusta y no dice qué
+ * hacer. No es la app ni la API ni los assets: es un HTML suelto, sin JS, que no depende de ninguna versión.
  */
 
-const VERSION = "tsm-1";
+const VERSION = "tsm-2";
+const SIN_SENAL = "/sin-senal.html";
 
-self.addEventListener("install", () => {
+/**
+ * Guarda la página "sin señal". Se guarda una COPIA limpia y no la respuesta tal cual: el hosting redirige
+ * /sin-senal.html a /sin-senal, y Chrome se niega a mostrar en una navegación una respuesta que viene de
+ * una redirección (daba el mismo ERR_FAILED que se quería evitar).
+ */
+async function guardarSinSenal() {
+  const res = await fetch(SIN_SENAL, { cache: "reload" });
+  if (!res.ok) return;
+  const limpia = new Response(await res.blob(), { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
+  await (await caches.open(VERSION)).put(SIN_SENAL, limpia);
+}
+
+self.addEventListener("install", (event) => {
   // Sin espera: la versión nueva reemplaza a la vieja apenas se descarga.
   self.skipWaiting();
+  // Si no se puede guardar ahora (instalando con mala señal), no se traba la instalación: se reintenta
+  // en el próximo arranque del service worker.
+  event.waitUntil(guardarSinSenal().catch(() => {}));
 });
 
 self.addEventListener("activate", (event) => {
@@ -31,10 +50,27 @@ self.addEventListener("activate", (event) => {
 /**
  * Todo va a la red, tal cual. El handler existe porque el navegador lo pide para considerar
  * la app instalable — no para meterse en el medio de los pedidos.
+ *
+ * Sólo si una NAVEGACIÓN no puede ni llegar (el fetch se rechaza: sin señal) se muestra la página "sin
+ * señal". Una respuesta con error —un 404, un 500— NO es eso: se devuelve tal cual, igual que antes.
  */
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-  event.respondWith(fetch(event.request));
+  const respuesta = fetch(event.request);
+  // Con red, y por si la instalación no pudo guardarla, se asegura de tener la página "sin señal" a mano.
+  if (event.request.mode === "navigate") {
+    event.waitUntil(
+      (async () => {
+        if (await caches.match(SIN_SENAL)) return;
+        await guardarSinSenal();
+      })().catch(() => {}),
+    );
+  }
+  event.respondWith(
+    event.request.mode === "navigate"
+      ? respuesta.catch(async () => (await caches.match(SIN_SENAL)) || Response.error())
+      : respuesta,
+  );
 });
 
 /** Aviso de viaje cerrado. El servidor manda { title, body, url }. */
