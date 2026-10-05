@@ -6,6 +6,13 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["wrangler", "dev", "--local", "--port", "8791"],
       "port": 8791
+    },
+    {
+      "name": "taller-maqueta",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "5180", "--strictPort"],
+      "port": 5180,
+      "url": "http://localhost:5180"
     }
   ]
 }

@@ -1,0 +1,67 @@
+/* El dibujo de las cubiertas: foco, hover y los textos del SVG (que no heredan las clases de Tailwind). */
+.cubierta {
+  cursor: pointer;
+  outline: none;
+  transition: opacity 160ms ease;
+}
+.cubierta .cuerpo {
+  transition: filter 140ms ease;
+}
+.cubierta:hover .cuerpo {
+  filter: brightness(1.12);
+}
+.cubierta:focus-visible .anillo-foco {
+  opacity: 1 !important;
+}
+
+.num-cubierta {
+  font-family: "Bricolage Grotesque", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  fill: #1d1f20;
+}
+.pct-cubierta {
+  font-family: "Bricolage Grotesque", system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  fill: #fff;
+  letter-spacing: 0.02em;
+}
+.rotulo-svg text {
+  font-family: "Bricolage Grotesque", system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  fill: rgba(29, 31, 32, 0.5);
+}
+.cota-svg {
+  font-family: "Bricolage Grotesque", system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  fill: #2c455d;
+}
+
+/* Papel de plano: cuadrícula suave detrás del dibujo. */
+.papel-de-plano {
+  background-color: #fff;
+  background-image:
+    linear-gradient(rgba(89, 128, 166, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(89, 128, 166, 0.09) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cubierta,
+  .cubierta .cuerpo {
+    transition: none;
+  }
+}
+
+/* Barras que se deslizan con el dedo: sin la barra de scroll a la vista. */
+.sin-barra {
+  scrollbar-width: none;
+}
+.sin-barra::-webkit-scrollbar {
+  display: none;
+}

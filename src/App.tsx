@@ -1,4 +1,5 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { lazy, Suspense } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./lib/auth";
 import { LIBRETA_TIPO, ROLES, type Role } from "@shared/domain";
 import { Spinner } from "./components/ui";
@@ -45,8 +46,23 @@ function RequireRole({ roles, children }: { roles: Role[]; children: JSX.Element
   return children;
 }
 
+// La maqueta del Taller va aparte del resto: no engorda lo que baja el celular del chofer.
+const TallerMaqueta = lazy(() => import("./features/taller/TallerMaqueta").then((m) => ({ default: m.TallerMaqueta })));
+
 export default function App() {
   const { user, loading } = useAuth();
+  const { pathname } = useLocation();
+
+  // La maqueta del Taller se muestra sin iniciar sesión: sólo datos de ejemplo, nada de la base.
+  if (pathname === "/taller-maqueta" || pathname.startsWith("/taller-maqueta/")) {
+    return (
+      <Suspense fallback={<div className="grid min-h-full place-items-center"><Spinner size={32} /></div>}>
+        <Routes>
+          <Route path="/taller-maqueta/*" element={<TallerMaqueta />} />
+        </Routes>
+      </Suspense>
+    );
+  }
 
   if (loading) {
     return (
