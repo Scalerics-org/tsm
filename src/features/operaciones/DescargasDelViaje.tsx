@@ -258,7 +258,7 @@ export function DescargasDelViaje({
                     {d.sin_boleta ? "Falta la boleta: el chofer no pudo sacarla." : "Sin foto de la boleta."}
                   </p>
                 )}
-                {editable && (
+                {delModeloNuevo && !soloMirar && (
                   <label className="inline-block cursor-pointer text-sm text-brand-700 hover:underline">
                     {subiendo === d.sid ? "Subiendo…" : "+ Sumar foto de la boleta"}
                     <input

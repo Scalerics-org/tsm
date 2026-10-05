@@ -34,6 +34,10 @@ photos.post("/", async (c) => {
 
   const trip = await tripsRepo.getTrip(c.env.DB, tripId);
   if (!trip) return fail(c, "Viaje no encontrado", 404);
+  // A propósito NO se mira `bloqueoPorFacturacion` al sumar: la guarda de "foto" existe para que no se
+  // saque el respaldo de lo facturado (borrar es irreversible). Agregar un respaldo no cambia ni un
+  // kilo ni un cobro, y es justo lo que la oficina necesita cuando falta el remito de un viaje ya
+  // facturado. La oficina puede subir en cualquier estado del viaje; el chofer, sólo a los suyos.
   if (user.role === ROLES.CHOFER && trip.driver_id !== user.driver_id) {
     return fail(c, "No podés subir fotos a este viaje", 403);
   }

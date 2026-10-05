@@ -253,3 +253,10 @@ lista es concreta y estable; el séptimo documento, si aparece, es una columna m
   podía figurar "por vencer" en una pantalla y no en la otra. Se unificó en 30 (decisión de Gonzalo).
   `/reports/alerts` sigue mandando `expiringLicenses` (misma cuenta) sólo para una pestaña de Control
   abierta antes del deploy; la pantalla nueva usa `vencimientos`.
+
+## Fotos subidas desde la oficina
+
+- **Se puede sumar en cualquier estado del viaje, también facturado.** `bloqueoPorFacturacion` con alcance "foto" frena el BORRADO (es irreversible y saca el respaldo); agregar un respaldo no cambia lo facturado y es justo lo que falta cuando un viaje que cargó la oficina quedó sin remito o MIC. Sumar no consulta esa guarda a propósito.
+- Misma ruta que el chofer (`POST /photos` con `kind` y `segment_sid`) y la misma compresión. El lector lo frena la lista blanca de `requireAuth`; esconder el botón es comodidad.
+- **No se guarda quién subió la foto:** `trip_photos` no tiene esa columna. Mostrarlo pide una migración aditiva; pendiente de decidir.
+- Sin reintento automático, como el resto de las subidas.

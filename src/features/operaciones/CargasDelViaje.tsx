@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   COBRO_TIPO,
+  PHOTO_KIND,
   PHOTO_KIND_LABEL,
   UNIDAD,
   type Unidad,
@@ -16,6 +17,7 @@ import { VisorFotos, type FotoDelVisor } from "../../components/VisorFotos";
 import { fmtDateTime } from "../../lib/format";
 import { useSoloMirar } from "../../lib/auth";
 import { EditarLugaresDeCarga } from "./EditarLugaresDeCarga";
+import { SumarFoto } from "./SumarFoto";
 
 interface Props {
   /** Con el id, cada carga se puede corregir desde acá (cantidad, unidad y remito). */
@@ -29,17 +31,35 @@ interface Props {
    * descargó, porque Corregir el viaje no deja tocar el origen ni el destino.
    */
   editarLugares?: boolean;
+  /** El papel de la carga según la plantilla ("Hoja MIC"). Es el nombre del botón de sumar esa foto. */
+  cargaLabel?: string | null;
+  /** El papel de la llegada ("Remito de descarga"). Sin plantilla, "foto de llegada". */
+  llegadaLabel?: string | null;
+  /** Falso cuando la descarga se registra por lugar, con su boleta (`DescargasDelViaje`): no hay "llegada". */
+  sumarLlegada?: boolean;
 }
 
 /**
  * Las cargas del viaje como las ve la oficina: una por lugar de carga, con su foto y a
  * quién se le factura. Es la misma fila que sale en el Excel, pero en pantalla.
  */
-export function CargasDelViaje({ tripId, segments, photos, onChanged, editarLugares = false }: Props) {
+export function CargasDelViaje({
+  tripId,
+  segments,
+  photos,
+  onChanged,
+  editarLugares = false,
+  cargaLabel = null,
+  llegadaLabel = null,
+  sumarLlegada = true,
+}: Props) {
   // El lector ve las cargas y las fotos enteras; lo que no ve es el "Corregir" de cada carga
   // ni el "Borrar" de cada foto. El visor, que es lo que viene a mirar, queda igual.
   const soloMirar = useSoloMirar();
   const { porCarga, delViaje } = fotosPorRenglon(photos);
+  // La oficina puede sumar fotos en cualquier estado del viaje, también facturado: agregar un respaldo no
+  // cambia lo facturado (sólo borrar lo hace, y eso lo frena el servidor). El lector no.
+  const puedeSumar = tripId != null && !soloMirar;
 
   /* Todas las fotos del viaje en una sola lista: con las flechas del visor la oficina las
      recorre de corrido, en vez de cerrar y abrir una por una. El orden es el de la pantalla
@@ -128,6 +148,17 @@ export function CargasDelViaje({ tripId, segments, photos, onChanged, editarLuga
                   onAmpliar={abrir}
                   onChanged={onChanged}
                   soloMirar={soloMirar}
+                  sumar={
+                    puedeSumar ? (
+                      <SumarFoto
+                        tripId={tripId}
+                        kind={PHOTO_KIND.CARGA}
+                        segmentSid={s.sid}
+                        texto={cargaLabel ? `Sumar ${cargaLabel}` : "Sumar foto de la carga"}
+                        onSubida={onChanged}
+                      />
+                    ) : null
+                  }
                 />
               </Card>
             ))}
@@ -135,11 +166,31 @@ export function CargasDelViaje({ tripId, segments, photos, onChanged, editarLuga
         </div>
       )}
 
-      {delViaje.length > 0 && (
+      {(delViaje.length > 0 || (puedeSumar && (sumarLlegada || segments.length === 0))) && (
         <div>
           <h3 className="mb-2 font-semibold text-ink">
             {segments.length > 0 ? "Otras fotos del viaje" : "Fotos"}
           </h3>
+          {puedeSumar && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {sumarLlegada && (
+                <SumarFoto
+                  tripId={tripId}
+                  kind={PHOTO_KIND.DESCARGA}
+                  texto={llegadaLabel ? `Sumar ${llegadaLabel}` : "Sumar foto de llegada"}
+                  onSubida={onChanged}
+                />
+              )}
+              {segments.length === 0 && (
+                <SumarFoto
+                  tripId={tripId}
+                  kind={PHOTO_KIND.CARGA}
+                  texto={cargaLabel ? `Sumar ${cargaLabel}` : "Sumar foto de la carga"}
+                  onSubida={onChanged}
+                />
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {delViaje.map((p) => (
               <div key={p.id}>
@@ -167,7 +218,7 @@ export function CargasDelViaje({ tripId, segments, photos, onChanged, editarLuga
         </div>
       )}
 
-      {segments.length === 0 && delViaje.length === 0 && (
+      {segments.length === 0 && delViaje.length === 0 && !puedeSumar && (
         <p className="text-sm text-ink/50">Sin cargas ni fotos registradas todavía.</p>
       )}
 
@@ -297,6 +348,7 @@ function FotosDeCarga({
   onAmpliar,
   onChanged,
   soloMirar,
+  sumar,
 }: {
   fotos: TripPhoto[];
   lugar: string;
@@ -304,12 +356,20 @@ function FotosDeCarga({
   onChanged: () => void;
   /** Por prop: el componente es de este mismo archivo, que ya preguntó por el rol una vez. */
   soloMirar: boolean;
+  /** El botón de sumar otra foto de esta carga (la oficina), o nada para el lector. */
+  sumar?: React.ReactNode;
 }) {
   if (fotos.length === 0) {
-    return <p className="border-t border-ink/10 pt-2 text-xs text-ink/45">Sin foto de esta carga.</p>;
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink/10 pt-2">
+        <p className="text-xs text-ink/45">Sin foto de esta carga.</p>
+        {sumar}
+      </div>
+    );
   }
   return (
-    <div className="grid grid-cols-2 gap-3 border-t border-ink/10 pt-3 sm:grid-cols-4">
+    <div className="border-t border-ink/10 pt-3">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {fotos.map((p) => (
         <div key={p.id}>
           <PhotoImage
@@ -326,6 +386,8 @@ function FotosDeCarga({
           </div>
         </div>
       ))}
+    </div>
+    {sumar && <div className="mt-3">{sumar}</div>}
     </div>
   );
 }

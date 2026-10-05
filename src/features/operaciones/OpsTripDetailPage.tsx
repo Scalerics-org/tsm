@@ -22,6 +22,9 @@ import { useSoloMirar } from "../../lib/auth";
 interface Detail {
   trip: Trip & { fields?: TemplateField[] };
   photos: TripPhoto[];
+  /** Los papeles que pide la plantilla: dan nombre a los botones de sumar foto. */
+  arrival_photo_label?: string | null;
+  carga_photo_label?: string | null;
   /** En estas plantillas el recorrido lo arman las cargas y no se corrige acá. */
   renglon_pide_ubicacion: boolean;
   /** Del que salen los lugares de carga propios del viaje (los de Mdeo - BU, por ejemplo). */
@@ -285,6 +288,9 @@ OJO: este viaje está EN CURSO. ${trip.driver_name ?? "El chofer"} lo tiene abie
         photos={photos}
         onChanged={load}
         editarLugares={data.renglon_pide_ubicacion}
+        cargaLabel={data.carga_photo_label}
+        llegadaLabel={data.arrival_photo_label}
+        sumarLlegada={!data.renglon_pide_ubicacion}
       />
       {data.renglon_pide_ubicacion && <DescargasDelViaje trip={trip} photos={photos} onChanged={load} />}
       {/* Un viaje cancelado no se factura: agregarle cargas no tiene sentido. */}
