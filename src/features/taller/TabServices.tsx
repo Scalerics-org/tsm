@@ -4,8 +4,7 @@ import { HOY } from "./datos";
 import { COLOR_ESTADO } from "./VistaSuperior";
 import {
   CICLO,
-  KM_ENTRE_SERVICES,
-  fmtKm,
+  fmtUso,
   proximoService,
   ultimoService,
   type Service,
@@ -34,14 +33,14 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
         <Corners />
         <div className="kicker">Sin services</div>
         <p className="mt-2 max-w-prose text-sm text-ink/65">
-          Este vehículo no tiene service de motor cargado. En la maqueta los semirremolques sólo llevan cubiertas.
+          Este vehículo no tiene service de motor cargado: los semirremolques y acoplados no llevan motor, sólo cubiertas, frenos y componentes.
         </p>
       </div>
     );
   }
   const prox = proximoService(vehiculo, HOY);
   const desdeUltimo = vehiculo.km - ultimo.km;
-  const avance = Math.min(1, desdeUltimo / KM_ENTRE_SERVICES);
+  const avance = Math.min(1, desdeUltimo / vehiculo.cadaService);
   const orden = [...vehiculo.services].sort((a, b) => b.km - a.km);
 
   return (
@@ -49,9 +48,9 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
       <div className="grid gap-4 md:grid-cols-3">
         <div className="panel border-l-4 border-l-st-blueDot px-4 py-3">
           <Corners />
-          <div className="kicker">Km actual</div>
+          <div className="kicker">{vehiculo.unidad === "h" ? "Horas actuales" : "Km actual"}</div>
           <div className="mt-1 font-cond text-4xl font-semibold leading-none tabular-nums">{vehiculo.km.toLocaleString("es-UY")}</div>
-          <div className="mt-1 text-xs text-ink/50">{desdeUltimo.toLocaleString("es-UY")} km desde el último service</div>
+          <div className="mt-1 text-xs text-ink/50">{desdeUltimo.toLocaleString("es-UY")} {vehiculo.unidad} desde el último service</div>
         </div>
 
         <div className="panel border-l-4 border-l-st-greenDot px-4 py-3">
@@ -61,9 +60,9 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
             <TipoPill tipo={ultimo.tipo} />
           </div>
           <div className="mt-1 font-cond text-2xl font-semibold leading-tight">{fmtDate(ultimo.fecha)}</div>
-          <div className="text-sm tabular-nums text-ink/60">a los {fmtKm(ultimo.km)}</div>
+          <div className="text-sm tabular-nums text-ink/60">a {vehiculo.unidad === "h" ? "las" : "los"} {fmtUso(vehiculo, ultimo.km)}</div>
           <p className="mt-2 border-t border-ink/10 pt-2 text-xs leading-relaxed text-ink/60">
-            Chofer {ultimo.chofer} · Mecánico {ultimo.mecanico}
+            {vehiculo.unidad === "h" ? "Operador" : "Chofer"} {ultimo.chofer} · Mecánico {ultimo.mecanico}
             <span className="mt-0.5 block text-ink/50">{ultimo.obs}</span>
           </p>
         </div>
@@ -74,26 +73,26 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
             <span className="kicker">Próximo (estimado)</span>
             <TipoPill tipo={prox.tipo} />
           </div>
-          <div className="mt-1 font-cond text-2xl font-semibold leading-tight">{fmtKm(prox.km)}</div>
+          <div className="mt-1 font-cond text-2xl font-semibold leading-tight">{fmtUso(vehiculo, prox.km)}</div>
           <div className="text-sm text-ink/60">
             {prox.faltan > 0 ? (
               <>
-                faltan <b className="tabular-nums text-ink">{prox.faltan.toLocaleString("es-UY")} km</b> · alrededor del{" "}
+                faltan <b className="tabular-nums text-ink">{prox.faltan.toLocaleString("es-UY")} {vehiculo.unidad}</b> · alrededor del{" "}
                 {fmtDate(prox.fechaEstimada)}
               </>
             ) : (
-              <b style={{ color: COLOR_ESTADO.rojo }}>Ya pasó por {Math.abs(prox.faltan).toLocaleString("es-UY")} km</b>
+              <b style={{ color: COLOR_ESTADO.rojo }}>Ya pasó por {Math.abs(prox.faltan).toLocaleString("es-UY")} {vehiculo.unidad}</b>
             )}
           </div>
           <div className="mt-3 h-2.5 bg-surface" role="img" aria-label={`${Math.round(avance * 100)}% del camino al próximo service`}>
             <div className="h-full" style={{ width: `${avance * 100}%`, background: COLOR_ESTADO[prox.estado] }} />
           </div>
-          <p className="mt-2 text-xs text-ink/50">A {Math.round(vehiculo.kmPorDia)} km por día, que es lo que viene haciendo.</p>
+          <p className="mt-2 text-xs text-ink/50">A {Math.round(vehiculo.kmPorDia)} {vehiculo.unidad} por día, que es lo que viene haciendo.</p>
         </div>
       </div>
 
       <p className="text-xs leading-relaxed text-ink/55">
-        Criterio de ejemplo: un service cada {KM_ENTRE_SERVICES.toLocaleString("es-UY")} km, en este orden: {CICLO.join(" → ")} y
+        Criterio de ejemplo: un service cada {vehiculo.cadaService.toLocaleString("es-UY")} {vehiculo.unidad}, en este orden: {CICLO.join(" → ")} y
         vuelve a empezar. Cada cuánto toca y qué incluye cada tipo lo define Rodrigo.
       </p>
 
@@ -104,7 +103,7 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="font-cond text-[11px] uppercase tracking-[0.12em] text-ink/50">
-                {["Fecha", "Tipo", "Km", "Chofer", "Mecánico", "Observaciones"].map((c) => (
+                {["Fecha", "Tipo", vehiculo.unidad === "h" ? "Horas" : "Km", vehiculo.unidad === "h" ? "Operador" : "Chofer", "Mecánico", "Observaciones"].map((c) => (
                   <th key={c} className="px-4 py-2 font-semibold">
                     {c}
                   </th>
@@ -129,7 +128,7 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
         </div>
         <ul className="divide-y divide-ink/10 md:hidden">
           {orden.map((s) => (
-            <FilaDeService key={s.km} s={s} />
+            <FilaDeService key={s.km} s={s} v={vehiculo} />
           ))}
         </ul>
       </section>
@@ -137,7 +136,7 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
   );
 }
 
-function FilaDeService({ s }: { s: Service }) {
+function FilaDeService({ s, v }: { s: Service; v: Vehiculo }) {
   return (
     <li className="px-4 py-3">
       <div className="flex items-center justify-between gap-3">
@@ -145,10 +144,10 @@ function FilaDeService({ s }: { s: Service }) {
           <TipoPill tipo={s.tipo} />
           <span className="font-cond text-base font-semibold">{fmtDate(s.fecha)}</span>
         </span>
-        <span className="font-cond text-sm font-semibold tabular-nums text-ink/70">{fmtKm(s.km)}</span>
+        <span className="font-cond text-sm font-semibold tabular-nums text-ink/70">{fmtUso(v, s.km)}</span>
       </div>
       <div className="mt-1 text-xs text-ink/55">
-        Chofer {s.chofer} · Mecánico {s.mecanico}
+        {v.unidad === "h" ? "Operador" : "Chofer"} {s.chofer} · Mecánico {s.mecanico}
       </div>
       <div className="mt-0.5 text-sm text-ink/65">{s.obs}</div>
     </li>

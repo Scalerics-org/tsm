@@ -5,7 +5,7 @@
  */
 
 export type TipoEje = "simple" | "dual";
-export type Carroceria = "camion" | "semirremolque";
+export type Carroceria = "camion" | "semirremolque" | "acoplado";
 
 export interface EjeDef {
   id: string;
@@ -53,6 +53,17 @@ export const SEMIRREMOLQUE: Disposicion = {
   ejes: [
     { id: "e1", nombre: "Eje 1", tipo: "dual", y: 344 },
     { id: "e2", nombre: "Eje 2", tipo: "dual", y: 428 },
+  ],
+};
+
+/** Acoplado con lanza y dos ejes simples (el de la foto 19.jpg). Con ejes duales sería otra configuración. */
+export const ACOPLADO: Disposicion = {
+  id: "acoplado-4",
+  nombre: "Acoplado de 4 cubiertas",
+  carroceria: "acoplado",
+  ejes: [
+    { id: "e1", nombre: "Eje 1", tipo: "simple", y: 292 },
+    { id: "e2", nombre: "Eje 2", tipo: "simple", y: 384 },
   ],
 };
 

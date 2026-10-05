@@ -4,7 +4,7 @@ import { fmtDate } from "../../lib/format";
 import { HOY, VEHICULOS, enLaDireccion } from "./datos";
 import { TipoPill } from "./TabServices";
 import { COLOR_ESTADO } from "./VistaSuperior";
-import { cubiertasPorPosicion, fmtKm, proximoService, ultimoService } from "./tipos";
+import { cubiertasPorPosicion, fmtUso, proximoService, ultimoService } from "./tipos";
 
 /** El tablero del taller: los km de cada vehículo, su último service y cuántas cubiertas piden atención. */
 export function FlotaPage() {
@@ -53,7 +53,7 @@ export function FlotaPage() {
                   </Link>
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 font-cond text-lg font-semibold tabular-nums">
-                  {v.km.toLocaleString("es-UY")}
+                  {v.km.toLocaleString("es-UY")} <span className="text-sm text-ink/45">{v.unidad}</span>
                 </td>
                 <td className="px-4 py-3">
                   {ultimo ? (
@@ -65,9 +65,9 @@ export function FlotaPage() {
                     <span className="text-ink/40">—</span>
                   )}
                 </td>
-                <td className="px-4 py-3">{prox ? <Proximo prox={prox} /> : <span className="text-ink/40">—</span>}</td>
+                <td className="px-4 py-3">{prox ? <Proximo prox={prox} unidad={v.unidad} /> : <span className="text-ink/40">—</span>}</td>
                 <td className="px-4 py-3">
-                  <Atencion rojas={rojas} ambar={ambar} />
+                  {v.disposicion ? <Atencion rojas={rojas} ambar={ambar} /> : <span className="text-ink/40">—</span>}
                 </td>
               </tr>
             ))}
@@ -85,7 +85,7 @@ export function FlotaPage() {
                   <div className="font-cond text-xl font-semibold">{v.patente}</div>
                   <div className="text-xs text-ink/55">{v.descripcion}</div>
                 </div>
-                <div className="text-right font-cond text-xl font-semibold tabular-nums">{fmtKm(v.km)}</div>
+                <div className="text-right font-cond text-xl font-semibold tabular-nums">{fmtUso(v, v.km)}</div>
               </div>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-ink/10 pt-3 text-sm">
                 {prox && ultimo ? (
@@ -95,11 +95,11 @@ export function FlotaPage() {
                 ) : (
                   <span className="text-ink/40">Sin services</span>
                 )}
-                <Atencion rojas={rojas} ambar={ambar} />
+                {v.disposicion && <Atencion rojas={rojas} ambar={ambar} />}
               </div>
               {prox && (
                 <div className="mt-2 flex items-center gap-2 text-sm text-ink/70">
-                  Próximo <Proximo prox={prox} />
+                  Próximo <Proximo prox={prox} unidad={v.unidad} />
                 </div>
               )}
             </Link>
@@ -108,18 +108,18 @@ export function FlotaPage() {
       </ul>
 
       <p className="text-xs text-ink/50">
-        Los semirremolques se muestran con sus cubiertas. Los datos de esta maqueta son de ejemplo.
+        Los semirremolques y acoplados llevan cubiertas, frenos y componentes; el montacargas cuenta horas en vez de km. Los datos de esta maqueta son de ejemplo.
       </p>
     </div>
   );
 }
 
-function Proximo({ prox }: { prox: NonNullable<ReturnType<typeof proximoService>> }) {
+function Proximo({ prox, unidad }: { prox: NonNullable<ReturnType<typeof proximoService>>; unidad: string }) {
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
       <TipoPill tipo={prox.tipo} />
       <span className="tabular-nums" style={{ color: prox.faltan <= 0 ? COLOR_ESTADO.rojo : undefined }}>
-        {prox.faltan > 0 ? `faltan ${prox.faltan.toLocaleString("es-UY")} km` : "ya toca"}
+        {prox.faltan > 0 ? `faltan ${prox.faltan.toLocaleString("es-UY")} ${unidad}` : "ya toca"}
       </span>
     </span>
   );

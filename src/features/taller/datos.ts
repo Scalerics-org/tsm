@@ -1,9 +1,7 @@
-import { CAMION, SEMIRREMOLQUE } from "./disposicion";
+import { ACOPLADO, CAMION, SEMIRREMOLQUE } from "./disposicion";
 import {
   CICLO,
-  KM_ENTRE_SERVICES,
   type Cubierta,
-  type Modelo,
   type PuestaAnterior,
   type Service,
   type Vehiculo,
@@ -15,15 +13,9 @@ import {
  * queda la pantalla.
  */
 
-/** "Hoy" de la maqueta: fijo, así los días y las capturas no cambian de un día para el otro. */
-export const HOY = "2026-10-05";
-
-export const MODELOS: Record<string, Modelo> = {
-  r269: { id: "r269", nombre: "Bridgestone R269", medida: "295/80 R22.5" },
-  multi: { id: "multi", nombre: "Michelin X Multi Z", medida: "295/80 R22.5" },
-  fr85: { id: "fr85", nombre: "Pirelli FR85", medida: "295/80 R22.5" },
-  kmax: { id: "kmax", nombre: "Goodyear KMax D", medida: "295/80 R22.5" },
-};
+export { HOY, MODELOS } from "./base";
+import { HOY } from "./base";
+import { componentesDe } from "./datos-extra";
 
 const CHOFERES = ["Carlos Pereira", "Julio Techera", "Marcelo Núñez", "Darío Silva", "Walter Rocha"];
 const MECANICO = "Raúl";
@@ -60,10 +52,14 @@ interface Plano {
   /** Cuántos km lleva cada cubierta, en orden de posición. */
   recorridos: number[];
   /** Modelo de la dirección, del eje trasero 1 y del trasero 2 (o del eje 1 y 2 del semirremolque). */
-  modelos: [string, string, string?];
+  modelos: [string, string?, string?];
   /** Km del último service (los anteriores salen de ahí hacia atrás). */
   ultimoService?: number;
+  /** Cada cuánto toca un service. Por defecto 15.000 km. */
+  cadaService?: number;
 }
+
+const CADA_SERVICE_KM = 15_000;
 
 function cubiertasDe(p: Plano, porEje: (i: number) => string): Cubierta[] {
   return p.recorridos.map((rec, i) => {
@@ -101,9 +97,10 @@ function servicesDe(p: Plano, cuantos: number): Service[] {
   if (p.ultimoService == null) return [];
   const lista: Service[] = [];
   for (let k = 0; k < cuantos; k++) {
-    const km = p.ultimoService - k * KM_ENTRE_SERVICES;
+    const cada = p.cadaService ?? CADA_SERVICE_KM;
+    const km = p.ultimoService - k * cada;
     if (km <= 0) break;
-    const orden = Math.round(km / KM_ENTRE_SERVICES);
+    const orden = Math.round(km / cada);
     lista.push({
       tipo: CICLO[(orden - 1) % CICLO.length],
       fecha: sumarDias(HOY, -((p.km - km) / p.kmPorDia)),
@@ -116,27 +113,54 @@ function servicesDe(p: Plano, cuantos: number): Service[] {
   return lista;
 }
 
-const camion = (p: Plano): Vehiculo => ({
+const base = (p: Plano) => ({
   patente: p.patente,
-  tipo: "camion",
   descripcion: p.descripcion,
-  disposicion: CAMION,
   km: p.km,
   kmPorDia: p.kmPorDia,
+  cadaService: p.cadaService ?? CADA_SERVICE_KM,
+});
+
+const camion = (p: Plano): Vehiculo => ({
+  ...base(p),
+  tipo: "camion",
+  disposicion: CAMION,
+  unidad: "km",
   // 0 y 1: dirección; 2 a 5: eje trasero 1; 6 a 9: eje trasero 2.
-  cubiertas: cubiertasDe(p, (i) => (i < 2 ? p.modelos[0] : i < 6 ? p.modelos[1] : (p.modelos[2] ?? p.modelos[1]))),
+  cubiertas: cubiertasDe(p, (i) => (i < 2 ? p.modelos[0] : i < 6 ? p.modelos[1] ?? p.modelos[0] : (p.modelos[2] ?? p.modelos[1] ?? p.modelos[0]))),
   services: servicesDe(p, 6),
+  componentes: componentesDe({ ...base(p), tipo: "camion" }),
 });
 
 const semirremolque = (p: Plano): Vehiculo => ({
-  patente: p.patente,
+  ...base(p),
   tipo: "semirremolque",
-  descripcion: p.descripcion,
   disposicion: SEMIRREMOLQUE,
-  km: p.km,
-  kmPorDia: p.kmPorDia,
-  cubiertas: cubiertasDe(p, (i) => (i < 4 ? p.modelos[0] : p.modelos[1])),
+  unidad: "km",
+  cubiertas: cubiertasDe(p, (i) => (i < 4 ? p.modelos[0] : (p.modelos[1] ?? p.modelos[0]))),
   services: [],
+  componentes: componentesDe({ ...base(p), tipo: "semirremolque" }),
+});
+
+const acoplado = (p: Plano): Vehiculo => ({
+  ...base(p),
+  tipo: "acoplado",
+  disposicion: ACOPLADO,
+  unidad: "km",
+  cubiertas: cubiertasDe(p, () => p.modelos[0]),
+  services: [],
+  componentes: componentesDe({ ...base(p), tipo: "acoplado" }),
+});
+
+/** El montacargas no tiene odómetro: cuenta horas de uso. Sin cubiertas en esta maqueta. */
+const montacargas = (p: Plano): Vehiculo => ({
+  ...base(p),
+  tipo: "montacargas",
+  disposicion: null,
+  unidad: "h",
+  cubiertas: [],
+  services: servicesDe(p, 6),
+  componentes: componentesDe({ ...base(p), tipo: "montacargas" }),
 });
 
 export const VEHICULOS: Vehiculo[] = [
@@ -219,6 +243,24 @@ export const VEHICULOS: Vehiculo[] = [
     kmPorDia: 350,
     recorridos: [48_300, 47_900, 52_600, 54_100, 61_700, 63_200, 59_800, 62_400],
     modelos: ["fr85", "kmax"],
+  }),
+  acoplado({
+    patente: "AC 0307",
+    descripcion: "Acoplado con lanza · 2 ejes (ejemplo)",
+    km: 168_300,
+    kmPorDia: 300,
+    recorridos: [39_800, 41_200, 58_700, 60_100],
+    modelos: ["kmax"],
+  }),
+  montacargas({
+    patente: "Montacargas 1",
+    descripcion: "Montacargas de patio · horas de uso (ejemplo)",
+    km: 3_420,
+    kmPorDia: 7,
+    cadaService: 250,
+    recorridos: [],
+    modelos: ["kmax"],
+    ultimoService: 3_250,
   }),
 ];
 

@@ -51,7 +51,13 @@ export function VistaSuperior({ disposicion, posiciones, seleccionada, onSelecci
       </defs>
 
       <Orientacion alto={alto} />
-      {disposicion.carroceria === "camion" ? <CuerpoCamion d={disposicion} /> : <CuerpoSemirremolque d={disposicion} />}
+      {disposicion.carroceria === "camion" ? (
+        <CuerpoCamion d={disposicion} />
+      ) : disposicion.carroceria === "acoplado" ? (
+        <CuerpoAcoplado d={disposicion} />
+      ) : (
+        <CuerpoSemirremolque d={disposicion} />
+      )}
 
       {posiciones.map(({ posicion, cubierta, km, estado }) => {
         const { x, y } = lugarEnElDibujo(posicion);
@@ -214,6 +220,34 @@ function CuerpoSemirremolque({ d }: { d: Disposicion }) {
         <Eje key={e.id} y={e.y} desde={118} hasta={ANCHO - 118} />
       ))}
       {/* Los nombres de los ejes. */}
+      {d.ejes.map((e) => (
+        <Cota key={e.id} x={centro} y={e.y} texto={e.nombre} ancho={70} />
+      ))}
+    </g>
+  );
+}
+
+function CuerpoAcoplado({ d }: { d: Disposicion }) {
+  const centro = ANCHO / 2;
+  const fin = altoDelDibujo(d) - 46;
+  return (
+    <g stroke={TINTA} strokeOpacity={0.55} fill="none">
+      {/* La lanza en A, con el ojal de enganche. */}
+      <path d="M 176 36 L 124 130 M 184 36 L 236 130" strokeWidth={5} strokeLinecap="round" />
+      <line x1={centro} x2={centro} y1={70} y2={130} strokeWidth={3} strokeOpacity={0.4} />
+      <circle cx={centro} cy={28} r={8} fill="#fff" strokeWidth={2.5} />
+      <text x={centro + 40} y={40} className="cota-svg" stroke="none" fill={TINTA} fillOpacity={0.7}>
+        LANZA
+      </text>
+      {/* La caja. */}
+      <rect x={112} y={124} width={136} height={fin - 124} rx={6} fill="#fff" strokeOpacity={0.7} strokeWidth={1.6} />
+      <rect x={122} y={134} width={116} height={fin - 144} rx={4} strokeOpacity={0.25} />
+      {[190, 250, 310, 370].map((y) => (
+        <line key={y} x1={122} x2={238} y1={y} y2={y} strokeOpacity={0.14} />
+      ))}
+      {d.ejes.map((e) => (
+        <Eje key={e.id} y={e.y} desde={94} hasta={ANCHO - 94} />
+      ))}
       {d.ejes.map((e) => (
         <Cota key={e.id} x={centro} y={e.y} texto={e.nombre} ancho={70} />
       ))}

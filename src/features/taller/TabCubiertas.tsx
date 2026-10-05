@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MODELOS } from "./datos";
-import { PanelCubierta } from "./PanelCubierta";
+import type { Disposicion } from "./disposicion";
+import { PanelCubierta, type VistaDeRueda } from "./PanelCubierta";
 import { COLOR_ESTADO, VistaSuperior } from "./VistaSuperior";
 import {
   UMBRAL_AMBAR,
@@ -20,6 +21,13 @@ const LEYENDA: { estado: Estado; titulo: string; rango: string }[] = [
 ];
 
 export function TabCubiertas({ vehiculo }: { vehiculo: Vehiculo }) {
+  // Sin disposición (el montacargas) no hay cubiertas: la solapa ni se ofrece, pero por las dudas no se rompe.
+  const disposicion = vehiculo.disposicion;
+  if (!disposicion) return null;
+  return <CubiertasDe vehiculo={vehiculo} disposicion={disposicion} />;
+}
+
+function CubiertasDe({ vehiculo, disposicion }: { vehiculo: Vehiculo; disposicion: Disposicion }) {
   const [params, setParams] = useSearchParams();
   const [modeloResaltado, setModeloResaltado] = useState<string | null>(null);
   const items = useMemo(() => cubiertasPorPosicion(vehiculo), [vehiculo]);
@@ -30,6 +38,14 @@ export function TabCubiertas({ vehiculo }: { vehiculo: Vehiculo }) {
     const siguiente = new URLSearchParams(params);
     if (numero == null || numero === pedida) siguiente.delete("cubierta");
     else siguiente.set("cubierta", String(numero));
+    setParams(siguiente, { replace: true });
+  };
+
+  const vista: VistaDeRueda = params.get("rueda") === "frenos" ? "frenos" : "cubierta";
+  const verEsto = (v: VistaDeRueda) => {
+    const siguiente = new URLSearchParams(params);
+    if (v === "frenos") siguiente.set("rueda", "frenos");
+    else siguiente.delete("rueda");
     setParams(siguiente, { replace: true });
   };
 
@@ -57,16 +73,16 @@ export function TabCubiertas({ vehiculo }: { vehiculo: Vehiculo }) {
   return (
     <div
       className={`grid grid-cols-[minmax(0,1fr)] gap-5 md:grid-cols-[minmax(0,1fr)_380px] md:items-start ${
-        elegida ? "pb-[48vh] md:pb-0" : ""
+        elegida ? (vista === "frenos" ? "pb-[12vh] md:pb-0" : "pb-[48vh] md:pb-0") : ""
       }`}
     >
       <div className="space-y-4">
         <div className="papel-de-plano panel -mx-4 border-x-0 px-0 pb-4 pt-5 sm:mx-0 sm:border-x sm:px-6">
           <span className="kicker block px-4 pb-3 sm:px-2">
-            {vehiculo.disposicion.nombre} · vista desde arriba
+            {disposicion.nombre} · vista desde arriba
           </span>
           <VistaSuperior
-            disposicion={vehiculo.disposicion}
+            disposicion={disposicion}
             posiciones={items}
             seleccionada={elegida?.posicion.numero ?? null}
             onSeleccionar={elegir}
@@ -123,7 +139,7 @@ export function TabCubiertas({ vehiculo }: { vehiculo: Vehiculo }) {
 
       <aside className="space-y-4 md:sticky md:top-4">
         {elegida ? (
-          <PanelCubierta vehiculo={vehiculo} item={elegida} onCerrar={() => elegir(null)} />
+          <PanelCubierta vehiculo={vehiculo} item={elegida} vista={vista} onVista={verEsto} onCerrar={() => elegir(null)} />
         ) : (
           <div className="panel p-5">
             <div className="kicker">Tocá una cubierta</div>

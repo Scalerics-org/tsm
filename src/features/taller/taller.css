@@ -65,3 +65,22 @@
 .sin-barra::-webkit-scrollbar {
   display: none;
 }
+
+/* El despiece de la rueda: las piezas se tocan como las cubiertas. */
+.pieza {
+  cursor: pointer;
+  outline: none;
+}
+.pieza:hover rect,
+.pieza:hover circle {
+  filter: brightness(0.95);
+}
+.pieza:focus-visible text {
+  fill: #416180;
+  text-decoration: underline;
+}
+.rotulo-pieza {
+  font-family: "Public Sans", system-ui, sans-serif;
+  font-size: 10.5px;
+  fill: #1d1f20;
+}

@@ -3,11 +3,10 @@ import { TruckMark } from "../../components/AppShell";
 import { VEHICULOS, enLaDireccion, vehiculoDe } from "./datos";
 import { FlotaPage } from "./FlotaPage";
 import { TabCubiertas } from "./TabCubiertas";
+import { TabComponentes } from "./TabComponentes";
 import { TabServices } from "./TabServices";
-import { fmtKm } from "./tipos";
-
-/** Lo que viene después: se muestran apagadas para que se vea hacia dónde crece el taller. */
-const PROXIMAMENTE = ["Frenos", "Rodaje", "Motor", "Caja", "Diferencial", "Chasis", "Electricidad", "Stock"];
+import { StockPage } from "./StockPage";
+import { fmtUso } from "./tipos";
 
 /**
  * MAQUETA del módulo de Taller: navegable, con datos de ejemplo y sin base de datos. Vive afuera del login
@@ -24,7 +23,26 @@ export function TallerMaqueta() {
             </span>
             <span className="font-cond text-[22px] font-semibold tracking-[0.06em] text-bg">TSM</span>
           </Link>
-          <span className="font-cond text-[15px] font-semibold uppercase tracking-[0.14em] text-brand-400">Taller</span>
+          <span className="hidden font-cond text-[15px] font-semibold uppercase tracking-[0.14em] text-brand-400 sm:inline">Taller</span>
+          <nav aria-label="Taller" className="ml-3 flex">
+            {[
+              ["/taller-maqueta", "Flota", true],
+              ["/taller-maqueta/stock", "Stock", false],
+            ].map(([to, texto, exacto]) => (
+              <NavLink
+                key={String(to)}
+                to={String(to)}
+                end={Boolean(exacto)}
+                className={({ isActive }) =>
+                  `flex min-h-[44px] items-center border-b-[3px] px-3 font-cond text-[14px] font-semibold uppercase tracking-[0.1em] ${
+                    isActive ? "border-brand text-bg" : "border-transparent text-bg/55 hover:text-bg"
+                  }`
+                }
+              >
+                {texto}
+              </NavLink>
+            ))}
+          </nav>
           <span className="ml-auto border border-st-amberBd bg-st-amberBg px-2.5 py-1 font-cond text-[11px] font-semibold uppercase tracking-[0.12em] text-st-amberTx">
             Maqueta
           </span>
@@ -38,6 +56,7 @@ export function TallerMaqueta() {
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-5">
         <Routes>
           <Route index element={<FlotaPage />} />
+          <Route path="stock" element={<StockPage />} />
           <Route path=":patente" element={<FichaDelVehiculo />} />
           <Route path="*" element={<Navigate to="/taller-maqueta" replace />} />
         </Routes>
@@ -46,14 +65,18 @@ export function TallerMaqueta() {
   );
 }
 
-type Pestana = "cubiertas" | "services";
+type Pestana = "cubiertas" | "services" | "componentes";
 
 function FichaDelVehiculo() {
   const { patente } = useParams();
   const [params, setParams] = useSearchParams();
   const vehiculo = vehiculoDe(patente);
   if (!vehiculo) return <Navigate to="/taller-maqueta" replace />;
-  const pestana: Pestana = params.get("tab") === "services" ? "services" : "cubiertas";
+  const tieneCubiertas = vehiculo.disposicion != null;
+  const pedida = params.get("tab");
+  const pestana: Pestana =
+    pedida === "services" ? "services" : pedida === "componentes" ? "componentes" : tieneCubiertas ? "cubiertas" : "services";
+  const pestanas = (["cubiertas", "services", "componentes"] as const).filter((p) => p !== "cubiertas" || tieneCubiertas);
   const ir = (t: Pestana) => setParams(t === "cubiertas" ? {} : { tab: t }, { replace: true });
 
   return (
@@ -86,13 +109,13 @@ function FichaDelVehiculo() {
           <p className="mt-1 text-sm text-ink/60">{vehiculo.descripcion}</p>
         </div>
         <div className="text-right">
-          <div className="kicker">Km actual</div>
-          <div className="font-cond text-3xl font-semibold leading-none tabular-nums">{fmtKm(vehiculo.km)}</div>
+          <div className="kicker">{vehiculo.unidad === "h" ? "Horas de uso" : "Km actual"}</div>
+          <div className="font-cond text-3xl font-semibold leading-none tabular-nums">{fmtUso(vehiculo, vehiculo.km)}</div>
         </div>
       </div>
 
       <div role="tablist" aria-label="Secciones del taller" className="sin-barra -mx-4 flex overflow-x-auto border-b border-ink/15 px-4 sm:mx-0 sm:px-0">
-        {(["cubiertas", "services"] as const).map((t) => (
+        {pestanas.map((t) => (
           <button
             key={t}
             role="tab"
@@ -103,25 +126,18 @@ function FichaDelVehiculo() {
               pestana === t ? "border-brand text-ink" : "border-transparent text-ink/55 hover:text-ink"
             }`}
           >
-            {t === "cubiertas" ? "Cubiertas" : "Services"}
+            {t === "cubiertas" ? "Cubiertas" : t === "services" ? "Services" : "Componentes"}
           </button>
-        ))}
-        {PROXIMAMENTE.map((t) => (
-          <span
-            key={t}
-            role="tab"
-            aria-selected={false}
-            aria-disabled
-            title="Próximamente"
-            className="flex min-h-[44px] flex-none cursor-not-allowed items-center gap-1.5 border-b-[3px] border-transparent px-3 font-cond text-[14px] font-semibold uppercase tracking-[0.08em] text-ink/30"
-          >
-            {t}
-            <small className="hidden text-[9px] tracking-[0.1em] xl:inline">Próximamente</small>
-          </span>
         ))}
       </div>
 
-      {pestana === "cubiertas" ? <TabCubiertas key={vehiculo.patente} vehiculo={vehiculo} /> : <TabServices vehiculo={vehiculo} />}
+      {pestana === "cubiertas" ? (
+        <TabCubiertas key={vehiculo.patente} vehiculo={vehiculo} />
+      ) : pestana === "services" ? (
+        <TabServices vehiculo={vehiculo} />
+      ) : (
+        <TabComponentes vehiculo={vehiculo} />
+      )}
     </div>
   );
 }

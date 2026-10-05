@@ -39,17 +39,42 @@ export interface Service {
   obs: string;
 }
 
+export type TipoVehiculo = "camion" | "semirremolque" | "acoplado" | "montacargas";
+
+/** Una pieza de un componente (alternador, correas, cabina…) y cómo está. */
+export type CondicionPieza = "original" | "reparado" | "nuevo";
+export interface PiezaDeComponente {
+  nombre: string;
+  condicion: CondicionPieza;
+  /** Km (u horas) del vehículo cuando se la repuso o reparó. */
+  alKm: number;
+  fecha: string;
+  obs: string;
+}
+export interface Componente {
+  id: string;
+  nombre: string;
+  piezas: PiezaDeComponente[];
+  obs: string;
+}
+
 export interface Vehiculo {
   patente: string;
-  tipo: "camion" | "semirremolque";
+  tipo: TipoVehiculo;
   descripcion: string;
-  disposicion: Disposicion;
-  /** Odómetro actual. */
+  /** Sin disposición no hay cubiertas que dibujar (el montacargas no las lleva en la maqueta). */
+  disposicion: Disposicion | null;
+  /** Lo que mide el vehículo: km en el odómetro, horas en el montacargas. */
+  unidad: "km" | "h";
+  /** Odómetro (o horímetro) actual. */
   km: number;
-  /** Cuánto anda por día, para estimar la fecha del próximo service. */
+  /** Cada cuánto toca un service, en esa unidad. */
+  cadaService: number;
+  /** Cuánto usa por día, para estimar la fecha del próximo service. */
   kmPorDia: number;
   cubiertas: Cubierta[];
   services: Service[];
+  componentes: Componente[];
 }
 
 /** Datos de ejemplo: la vida útil con la que se pintan las cubiertas. La real la define Rodrigo. */
@@ -80,6 +105,7 @@ export interface PosicionConCubierta {
 }
 
 export function cubiertasPorPosicion(v: Vehiculo): PosicionConCubierta[] {
+  if (!v.disposicion) return [];
   return posiciones(v.disposicion).map((posicion) => {
     const cubierta = v.cubiertas.find((c) => c.numero === posicion.numero);
     const km = cubierta ? kmRecorridos(v, cubierta) : 0;
@@ -88,10 +114,9 @@ export function cubiertasPorPosicion(v: Vehiculo): PosicionConCubierta[] {
 }
 
 // ── Services ──
-/** Cada cuántos km toca un service, y el ciclo (de ejemplo): A, A+B, A, R+A+B. */
-export const KM_ENTRE_SERVICES = 15_000;
+/** El ciclo de services (de ejemplo): A, A+B, A, R+A+B. Cada cuánto toca depende del vehículo. */
 export const CICLO: TipoService[] = ["A", "A+B", "A", "R+A+B"];
-const AVISO_KM = 2_500;
+const AVISO_ANTES = 1 / 6;
 
 export interface ProximoService {
   tipo: TipoService;
@@ -108,15 +133,18 @@ export function ultimoService(v: Vehiculo): Service | undefined {
 
 export function proximoService(v: Vehiculo, hoy: string): ProximoService {
   const base = ultimoService(v)?.km ?? 0;
-  const km = base + KM_ENTRE_SERVICES;
-  const orden = Math.round(km / KM_ENTRE_SERVICES);
+  const km = base + v.cadaService;
+  const orden = Math.round(km / v.cadaService);
   const tipo = CICLO[(((orden - 1) % CICLO.length) + CICLO.length) % CICLO.length];
   const faltan = km - v.km;
   const dias = Math.max(0, Math.round(faltan / v.kmPorDia));
   const fecha = new Date(`${hoy}T12:00:00Z`);
   fecha.setUTCDate(fecha.getUTCDate() + dias);
-  const estado: Estado = faltan <= 0 ? "rojo" : faltan <= AVISO_KM ? "ambar" : "verde";
+  const estado: Estado = faltan <= 0 ? "rojo" : faltan <= v.cadaService * AVISO_ANTES ? "ambar" : "verde";
   return { tipo, km, faltan, dias, fechaEstimada: fecha.toISOString().slice(0, 10), estado };
 }
 
 export const fmtKm = (km: number) => `${Math.round(km).toLocaleString("es-UY")} km`;
+/** Km u horas, según lo que mida el vehículo. */
+export const fmtUso = (v: Pick<Vehiculo, "unidad">, n: number) =>
+  `${Math.round(n).toLocaleString("es-UY")} ${v.unidad}`;

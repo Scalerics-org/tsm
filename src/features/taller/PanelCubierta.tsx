@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { MODELOS } from "./datos";
+import { piezasDeRueda } from "./datos-extra";
+import { FrenosYRodaje } from "./FrenosYRodaje";
 import { COLOR_ESTADO } from "./VistaSuperior";
 import {
   ESTADO_TEXTO,
@@ -15,13 +17,19 @@ import {
 } from "./tipos";
 
 /** La ficha de una cubierta: en el escritorio queda al lado del dibujo; en el celular sube desde abajo. */
+export type VistaDeRueda = "cubierta" | "frenos";
+
 export function PanelCubierta({
   vehiculo,
   item,
+  vista,
+  onVista,
   onCerrar,
 }: {
   vehiculo: Vehiculo;
   item: PosicionConCubierta;
+  vista: VistaDeRueda;
+  onVista: (v: VistaDeRueda) => void;
   onCerrar: () => void;
 }) {
   const { posicion, cubierta, km, estado } = item;
@@ -30,7 +38,7 @@ export function PanelCubierta({
   return (
     <section
       aria-label={`Ficha de la cubierta ${posicion.numero}`}
-      className="fixed inset-x-0 bottom-0 z-[600] max-h-[46vh] overflow-y-auto border-t-[3px] border-navy bg-white shadow-elev-lg md:static md:max-h-none md:overflow-visible md:border md:border-t md:border-ink/[.16] md:shadow-none"
+      className={`fixed inset-x-0 bottom-0 z-[600] ${vista === "frenos" ? "max-h-[82vh]" : "max-h-[46vh]"} overflow-y-auto border-t-[3px] border-navy bg-white shadow-elev-lg md:static md:max-h-none md:overflow-visible md:border md:border-t md:border-ink/[.16] md:shadow-none`}
     >
       <div className="md:relative">
         <span className="hidden md:block">
@@ -58,7 +66,26 @@ export function PanelCubierta({
           </button>
         </header>
 
-        {!cubierta || !modelo ? (
+        <div role="tablist" aria-label="Qué mirar de esta rueda" className="flex border-b border-ink/10">
+          {(["cubierta", "frenos"] as const).map((v) => (
+            <button
+              key={v}
+              role="tab"
+              type="button"
+              aria-selected={vista === v}
+              onClick={() => onVista(v)}
+              className={`min-h-[44px] flex-1 border-b-[3px] px-3 font-cond text-[14px] font-semibold uppercase tracking-[0.08em] ${
+                vista === v ? "border-brand text-ink" : "border-transparent text-ink/50 hover:text-ink"
+              }`}
+            >
+              {v === "cubierta" ? "Cubierta" : "Frenos y rodaje"}
+            </button>
+          ))}
+        </div>
+
+        {vista === "frenos" ? (
+          <FrenosYRodaje vehiculo={vehiculo} piezas={piezasDeRueda(vehiculo, posicion.numero)} />
+        ) : !cubierta || !modelo ? (
           <p className="px-4 py-5 text-sm text-ink/60">Esta posición no tiene cubierta cargada.</p>
         ) : (
           <div className="space-y-5 px-4 py-4">
