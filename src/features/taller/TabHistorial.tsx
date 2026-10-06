@@ -107,7 +107,7 @@ function Resultado({ r, v }: { r: Coincidencia; v: Vehiculo }) {
   const { service: s, item } = r;
   return (
     <li className="panel p-0">
-      <Link to={`/taller-maqueta/${enLaDireccion(v.patente)}/service/${s.id}`} className="block px-4 py-3 hover:bg-brand-100/50">
+      <Link to={`/panel/taller/${enLaDireccion(v.patente)}/service/${s.id}`} className="block px-4 py-3 hover:bg-brand-100/50">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
           <span className="flex items-center gap-2.5">
             <TipoPill tipo={s.tipo} />

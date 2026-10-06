@@ -77,7 +77,7 @@ function CubiertasDe({ vehiculo, disposicion }: { vehiculo: Vehiculo; disposicio
       }`}
     >
       <div className="space-y-4">
-        <div className="papel-de-plano panel -mx-4 border-x-0 px-0 pb-4 pt-5 sm:mx-0 sm:border-x sm:px-6">
+        <div className="papel-de-plano panel -mx-5 border-x-0 px-0 pb-4 pt-5 sm:mx-0 sm:border-x sm:px-6">
           <span className="kicker block px-4 pb-3 sm:px-2">
             {disposicion.nombre} · vista desde arriba
           </span>

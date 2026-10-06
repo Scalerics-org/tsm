@@ -12,7 +12,7 @@ export function ServiceGuardado({ vehiculo }: { vehiculo: Vehiculo }) {
   const { id } = useParams();
   const [params] = useSearchParams();
   const s = vehiculo.services.find((x) => x.id === id);
-  const volver = `/taller-maqueta/${enLaDireccion(vehiculo.patente)}?tab=services`;
+  const volver = `/panel/taller/${enLaDireccion(vehiculo.patente)}?tab=services`;
   if (!s) {
     return (
       <div className="panel p-5">

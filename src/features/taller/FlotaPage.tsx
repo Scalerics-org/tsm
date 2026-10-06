@@ -49,7 +49,7 @@ export function FlotaPage() {
             {filas.map(({ v, ultimo, prox, rojas, ambar }) => (
               <tr key={v.patente} className="border-t border-ink/10 hover:bg-brand-100/60">
                 <td className="px-4 py-3">
-                  <Link to={`/taller-maqueta/${enLaDireccion(v.patente)}`} className="block min-h-[44px] content-center">
+                  <Link to={`/panel/taller/${enLaDireccion(v.patente)}`} className="block min-h-[44px] content-center">
                     <span className="font-cond text-lg font-semibold text-ink">{v.patente}</span>
                     <span className="block text-xs text-ink/55">{v.descripcion}</span>
                   </Link>
@@ -80,7 +80,7 @@ export function FlotaPage() {
       <ul className="space-y-3 md:hidden">
         {filas.map(({ v, ultimo, prox, rojas, ambar }) => (
           <li key={v.patente}>
-            <Link to={`/taller-maqueta/${enLaDireccion(v.patente)}`} className="panel block px-4 py-3 active:bg-brand-100">
+            <Link to={`/panel/taller/${enLaDireccion(v.patente)}`} className="panel block px-4 py-3 active:bg-brand-100">
               <Corners />
               <div className="flex items-start justify-between gap-3">
                 <div>

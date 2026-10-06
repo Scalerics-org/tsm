@@ -1,6 +1,5 @@
 import { Link, NavLink, Navigate, Route, Routes, useParams, useSearchParams } from "react-router-dom";
 import { useState, type ReactNode } from "react";
-import { TruckMark } from "../../components/AppShell";
 import { VEHICULOS, enLaDireccion, vehiculoDe } from "./datos";
 import { TIPOS_DE_VEHICULO, tipoDeVehiculo } from "./disposicion";
 import { fmtDate } from "../../lib/format";
@@ -16,56 +15,47 @@ import { StockPage } from "./StockPage";
 import { fmtUso, type Vehiculo } from "./tipos";
 
 /**
- * MAQUETA del módulo de Taller: navegable, con datos de ejemplo y sin base de datos. Vive afuera del login
- * (/taller-maqueta) para poder mostrarla; no toca nada del resto de la app.
+ * MAQUETA del módulo de Taller: navegable, con datos de ejemplo y sin base de datos ni API. Vive dentro del panel
+ * de oficina (/panel/taller, sólo admin y encargado) y usa el menú y la cabecera del panel: acá sólo hay un
+ * sub-menú (Flota, Stock) y la banda que avisa que es de ejemplo.
  */
 export function TallerMaqueta() {
   return (
-    <div className="min-h-full bg-bg">
-      <header className="sticky top-0 z-[500] bg-navy">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:px-5">
-          <Link to="/taller-maqueta" className="flex items-center gap-2.5">
-            <span className="grid h-9 w-9 flex-none place-items-center bg-brand">
-              <TruckMark />
-            </span>
-            <span className="font-cond text-[22px] font-semibold tracking-[0.06em] text-bg">TSM</span>
-          </Link>
-          <span className="hidden font-cond text-[15px] font-semibold uppercase tracking-[0.14em] text-brand-400 sm:inline">Taller</span>
-          <nav aria-label="Taller" className="ml-3 flex">
-            {[
-              ["/taller-maqueta", "Flota", true],
-              ["/taller-maqueta/stock", "Stock", false],
-            ].map(([to, texto, exacto]) => (
-              <NavLink
-                key={String(to)}
-                to={String(to)}
-                end={Boolean(exacto)}
-                className={({ isActive }) =>
-                  `flex min-h-[44px] items-center border-b-[3px] px-3 font-cond text-[14px] font-semibold uppercase tracking-[0.1em] ${
-                    isActive ? "border-brand text-bg" : "border-transparent text-bg/55 hover:text-bg"
-                  }`
-                }
-              >
-                {texto}
-              </NavLink>
-            ))}
-          </nav>
-          <span className="ml-auto border border-st-amberBd bg-st-amberBg px-2.5 py-1 font-cond text-[11px] font-semibold uppercase tracking-[0.12em] text-st-amberTx">
-            Maqueta
-          </span>
-        </div>
-      </header>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-ink/15">
+        <div className="kicker py-2">Taller</div>
+        <nav aria-label="Taller" className="flex">
+          {[
+            ["/panel/taller", "Flota", true],
+            ["/panel/taller/stock", "Stock", false],
+          ].map(([to, texto, exacto]) => (
+            <NavLink
+              key={String(to)}
+              to={String(to)}
+              end={Boolean(exacto)}
+              className={({ isActive }) =>
+                `flex min-h-[44px] items-center border-b-[3px] px-3 font-cond text-[14px] font-semibold uppercase tracking-[0.1em] ${
+                  isActive ? "border-brand text-ink" : "border-transparent text-ink/55 hover:text-ink"
+                }`
+              }
+            >
+              {texto}
+            </NavLink>
+          ))}
+        </nav>
+        <span className="ml-auto border border-st-amberBd bg-st-amberBg px-2.5 py-1 font-cond text-[11px] font-semibold uppercase tracking-[0.12em] text-st-amberTx">
+          Maqueta
+        </span>
+      </div>
       <BandaDeMaqueta />
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-5">
-        <Routes>
-          <Route index element={<FlotaPage />} />
-          <Route path="stock" element={<StockPage />} />
-          <Route path=":patente" element={<FichaDelVehiculo />} />
-          <Route path=":patente/nuevo-service" element={<EnElVehiculo>{(v) => <NuevoService vehiculo={v} />}</EnElVehiculo>} />
-          <Route path=":patente/service/:id" element={<EnElVehiculo>{(v) => <ServiceGuardado vehiculo={v} />}</EnElVehiculo>} />
-          <Route path="*" element={<Navigate to="/taller-maqueta" replace />} />
-        </Routes>
-      </main>
+      <Routes>
+        <Route index element={<FlotaPage />} />
+        <Route path="stock" element={<StockPage />} />
+        <Route path=":patente" element={<FichaDelVehiculo />} />
+        <Route path=":patente/nuevo-service" element={<EnElVehiculo>{(v) => <NuevoService vehiculo={v} />}</EnElVehiculo>} />
+        <Route path=":patente/service/:id" element={<EnElVehiculo>{(v) => <ServiceGuardado vehiculo={v} />}</EnElVehiculo>} />
+        <Route path="*" element={<Navigate to="/panel/taller" replace />} />
+      </Routes>
     </div>
   );
 }
@@ -89,7 +79,7 @@ function CabeceraDelVehiculo({ vehiculo }: { vehiculo: Vehiculo }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
       <div>
-        <Link to="/taller-maqueta" className="font-cond text-xs font-semibold uppercase tracking-[0.12em] text-brand-700">
+        <Link to="/panel/taller" className="font-cond text-xs font-semibold uppercase tracking-[0.12em] text-brand-700">
           ← Flota
         </Link>
         <div className="kicker mt-1">Matrícula</div>
@@ -110,7 +100,7 @@ function CabeceraDelVehiculo({ vehiculo }: { vehiculo: Vehiculo }) {
 /** Una pantalla de un vehículo (cargar un service, ver uno guardado) con su cabecera arriba. */
 function EnElVehiculo({ children }: { children: (v: Vehiculo) => ReactNode }) {
   const vehiculo = useVehiculoPedido();
-  if (!vehiculo) return <Navigate to="/taller-maqueta" replace />;
+  if (!vehiculo) return <Navigate to="/panel/taller" replace />;
   return (
     <div className="space-y-6">
       <CabeceraDelVehiculo vehiculo={vehiculo} />
@@ -122,7 +112,7 @@ function EnElVehiculo({ children }: { children: (v: Vehiculo) => ReactNode }) {
 function FichaDelVehiculo() {
   const [params, setParams] = useSearchParams();
   const vehiculo = useVehiculoPedido();
-  if (!vehiculo) return <Navigate to="/taller-maqueta" replace />;
+  if (!vehiculo) return <Navigate to="/panel/taller" replace />;
   const tieneCubiertas = vehiculo.disposicion != null;
   const pedida = params.get("tab");
   const pestana: Pestana =
@@ -145,12 +135,12 @@ function FichaDelVehiculo() {
 
   return (
     <div className="space-y-5">
-      <nav aria-label="Vehículos" className="sin-barra -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+      <nav aria-label="Vehículos" className="sin-barra -mx-5 overflow-x-auto px-5 sm:mx-0 sm:px-0">
         <ul className="flex gap-2">
           {VEHICULOS.map((v) => (
             <li key={v.patente} className="flex-none">
               <NavLink
-                to={`/taller-maqueta/${enLaDireccion(v.patente)}`}
+                to={`/panel/taller/${enLaDireccion(v.patente)}`}
                 className={({ isActive }) =>
                   `flex min-h-[44px] items-center border px-3 font-cond text-sm font-semibold tracking-[0.04em] ${
                     isActive ? "border-navy bg-navy text-bg" : "border-ink/[.2] bg-white text-ink/75 hover:bg-ink/[.05]"
@@ -192,7 +182,7 @@ function FichaDelVehiculo() {
         </div>
       )}
 
-      <div role="tablist" aria-label="Secciones del taller" className="sin-barra -mx-4 flex overflow-x-auto border-b border-ink/15 px-4 sm:mx-0 sm:px-0">
+      <div role="tablist" aria-label="Secciones del taller" className="sin-barra -mx-5 flex overflow-x-auto border-b border-ink/15 px-5 sm:mx-0 sm:px-0">
         {pestanas.map((t) => (
           <button
             key={t}
@@ -230,8 +220,8 @@ function BandaDeMaqueta() {
   const cargados = useCuantoSeCargo();
   const [confirmando, setConfirmando] = useState(false);
   return (
-    <div className="border-b border-st-amberBd bg-st-amberBg">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 sm:px-5">
+    <div className="border border-st-amberBd bg-st-amberBg">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2">
         <p className="min-w-0 flex-1 basis-80 text-xs leading-snug text-st-amberTx">
           Maqueta para ver cómo queda: los datos son de ejemplo. Lo que cargues (services, cambios de cubiertas, stock) queda{" "}
           <b>sólo en este navegador</b>: no se manda a ningún servidor y en otro navegador no está.

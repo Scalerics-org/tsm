@@ -33,7 +33,7 @@ export function TipoPill({ tipo }: { tipo: TipoService }) {
 /** El botón que abre el flujo de cargar un service: lo que se hizo, marcado por secciones. */
 export function BotonNuevoService({ vehiculo }: { vehiculo: Vehiculo }) {
   return (
-    <Link to={`/taller-maqueta/${enLaDireccion(vehiculo.patente)}/nuevo-service`} className="btn btn-navy min-h-[44px]">
+    <Link to={`/panel/taller/${enLaDireccion(vehiculo.patente)}/nuevo-service`} className="btn btn-navy min-h-[44px]">
       + Nuevo service
     </Link>
   );
@@ -155,7 +155,7 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
                 {orden.map((s) => (
                   <tr key={s.id} className="border-t border-ink/10 align-top hover:bg-brand-100/50">
                     <td className="whitespace-nowrap px-4 py-3">
-                      <Link to={`/taller-maqueta/${enLaDireccion(vehiculo.patente)}/service/${s.id}`} className="font-semibold text-brand-700 hover:underline">
+                      <Link to={`/panel/taller/${enLaDireccion(vehiculo.patente)}/service/${s.id}`} className="font-semibold text-brand-700 hover:underline">
                         {fmtDate(s.fecha)}
                       </Link>
                     </td>
@@ -192,7 +192,7 @@ export function resumenDeItems(s: Service): string {
 function FilaDeService({ s, v }: { s: Service; v: Vehiculo }) {
   return (
     <li>
-      <Link to={`/taller-maqueta/${enLaDireccion(v.patente)}/service/${s.id}`} className="block min-h-[44px] px-4 py-3 active:bg-brand-100">
+      <Link to={`/panel/taller/${enLaDireccion(v.patente)}/service/${s.id}`} className="block min-h-[44px] px-4 py-3 active:bg-brand-100">
         <div className="flex items-center justify-between gap-3">
           <span className="flex items-center gap-2.5">
             <TipoPill tipo={s.tipo} />

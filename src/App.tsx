@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./lib/auth";
 import { LIBRETA_TIPO, ROLES, type Role } from "@shared/domain";
 import { Spinner } from "./components/ui";
@@ -46,23 +46,11 @@ function RequireRole({ roles, children }: { roles: Role[]; children: JSX.Element
   return children;
 }
 
-// La maqueta del Taller va aparte del resto: no engorda lo que baja el celular del chofer.
+// La maqueta del Taller carga aparte (lazy): no engorda lo que baja el celular del chofer ni la oficina que no la abre.
 const TallerMaqueta = lazy(() => import("./features/taller/TallerMaqueta").then((m) => ({ default: m.TallerMaqueta })));
 
 export default function App() {
   const { user, loading } = useAuth();
-  const { pathname } = useLocation();
-
-  // La maqueta del Taller se muestra sin iniciar sesión: sólo datos de ejemplo, nada de la base.
-  if (pathname === "/taller-maqueta" || pathname.startsWith("/taller-maqueta/")) {
-    return (
-      <Suspense fallback={<div className="grid min-h-full place-items-center"><Spinner size={32} /></div>}>
-        <Routes>
-          <Route path="/taller-maqueta/*" element={<TallerMaqueta />} />
-        </Routes>
-      </Suspense>
-    );
-  }
 
   if (loading) {
     return (
@@ -113,6 +101,17 @@ export default function App() {
         <Route path="/panel/viajes/:id" element={<RequireRole roles={VER}><OpsTripDetailPage /></RequireRole>} />
         <Route path="/panel/camion/:id" element={<RequireRole roles={OPS}><TruckDetailPage /></RequireRole>} />
         <Route path="/panel/chofer/:id" element={<RequireRole roles={OPS}><DriverDetailPage /></RequireRole>} />
+        {/* La maqueta del Taller: sólo oficina (admin y encargado), con el login de siempre. No usa la API. */}
+        <Route
+          path="/panel/taller/*"
+          element={
+            <RequireRole roles={OPS}>
+              <Suspense fallback={<Spinner size={28} />}>
+                <TallerMaqueta />
+              </Suspense>
+            </RequireRole>
+          }
+        />
         <Route path="/panel/plantillas" element={<RequireRole roles={ADM}><TemplatesPage /></RequireRole>} />
         {/* Clientes y Proveedores son dos pantallas separadas: son dos cosas distintas y
             la palabra "cliente" venía significando las dos, que es lo que confundía.

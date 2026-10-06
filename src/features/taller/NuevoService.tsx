@@ -116,14 +116,14 @@ export function NuevoService({ vehiculo }: { vehiculo: Vehiculo }) {
       },
       cambiosDeCubiertas(secciones, marcas, contexto.modeloActual),
     );
-    navigate(`/taller-maqueta/${enLaDireccion(vehiculo.patente)}/service/${id}?guardado=1`);
+    navigate(`/panel/taller/${enLaDireccion(vehiculo.patente)}/service/${id}?guardado=1`);
   }
 
   return (
     <CtxCubiertas.Provider value={contexto}>
     <div className="space-y-5 pb-24">
       <div>
-        <Link to={`/taller-maqueta/${enLaDireccion(vehiculo.patente)}?tab=services`} className="font-cond text-xs font-semibold uppercase tracking-[0.12em] text-brand-700">
+        <Link to={`/panel/taller/${enLaDireccion(vehiculo.patente)}?tab=services`} className="font-cond text-xs font-semibold uppercase tracking-[0.12em] text-brand-700">
           ← Cancelar
         </Link>
         <h2 className="font-cond text-3xl leading-none">Nuevo service · {vehiculo.patente}</h2>
@@ -377,7 +377,7 @@ function PasoMarcar({
         );
       })}
 
-      <div className="fixed inset-x-0 bottom-0 z-[400] border-t-[3px] border-navy bg-white px-4 py-3 shadow-elev-lg">
+      <div className="fixed inset-x-0 bottom-0 z-[400] border-t-[3px] border-navy md:left-60 bg-white px-4 py-3 shadow-elev-lg">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
           <button type="button" onClick={onAtras} className="btn btn-secondary min-h-[44px] whitespace-nowrap px-3">
             ← Datos

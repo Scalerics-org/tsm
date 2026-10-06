@@ -57,6 +57,8 @@ const DIA: NavGroup = {
       { to: "/panel/control", label: "Control" },
       { to: "/panel/viajes", label: "Viajes" },
       { to: "/panel/resumen-cliente", label: "Por cliente" },
+      // Maqueta del módulo de Taller (datos de ejemplo): sólo oficina, para que Rodrigo la toque.
+      { to: "/panel/taller", label: "Taller (maqueta)" },
   ],
 };
 
