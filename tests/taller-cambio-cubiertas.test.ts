@@ -47,9 +47,8 @@ describe("una cubierta nueva en un service", () => {
 
   it("la que sale entra al stock como usada, con de dónde salió", () => {
     const r = aplicarCambios(vehiculo, service, [{ tipo: "nueva", numero: 7, modeloId: "fr85" }], stock);
-    expect(r.usadas).toEqual([
-      { codigo: "TSM-7", modeloId: "multi", estado: "usada", obs: "Salió de GTP 4325 posición 7 el 05/10 · con 91.273 km" },
-    ]);
+    expect(r.usadas).toHaveLength(1);
+    expect(r.usadas[0]).toMatchObject({ codigo: "TSM-7", modeloId: "multi", estado: "usada", obs: "Salió de GTP 4325 posición 7 el 05/10 · con 91.273 km" });
   });
 
   it("la nueva sin código se carga igual, y la vieja sin código también pasa al stock", () => {

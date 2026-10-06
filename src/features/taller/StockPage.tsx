@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { Corners } from "../../components/ui";
 import { ACEITE, FILTROS, nombreDelModelo, type CubiertaEnStock } from "./datos-extra";
-import { useStock } from "./servicio";
+import { useBajas, useStock } from "./servicio";
+import { DialogoDeRecorrido, recorridoDeBaja, recorridoEnStock } from "./RecorridoDeCubierta";
+import type { RecorridoDeCubierta } from "./movimientos";
+import { fmtDate } from "../../lib/format";
 import { MODELOS } from "./base";
 
 type Filtro = "todas" | "nueva" | "usada";
@@ -9,6 +12,8 @@ type Filtro = "todas" | "nueva" | "usada";
 /** El depósito: cubiertas nuevas y usadas por código y modelo, aceite y filtros. */
 export function StockPage() {
   const [filtro, setFiltro] = useState<Filtro>("todas");
+  const [viendo, setViendo] = useState<{ titulo: string; codigo?: string; modeloId: string; recorrido: RecorridoDeCubierta } | null>(null);
+  const bajas = useBajas();
   const stock = useStock();
   const lista = stock.filter((c) => filtro === "todas" || c.estado === filtro);
   const nuevas = stock.filter((c) => c.estado === "nueva").length;
@@ -55,7 +60,7 @@ export function StockPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="font-cond text-[11px] uppercase tracking-[0.12em] text-ink/50">
-                {["Código", "Modelo", "Medida", "Estado", "Observaciones"].map((c) => (
+                {["Código", "Modelo", "Medida", "Estado", "Observaciones", ""].map((c) => (
                   <th key={c} className="px-4 py-2 font-semibold">
                     {c}
                   </th>
@@ -64,7 +69,7 @@ export function StockPage() {
             </thead>
             <tbody>
               {lista.map((c) => (
-                <tr key={c.codigo} className="border-t border-ink/10 align-top">
+                <tr key={c.uid ?? c.codigo} className="border-t border-ink/10 align-top">
                   <td className="whitespace-nowrap px-4 py-2.5 font-cond text-base font-semibold">{c.codigo || <span className="font-normal text-ink/40">Sin código</span>}</td>
                   <td className="px-4 py-2.5">{nombreDelModelo(c.modeloId)}</td>
                   <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-ink/60">{MODELOS[c.modeloId]?.medida}</td>
@@ -72,6 +77,9 @@ export function StockPage() {
                     <EstadoStock estado={c.estado} />
                   </td>
                   <td className="px-4 py-2.5 text-ink/65">{c.obs}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <BotonRecorrido onClick={() => setViendo({ titulo: "Recorrido de la cubierta", codigo: c.codigo, modeloId: c.modeloId, recorrido: recorridoEnStock(c) })} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -79,7 +87,7 @@ export function StockPage() {
         </div>
         <ul className="divide-y divide-ink/10 md:hidden">
           {lista.map((c) => (
-            <li key={c.codigo} className="px-4 py-3">
+            <li key={c.uid ?? c.codigo} className="px-4 py-3">
               <div className="flex items-center justify-between gap-3">
                 <span className="font-cond text-lg font-semibold">{c.codigo || <span className="font-normal text-ink/40">Sin código</span>}</span>
                 <EstadoStock estado={c.estado} />
@@ -88,10 +96,40 @@ export function StockPage() {
                 {nombreDelModelo(c.modeloId)} <span className="text-ink/50">· {MODELOS[c.modeloId]?.medida}</span>
               </div>
               {c.obs && <div className="text-xs text-ink/60">{c.obs}</div>}
+              <div className="mt-1">
+                <BotonRecorrido onClick={() => setViendo({ titulo: "Recorrido de la cubierta", codigo: c.codigo, modeloId: c.modeloId, recorrido: recorridoEnStock(c) })} />
+              </div>
             </li>
           ))}
         </ul>
       </section>
+
+      {bajas.length > 0 && (
+        <section className="panel">
+          <Corners />
+          <h2 className="border-b border-ink/10 px-4 py-3 font-cond text-xl">
+            Bajas <span className="text-base text-ink/50">({bajas.length})</span>
+          </h2>
+          <ul className="divide-y divide-ink/10">
+            {bajas.map((b) => (
+              <li key={b.uid} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3">
+                <div className="min-w-0">
+                  <div className="text-[15px] font-semibold">
+                    {b.codigo || <span className="font-normal text-ink/45">Sin código</span>} <span className="font-normal text-ink/55">· {nombreDelModelo(b.modeloId)}</span>
+                  </div>
+                  <div className="text-xs text-ink/60">
+                    {b.motivo} · {fmtDate(b.fecha)} · salió de {b.patente} posición {b.posicion}
+                    {b.obs ? ` · ${b.obs}` : ""}
+                  </div>
+                </div>
+                <BotonRecorrido onClick={() => setViendo({ titulo: "Recorrido de la cubierta dada de baja", codigo: b.codigo, modeloId: b.modeloId, recorrido: recorridoDeBaja(b) })} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {viendo && <DialogoDeRecorrido {...viendo} onCerrar={() => setViendo(null)} />}
 
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="panel">
@@ -172,5 +210,14 @@ function Cifra({ titulo, valor, sub }: { titulo: string; valor: number; sub: str
       </dd>
       <dd className="mt-1 text-xs text-ink/50">{sub}</dd>
     </div>
+  );
+}
+
+/** Abre dónde estuvo la cubierta y cuántos km hizo en cada lado. */
+function BotonRecorrido({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" data-ver-recorrido onClick={onClick} className="min-h-[44px] whitespace-nowrap px-1 font-cond text-sm font-semibold uppercase tracking-[0.06em] text-brand-700 hover:underline">
+      Ver recorrido
+    </button>
   );
 }

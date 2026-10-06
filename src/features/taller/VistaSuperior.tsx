@@ -114,7 +114,7 @@ export function VistaSuperior({ disposicion, posiciones, seleccionada, onSelecci
               {cubierta ? kmEnMiles(km) : "—"}
             </text>
             <text x={x + CUBIERTA_W / 2} y={y + 63} textAnchor="middle" className="pct-cubierta" pointerEvents="none">
-              {cubierta ? `${pct}%` : ""}
+              {cubierta ? `${pct}%` : "—"}
             </text>
           </g>
         );

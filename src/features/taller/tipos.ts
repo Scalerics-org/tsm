@@ -27,7 +27,19 @@ export interface PuestaAnterior {
   motivo: string;
 }
 
+/**
+ * Un tramo CERRADO del recorrido de una cubierta: estuvo en un vehículo (con los km del tacógrafo de ese vehículo al
+ * entrar y al salir) o en el stock. El tramo de hoy no se guarda: se deduce de dónde está.
+ */
+export type Tramo =
+  | { tipo: "vehiculo"; patente: string; posicion: number; desde: string; kmDesde: number; hasta: string; kmHasta: number }
+  | { tipo: "stock"; desde?: string; hasta: string };
+
 export interface Cubierta {
+  /** Id interno: sigue a la cubierta entre vehículos y stock aunque no tenga código. */
+  uid?: string;
+  /** Dónde estuvo antes de este tramo. */
+  historial?: Tramo[];
   numero: number;
   /** Libre y opcional: están diseñando su propio código porque el grabado se borra. */
   codigo?: string;
@@ -102,6 +114,8 @@ export interface Vehiculo {
   /** Cuánto usa por día, para estimar la fecha del próximo service. */
   kmPorDia: number;
   cubiertas: Cubierta[];
+  /** El historial de las posiciones que quedaron sin cubierta (después de sacar una sin poner otra). */
+  vacias?: Record<number, PuestaAnterior[]>;
   services: Service[];
   componentes: Componente[];
 }
@@ -113,7 +127,15 @@ export const UMBRAL_ROJO = 0.9;
 
 export type Estado = "verde" | "ambar" | "rojo";
 
-export const kmRecorridos = (v: Vehiculo, c: Cubierta) => Math.max(0, v.km - c.kmInicial);
+/** Los km que hizo una cubierta en los vehículos donde ya estuvo (tramos cerrados, cada uno contra su tacógrafo). */
+export const kmEnTramos = (historial?: Tramo[]) =>
+  (historial ?? []).reduce((suma, t) => (t.tipo === "vehiculo" ? suma + Math.max(0, Math.round(t.kmHasta - t.kmDesde)) : suma), 0);
+
+/**
+ * Los km que lleva una cubierta: los de este tramo (el tacógrafo de hoy menos los km al colocarla) más los de los tramos
+ * anteriores en otros vehículos o posiciones. Una cubierta que se mueve no vuelve a cero: el desgaste la sigue.
+ */
+export const kmRecorridos = (v: Vehiculo, c: Cubierta) => Math.max(0, v.km - c.kmInicial) + kmEnTramos(c.historial);
 export const porcentajeDeVida = (km: number) => km / VIDA_UTIL_KM;
 /** El % de uso (km recorridos sobre la vida útil), entero. Es EL número: el dibujo, la lista y el panel lo usan. */
 export const pctDeUso = (km: number) => Math.round(porcentajeDeVida(km) * 100);

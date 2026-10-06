@@ -1,5 +1,6 @@
 import type { CubiertaEnStock } from "./datos-extra";
-import type { Cubierta, PuestaAnterior, Service } from "./tipos";
+import { uidDeCubierta, uidDeStock } from "./movimientos";
+import { kmEnTramos, type Cubierta, type PuestaAnterior, type Service } from "./tipos";
 
 /**
  * Lo que un service hace con las cubiertas, como cuentas puras (sin pantalla ni almacenamiento):
@@ -41,6 +42,7 @@ export function aplicarCambios(
   service: Pick<Service, "fecha" | "km">,
   cambios: CambioDeCubierta[],
   stock: CubiertaEnStock[],
+  nuevoUid: () => string = () => `c-${Math.random().toString(36).slice(2, 10)}`,
 ): ResultadoDeCambios {
   let cubiertas = v.cubiertas.map((c) => ({ ...c }));
   const usadas: CubiertaEnStock[] = [];
@@ -56,7 +58,7 @@ export function aplicarCambios(
 
       const anteriores: PuestaAnterior[] = [];
       if (vieja) {
-        const recorridos = Math.max(0, Math.round(service.km - vieja.kmInicial));
+        const recorridos = Math.max(0, Math.round(service.km - vieja.kmInicial)) + kmEnTramos(vieja.historial);
         anteriores.push({
           codigo: vieja.codigo ?? "Sin código",
           modeloId: vieja.modeloId,
@@ -67,13 +69,21 @@ export function aplicarCambios(
         });
         anteriores.push(...vieja.anteriores);
         usadas.push({
+          uid: uidDeCubierta(v.patente, vieja),
           codigo: vieja.codigo ?? "",
           modeloId: vieja.modeloId,
           estado: "usada",
           obs: `Salió de ${v.patente} posición ${cambio.numero} el ${dd_mm(service.fecha)} · con ${recorridos.toLocaleString("es-UY")} km`,
+          desde: service.fecha,
+          historial: [
+            ...(vieja.historial ?? []),
+            { tipo: "vehiculo", patente: v.patente, posicion: vieja.numero, desde: vieja.fecha, kmDesde: vieja.kmInicial, hasta: service.fecha, kmHasta: service.km },
+          ],
         });
       }
       const nueva: Cubierta = {
+        uid: delStock ? uidDeStock(delStock) : nuevoUid(),
+        historial: delStock ? [...(delStock.historial ?? []), { tipo: "stock", desde: delStock.desde, hasta: service.fecha }] : [],
         numero: cambio.numero,
         codigo,
         modeloId,
@@ -83,7 +93,7 @@ export function aplicarCambios(
         anteriores,
       };
       cubiertas = [...cubiertas.filter((c) => c.numero !== cambio.numero), nueva];
-      if (delStock) quitadas.push(delStock.codigo);
+      if (delStock) quitadas.push(uidDeStock(delStock));
     } else {
       if (yaRotadas.has(cambio.numero) || yaRotadas.has(cambio.haciaNumero) || cambio.numero === cambio.haciaNumero) continue;
       yaRotadas.add(cambio.numero);

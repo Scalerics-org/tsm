@@ -1,5 +1,5 @@
 import { HOY, MODELOS } from "./base";
-import type { Componente, CondicionPieza, Estado, PiezaDeComponente, TipoVehiculo, Vehiculo } from "./tipos";
+import type { Componente, CondicionPieza, Estado, PiezaDeComponente, Tramo, TipoVehiculo, Vehiculo } from "./tipos";
 
 /**
  * DATOS DE MENTIRA, segunda parte: los componentes (motor, caja…), las piezas de cada rueda (frenos y rodaje) y
@@ -149,10 +149,17 @@ export function piezasDeRueda(v: Pick<Vehiculo, "patente" | "km" | "kmPorDia">, 
 
 // ── Stock ──
 export interface CubiertaEnStock {
+  /** Id interno (las de ejemplo usan su código). */
+  uid?: string;
+  /** Puede quedar vacío: una cubierta sin código igual está en el stock y tiene su historial. */
   codigo: string;
   modeloId: string;
   estado: "nueva" | "usada";
   obs: string;
+  /** Desde cuándo está en el stock. */
+  desde?: string;
+  /** Dónde estuvo antes. */
+  historial?: Tramo[];
 }
 
 export const CUBIERTAS_EN_STOCK: CubiertaEnStock[] = [

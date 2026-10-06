@@ -91,6 +91,7 @@ function cubiertasDe(p: Plano, porEje: (i: number) => string): Cubierta[] {
       hasta = desde;
     }
     return {
+      uid: `${p.patente.replace(/\s+/g, "")}-p${numero}-${fecha}`,
       numero,
       // El código es libre y opcional: algunas cubiertas todavía no lo tienen.
       codigo: i % 4 === 3 ? undefined : nuevoCodigo(),

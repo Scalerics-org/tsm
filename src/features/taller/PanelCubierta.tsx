@@ -1,9 +1,11 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { MODELOS } from "./datos";
 import { piezasDeRueda } from "./datos-extra";
 import { FrenosYRodaje } from "./FrenosYRodaje";
+import { MoverCubierta, PonerCubierta } from "./MoverCubierta";
+import { ListaDeRecorrido, recorridoEnVehiculo } from "./RecorridoDeCubierta";
 import { COLOR_ESTADO } from "./VistaSuperior";
 import {
   ESTADO_TEXTO,
@@ -11,6 +13,7 @@ import {
   UMBRAL_ROJO,
   VIDA_UTIL_KM,
   fmtKm,
+  kmEnTramos,
   pctDeUso,
   porcentajeDeVida,
   type PosicionConCubierta,
@@ -36,6 +39,7 @@ export function PanelCubierta({
   const { posicion, cubierta, km, estado } = item;
   const modelo = cubierta ? MODELOS[cubierta.modeloId] : undefined;
   const pct = porcentajeDeVida(km);
+  const [dialogo, setDialogo] = useState<null | "mover" | "poner">(null);
   return (
     <section
       aria-label={`Ficha de la cubierta ${posicion.numero}`}
@@ -87,7 +91,32 @@ export function PanelCubierta({
         {vista === "frenos" ? (
           <FrenosYRodaje vehiculo={vehiculo} piezas={piezasDeRueda(vehiculo, posicion.numero)} />
         ) : !cubierta || !modelo ? (
-          <p className="px-4 py-5 text-sm text-ink/60">Esta posición no tiene cubierta cargada.</p>
+          <div className="space-y-4 px-4 py-4">
+            <div className="border border-dashed border-ink/30 bg-surface/60 px-4 py-3">
+              <div className="font-cond text-lg font-semibold text-ink/60">Posición vacía</div>
+              <p className="text-sm text-ink/60">No hay ninguna cubierta en esta posición.</p>
+            </div>
+            <button type="button" data-poner-cubierta onClick={() => setDialogo("poner")} className="btn btn-navy min-h-[44px] w-full">
+              Poner una cubierta
+            </button>
+            {(vehiculo.vacias?.[posicion.numero]?.length ?? 0) > 0 && (
+              <div>
+                <h3 className="kicker mb-2">Historial de esta posición</h3>
+                <ol className="relative space-y-0 border-l-2 border-ink/15 pl-4">
+                  {vehiculo.vacias?.[posicion.numero]?.map((a, i) => (
+                    <Historia
+                      key={i}
+                      codigo={a.codigo}
+                      modelo={MODELOS[a.modeloId]?.nombre ?? a.modeloId}
+                      fechas={`${fmtDate(a.desde)} → ${fmtDate(a.hasta)}`}
+                      km={a.kmRecorridos}
+                      detalle={`Salió por: ${a.motivo.toLowerCase()}`}
+                    />
+                  ))}
+                </ol>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="space-y-5 px-4 py-4">
             <div>
@@ -109,6 +138,10 @@ export function PanelCubierta({
               <BarraDeVida pct={pct} color={estado ? COLOR_ESTADO[estado] : "#8d9296"} />
             </div>
 
+            <button type="button" data-mover-cubierta onClick={() => setDialogo("mover")} className="btn btn-secondary min-h-[44px] w-full">
+              Sacar o mover esta cubierta
+            </button>
+
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
               <Dato titulo="Código" valor={cubierta.codigo || "Sin código"} grande={!!cubierta.codigo} suave={!cubierta.codigo} sub={cubierta.codigo ? undefined : "Es opcional: se carga igual"} />
               <Dato titulo="Modelo" valor={modelo.nombre} sub={modelo.medida} />
@@ -117,12 +150,19 @@ export function PanelCubierta({
               <Dato
                 titulo="Km recorridos"
                 valor={fmtKm(km)}
-                sub={`km del tacógrafo ${vehiculo.km.toLocaleString("es-UY")} − ${cubierta.kmInicial.toLocaleString("es-UY")} al colocarla`}
+                sub={`km del tacógrafo ${vehiculo.km.toLocaleString("es-UY")} − ${cubierta.kmInicial.toLocaleString("es-UY")} al colocarla${
+                  kmEnTramos(cubierta.historial) > 0 ? ` + ${kmEnTramos(cubierta.historial).toLocaleString("es-UY")} km de antes, en otros lugares` : ""
+                }`}
                 grande
                 ancho
               />
               <Dato titulo="Observaciones" valor={cubierta.obs || "Sin observaciones."} ancho suave={!cubierta.obs} />
             </dl>
+
+            <div>
+              <h3 className="kicker mb-2">Recorrido de esta cubierta</h3>
+              <ListaDeRecorrido recorrido={recorridoEnVehiculo(vehiculo, cubierta)} />
+            </div>
 
             <div>
               <h3 className="kicker mb-2">Historial de esta posición</h3>
@@ -135,9 +175,9 @@ export function PanelCubierta({
                   km={km}
                   detalle="Puesta actual"
                 />
-                {cubierta.anteriores.map((a) => (
+                {cubierta.anteriores.map((a, i) => (
                   <Historia
-                    key={a.codigo}
+                    key={i}
                     codigo={a.codigo}
                     modelo={MODELOS[a.modeloId]?.nombre ?? a.modeloId}
                     fechas={`${fmtDate(a.desde)} → ${fmtDate(a.hasta)}`}
@@ -153,6 +193,8 @@ export function PanelCubierta({
           </div>
         )}
       </div>
+      {dialogo === "mover" && <MoverCubierta vehiculo={vehiculo} item={item} onCerrar={() => setDialogo(null)} />}
+      {dialogo === "poner" && <PonerCubierta vehiculo={vehiculo} numero={posicion.numero} nombre={posicion.nombre} onCerrar={() => setDialogo(null)} />}
     </section>
   );
 }

@@ -2,8 +2,9 @@ import { useSyncExternalStore } from "react";
 import { MODELOS } from "./base";
 import { aplicarCambios, type CambioDeCubierta } from "./cambio-cubiertas";
 import { CUBIERTAS_EN_STOCK, PIEZAS_DE_RUEDA, type CubiertaEnStock } from "./datos-extra";
+import { aplicarMovimiento, colocarEnLugarVacio, uidDeStock, type CubiertaBaja, type Movimiento, type Reemplazo, type Situacion } from "./movimientos";
 import { posiciones } from "./disposicion";
-import type { AccionHecha, Cubierta, ItemHecho, Service, TipoService, Vehiculo } from "./tipos";
+import type { AccionHecha, Cubierta, ItemHecho, PuestaAnterior, Service, TipoService, Vehiculo } from "./tipos";
 
 /**
  * Todo lo del "Nuevo service": qué se puede marcar (el catálogo, por sección), cómo se busca una pieza en el
@@ -197,9 +198,16 @@ interface Guardado {
   services: Record<string, Service[]>;
   cubiertas: Record<string, Cubierta[]>;
   stockUsadas: CubiertaEnStock[];
+  /** Ids de las cubiertas de ejemplo del stock que ya no están (se usaron o se movieron). */
   stockQuitadas: string[];
+  /** Las cubiertas dadas de baja. */
+  bajas: CubiertaBaja[];
+  /** El historial de las posiciones que quedaron sin cubierta, por matrícula. */
+  vacias: Record<string, Record<number, PuestaAnterior[]>>;
+  /** Cuántas cubiertas se sacaron, movieron o pusieron (para el contador del botón de volver al ejemplo). */
+  movimientos: number;
 }
-const VACIO: Guardado = { services: {}, cubiertas: {}, stockUsadas: [], stockQuitadas: [] };
+const VACIO: Guardado = { services: {}, cubiertas: {}, stockUsadas: [], stockQuitadas: [], bajas: [], vacias: {}, movimientos: 0 };
 const CLAVE = "tsm-taller-maqueta-v1";
 
 /** Lee lo guardado. Si no se puede (sin permiso, vacío o roto) la maqueta sigue con los datos de ejemplo. */
@@ -213,6 +221,9 @@ function leer(): Guardado {
       cubiertas: j.cubiertas && typeof j.cubiertas === "object" ? j.cubiertas : {},
       stockUsadas: Array.isArray(j.stockUsadas) ? j.stockUsadas : [],
       stockQuitadas: Array.isArray(j.stockQuitadas) ? j.stockQuitadas : [],
+      bajas: Array.isArray(j.bajas) ? j.bajas : [],
+      vacias: j.vacias && typeof j.vacias === "object" ? j.vacias : {},
+      movimientos: typeof j.movimientos === "number" ? j.movimientos : 0,
     };
   } catch {
     return VACIO;
@@ -241,13 +252,65 @@ const instantanea = () => guardado;
 /** El stock como está hoy: el de ejemplo, menos lo que se usó, más lo que salió de los vehículos. */
 export const stockDe = (g: Guardado): CubiertaEnStock[] => [
   ...g.stockUsadas,
-  ...CUBIERTAS_EN_STOCK.filter((c) => !g.stockQuitadas.includes(c.codigo)),
+  ...CUBIERTAS_EN_STOCK.filter((c) => !g.stockQuitadas.includes(uidDeStock(c))),
 ];
+
+/** Lo que pasó con las cubiertas se aplica sobre la flota tal como está hoy; esto es lo que ve y guarda la maqueta. */
+function situacionDe(flota: Vehiculo[]): Situacion {
+  return {
+    flota: Object.fromEntries(
+      flota.filter((v) => v.disposicion).map((v) => [v.patente, { km: v.km, cubiertas: v.cubiertas, vacias: v.vacias ?? {} }]),
+    ),
+    stock: stockDe(guardado),
+    bajas: guardado.bajas,
+  };
+}
+
+/** Guarda el resultado de un movimiento (o de poner una cubierta) y avisa a las pantallas. */
+function guardarSituacion(antes: Situacion, despues: Situacion): Situacion {
+  if (despues === antes) return antes;
+  const cubiertas = { ...guardado.cubiertas };
+  const vacias = { ...guardado.vacias };
+  for (const [patente, v] of Object.entries(despues.flota)) {
+    if (v === antes.flota[patente]) continue;
+    cubiertas[patente] = v.cubiertas;
+    vacias[patente] = v.vacias;
+  }
+  // El stock de ejemplo se guarda por lo que falta; todo lo demás (usadas, o una de ejemplo que volvió) tal cual.
+  const deEjemplo = new Set<CubiertaEnStock>(CUBIERTAS_EN_STOCK);
+  guardado = {
+    ...guardado,
+    cubiertas,
+    vacias,
+    bajas: despues.bajas,
+    movimientos: guardado.movimientos + 1,
+    stockUsadas: despues.stock.filter((c) => !deEjemplo.has(c)),
+    stockQuitadas: CUBIERTAS_EN_STOCK.filter((c) => !despues.stock.includes(c)).map(uidDeStock),
+  };
+  persistir();
+  avisar();
+  return despues;
+}
+
+const nuevoId = () => `c-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+/** Saca o mueve una cubierta (baja, stock, otra posición o de otro vehículo). `flota` es la de hoy, con lo cargado. */
+export function moverCubierta(flota: Vehiculo[], m: Movimiento): void {
+  const antes = situacionDe(flota);
+  guardarSituacion(antes, aplicarMovimiento(antes, m, nuevoId));
+}
+
+/** Pone una cubierta (del stock o a mano) en una posición que estaba vacía. */
+export function ponerCubierta(flota: Vehiculo[], c: { patente: string; posicion: number; fecha: string; km: number; reemplazo: Reemplazo }): void {
+  const antes = situacionDe(flota);
+  guardarSituacion(antes, colocarEnLugarVacio(antes, c, nuevoId));
+}
 
 /** Guarda un service y, si marcó cubiertas nuevas o rotaciones, actualiza posiciones, historial y stock. */
 export function guardarService(v: Vehiculo, s: Service, cambios: CambioDeCubierta[] = []): void {
   const r = cambios.length > 0 ? aplicarCambios(v, s, cambios, stockDe(guardado)) : null;
   guardado = {
+    ...guardado,
     services: { ...guardado.services, [v.patente]: [s, ...(guardado.services[v.patente] ?? [])] },
     cubiertas: r ? { ...guardado.cubiertas, [v.patente]: r.cubiertas } : guardado.cubiertas,
     stockUsadas: r ? [...r.usadas, ...guardado.stockUsadas] : guardado.stockUsadas,
@@ -269,12 +332,15 @@ export function volverALosDatosDeEjemplo(): void {
 }
 
 /** Cuántas cosas se cargaron (para saber si hay algo que borrar). */
-export const cuantoSeCargo = (g: Guardado) => Object.values(g.services).reduce((n, l) => n + l.length, 0);
+export const cuantoSeCargo = (g: Guardado) => Object.values(g.services).reduce((n, l) => n + l.length, 0) + g.movimientos;
 
 const conLoCargado = (v: Vehiculo, g: Guardado): Vehiculo => {
   const nuevos = g.services[v.patente];
   const cubiertas = g.cubiertas[v.patente];
-  return nuevos || cubiertas ? { ...v, services: nuevos ? [...nuevos, ...v.services] : v.services, cubiertas: cubiertas ?? v.cubiertas } : v;
+  const vacias = g.vacias[v.patente];
+  return nuevos || cubiertas || vacias
+    ? { ...v, services: nuevos ? [...nuevos, ...v.services] : v.services, cubiertas: cubiertas ?? v.cubiertas, vacias: vacias ?? v.vacias }
+    : v;
 };
 
 /** El vehículo con lo que se cargó en este navegador: services nuevos y cubiertas como quedaron. */
@@ -295,6 +361,11 @@ export function useStock(): CubiertaEnStock[] {
 
 export function useCuantoSeCargo(): number {
   return cuantoSeCargo(useSyncExternalStore(suscribir, instantanea));
+}
+
+/** Las cubiertas dadas de baja. */
+export function useBajas(): CubiertaBaja[] {
+  return useSyncExternalStore(suscribir, instantanea).bajas;
 }
 
 /**
