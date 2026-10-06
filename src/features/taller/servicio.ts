@@ -208,7 +208,8 @@ interface Guardado {
   movimientos: number;
 }
 const VACIO: Guardado = { services: {}, cubiertas: {}, stockUsadas: [], stockQuitadas: [], bajas: [], vacias: {}, movimientos: 0 };
-const CLAVE = "tsm-taller-maqueta-v1";
+// v2: las cubiertas llevan id interno y recorrido. Lo guardado con la v1 no los tiene, así que no se lee.
+const CLAVE = "tsm-taller-maqueta-v2";
 
 /** Lee lo guardado. Si no se puede (sin permiso, vacío o roto) la maqueta sigue con los datos de ejemplo. */
 function leer(): Guardado {
