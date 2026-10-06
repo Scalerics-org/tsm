@@ -51,8 +51,10 @@ export function VistaSuperior({ disposicion, posiciones, seleccionada, onSelecci
       </defs>
 
       <Orientacion alto={alto} />
-      {disposicion.carroceria === "camion" ? (
-        <CuerpoCamion d={disposicion} />
+      {disposicion.carroceria === "tractor" ? (
+        <CuerpoTractor d={disposicion} />
+      ) : disposicion.carroceria === "rigido" ? (
+        <CuerpoRigido d={disposicion} />
       ) : disposicion.carroceria === "acoplado" ? (
         <CuerpoAcoplado d={disposicion} />
       ) : (
@@ -108,7 +110,7 @@ export function VistaSuperior({ disposicion, posiciones, seleccionada, onSelecci
               {posicion.numero}
             </text>
             <text x={x + CUBIERTA_W / 2} y={y + 55} textAnchor="middle" className="pct-cubierta" pointerEvents="none">
-              {cubierta ? `${pct}%` : "—"}
+              {cubierta ? `${(km / 1000).toFixed(1).replace(".", ",")}k` : "—"}
             </text>
           </g>
         );
@@ -154,7 +156,7 @@ function Eje({ y, desde, hasta }: { y: number; desde: number; hasta: number }) {
   );
 }
 
-function CuerpoCamion({ d }: { d: Disposicion }) {
+function CuerpoTractor({ d }: { d: Disposicion }) {
   const centro = ANCHO / 2;
   const alto = altoDelDibujo(d);
   const fin = alto - 56;
@@ -174,6 +176,11 @@ function CuerpoCamion({ d }: { d: Disposicion }) {
       <rect x={116} y={170} width={30} height={84} rx={8} fill="#eceeef" />
       <rect x={214} y={170} width={30} height={84} rx={8} fill="#eceeef" />
       <rect x={165} y={172} width={30} height={58} rx={4} fill="#eceeef" />
+      {/* La quinta rueda, donde se engancha el semirremolque. */}
+      <path d="M 152 240 L 208 240 L 208 278 L 186 278 L 180 264 L 174 278 L 152 278 Z" fill="#d6ebff" strokeOpacity={0.7} />
+      <text x={centro} y={254} textAnchor="middle" className="cota-svg" stroke="none" fill={TINTA} fillOpacity={0.55} style={{ fontSize: 8 }}>
+        QUINTA
+      </text>
       {/* Cardán y diferenciales. */}
       <line x1={centro} x2={centro} y1={230} y2={d.ejes[d.ejes.length - 1].y} strokeWidth={5} strokeOpacity={0.45} />
       {d.ejes
@@ -181,13 +188,7 @@ function CuerpoCamion({ d }: { d: Disposicion }) {
         .map((e) => (
           <ellipse key={e.id} cx={centro} cy={e.y} rx={25} ry={19} fill="#eceeef" />
         ))}
-      {/* Cabina con parabrisas y espejos. */}
-      <rect x={98} y={56} width={14} height={24} rx={3} fill="#fff" />
-      <rect x={248} y={56} width={14} height={24} rx={3} fill="#fff" />
-      <rect x={112} y={26} width={136} height={110} rx={16} fill="#fff" strokeOpacity={0.7} strokeWidth={1.6} />
-      <rect x={122} y={35} width={116} height={26} rx={5} fill="#d6ebff" />
-      <rect x={126} y={70} width={108} height={54} rx={6} />
-      <line x1={126} x2={234} y1={86} y2={86} strokeOpacity={0.3} />
+      <Cabina />
       {/* Los nombres de los ejes. */}
       {d.ejes.map((e, i) => (
         <Cota key={e.id} x={centro} y={i === 0 ? e.y + 46 : e.y - 38} texto={e.nombre} />
@@ -251,6 +252,51 @@ function CuerpoAcoplado({ d }: { d: Disposicion }) {
       {d.ejes.map((e) => (
         <Cota key={e.id} x={centro} y={e.y} texto={e.nombre} ancho={70} />
       ))}
+    </g>
+  );
+}
+
+/** La cabina, vista desde arriba: la comparten el tractor y el rígido. */
+function Cabina() {
+  return (
+    <g>
+      <rect x={98} y={56} width={14} height={24} rx={3} fill="#fff" />
+      <rect x={248} y={56} width={14} height={24} rx={3} fill="#fff" />
+      <rect x={112} y={26} width={136} height={110} rx={16} fill="#fff" strokeOpacity={0.7} strokeWidth={1.6} />
+      <rect x={122} y={35} width={116} height={26} rx={5} fill="#d6ebff" />
+      <rect x={126} y={70} width={108} height={54} rx={6} />
+      <line x1={126} x2={234} y1={86} y2={86} strokeOpacity={0.3} />
+    </g>
+  );
+}
+
+/** Camión rígido: la cabina y, detrás, su caja de carga (no es un tractor: no lleva quinta rueda). */
+function CuerpoRigido({ d }: { d: Disposicion }) {
+  const centro = ANCHO / 2;
+  const fin = altoDelDibujo(d) - 46;
+  return (
+    <g stroke={TINTA} strokeOpacity={0.55} fill="none">
+      {/* El eje de dirección, debajo de la cabina. */}
+      <Eje y={d.ejes[0].y} desde={90} hasta={ANCHO - 90} />
+      <Cabina />
+      <rect x={150} y={136} width={7} height={22} fill={CHAPA} />
+      <rect x={203} y={136} width={7} height={22} fill={CHAPA} />
+      {/* La caja de carga. */}
+      <rect x={118} y={160} width={124} height={fin - 160} rx={6} fill="#fff" strokeOpacity={0.7} strokeWidth={1.6} />
+      <rect x={128} y={170} width={104} height={fin - 180} rx={4} strokeOpacity={0.25} />
+      {[230, 290, 350, 410].filter((y) => y < fin - 20).map((y) => (
+        <line key={y} x1={128} x2={232} y1={y} y2={y} strokeOpacity={0.14} />
+      ))}
+      {d.ejes.slice(1).map((e) => (
+        <Eje key={e.id} y={e.y} desde={118} hasta={ANCHO - 118} />
+      ))}
+      <Cota x={centro} y={d.ejes[0].y + 46} texto={d.ejes[0].nombre} />
+      {d.ejes.slice(1).map((e) => (
+        <Cota key={e.id} x={centro} y={e.y} texto={e.nombre} ancho={104} />
+      ))}
+      <text x={centro} y={200} textAnchor="middle" className="cota-svg" stroke="none" fill={TINTA} fillOpacity={0.5}>
+        CAJA DE CARGA
+      </text>
     </g>
   );
 }

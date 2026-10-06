@@ -90,7 +90,7 @@ export interface PiezaDeRueda {
 }
 
 /** Las piezas del despiece de 21.jpg, más las que pide el Excel (bujes, retén, grasa). */
-const PIEZAS_DE_RUEDA: { id: string; grupo: GrupoDePieza; nombre: string; medida?: PiezaDeRueda["medida"]; vida: number }[] = [
+export const PIEZAS_DE_RUEDA: { id: string; grupo: GrupoDePieza; nombre: string; medida?: PiezaDeRueda["medida"]; vida: number }[] = [
   { id: "llanta", grupo: "rueda", nombre: "Llanta", vida: 400_000 },
   { id: "disco", grupo: "rueda", nombre: "Disco de rueda", vida: 400_000 },
   { id: "bulones", grupo: "rueda", nombre: "Bulones y tuercas", vida: 200_000 },

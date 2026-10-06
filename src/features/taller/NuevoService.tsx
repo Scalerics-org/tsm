@@ -1,0 +1,471 @@
+import { useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Corners } from "../../components/ui";
+import { fmtDate } from "../../lib/format";
+import { CHOFERES_DE_TSM, HOY, MECANICOS, enLaDireccion } from "./datos";
+import {
+  TIPOS_DE_SERVICE,
+  claveDeItem,
+  guardarService,
+  idDeService,
+  itemsDeMarcas,
+  marcaNueva,
+  marcadosEn,
+  marcasDeEjemplo,
+  seccionesDeService,
+  type ItemCatalogo,
+  type Marcas,
+  type SeccionDeService,
+} from "./servicio";
+import { Accion, TEXTO_ACCION } from "./TabHistorial";
+import { TipoPill } from "./TabServices";
+import { proximoService, type AccionHecha, type TipoService, type Vehiculo } from "./tipos";
+
+const ACCIONES: AccionHecha[] = ["reparado", "nuevo", "revisado"];
+
+interface Datos {
+  fecha: string;
+  km: string;
+  tipo: TipoService;
+  mecanico: string;
+  chofer: string;
+}
+
+/**
+ * "Nuevo service": Raúl marca lo que hizo, recorriendo las secciones, y en cada ítem carga lo que corresponde.
+ * Al guardar, el service tiene SÓLO lo marcado. Son tres pasos: los datos, lo que se hizo y revisar.
+ * En la maqueta no se guarda en ninguna base: el service queda mientras la página está abierta.
+ */
+export function NuevoService({ vehiculo }: { vehiculo: Vehiculo }) {
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const paso = Math.min(3, Math.max(1, Number(params.get("paso")) || 1));
+  const irA = (p: number) => {
+    const sig = new URLSearchParams(params);
+    sig.set("paso", String(p));
+    setParams(sig, { replace: true });
+    window.scrollTo({ top: 0 });
+  };
+
+  const secciones = useMemo(() => seccionesDeService(vehiculo), [vehiculo]);
+  const sugerido = vehiculo.services.length > 0 ? proximoService(vehiculo, HOY).tipo : "otro";
+  const [datos, setDatos] = useState<Datos>({
+    fecha: HOY,
+    km: String(vehiculo.km),
+    tipo: sugerido,
+    mecanico: MECANICOS[0],
+    chofer: vehiculo.choferAsignado,
+  });
+  const [marcas, setMarcas] = useState<Marcas>(() => (params.get("demo") === "1" ? marcasDeEjemplo(vehiculo) : {}));
+  const [abierta, setAbierta] = useState<string | null>(params.get("demo") === "1" ? "ruedas" : secciones[0]?.id ?? null);
+
+  const cambiarDato = (parcial: Partial<Datos>) => setDatos((d) => ({ ...d, ...parcial }));
+  const kmNumero = Number(datos.km.replace(",", "."));
+  const faltan = [
+    !datos.fecha && "la fecha",
+    !(kmNumero > 0) && (vehiculo.unidad === "h" ? "las horas" : "los km"),
+    !datos.mecanico.trim() && "el mecánico",
+    !datos.chofer.trim() && (vehiculo.unidad === "h" ? "el operador" : "el chofer"),
+  ].filter(Boolean) as string[];
+
+  const items = useMemo(() => itemsDeMarcas(secciones, marcas), [secciones, marcas]);
+  const marcadas = items.length;
+
+  const marcar = (clave: string, on: boolean) =>
+    setMarcas((m) => {
+      const { [clave]: _quitada, ...resto } = m;
+      return on ? { ...resto, [clave]: marcaNueva() } : resto;
+    });
+  const cambiarMarca = (clave: string, parcial: Partial<Marcas[string]>) => setMarcas((m) => ({ ...m, [clave]: { ...m[clave], ...parcial } }));
+
+  function guardar() {
+    const id = idDeService(vehiculo.patente);
+    guardarService(vehiculo.patente, {
+      id,
+      tipo: datos.tipo,
+      fecha: datos.fecha,
+      km: kmNumero,
+      chofer: datos.chofer.trim(),
+      mecanico: datos.mecanico.trim(),
+      obs: "",
+      items,
+    });
+    navigate(`/taller-maqueta/${enLaDireccion(vehiculo.patente)}/service/${id}?guardado=1`);
+  }
+
+  return (
+    <div className="space-y-5 pb-24">
+      <div>
+        <Link to={`/taller-maqueta/${enLaDireccion(vehiculo.patente)}?tab=services`} className="font-cond text-xs font-semibold uppercase tracking-[0.12em] text-brand-700">
+          ← Cancelar
+        </Link>
+        <h2 className="font-cond text-3xl leading-none">Nuevo service · {vehiculo.patente}</h2>
+      </div>
+
+      <ol className="grid grid-cols-3 gap-px bg-ink/10" aria-label="Pasos">
+        {["Datos", "Qué se hizo", "Revisar y guardar"].map((t, i) => {
+          const n = i + 1;
+          const alcanzable = n === 1 || faltan.length === 0;
+          return (
+            <li key={t} className="bg-bg">
+              <button
+                type="button"
+                onClick={() => alcanzable && irA(n)}
+                aria-current={paso === n ? "step" : undefined}
+                disabled={!alcanzable}
+                className={`flex min-h-[44px] w-full items-center justify-center gap-2 border-b-[3px] px-2 py-2 font-cond text-[13px] font-semibold uppercase tracking-[0.08em] disabled:opacity-40 ${
+                  paso === n ? "border-brand text-ink" : paso > n ? "border-st-greenDot text-st-greenTx" : "border-transparent text-ink/50"
+                }`}
+              >
+                <span className={`grid h-5 w-5 place-items-center text-[11px] ${paso === n ? "bg-navy text-bg" : "border border-ink/30"}`}>{paso > n ? "✓" : n}</span>
+                <span className="hidden sm:inline">{t}</span>
+                <span className="sm:hidden">{n === 1 ? "Datos" : n === 2 ? "Hacer" : "Guardar"}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+
+      {paso === 1 && (
+        <PasoDatos vehiculo={vehiculo} datos={datos} onCambio={cambiarDato} faltan={faltan} onSiguiente={() => irA(2)} />
+      )}
+
+      {paso === 2 && (
+        <PasoMarcar
+          secciones={secciones}
+          marcas={marcas}
+          abierta={abierta}
+          onAbrir={setAbierta}
+          onMarcar={marcar}
+          onCambio={cambiarMarca}
+          marcadas={marcadas}
+          onRevisar={() => irA(3)}
+          onAtras={() => irA(1)}
+        />
+      )}
+
+      {paso === 3 && (
+        <section className="space-y-4">
+          <div className="panel grid grid-cols-2 gap-x-4 gap-y-3 px-4 py-4 md:grid-cols-5">
+            <Corners />
+            <Resumen titulo="Tipo" valor={<TipoPill tipo={datos.tipo} />} />
+            <Resumen titulo="Fecha" valor={fmtDate(datos.fecha)} />
+            <Resumen titulo={vehiculo.unidad === "h" ? "Horas" : "Km"} valor={`${kmNumero.toLocaleString("es-UY")} ${vehiculo.unidad}`} />
+            <Resumen titulo="Mecánico" valor={datos.mecanico} />
+            <Resumen titulo={vehiculo.unidad === "h" ? "Operador" : "Chofer"} valor={datos.chofer} />
+          </div>
+
+          <h3 className="font-cond text-xl">
+            Lo que se va a guardar <span className="text-base text-ink/50">({marcadas})</span>
+          </h3>
+          {marcadas === 0 ? (
+            <p className="border border-st-amberBd bg-st-amberBg px-4 py-3 text-sm text-st-amberTx">
+              No marcaste nada todavía. Un service guarda sólo lo que se marca: volvé y marcá lo que se hizo.
+            </p>
+          ) : (
+            <ul className="panel divide-y divide-ink/10">
+              {items.map((i, k) => (
+                <li key={`${i.pieza}-${k}`} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 px-4 py-2.5">
+                  <div className="min-w-0">
+                    <div className="text-[15px] font-semibold">
+                      {i.pieza}
+                      <span className="font-normal text-ink/55"> · {i.seccion}{i.sujeto && !i.pieza.includes(i.sujeto.split(" ")[1] ?? "§") ? ` · ${i.sujeto}` : ""}</span>
+                    </div>
+                    {(i.medida || i.obs) && <div className="text-xs text-ink/60">{[i.medida, i.obs].filter(Boolean).join(" · ")}</div>}
+                  </div>
+                  <Accion accion={i.accion} />
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={() => irA(2)} className="btn btn-secondary min-h-[44px]">
+              ← Seguir marcando
+            </button>
+            <button type="button" data-guardar onClick={guardar} disabled={marcadas === 0} className="btn btn-primary min-h-[44px]">
+              Guardar service
+            </button>
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function Resumen({ titulo, valor }: { titulo: string; valor: React.ReactNode }) {
+  return (
+    <div>
+      <div className="font-cond text-[11px] font-semibold uppercase tracking-[0.12em] text-ink/50">{titulo}</div>
+      <div className="mt-0.5 font-cond text-lg font-semibold">{valor}</div>
+    </div>
+  );
+}
+
+// ── Paso 1: los datos obligatorios ──
+function PasoDatos({
+  vehiculo,
+  datos,
+  onCambio,
+  faltan,
+  onSiguiente,
+}: {
+  vehiculo: Vehiculo;
+  datos: Datos;
+  onCambio: (p: Partial<Datos>) => void;
+  faltan: string[];
+  onSiguiente: () => void;
+}) {
+  const esHoras = vehiculo.unidad === "h";
+  return (
+    <section className="panel space-y-5 p-4">
+      <Corners />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block">
+          <span className="label">Fecha</span>
+          <input type="date" className="input min-h-[44px]" value={datos.fecha} onChange={(e) => onCambio({ fecha: e.target.value })} />
+        </label>
+        <label className="block">
+          <span className="label">{esHoras ? "Horas" : "Km"}</span>
+          <input
+            inputMode="decimal"
+            className="input min-h-[44px] tabular-nums"
+            value={datos.km}
+            onChange={(e) => onCambio({ km: e.target.value.replace(/[^\d.,]/g, "") })}
+          />
+          <span className="mt-1 block text-xs text-ink/55">
+            {esHoras ? "Horímetro" : "Del tacógrafo"}: {vehiculo.km.toLocaleString("es-UY")} · lectura del {fmtDate(vehiculo.lectura)}. Se puede
+            corregir.
+          </span>
+        </label>
+      </div>
+
+      <fieldset>
+        <legend className="label">Tipo de service</legend>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {TIPOS_DE_SERVICE.map((t) => (
+            <label
+              key={t.id}
+              className={`flex min-h-[44px] cursor-pointer items-start gap-3 border px-3 py-2.5 ${
+                datos.tipo === t.id ? "border-navy bg-brand-100" : "border-ink/[.2] bg-white hover:bg-ink/[.04]"
+              }`}
+            >
+              <input type="radio" name="tipo" className="mt-1" checked={datos.tipo === t.id} onChange={() => onCambio({ tipo: t.id })} />
+              <span>
+                <span className="block font-semibold text-ink">{t.nombre}</span>
+                <span className="block text-xs text-ink/55">{t.ejemplo}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block">
+          <span className="label">Mecánico</span>
+          <input list="mecanicos" className="input min-h-[44px]" value={datos.mecanico} onChange={(e) => onCambio({ mecanico: e.target.value })} />
+          <datalist id="mecanicos">
+            {MECANICOS.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
+        </label>
+        <label className="block">
+          <span className="label">{esHoras ? "Operador" : "Chofer que anda en el camión"}</span>
+          <select className="input min-h-[44px]" value={datos.chofer} onChange={(e) => onCambio({ chofer: e.target.value })}>
+            {CHOFERES_DE_TSM.map((c) => (
+              <option key={c} value={c}>
+                {c}
+                {c === vehiculo.choferAsignado ? " (asignado)" : ""}
+              </option>
+            ))}
+          </select>
+          <span className="mt-1 block text-xs text-ink/55">Se sugiere el que tiene asignado el vehículo.</span>
+        </label>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" onClick={onSiguiente} disabled={faltan.length > 0} className="btn btn-primary min-h-[44px]">
+          Siguiente: qué se hizo →
+        </button>
+        {faltan.length > 0 && <span className="text-sm text-st-redTx">Falta {faltan.join(", ")}.</span>}
+      </div>
+    </section>
+  );
+}
+
+// ── Paso 2: marcar lo que se hizo, por secciones ──
+function PasoMarcar({
+  secciones,
+  marcas,
+  abierta,
+  onAbrir,
+  onMarcar,
+  onCambio,
+  marcadas,
+  onRevisar,
+  onAtras,
+}: {
+  secciones: SeccionDeService[];
+  marcas: Marcas;
+  abierta: string | null;
+  onAbrir: (id: string | null) => void;
+  onMarcar: (clave: string, on: boolean) => void;
+  onCambio: (clave: string, p: Partial<Marcas[string]>) => void;
+  marcadas: number;
+  onRevisar: () => void;
+  onAtras: () => void;
+}) {
+  return (
+    <section className="space-y-3">
+      <p className="max-w-prose text-sm text-ink/60">
+        Abrí cada sección y marcá sólo lo que se hizo. En cada ítem elegí si se reparó, se cambió por uno nuevo o sólo se revisó.
+      </p>
+      {secciones.map((s) => {
+        const n = marcadosEn(s, marcas);
+        const abierto = abierta === s.id;
+        return (
+          <div key={s.id} className="panel">
+            <button
+              type="button"
+              aria-expanded={abierto}
+              onClick={() => onAbrir(abierto ? null : s.id)}
+              className="flex min-h-[52px] w-full items-center justify-between gap-3 px-4 py-2 text-left"
+            >
+              <span className="font-cond text-lg font-semibold">{s.nombre}</span>
+              <span className="flex items-center gap-3">
+                {n > 0 && <span className="bg-navy px-2 py-0.5 font-cond text-xs font-semibold tabular-nums text-bg">{n} {n === 1 ? "marcado" : "marcados"}</span>}
+                <span aria-hidden className="font-cond text-xl text-ink/50">{abierto ? "−" : "+"}</span>
+              </span>
+            </button>
+            {abierto && (
+              <div className="border-t border-ink/10">
+                {s.grupos.map((g, gi) => (
+                  <GrupoDeItems key={`${s.id}-${gi}`} seccion={s} grupo={g} marcas={marcas} onMarcar={onMarcar} onCambio={onCambio} />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <div className="fixed inset-x-0 bottom-0 z-[400] border-t-[3px] border-navy bg-white px-4 py-3 shadow-elev-lg">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
+          <button type="button" onClick={onAtras} className="btn btn-secondary min-h-[44px] whitespace-nowrap px-3">
+            ← Datos
+          </button>
+          <span className="whitespace-nowrap font-cond text-base font-semibold tabular-nums sm:text-lg">{marcadas} {marcadas === 1 ? "marcado" : "marcados"}</span>
+          <button type="button" onClick={onRevisar} className="btn btn-primary min-h-[44px] whitespace-nowrap px-3">
+            Revisar →
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function GrupoDeItems({
+  seccion,
+  grupo,
+  marcas,
+  onMarcar,
+  onCambio,
+}: {
+  seccion: SeccionDeService;
+  grupo: SeccionDeService["grupos"][number];
+  marcas: Marcas;
+  onMarcar: (clave: string, on: boolean) => void;
+  onCambio: (clave: string, p: Partial<Marcas[string]>) => void;
+}) {
+  const marcados = grupo.items.filter((it) => marcas[claveDeItem(seccion.nombre, it)]).length;
+  // Una rueda se abre sola si ya tiene algo marcado: si no, 16 piezas por rueda serían una pared.
+  const [abierto, setAbierto] = useState(marcados > 0);
+  const lista = (
+    <ul className="divide-y divide-ink/10">
+      {grupo.items.map((it) => (
+        <ItemMarcable key={claveDeItem(seccion.nombre, it)} seccion={seccion.nombre} it={it} marca={marcas[claveDeItem(seccion.nombre, it)]} onMarcar={onMarcar} onCambio={onCambio} />
+      ))}
+    </ul>
+  );
+  if (!grupo.titulo) return lista;
+  return (
+    <div className="border-b border-ink/10 last:border-b-0">
+      <button
+        type="button"
+        aria-expanded={abierto}
+        onClick={() => setAbierto(!abierto)}
+        className="flex min-h-[44px] w-full items-center justify-between gap-3 bg-surface/60 px-4 py-2 text-left"
+      >
+        <span className="text-sm font-semibold text-ink">{grupo.titulo}</span>
+        <span className="flex items-center gap-2">
+          {marcados > 0 && <span className="bg-navy px-1.5 py-0.5 font-cond text-xs font-semibold tabular-nums text-bg">{marcados}</span>}
+          <span aria-hidden className="font-cond text-lg text-ink/50">{abierto ? "−" : "+"}</span>
+        </span>
+      </button>
+      {abierto && lista}
+    </div>
+  );
+}
+
+function ItemMarcable({
+  seccion,
+  it,
+  marca,
+  onMarcar,
+  onCambio,
+}: {
+  seccion: string;
+  it: ItemCatalogo;
+  marca: Marcas[string] | undefined;
+  onMarcar: (clave: string, on: boolean) => void;
+  onCambio: (clave: string, p: Partial<Marcas[string]>) => void;
+}) {
+  const clave = claveDeItem(seccion, it);
+  return (
+    <li className={marca ? "bg-brand-100/60" : undefined}>
+      <label className="flex min-h-[44px] cursor-pointer items-center gap-3 px-4 py-2">
+        <input type="checkbox" className="h-5 w-5 flex-none" checked={!!marca} onChange={(e) => onMarcar(clave, e.target.checked)} />
+        <span className="text-[15px] text-ink">{it.pieza}</span>
+      </label>
+      {marca && (
+        <div className="space-y-3 px-4 pb-3 pl-12">
+          <div role="radiogroup" aria-label={`Qué se hizo con ${it.pieza}`} className="flex">
+            {ACCIONES.map((a) => (
+              <button
+                key={a}
+                type="button"
+                role="radio"
+                aria-checked={marca.accion === a}
+                onClick={() => onCambio(clave, { accion: a })}
+                className={`min-h-[44px] flex-1 border px-2 font-cond text-sm font-semibold uppercase tracking-[0.06em] ${
+                  marca.accion === a ? "border-navy bg-navy text-bg" : "-ml-px border-ink/[.25] bg-white text-ink/70 hover:bg-ink/[.05]"
+                }`}
+              >
+                {TEXTO_ACCION[a]}
+              </button>
+            ))}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {it.medida && (
+              <label className="block">
+                <span className="label">Medida ({it.medida.unidad})</span>
+                <input inputMode="decimal" className="input min-h-[44px]" value={marca.medida} onChange={(e) => onCambio(clave, { medida: e.target.value.replace(/[^\d.,]/g, "") })} />
+                <span className="mt-0.5 block text-xs text-ink/50">{it.medida.ayuda}</span>
+              </label>
+            )}
+            {it.conCodigo && marca.accion === "nuevo" && (
+              <label className="block">
+                <span className="label">Código de la cubierta (opcional)</span>
+                <input className="input min-h-[44px]" value={marca.codigo} onChange={(e) => onCambio(clave, { codigo: e.target.value })} placeholder="Se puede dejar vacío" />
+              </label>
+            )}
+            <label className={`block ${it.medida || (it.conCodigo && marca.accion === "nuevo") ? "" : "sm:col-span-2"}`}>
+              <span className="label">Observaciones</span>
+              <input className="input min-h-[44px]" value={marca.obs} onChange={(e) => onCambio(clave, { obs: e.target.value })} />
+            </label>
+          </div>
+        </div>
+      )}
+    </li>
+  );
+}

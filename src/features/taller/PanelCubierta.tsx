@@ -109,14 +109,14 @@ export function PanelCubierta({
             </div>
 
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <Dato titulo="Código" valor={cubierta.codigo} grande />
+              <Dato titulo="Código" valor={cubierta.codigo || "Sin código"} grande={!!cubierta.codigo} suave={!cubierta.codigo} sub={cubierta.codigo ? undefined : "Es opcional: se carga igual"} />
               <Dato titulo="Modelo" valor={modelo.nombre} sub={modelo.medida} />
               <Dato titulo="Colocada el" valor={fmtDate(cubierta.fecha)} />
               <Dato titulo="Km al colocarla" valor={fmtKm(cubierta.kmInicial)} />
               <Dato
                 titulo="Km recorridos"
                 valor={fmtKm(km)}
-                sub={`${vehiculo.km.toLocaleString("es-UY")} − ${cubierta.kmInicial.toLocaleString("es-UY")}`}
+                sub={`km del tacógrafo ${vehiculo.km.toLocaleString("es-UY")} − ${cubierta.kmInicial.toLocaleString("es-UY")} al colocarla`}
                 grande
                 ancho
               />
@@ -128,7 +128,7 @@ export function PanelCubierta({
               <ol className="relative space-y-0 border-l-2 border-ink/15 pl-4">
                 <Historia
                   actual
-                  codigo={cubierta.codigo}
+                  codigo={cubierta.codigo || `Sin código · colocada el ${fmtDate(cubierta.fecha)}`}
                   modelo={`${modelo.nombre}`}
                   fechas={`Desde el ${fmtDate(cubierta.fecha)}`}
                   km={km}

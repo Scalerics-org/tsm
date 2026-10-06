@@ -5,7 +5,7 @@
  */
 
 export type TipoEje = "simple" | "dual";
-export type Carroceria = "camion" | "semirremolque" | "acoplado";
+export type Carroceria = "rigido" | "tractor" | "semirremolque" | "acoplado";
 
 export interface EjeDef {
   id: string;
@@ -15,9 +15,16 @@ export interface EjeDef {
   y: number;
 }
 
+/**
+ * Un tipo de vehículo: la configuración de ejes que se registra una vez y de la que sale el dibujo.
+ * El código del sticker del Ministerio (MTOP) de cada tipo va en `mtop`, como texto: queda vacío hasta que
+ * llegue la foto del sticker.
+ */
 export interface Disposicion {
   id: string;
   nombre: string;
+  /** Código MTOP del tipo, tal cual está en el sticker. Vacío = todavía no lo tenemos. */
+  mtop: string;
   carroceria: Carroceria;
   ejes: EjeDef[];
 }
@@ -35,37 +42,50 @@ export interface Posicion {
   nombre: string;
 }
 
-export const CAMION: Disposicion = {
-  id: "camion-10",
-  nombre: "Camión de 10 cubiertas",
-  carroceria: "camion",
-  ejes: [
-    { id: "dir", nombre: "Dirección", tipo: "simple", y: 112 },
-    { id: "t1", nombre: "Eje trasero 1", tipo: "dual", y: 330 },
-    { id: "t2", nombre: "Eje trasero 2", tipo: "dual", y: 420 },
-  ],
-};
+type Plano = { simples?: number; duales: number };
 
-export const SEMIRREMOLQUE: Disposicion = {
-  id: "semi-8",
-  nombre: "Semirremolque de 8 cubiertas",
-  carroceria: "semirremolque",
-  ejes: [
-    { id: "e1", nombre: "Eje 1", tipo: "dual", y: 344 },
-    { id: "e2", nombre: "Eje 2", tipo: "dual", y: 428 },
-  ],
-};
+/** Los ejes de una configuración: la dirección (si la lleva) y los demás, de adelante hacia atrás. */
+function ejesDe(c: Carroceria, plano: Plano): EjeDef[] {
+  const ejes: EjeDef[] = [];
+  const conDireccion = c === "rigido" || c === "tractor";
+  if (conDireccion) ejes.push({ id: "dir", nombre: "Dirección", tipo: "simple", y: 112 });
+  const resto: TipoEje[] = [
+    ...Array<TipoEje>(plano.simples ?? 0).fill("simple"),
+    ...Array<TipoEje>(plano.duales).fill("dual"),
+  ];
+  const primero = conDireccion ? (resto.length > 1 ? 330 : 372) : c === "acoplado" ? 292 : 344;
+  const paso = c === "acoplado" ? 92 : conDireccion ? 90 : 84;
+  resto.forEach((tipo, i) => {
+    const n = conDireccion ? (resto.length > 1 ? `Eje trasero ${i + 1}` : "Eje trasero") : `Eje ${i + 1}`;
+    ejes.push({ id: `e${i + 1}`, nombre: n, tipo, y: primero + i * paso });
+  });
+  return ejes;
+}
 
-/** Acoplado con lanza y dos ejes simples (el de la foto 19.jpg). Con ejes duales sería otra configuración. */
-export const ACOPLADO: Disposicion = {
-  id: "acoplado-4",
-  nombre: "Acoplado de 4 cubiertas",
-  carroceria: "acoplado",
-  ejes: [
-    { id: "e1", nombre: "Eje 1", tipo: "simple", y: 292 },
-    { id: "e2", nombre: "Eje 2", tipo: "simple", y: 384 },
-  ],
-};
+const tipo = (id: string, nombre: string, carroceria: Carroceria, plano: Plano): Disposicion => ({
+  id,
+  nombre,
+  mtop: "",
+  carroceria,
+  ejes: ejesDe(carroceria, plano),
+});
+
+/**
+ * Los tipos de vehículo que se pueden elegir. Cada uno dice sus ejes, simples o duales. Camión rígido (con su caja
+ * de carga) y camión tractor (sin caja, con quinta rueda) se dibujan distinto. Los ejes del acoplado van simples
+ * como en la foto 19.jpg; con duales sería otro tipo.
+ */
+export const TIPOS_DE_VEHICULO: Disposicion[] = [
+  tipo("rigido-2", "Camión rígido de 2 ejes", "rigido", { duales: 1 }),
+  tipo("rigido-3", "Camión rígido de 3 ejes", "rigido", { duales: 2 }),
+  tipo("tractor-2", "Camión tractor de 2 ejes", "tractor", { duales: 1 }),
+  tipo("tractor-3", "Camión tractor de 3 ejes", "tractor", { duales: 2 }),
+  tipo("semi-2", "Semirremolque de 2 ejes", "semirremolque", { duales: 2 }),
+  tipo("semi-3", "Semirremolque de 3 ejes", "semirremolque", { duales: 3 }),
+  tipo("acoplado-2", "Acoplado de 2 ejes", "acoplado", { simples: 2, duales: 0 }),
+];
+
+export const tipoDeVehiculo = (id: string): Disposicion => TIPOS_DE_VEHICULO.find((t) => t.id === id) ?? TIPOS_DE_VEHICULO[3];
 
 /**
  * Las posiciones, numeradas de adelante hacia atrás y, en cada eje, de izquierda a derecha:

@@ -105,8 +105,9 @@ function CubiertasDe({ vehiculo, disposicion }: { vehiculo: Vehiculo; disposicio
               ))}
             </ul>
             <p className="mt-3 text-xs leading-relaxed text-ink/55">
-              El color sale de los km recorridos contra una vida útil de ejemplo de {fmtKm(VIDA_UTIL_KM)} para todas las
-              cubiertas. El porcentaje de cada cubierta es ese mismo cálculo. La vida útil real se define con Rodrigo.
+              Cada cubierta muestra sus km recorridos en miles (los km del tacógrafo menos los que tenía el vehículo al colocarla). El
+              color sale de comparar esos km con una vida útil de ejemplo de {fmtKm(VIDA_UTIL_KM)}, igual para todas. La real se
+              define con Rodrigo.
             </p>
           </div>
 
@@ -135,6 +136,47 @@ function CubiertasDe({ vehiculo, disposicion }: { vehiculo: Vehiculo; disposicio
             </div>
           </div>
         </div>
+
+        <section className="panel">
+          <h3 className="border-b border-ink/10 px-4 py-3 font-cond text-lg">Qué cubierta hay en cada posición</h3>
+          <ul className="divide-y divide-ink/10">
+            {items.map((i) => {
+              const modelo = i.cubierta ? MODELOS[i.cubierta.modeloId] : undefined;
+              const activa = elegida?.posicion.numero === i.posicion.numero;
+              return (
+                <li key={i.posicion.numero}>
+                  <button
+                    type="button"
+                    onClick={() => elegir(i.posicion.numero)}
+                    aria-pressed={activa}
+                    className={`flex min-h-[52px] w-full items-center gap-3 px-4 py-2 text-left ${activa ? "bg-brand-100" : "hover:bg-ink/[.04]"}`}
+                  >
+                    <span
+                      className="grid h-8 w-8 flex-none place-items-center font-cond text-base font-bold text-white"
+                      style={{ background: i.estado ? COLOR_ESTADO[i.estado] : "#8d9296" }}
+                    >
+                      {i.posicion.numero}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[15px] font-semibold text-ink">
+                        {i.cubierta ? modelo?.nombre : "Sin cubierta cargada"}
+                        {i.cubierta && (
+                          <span className={`ml-2 font-cond text-sm ${i.cubierta.codigo ? "text-ink/60" : "font-normal text-ink/40"}`}>
+                            {i.cubierta.codigo || "sin código"}
+                          </span>
+                        )}
+                      </span>
+                      <span className="block truncate text-xs text-ink/55">{i.posicion.nombre}</span>
+                    </span>
+                    <span className="flex-none text-right font-cond text-base font-semibold tabular-nums">
+                      {i.cubierta ? fmtKm(i.km) : "—"}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       </div>
 
       <aside className="space-y-4 md:sticky md:top-4">

@@ -1,6 +1,7 @@
 import { posiciones, type Disposicion, type Posicion } from "./disposicion";
 
-export type TipoService = "A" | "A+B" | "R+A+B";
+/** Los services son A, B y C; "otro" es una reparación suelta. Qué incluye cada uno lo define Rodrigo. */
+export type TipoService = "A" | "B" | "C" | "otro";
 
 export interface Modelo {
   id: string;
@@ -20,7 +21,8 @@ export interface PuestaAnterior {
 
 export interface Cubierta {
   numero: number;
-  codigo: string;
+  /** Libre y opcional: están diseñando su propio código porque el grabado se borra. */
+  codigo?: string;
   modeloId: string;
   /** Día en que se colocó (AAAA-MM-DD). */
   fecha: string;
@@ -30,13 +32,28 @@ export interface Cubierta {
   anteriores: PuestaAnterior[];
 }
 
+/** Una cosa que se hizo en un service: sólo lo que Raúl marcó. */
+export type AccionHecha = "reparado" | "nuevo" | "revisado";
+export interface ItemHecho {
+  /** La sección: Motor, Frenos y rodaje, Cubiertas… */
+  seccion: string;
+  /** Sobre qué: "Rueda 4", "Posición 7", o vacío si es del vehículo en general. */
+  sujeto: string;
+  pieza: string;
+  accion: AccionHecha;
+  medida?: string;
+  obs: string;
+}
+
 export interface Service {
+  id: string;
   tipo: TipoService;
   fecha: string;
   km: number;
   chofer: string;
   mecanico: string;
   obs: string;
+  items: ItemHecho[];
 }
 
 export type TipoVehiculo = "camion" | "semirremolque" | "acoplado" | "montacargas";
@@ -62,11 +79,15 @@ export interface Vehiculo {
   patente: string;
   tipo: TipoVehiculo;
   descripcion: string;
-  /** Sin disposición no hay cubiertas que dibujar (el montacargas no las lleva en la maqueta). */
+  /** El tipo de vehículo (sus ejes): de ahí sale el dibujo. Sin tipo no hay cubiertas (el montacargas). */
   disposicion: Disposicion | null;
+  /** De cuándo es la última lectura del tacógrafo de la que salen los km (AAAA-MM-DD). */
+  lectura: string;
+  /** El chofer que anda hoy en el camión: es el que se sugiere al cargar un service. */
+  choferAsignado: string;
   /** Lo que mide el vehículo: km en el odómetro, horas en el montacargas. */
   unidad: "km" | "h";
-  /** Odómetro (o horímetro) actual. */
+  /** Km del tacógrafo (o horas del horímetro): contra esto se cuentan los km de cada cubierta. */
   km: number;
   /** Cada cuánto toca un service, en esa unidad. */
   cadaService: number;
@@ -114,8 +135,8 @@ export function cubiertasPorPosicion(v: Vehiculo): PosicionConCubierta[] {
 }
 
 // ── Services ──
-/** El ciclo de services (de ejemplo): A, A+B, A, R+A+B. Cada cuánto toca depende del vehículo. */
-export const CICLO: TipoService[] = ["A", "A+B", "A", "R+A+B"];
+/** El ciclo de services (de ejemplo): A, B, A, C. Cada cuánto toca depende del vehículo. */
+export const CICLO: TipoService[] = ["A", "B", "A", "C"];
 const AVISO_ANTES = 1 / 6;
 
 export interface ProximoService {

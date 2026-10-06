@@ -1,9 +1,12 @@
-import { ACOPLADO, CAMION, SEMIRREMOLQUE } from "./disposicion";
+import { tipoDeVehiculo } from "./disposicion";
+import { itemsDeService } from "./servicio";
 import {
   CICLO,
   type Cubierta,
   type PuestaAnterior,
+  type ItemHecho,
   type Service,
+  type TipoVehiculo,
   type Vehiculo,
 } from "./tipos";
 
@@ -48,7 +51,13 @@ interface Plano {
   patente: string;
   descripcion: string;
   km: number;
+  /** De cuándo es la lectura del tacógrafo de la que salen los km. */
+  lectura: string;
   kmPorDia: number;
+  /** El tipo de vehículo (sus ejes), como se elige en la ficha. */
+  tipoId?: string;
+  /** El chofer que anda en el camión hoy. */
+  choferAsignado?: string;
   /** Cuántos km lleva cada cubierta, en orden de posición. */
   recorridos: number[];
   /** Modelo de la dirección, del eje trasero 1 y del trasero 2 (o del eje 1 y 2 del semirremolque). */
@@ -83,7 +92,8 @@ function cubiertasDe(p: Plano, porEje: (i: number) => string): Cubierta[] {
     }
     return {
       numero,
-      codigo: nuevoCodigo(),
+      // El código es libre y opcional: algunas cubiertas todavía no lo tienen.
+      codigo: i % 4 === 3 ? undefined : nuevoCodigo(),
       modeloId: porEje(i),
       fecha,
       kmInicial: p.km - rec,
@@ -93,7 +103,21 @@ function cubiertasDe(p: Plano, porEje: (i: number) => string): Cubierta[] {
   });
 }
 
-function servicesDe(p: Plano, cuantos: number): Service[] {
+/** Reparaciones puestas a mano en los services de GTP 4325, para que la búsqueda tenga qué encontrar. */
+const FIJOS_4325: Record<number, ItemHecho[]> = {
+  9: [
+    { seccion: "Motor", sujeto: "", pieza: "Alternador", accion: "reparado", obs: "Rebobinado en el taller de la calle." },
+    { seccion: "Frenos y rodaje, por rueda", sujeto: "Rueda 4", pieza: "Zapatas / cintas", accion: "nuevo", medida: "18 mm", obs: "" },
+  ],
+  8: [
+    { seccion: "Cubiertas", sujeto: "Posición 7", pieza: "Cubierta 7", accion: "nuevo", obs: "Cambio por desgaste. Michelin X Multi Z." },
+    { seccion: "Frenos y rodaje, por rueda", sujeto: "Rueda 7", pieza: "Rulemanes", accion: "nuevo", obs: "" },
+  ],
+  6: [{ seccion: "Frenos y rodaje, por rueda", sujeto: "Rueda 4", pieza: "Zapatas / cintas", accion: "revisado", medida: "9,5 mm", obs: "Todavía sirven." }],
+  4: [{ seccion: "Motor", sujeto: "", pieza: "Alternador", accion: "reparado", obs: "Cambio de carbones." }],
+};
+
+function servicesDe(p: Plano, cuantos: number, disposicion: ReturnType<typeof tipoDeVehiculo> | null): Service[] {
   if (p.ultimoService == null) return [];
   const lista: Service[] = [];
   for (let k = 0; k < cuantos; k++) {
@@ -101,13 +125,16 @@ function servicesDe(p: Plano, cuantos: number): Service[] {
     const km = p.ultimoService - k * cada;
     if (km <= 0) break;
     const orden = Math.round(km / cada);
+    const tipo = CICLO[(orden - 1) % CICLO.length];
     lista.push({
-      tipo: CICLO[(orden - 1) % CICLO.length],
+      id: `${p.patente.replace(/\s+/g, "")}-${orden}`,
+      tipo,
       fecha: sumarDias(HOY, -((p.km - km) / p.kmPorDia)),
       km,
       chofer: CHOFERES[(orden * 3 + k) % CHOFERES.length],
       mecanico: MECANICO,
       obs: OBS_SERVICE[(orden * 5 + 2) % OBS_SERVICE.length],
+      items: itemsDeService({ patente: p.patente, disposicion }, tipo, orden, p.patente === "GTP 4325" ? FIJOS_4325[orden] : undefined),
     });
   }
   return lista;
@@ -117,57 +144,63 @@ const base = (p: Plano) => ({
   patente: p.patente,
   descripcion: p.descripcion,
   km: p.km,
+  lectura: p.lectura,
   kmPorDia: p.kmPorDia,
   cadaService: p.cadaService ?? CADA_SERVICE_KM,
+  choferAsignado: p.choferAsignado ?? CHOFERES[0],
 });
 
-const camion = (p: Plano): Vehiculo => ({
-  ...base(p),
-  tipo: "camion",
-  disposicion: CAMION,
-  unidad: "km",
-  // 0 y 1: dirección; 2 a 5: eje trasero 1; 6 a 9: eje trasero 2.
-  cubiertas: cubiertasDe(p, (i) => (i < 2 ? p.modelos[0] : i < 6 ? p.modelos[1] ?? p.modelos[0] : (p.modelos[2] ?? p.modelos[1] ?? p.modelos[0]))),
-  services: servicesDe(p, 6),
-  componentes: componentesDe({ ...base(p), tipo: "camion" }),
-});
+/** Camión (rígido o tractor): su tipo dice los ejes; los modelos van por eje, de la dirección hacia atrás. */
+const camion = (p: Plano): Vehiculo => {
+  const disposicion = tipoDeVehiculo(p.tipoId ?? "tractor-3");
+  const ultimoTrasero = disposicion.ejes.length - 1;
+  const ejeDe = (i: number) => {
+    // Posiciones 0 y 1 son la dirección; de ahí, cuatro por eje trasero.
+    if (i < 2) return 0;
+    return Math.min(ultimoTrasero, 1 + Math.floor((i - 2) / 4));
+  };
+  return {
+    ...base(p),
+    tipo: "camion",
+    disposicion,
+    unidad: "km",
+    cubiertas: cubiertasDe(p, (i) => (ejeDe(i) === 0 ? p.modelos[0] : ejeDe(i) === 1 ? (p.modelos[1] ?? p.modelos[0]) : (p.modelos[2] ?? p.modelos[1] ?? p.modelos[0]))),
+    services: servicesDe(p, 6, disposicion),
+    componentes: componentesDe({ ...base(p), tipo: "camion" }),
+  };
+};
 
-const semirremolque = (p: Plano): Vehiculo => ({
+const remolque = (tipo: TipoVehiculo, p: Plano, tipoDefault: string): Vehiculo => ({
   ...base(p),
-  tipo: "semirremolque",
-  disposicion: SEMIRREMOLQUE,
+  tipo,
+  disposicion: tipoDeVehiculo(p.tipoId ?? tipoDefault),
   unidad: "km",
   cubiertas: cubiertasDe(p, (i) => (i < 4 ? p.modelos[0] : (p.modelos[1] ?? p.modelos[0]))),
   services: [],
-  componentes: componentesDe({ ...base(p), tipo: "semirremolque" }),
+  componentes: componentesDe({ ...base(p), tipo }),
 });
+const semirremolque = (p: Plano) => remolque("semirremolque", p, "semi-2");
+const acoplado = (p: Plano) => remolque("acoplado", p, "acoplado-2");
 
-const acoplado = (p: Plano): Vehiculo => ({
-  ...base(p),
-  tipo: "acoplado",
-  disposicion: ACOPLADO,
-  unidad: "km",
-  cubiertas: cubiertasDe(p, () => p.modelos[0]),
-  services: [],
-  componentes: componentesDe({ ...base(p), tipo: "acoplado" }),
-});
-
-/** El montacargas no tiene odómetro: cuenta horas de uso. Sin cubiertas en esta maqueta. */
+/** El montacargas no tiene tacógrafo: cuenta horas de uso. Sin cubiertas en esta maqueta. */
 const montacargas = (p: Plano): Vehiculo => ({
   ...base(p),
   tipo: "montacargas",
   disposicion: null,
   unidad: "h",
   cubiertas: [],
-  services: servicesDe(p, 6),
+  services: servicesDe(p, 6, null),
   componentes: componentesDe({ ...base(p), tipo: "montacargas" }),
 });
 
 export const VEHICULOS: Vehiculo[] = [
   camion({
     patente: "GTP 4325",
-    descripcion: "Scania P 410 · 6x2 · 2014",
+    descripcion: "Scania P 410 · 2014",
+    tipoId: "tractor-3",
     km: 151_273,
+    lectura: "2026-09-30",
+    choferAsignado: "Carlos Pereira",
     kmPorDia: 330,
     recorridos: [64_200, 71_800, 96_800, 88_400, 52_300, 52_300, 91_700, 103_500, 38_000, 38_000],
     modelos: ["r269", "multi", "multi"],
@@ -175,8 +208,11 @@ export const VEHICULOS: Vehiculo[] = [
   }),
   camion({
     patente: "GTP 4238",
-    descripcion: "Scania R 450 · 6x4 · 2016",
+    descripcion: "Scania R 450 · 2016",
+    tipoId: "rigido-3",
     km: 284_910,
+    lectura: "2026-09-29",
+    choferAsignado: "Julio Techera",
     kmPorDia: 410,
     recorridos: [41_000, 44_500, 58_200, 59_900, 61_300, 57_800, 72_400, 74_100, 71_000, 73_600],
     modelos: ["r269", "fr85", "fr85"],
@@ -184,26 +220,35 @@ export const VEHICULOS: Vehiculo[] = [
   }),
   camion({
     patente: "GTP 4267",
-    descripcion: "Volvo FH 460 · 6x4 · 2017",
+    descripcion: "Volvo FH 460 · 2017",
+    tipoId: "tractor-2",
     km: 198_540,
+    lectura: "2026-09-30",
+    choferAsignado: "Marcelo Núñez",
     kmPorDia: 380,
-    recorridos: [78_600, 80_100, 22_400, 21_900, 23_100, 22_800, 36_500, 35_900, 37_200, 36_100],
-    modelos: ["multi", "kmax", "kmax"],
+    recorridos: [78_600, 80_100, 22_400, 21_900, 23_100, 22_800],
+    modelos: ["multi", "kmax"],
     ultimoService: 195_000,
   }),
   camion({
     patente: "GTP 4326",
-    descripcion: "Scania P 410 · 6x2 · 2014",
+    descripcion: "Scania P 410 · 2014",
+    tipoId: "rigido-2",
     km: 176_020,
+    lectura: "2026-09-28",
+    choferAsignado: "Darío Silva",
     kmPorDia: 300,
-    recorridos: [93_400, 94_200, 91_800, 95_600, 82_700, 84_100, 69_200, 70_800, 66_500, 68_300],
-    modelos: ["r269", "multi", "fr85"],
+    recorridos: [93_400, 94_200, 91_800, 95_600, 82_700, 84_100],
+    modelos: ["r269", "multi"],
     ultimoService: 165_000,
   }),
   camion({
     patente: "GTP 4382",
-    descripcion: "Mercedes-Benz Actros 2646 · 6x4 · 2019",
+    descripcion: "Mercedes-Benz Actros 2646 · 2019",
+    tipoId: "tractor-3",
     km: 112_760,
+    lectura: "2026-09-30",
+    choferAsignado: "Walter Rocha",
     kmPorDia: 360,
     recorridos: [30_100, 29_700, 49_800, 51_200, 50_400, 48_900, 49_600, 50_100, 48_700, 51_900],
     modelos: ["kmax", "kmax", "kmax"],
@@ -211,8 +256,11 @@ export const VEHICULOS: Vehiculo[] = [
   }),
   camion({
     patente: "GTP 4383",
-    descripcion: "Mercedes-Benz Actros 2646 · 6x4 · 2019",
+    descripcion: "Mercedes-Benz Actros 2646 · 2019",
+    tipoId: "tractor-3",
     km: 118_395,
+    lectura: "2026-09-27",
+    choferAsignado: "Carlos Pereira",
     kmPorDia: 365,
     recorridos: [85_300, 86_700, 32_400, 33_100, 31_900, 32_800, 97_900, 99_400, 96_300, 98_700],
     modelos: ["r269", "multi", "multi"],
@@ -220,8 +268,11 @@ export const VEHICULOS: Vehiculo[] = [
   }),
   camion({
     patente: "GTP 4384",
-    descripcion: "Iveco Stralis 480 · 6x2 · 2018",
+    descripcion: "Iveco Stralis 480 · 2018",
+    tipoId: "tractor-3",
     km: 241_880,
+    lectura: "2026-09-30",
+    choferAsignado: "Julio Techera",
     kmPorDia: 395,
     recorridos: [54_000, 55_500, 61_800, 63_400, 60_900, 62_700, 66_100, 67_800, 65_200, 66_900],
     modelos: ["r269", "fr85", "fr85"],
@@ -229,8 +280,11 @@ export const VEHICULOS: Vehiculo[] = [
   }),
   camion({
     patente: "GTP 4413",
-    descripcion: "Volvo FH 540 · 6x4 · 2021",
+    descripcion: "Volvo FH 540 · 2021",
+    tipoId: "tractor-3",
     km: 74_650,
+    lectura: "2026-09-30",
+    choferAsignado: "Marcelo Núñez",
     kmPorDia: 420,
     recorridos: [74_650, 74_650, 18_200, 18_200, 18_700, 18_700, 18_900, 18_900, 19_100, 19_100],
     modelos: ["multi", "multi", "multi"],
@@ -238,16 +292,20 @@ export const VEHICULOS: Vehiculo[] = [
   }),
   semirremolque({
     patente: "SR 1204",
-    descripcion: "Semirremolque furgón · 2 ejes (ejemplo)",
+    descripcion: "Semirremolque furgón (ejemplo)",
+    tipoId: "semi-2",
     km: 212_480,
+    lectura: "2026-09-30",
     kmPorDia: 350,
     recorridos: [48_300, 47_900, 52_600, 54_100, 61_700, 63_200, 59_800, 62_400],
     modelos: ["fr85", "kmax"],
   }),
   acoplado({
     patente: "AC 0307",
-    descripcion: "Acoplado con lanza · 2 ejes (ejemplo)",
+    descripcion: "Acoplado con lanza (ejemplo)",
+    tipoId: "acoplado-2",
     km: 168_300,
+    lectura: "2026-09-30",
     kmPorDia: 300,
     recorridos: [39_800, 41_200, 58_700, 60_100],
     modelos: ["kmax"],
@@ -256,6 +314,8 @@ export const VEHICULOS: Vehiculo[] = [
     patente: "Montacargas 1",
     descripcion: "Montacargas de patio · horas de uso (ejemplo)",
     km: 3_420,
+    lectura: "2026-09-30",
+    choferAsignado: "Walter Rocha",
     kmPorDia: 7,
     cadaService: 250,
     recorridos: [],
@@ -263,6 +323,10 @@ export const VEHICULOS: Vehiculo[] = [
     ultimoService: 3_250,
   }),
 ];
+
+/** Los choferes de TSM entre los que se elige al cargar un service (de ejemplo). */
+export const CHOFERES_DE_TSM = CHOFERES;
+export const MECANICOS = [MECANICO, "Pepe (taller de la calle)"];
 
 const sinSeparadores = (s: string) => s.replace(/[\s-]/g, "").toLowerCase();
 export const vehiculoDe = (patente: string | undefined): Vehiculo | undefined =>
