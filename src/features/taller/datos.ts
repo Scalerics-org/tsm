@@ -121,7 +121,7 @@ function servicesDe(p: Plano, cuantos: number, disposicion: ReturnType<typeof ti
   if (p.ultimoService == null) return [];
   const lista: Service[] = [];
   for (let k = 0; k < cuantos; k++) {
-    const cada = p.cadaService ?? CADA_SERVICE_KM;
+    const cada = disposicion?.intervaloServiceKm ?? p.cadaService ?? CADA_SERVICE_KM;
     const km = p.ultimoService - k * cada;
     if (km <= 0) break;
     const orden = Math.round(km / cada);
@@ -140,13 +140,13 @@ function servicesDe(p: Plano, cuantos: number, disposicion: ReturnType<typeof ti
   return lista;
 }
 
-const base = (p: Plano) => ({
+const base = (p: Plano, cadaService: number | null) => ({
   patente: p.patente,
   descripcion: p.descripcion,
   km: p.km,
   lectura: p.lectura,
   kmPorDia: p.kmPorDia,
-  cadaService: p.cadaService ?? CADA_SERVICE_KM,
+  cadaService,
   choferAsignado: p.choferAsignado ?? CHOFERES[0],
 });
 
@@ -160,37 +160,37 @@ const camion = (p: Plano): Vehiculo => {
     return Math.min(ultimoTrasero, 1 + Math.floor((i - 2) / 4));
   };
   return {
-    ...base(p),
+    ...base(p, disposicion.intervaloServiceKm),
     tipo: "camion",
     disposicion,
     unidad: "km",
     cubiertas: cubiertasDe(p, (i) => (ejeDe(i) === 0 ? p.modelos[0] : ejeDe(i) === 1 ? (p.modelos[1] ?? p.modelos[0]) : (p.modelos[2] ?? p.modelos[1] ?? p.modelos[0]))),
     services: servicesDe(p, 6, disposicion),
-    componentes: componentesDe({ ...base(p), tipo: "camion" }),
+    componentes: componentesDe({ ...base(p, disposicion.intervaloServiceKm), tipo: "camion" }),
   };
 };
 
 const remolque = (tipo: TipoVehiculo, p: Plano, tipoDefault: string): Vehiculo => ({
-  ...base(p),
+  ...base(p, null),
   tipo,
   disposicion: tipoDeVehiculo(p.tipoId ?? tipoDefault),
   unidad: "km",
   cubiertas: cubiertasDe(p, (i) => (i < 4 ? p.modelos[0] : (p.modelos[1] ?? p.modelos[0]))),
   services: [],
-  componentes: componentesDe({ ...base(p), tipo }),
+  componentes: componentesDe({ ...base(p, null), tipo }),
 });
 const semirremolque = (p: Plano) => remolque("semirremolque", p, "semi-2");
 const acoplado = (p: Plano) => remolque("acoplado", p, "acoplado-2");
 
 /** El montacargas no tiene tacógrafo: cuenta horas de uso. Sin cubiertas en esta maqueta. */
 const montacargas = (p: Plano): Vehiculo => ({
-  ...base(p),
+  ...base(p, p.cadaService ?? 250),
   tipo: "montacargas",
   disposicion: null,
   unidad: "h",
   cubiertas: [],
   services: servicesDe(p, 6, null),
-  componentes: componentesDe({ ...base(p), tipo: "montacargas" }),
+  componentes: componentesDe({ ...base(p, p.cadaService ?? 250), tipo: "montacargas" }),
 });
 
 export const VEHICULOS: Vehiculo[] = [
@@ -216,7 +216,7 @@ export const VEHICULOS: Vehiculo[] = [
     kmPorDia: 410,
     recorridos: [41_000, 44_500, 58_200, 59_900, 61_300, 57_800, 72_400, 74_100, 71_000, 73_600],
     modelos: ["r269", "fr85", "fr85"],
-    ultimoService: 285_000 - 15_000 + 3_000,
+    ultimoService: 275_000,
   }),
   camion({
     patente: "GTP 4267",
@@ -228,7 +228,7 @@ export const VEHICULOS: Vehiculo[] = [
     kmPorDia: 380,
     recorridos: [78_600, 80_100, 22_400, 21_900, 23_100, 22_800],
     modelos: ["multi", "kmax"],
-    ultimoService: 195_000,
+    ultimoService: 175_000,
   }),
   camion({
     patente: "GTP 4326",
@@ -252,7 +252,7 @@ export const VEHICULOS: Vehiculo[] = [
     kmPorDia: 360,
     recorridos: [30_100, 29_700, 49_800, 51_200, 50_400, 48_900, 49_600, 50_100, 48_700, 51_900],
     modelos: ["kmax", "kmax", "kmax"],
-    ultimoService: 105_000,
+    ultimoService: 100_000,
   }),
   camion({
     patente: "GTP 4383",
@@ -264,7 +264,7 @@ export const VEHICULOS: Vehiculo[] = [
     kmPorDia: 365,
     recorridos: [85_300, 86_700, 32_400, 33_100, 31_900, 32_800, 97_900, 99_400, 96_300, 98_700],
     modelos: ["r269", "multi", "multi"],
-    ultimoService: 105_000,
+    ultimoService: 100_000,
   }),
   camion({
     patente: "GTP 4384",
@@ -276,7 +276,7 @@ export const VEHICULOS: Vehiculo[] = [
     kmPorDia: 395,
     recorridos: [54_000, 55_500, 61_800, 63_400, 60_900, 62_700, 66_100, 67_800, 65_200, 66_900],
     modelos: ["r269", "fr85", "fr85"],
-    ultimoService: 240_000,
+    ultimoService: 225_000,
   }),
   camion({
     patente: "GTP 4413",
@@ -288,7 +288,7 @@ export const VEHICULOS: Vehiculo[] = [
     kmPorDia: 420,
     recorridos: [74_650, 74_650, 18_200, 18_200, 18_700, 18_700, 18_900, 18_900, 19_100, 19_100],
     modelos: ["multi", "multi", "multi"],
-    ultimoService: 60_000,
+    ultimoService: 50_000,
   }),
   semirremolque({
     patente: "SR 1204",
@@ -320,7 +320,7 @@ export const VEHICULOS: Vehiculo[] = [
     cadaService: 250,
     recorridos: [],
     modelos: ["kmax"],
-    ultimoService: 3_250,
+    ultimoService: 3_200,
   }),
 ];
 

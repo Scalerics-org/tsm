@@ -10,6 +10,7 @@ import {
   VIDA_UTIL_KM,
   cubiertasPorPosicion,
   fmtKm,
+  pctDeUso,
   type Estado,
   type Vehiculo,
 } from "./tipos";
@@ -168,8 +169,13 @@ function CubiertasDe({ vehiculo, disposicion }: { vehiculo: Vehiculo; disposicio
                       </span>
                       <span className="block truncate text-xs text-ink/55">{i.posicion.nombre}</span>
                     </span>
-                    <span className="flex-none text-right font-cond text-base font-semibold tabular-nums">
-                      {i.cubierta ? fmtKm(i.km) : "—"}
+                    <span className="flex-none text-right font-cond tabular-nums">
+                      <span className="block text-base font-semibold">{i.cubierta ? fmtKm(i.km) : "—"}</span>
+                      {i.cubierta && (
+                        <span className="block text-xs text-ink/60">
+                          {pctDeUso(i.km)}% de {fmtKm(VIDA_UTIL_KM)}
+                        </span>
+                      )}
                     </span>
                   </button>
                 </li>

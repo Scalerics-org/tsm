@@ -1,16 +1,21 @@
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { HOY, VEHICULOS, enLaDireccion } from "./datos";
 import { useFlotaConLoCargado } from "./servicio";
 import { TipoPill } from "./TabServices";
 import { COLOR_ESTADO } from "./VistaSuperior";
-import { cubiertasPorPosicion, fmtUso, proximoService, ultimoService } from "./tipos";
+import { cubiertasPorPosicion, fmtUso, proximoService, ultimoService, type ProximoService } from "./tipos";
+
+/** Una matrícula sin espacios, guiones ni mayúsculas: "GTP 4325", "gtp-4325" y "4325" se comparan igual. */
+const comparable = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 /** El tablero del taller: los km de cada vehículo, su último service y cuántas cubiertas piden atención. */
 export function FlotaPage() {
+  const [params, setParams] = useSearchParams();
+  const busqueda = params.get("q") ?? "";
   const flota = useFlotaConLoCargado(VEHICULOS);
-  const filas = flota.map((v) => {
+  const todas = flota.map((v) => {
     const items = cubiertasPorPosicion(v);
     return {
       v,
@@ -20,7 +25,10 @@ export function FlotaPage() {
       ambar: items.filter((i) => i.estado === "ambar").length,
     };
   });
-  const urgentes = filas.filter((f) => f.rojas > 0 || (f.prox && f.prox.estado !== "verde")).length;
+  const urgentes = todas.filter((f) => f.rojas > 0 || (f.prox && f.prox.estado !== "verde")).length;
+  const buscado = comparable(busqueda);
+  const filas = buscado ? todas.filter((f) => comparable(f.v.patente).includes(buscado)) : todas;
+  const buscar = (texto: string) => setParams(texto ? { q: texto } : {}, { replace: true });
 
   return (
     <div className="space-y-5">
@@ -28,12 +36,33 @@ export function FlotaPage() {
         <div className="kicker">Taller</div>
         <h1 className="font-cond text-3xl">Mantenimiento de la flota</h1>
         <p className="mt-1 max-w-prose text-sm text-ink/60">
-          Los km de cada vehículo, cuándo toca el próximo service y cómo están las cubiertas. {urgentes} de {filas.length}{" "}
+          Los km de cada vehículo, cuándo toca el próximo service y cómo están las cubiertas. {urgentes} de {todas.length}{" "}
           piden atención.
         </p>
       </div>
 
-      <div className="panel hidden md:block">
+      <div className="space-y-3">
+        <label className="block max-w-sm">
+          <span className="label">Buscar por matrícula</span>
+          <input
+            type="search"
+            value={busqueda}
+            onChange={(e) => buscar(e.target.value)}
+            placeholder="4325, GTP 4325, gtp-4325…"
+            className="input min-h-[44px] text-base"
+            autoComplete="off"
+          />
+        </label>
+        <LeyendaDelProximo />
+      </div>
+
+      {filas.length === 0 && (
+        <p role="status" className="panel px-4 py-5 text-sm text-ink/65">
+          Ninguna matrícula coincide.
+        </p>
+      )}
+
+      <div className={`panel hidden ${filas.length ? "md:block" : ""}`}>
         <Corners />
         <table className="w-full text-left text-sm">
           <thead>
@@ -116,14 +145,39 @@ export function FlotaPage() {
   );
 }
 
-function Proximo({ prox, unidad }: { prox: NonNullable<ReturnType<typeof proximoService>>; unidad: string }) {
+/** Lo que falta para el próximo service, pintado: verde, ámbar o rojo (o "pasado por X"). */
+function Proximo({ prox, unidad }: { prox: ProximoService; unidad: string }) {
+  const color = COLOR_ESTADO[prox.estado];
   return (
-    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+    <span className="flex items-center gap-x-2 whitespace-nowrap">
       <TipoPill tipo={prox.tipo} />
-      <span className="tabular-nums" style={{ color: prox.faltan <= 0 ? COLOR_ESTADO.rojo : undefined }}>
-        {prox.faltan > 0 ? `faltan ${prox.faltan.toLocaleString("es-UY")} ${unidad}` : "ya toca"}
+      <span className="flex items-center gap-1.5 font-semibold tabular-nums" style={{ color }}>
+        <i className="block h-2.5 w-2.5 flex-none" style={{ background: color }} />
+        {prox.pasado ? `pasado por ${Math.abs(prox.faltan).toLocaleString("es-UY")} ${unidad}` : `faltan ${prox.faltan.toLocaleString("es-UY")} ${unidad}`}
       </span>
     </span>
+  );
+}
+
+/** La leyenda corta de los colores del "próximo service". */
+function LeyendaDelProximo() {
+  const filas: [keyof typeof COLOR_ESTADO, string][] = [
+    ["verde", "falta más de un tercio del intervalo"],
+    ["ambar", "falta un tercio o menos"],
+    ["rojo", "faltan menos de 1.000 km, o ya se pasó"],
+  ];
+  return (
+    <div className="text-xs text-ink/65">
+      <span className="font-cond font-semibold uppercase tracking-[0.1em] text-ink/50">Próximo service: </span>
+      <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+        {filas.map(([estado, texto]) => (
+          <li key={estado} className="flex items-center gap-1.5">
+            <i className="block h-2.5 w-2.5 flex-none" style={{ background: COLOR_ESTADO[estado] }} />
+            {texto}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -137,7 +191,7 @@ function Atencion({ rojas, ambar }: { rojas: number; ambar: number }) {
     );
   }
   return (
-    <span className="flex items-center gap-3 font-cond text-sm font-semibold tabular-nums">
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 whitespace-nowrap font-cond text-sm font-semibold tabular-nums">
       {rojas > 0 && (
         <span className="flex items-center gap-1.5">
           <i className="block h-2.5 w-2.5" style={{ background: COLOR_ESTADO.rojo }} />

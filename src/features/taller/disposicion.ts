@@ -17,17 +17,34 @@ export interface EjeDef {
 
 /**
  * Un tipo de vehículo: la configuración de ejes que se registra una vez y de la que sale el dibujo.
- * El código del sticker del Ministerio (MTOP) de cada tipo va en `mtop`, como texto: queda vacío hasta que
- * llegue la foto del sticker.
+ * El `nombre` es como se muestra: Rodrigo va a pasar los nombres como los usan ellos y se cambian acá, en
+ * `TIPOS_DE_VEHICULO`, y en ningún otro lugar.
  */
 export interface Disposicion {
   id: string;
   nombre: string;
-  /** Código MTOP del tipo, tal cual está en el sticker. Vacío = todavía no lo tenemos. */
-  mtop: string;
   carroceria: Carroceria;
   ejes: EjeDef[];
+  /** Cada cuántos km toca un service. `null`: este tipo (semirremolque, acoplado) no tiene service por km. */
+  intervaloServiceKm: number | null;
 }
+
+/**
+ * Los intervalos de service (dato de Rodrigo): 25.000 km los camiones grandes y 15.000 los chicos. Qué es grande y qué
+ * es chico no está definido todavía; se asume que grande = tractor de 2 y 3 ejes y rígido de 3 ejes, y chico =
+ * rígido de 2 ejes.
+ */
+export const INTERVALO_GRANDE_KM = 25_000;
+export const INTERVALO_CHICO_KM = 15_000;
+
+/**
+ * Cómo se pinta lo que falta para el próximo service (lo confirmó Rodrigo): verde si falta más de un tercio del
+ * intervalo, ámbar si falta un tercio o menos, rojo si faltan menos de 1.000 km o ya se pasó. Son constantes con nombre
+ * para cambiarlas en un solo lugar; el montacargas usa el mismo criterio sobre su intervalo en horas.
+ */
+export const FRACCION_AMBAR_SERVICE = 1 / 3;
+export const UMBRAL_ROJO_SERVICE_KM = 1_000;
+export const UMBRAL_ROJO_SERVICE_HORAS = 25;
 
 export type Lado = "izquierda" | "derecha";
 export type Lugar = "unica" | "exterior" | "interior";
@@ -62,12 +79,12 @@ function ejesDe(c: Carroceria, plano: Plano): EjeDef[] {
   return ejes;
 }
 
-const tipo = (id: string, nombre: string, carroceria: Carroceria, plano: Plano): Disposicion => ({
+const tipo = (id: string, nombre: string, carroceria: Carroceria, plano: Plano, intervaloServiceKm: number | null): Disposicion => ({
   id,
   nombre,
-  mtop: "",
   carroceria,
   ejes: ejesDe(carroceria, plano),
+  intervaloServiceKm,
 });
 
 /**
@@ -76,13 +93,13 @@ const tipo = (id: string, nombre: string, carroceria: Carroceria, plano: Plano):
  * como en la foto 19.jpg; con duales sería otro tipo.
  */
 export const TIPOS_DE_VEHICULO: Disposicion[] = [
-  tipo("rigido-2", "Camión rígido de 2 ejes", "rigido", { duales: 1 }),
-  tipo("rigido-3", "Camión rígido de 3 ejes", "rigido", { duales: 2 }),
-  tipo("tractor-2", "Camión tractor de 2 ejes", "tractor", { duales: 1 }),
-  tipo("tractor-3", "Camión tractor de 3 ejes", "tractor", { duales: 2 }),
-  tipo("semi-2", "Semirremolque de 2 ejes", "semirremolque", { duales: 2 }),
-  tipo("semi-3", "Semirremolque de 3 ejes", "semirremolque", { duales: 3 }),
-  tipo("acoplado-2", "Acoplado de 2 ejes", "acoplado", { simples: 2, duales: 0 }),
+  tipo("rigido-2", "Camión rígido de 2 ejes", "rigido", { duales: 1 }, INTERVALO_CHICO_KM),
+  tipo("rigido-3", "Camión rígido de 3 ejes", "rigido", { duales: 2 }, INTERVALO_GRANDE_KM),
+  tipo("tractor-2", "Camión tractor de 2 ejes", "tractor", { duales: 1 }, INTERVALO_GRANDE_KM),
+  tipo("tractor-3", "Camión tractor de 3 ejes", "tractor", { duales: 2 }, INTERVALO_GRANDE_KM),
+  tipo("semi-2", "Semirremolque de 2 ejes", "semirremolque", { duales: 2 }, null),
+  tipo("semi-3", "Semirremolque de 3 ejes", "semirremolque", { duales: 3 }, null),
+  tipo("acoplado-2", "Acoplado de 2 ejes", "acoplado", { simples: 2, duales: 0 }, null),
 ];
 
 export const tipoDeVehiculo = (id: string): Disposicion => TIPOS_DE_VEHICULO.find((t) => t.id === id) ?? TIPOS_DE_VEHICULO[3];
@@ -110,7 +127,7 @@ export function posiciones(d: Disposicion): Posicion[] {
 /** Las medidas del dibujo, en unidades del viewBox (que mide 360 de ancho: en el celular es 1 a 1). */
 export const ANCHO = 360;
 export const CUBIERTA_W = 44;
-export const CUBIERTA_H = 68;
+export const CUBIERTA_H = 74;
 const SEPARACION_DUAL = 4;
 
 /** Dónde va la esquina de arriba a la izquierda de una cubierta. */

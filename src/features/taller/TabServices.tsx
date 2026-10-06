@@ -8,6 +8,7 @@ import {
   CICLO,
   fmtUso,
   proximoService,
+  textoDelIntervalo,
   ultimoService,
   type Service,
   type TipoService,
@@ -44,7 +45,7 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
   const orden = [...vehiculo.services].sort((a, b) => b.km - a.km);
   const prox = ultimo ? proximoService(vehiculo, HOY) : null;
   const desdeUltimo = ultimo ? vehiculo.km - ultimo.km : 0;
-  const avance = ultimo ? Math.min(1, desdeUltimo / vehiculo.cadaService) : 0;
+  const avance = ultimo && vehiculo.cadaService ? Math.min(1, desdeUltimo / vehiculo.cadaService) : 0;
 
   return (
     <div className="space-y-5">
@@ -92,11 +93,16 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
             <div className="text-sm text-ink/60">
               {prox.faltan > 0 ? (
                 <>
-                  faltan <b className="tabular-nums text-ink">{prox.faltan.toLocaleString("es-UY")} {vehiculo.unidad}</b> · alrededor del{" "}
-                  {fmtDate(prox.fechaEstimada)}
+                  faltan{" "}
+                  <b className="tabular-nums" style={{ color: COLOR_ESTADO[prox.estado] }}>
+                    {prox.faltan.toLocaleString("es-UY")} {vehiculo.unidad}
+                  </b>{" "}
+                  · alrededor del {fmtDate(prox.fechaEstimada)}
                 </>
               ) : (
-                <b style={{ color: COLOR_ESTADO.rojo }}>Ya pasó por {Math.abs(prox.faltan).toLocaleString("es-UY")} {vehiculo.unidad}</b>
+                <b className="tabular-nums" style={{ color: COLOR_ESTADO.rojo }}>
+                  pasado por {Math.abs(prox.faltan).toLocaleString("es-UY")} {vehiculo.unidad}
+                </b>
               )}
             </div>
             <div className="mt-3 h-2.5 bg-surface" role="img" aria-label={`${Math.round(avance * 100)}% del camino al próximo service`}>
@@ -110,8 +116,9 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
           <Corners />
           <div className="kicker">Sin services</div>
           <p className="mt-2 max-w-prose text-sm text-ink/65">
-            Este vehículo no tiene services cargados. Los semirremolques y acoplados no llevan motor: lo que se les hace
-            (frenos, rodaje, cubiertas, chasis) se carga como "Otro / reparación suelta".
+            {vehiculo.cadaService == null
+              ? 'Los semirremolques y acoplados no tienen service por km, así que no hay próximo estimado. Lo que se les hace (frenos, rodaje, cubiertas, chasis) se carga como "Otro / reparación suelta".'
+              : "Este vehículo no tiene services cargados."}
           </p>
         </div>
       )}
@@ -130,9 +137,12 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
             </div>
           ))}
         </dl>
-        <p className="border-t border-ink/10 px-4 py-2 text-xs text-ink/55">
-          Un service cada {vehiculo.cadaService.toLocaleString("es-UY")} {vehiculo.unidad}, en este orden de ejemplo: {CICLO.join(" → ")}. Qué
-          incluye cada tipo y cada cuánto toca lo define Rodrigo.
+        <p className="border-t border-ink/10 px-4 py-2 text-xs leading-relaxed text-ink/55">
+          Próximo service: <b className="text-ink/75">{textoDelIntervalo(vehiculo)}</b>
+          {vehiculo.tipo === "camion" && " (por ahora: grande = tractor de 2 y 3 ejes y rígido de 3 ejes; chico = rígido de 2 ejes)"}. El color: verde si
+          falta más de un tercio del intervalo, ámbar si falta un tercio o menos, rojo si faltan menos de{" "}
+          {vehiculo.unidad === "h" ? "25 horas" : "1.000 km"} o ya se pasó. Orden de ejemplo: {CICLO.join(" → ")}. Qué incluye cada tipo lo define
+          Rodrigo.
         </p>
       </section>
 

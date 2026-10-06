@@ -70,7 +70,7 @@ export function NuevoService({ vehiculo }: { vehiculo: Vehiculo }) {
     }),
     [stock, vehiculo],
   );
-  const sugerido = vehiculo.services.length > 0 ? proximoService(vehiculo, HOY).tipo : "otro";
+  const sugerido = vehiculo.services.length > 0 ? (proximoService(vehiculo, HOY)?.tipo ?? "otro") : "otro";
   const [datos, setDatos] = useState<Datos>({
     fecha: HOY,
     km: String(vehiculo.km),

@@ -17,15 +17,16 @@
 .num-cubierta {
   font-family: "Bricolage Grotesque", system-ui, sans-serif;
   font-weight: 700;
-  font-size: 16px;
+  font-size: 14px;
   fill: #1d1f20;
 }
 .pct-cubierta {
   font-family: "Bricolage Grotesque", system-ui, sans-serif;
   font-weight: 600;
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
   fill: #fff;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
 .rotulo-svg text {
   font-family: "Bricolage Grotesque", system-ui, sans-serif;

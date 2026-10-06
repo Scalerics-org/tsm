@@ -8,7 +8,7 @@ import {
   type Disposicion,
 } from "./disposicion";
 import { MODELOS } from "./datos";
-import { fmtKm, porcentajeDeVida, type Estado, type PosicionConCubierta } from "./tipos";
+import { fmtKm, kmEnMiles, pctDeUso, type Estado, type PosicionConCubierta } from "./tipos";
 import "./taller.css";
 
 export const COLOR_ESTADO: Record<Estado, string> = {
@@ -67,7 +67,7 @@ export function VistaSuperior({ disposicion, posiciones, seleccionada, onSelecci
         const apagada = modeloResaltado != null && cubierta?.modeloId !== modeloResaltado;
         const elegida = seleccionada === posicion.numero;
         const color = estado ? COLOR_ESTADO[estado] : SIN_DATO;
-        const pct = Math.round(porcentajeDeVida(km) * 100);
+        const pct = pctDeUso(km);
         const alActivar = (e: KeyboardEvent) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
@@ -105,12 +105,16 @@ export function VistaSuperior({ disposicion, posiciones, seleccionada, onSelecci
             <rect x={x} y={y} width={CUBIERTA_W} height={CUBIERTA_H} rx={7} fill={`url(#${surcos})`} pointerEvents="none" />
             <line x1={x + 15} x2={x + 15} y1={y + 5} y2={y + CUBIERTA_H - 5} stroke="#000" strokeOpacity={0.22} strokeWidth={1.4} pointerEvents="none" />
             <line x1={x + CUBIERTA_W - 15} x2={x + CUBIERTA_W - 15} y1={y + 5} y2={y + CUBIERTA_H - 5} stroke="#000" strokeOpacity={0.22} strokeWidth={1.4} pointerEvents="none" />
-            <circle cx={x + CUBIERTA_W / 2} cy={y + 26} r={14} fill="#fff" stroke={TINTA} strokeOpacity={0.35} pointerEvents="none" />
-            <text x={x + CUBIERTA_W / 2} y={y + 26} textAnchor="middle" dominantBaseline="central" className="num-cubierta" pointerEvents="none">
+            <circle cx={x + CUBIERTA_W / 2} cy={y + 17} r={12} fill="#fff" stroke={TINTA} strokeOpacity={0.35} pointerEvents="none" />
+            <text x={x + CUBIERTA_W / 2} y={y + 17} textAnchor="middle" dominantBaseline="central" className="num-cubierta" pointerEvents="none">
               {posicion.numero}
             </text>
-            <text x={x + CUBIERTA_W / 2} y={y + 55} textAnchor="middle" className="pct-cubierta" pointerEvents="none">
-              {cubierta ? `${(km / 1000).toFixed(1).replace(".", ",")}k` : "—"}
+            {/* Las dos cosas, una abajo de la otra: los km que lleva y el % de uso sobre la vida útil. */}
+            <text x={x + CUBIERTA_W / 2} y={y + 48} textAnchor="middle" className="pct-cubierta" pointerEvents="none">
+              {cubierta ? kmEnMiles(km) : "—"}
+            </text>
+            <text x={x + CUBIERTA_W / 2} y={y + 63} textAnchor="middle" className="pct-cubierta" pointerEvents="none">
+              {cubierta ? `${pct}%` : ""}
             </text>
           </g>
         );

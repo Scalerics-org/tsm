@@ -11,6 +11,7 @@ import {
   UMBRAL_ROJO,
   VIDA_UTIL_KM,
   fmtKm,
+  pctDeUso,
   porcentajeDeVida,
   type PosicionConCubierta,
   type Vehiculo,
@@ -102,7 +103,7 @@ export function PanelCubierta({
                   {estado ? ESTADO_TEXTO[estado] : ""}
                 </span>
                 <span className="font-cond text-sm font-semibold tabular-nums text-ink/70">
-                  {Math.round(pct * 100)}% de {fmtKm(VIDA_UTIL_KM)}
+                  {pctDeUso(km)}% de {fmtKm(VIDA_UTIL_KM)}
                 </span>
               </div>
               <BarraDeVida pct={pct} color={estado ? COLOR_ESTADO[estado] : "#8d9296"} />
