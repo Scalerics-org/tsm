@@ -1,10 +1,14 @@
-import { useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
+import { MODELOS } from "./base";
 import { CHOFERES_DE_TSM, HOY, MECANICOS, enLaDireccion } from "./datos";
+import { posiciones } from "./disposicion";
+import type { CubiertaEnStock } from "./datos-extra";
 import {
   TIPOS_DE_SERVICE,
+  cambiosDeCubiertas,
   claveDeItem,
   guardarService,
   idDeService,
@@ -13,6 +17,7 @@ import {
   marcadosEn,
   marcasDeEjemplo,
   seccionesDeService,
+  useStock,
   type ItemCatalogo,
   type Marcas,
   type SeccionDeService,
@@ -22,6 +27,14 @@ import { TipoPill } from "./TabServices";
 import { proximoService, type AccionHecha, type TipoService, type Vehiculo } from "./tipos";
 
 const ACCIONES: AccionHecha[] = ["reparado", "nuevo", "revisado"];
+
+/** Lo que el ítem de una cubierta necesita saber: qué hay en el stock, qué posiciones hay y qué modelo tenía cada una. */
+interface ContextoDeCubiertas {
+  stockNuevas: CubiertaEnStock[];
+  posiciones: { numero: number; nombre: string }[];
+  modeloActual: (numero: number) => string;
+}
+const CtxCubiertas = createContext<ContextoDeCubiertas>({ stockNuevas: [], posiciones: [], modeloActual: () => "multi" });
 
 interface Datos {
   fecha: string;
@@ -48,6 +61,15 @@ export function NuevoService({ vehiculo }: { vehiculo: Vehiculo }) {
   };
 
   const secciones = useMemo(() => seccionesDeService(vehiculo), [vehiculo]);
+  const stock = useStock();
+  const contexto = useMemo<ContextoDeCubiertas>(
+    () => ({
+      stockNuevas: stock.filter((c) => c.estado === "nueva"),
+      posiciones: vehiculo.disposicion ? posiciones(vehiculo.disposicion).map((p) => ({ numero: p.numero, nombre: p.nombre })) : [],
+      modeloActual: (numero) => vehiculo.cubiertas.find((c) => c.numero === numero)?.modeloId ?? Object.keys(MODELOS)[0],
+    }),
+    [stock, vehiculo],
+  );
   const sugerido = vehiculo.services.length > 0 ? proximoService(vehiculo, HOY).tipo : "otro";
   const [datos, setDatos] = useState<Datos>({
     fecha: HOY,
@@ -57,7 +79,7 @@ export function NuevoService({ vehiculo }: { vehiculo: Vehiculo }) {
     chofer: vehiculo.choferAsignado,
   });
   const [marcas, setMarcas] = useState<Marcas>(() => (params.get("demo") === "1" ? marcasDeEjemplo(vehiculo) : {}));
-  const [abierta, setAbierta] = useState<string | null>(params.get("demo") === "1" ? "ruedas" : secciones[0]?.id ?? null);
+  const [abierta, setAbierta] = useState<string | null>(params.get("seccion") ?? (params.get("demo") === "1" ? "ruedas" : secciones[0]?.id ?? null));
 
   const cambiarDato = (parcial: Partial<Datos>) => setDatos((d) => ({ ...d, ...parcial }));
   const kmNumero = Number(datos.km.replace(",", "."));
@@ -80,20 +102,25 @@ export function NuevoService({ vehiculo }: { vehiculo: Vehiculo }) {
 
   function guardar() {
     const id = idDeService(vehiculo.patente);
-    guardarService(vehiculo.patente, {
-      id,
-      tipo: datos.tipo,
-      fecha: datos.fecha,
-      km: kmNumero,
-      chofer: datos.chofer.trim(),
-      mecanico: datos.mecanico.trim(),
-      obs: "",
-      items,
-    });
+    guardarService(
+      vehiculo,
+      {
+        id,
+        tipo: datos.tipo,
+        fecha: datos.fecha,
+        km: kmNumero,
+        chofer: datos.chofer.trim(),
+        mecanico: datos.mecanico.trim(),
+        obs: "",
+        items,
+      },
+      cambiosDeCubiertas(secciones, marcas, contexto.modeloActual),
+    );
     navigate(`/taller-maqueta/${enLaDireccion(vehiculo.patente)}/service/${id}?guardado=1`);
   }
 
   return (
+    <CtxCubiertas.Provider value={contexto}>
     <div className="space-y-5 pb-24">
       <div>
         <Link to={`/taller-maqueta/${enLaDireccion(vehiculo.patente)}?tab=services`} className="font-cond text-xs font-semibold uppercase tracking-[0.12em] text-brand-700">
@@ -190,6 +217,7 @@ export function NuevoService({ vehiculo }: { vehiculo: Vehiculo }) {
         </section>
       )}
     </div>
+    </CtxCubiertas.Provider>
   );
 }
 
@@ -453,13 +481,8 @@ function ItemMarcable({
                 <span className="mt-0.5 block text-xs text-ink/50">{it.medida.ayuda}</span>
               </label>
             )}
-            {it.conCodigo && marca.accion === "nuevo" && (
-              <label className="block">
-                <span className="label">Código de la cubierta (opcional)</span>
-                <input className="input min-h-[44px]" value={marca.codigo} onChange={(e) => onCambio(clave, { codigo: e.target.value })} placeholder="Se puede dejar vacío" />
-              </label>
-            )}
-            <label className={`block ${it.medida || (it.conCodigo && marca.accion === "nuevo") ? "" : "sm:col-span-2"}`}>
+            {it.conCodigo && <DatosDeCubierta it={it} marca={marca} onCambio={(p) => onCambio(clave, p)} />}
+            <label className={`block ${it.medida || it.conCodigo ? "" : "sm:col-span-2"}`}>
               <span className="label">Observaciones</span>
               <input className="input min-h-[44px]" value={marca.obs} onChange={(e) => onCambio(clave, { obs: e.target.value })} />
             </label>
@@ -467,5 +490,75 @@ function ItemMarcable({
         </div>
       )}
     </li>
+  );
+}
+
+/** Lo propio de una cubierta: si es nueva, de dónde sale (stock o a mano); si no, si se rotó. */
+function DatosDeCubierta({ it, marca, onCambio }: { it: ItemCatalogo; marca: Marcas[string]; onCambio: (p: Partial<Marcas[string]>) => void }) {
+  const ctx = useContext(CtxCubiertas);
+  const numero = Number(it.sujeto.replace(/\D+/g, ""));
+  if (marca.accion === "nuevo") {
+    const delStock = ctx.stockNuevas.find((c) => c.codigo === marca.delStock);
+    return (
+      <>
+        <label className="block sm:col-span-2">
+          <span className="label">Sacar del stock (opcional)</span>
+          <select
+            className="input min-h-[44px]"
+            value={marca.delStock}
+            onChange={(e) => onCambio({ delStock: e.target.value })}
+          >
+            <option value="">No: es una cubierta cargada a mano</option>
+            {ctx.stockNuevas.map((c) => (
+              <option key={c.codigo} value={c.codigo}>
+                {c.codigo} · {MODELOS[c.modeloId]?.nombre}
+              </option>
+            ))}
+          </select>
+          {delStock && (
+            <span className="mt-1 block text-xs text-st-greenTx">
+              Se pone la {delStock.codigo} ({MODELOS[delStock.modeloId]?.nombre}) y se descuenta del stock.
+            </span>
+          )}
+        </label>
+        {!delStock && (
+          <>
+            <label className="block">
+              <span className="label">Modelo</span>
+              <select className="input min-h-[44px]" value={marca.modelo || ctx.modeloActual(numero)} onChange={(e) => onCambio({ modelo: e.target.value })}>
+                {Object.values(MODELOS).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.nombre} · {m.medida}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="label">Código (opcional)</span>
+              <input className="input min-h-[44px]" value={marca.codigo} onChange={(e) => onCambio({ codigo: e.target.value })} placeholder="Se puede dejar vacío" />
+            </label>
+          </>
+        )}
+        <p className="text-xs text-ink/55 sm:col-span-2">
+          La cubierta que estaba pasa al historial de esta posición y entra al stock como usada. La nueva arranca en 0 km.
+        </p>
+      </>
+    );
+  }
+  return (
+    <label className="block sm:col-span-2">
+      <span className="label">Rotada a la posición (opcional)</span>
+      <select className="input min-h-[44px]" value={marca.rotaA} onChange={(e) => onCambio({ rotaA: e.target.value })}>
+        <option value="">No se rotó</option>
+        {ctx.posiciones
+          .filter((p) => p.numero !== numero)
+          .map((p) => (
+            <option key={p.numero} value={p.numero}>
+              {p.numero} · {p.nombre}
+            </option>
+          ))}
+      </select>
+      {marca.rotaA && <span className="mt-1 block text-xs text-ink/55">Las dos posiciones intercambian sus cubiertas.</span>}
+    </label>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Corners } from "../../components/ui";
-import { ACEITE, CUBIERTAS_EN_STOCK, FILTROS, nombreDelModelo } from "./datos-extra";
+import { ACEITE, FILTROS, nombreDelModelo, type CubiertaEnStock } from "./datos-extra";
+import { useStock } from "./servicio";
 import { MODELOS } from "./base";
 
 type Filtro = "todas" | "nueva" | "usada";
@@ -8,9 +9,10 @@ type Filtro = "todas" | "nueva" | "usada";
 /** El depósito: cubiertas nuevas y usadas por código y modelo, aceite y filtros. */
 export function StockPage() {
   const [filtro, setFiltro] = useState<Filtro>("todas");
-  const lista = CUBIERTAS_EN_STOCK.filter((c) => filtro === "todas" || c.estado === filtro);
-  const nuevas = CUBIERTAS_EN_STOCK.filter((c) => c.estado === "nueva").length;
-  const usadas = CUBIERTAS_EN_STOCK.length - nuevas;
+  const stock = useStock();
+  const lista = stock.filter((c) => filtro === "todas" || c.estado === filtro);
+  const nuevas = stock.filter((c) => c.estado === "nueva").length;
+  const usadas = stock.length - nuevas;
 
   return (
     <div className="space-y-6">
@@ -27,7 +29,7 @@ export function StockPage() {
           <div role="group" aria-label="Qué cubiertas ver" className="flex">
             {(
               [
-                ["todas", `Todas (${CUBIERTAS_EN_STOCK.length})`],
+                ["todas", `Todas (${stock.length})`],
                 ["nueva", `Nuevas (${nuevas})`],
                 ["usada", `Usadas (${usadas})`],
               ] as const
@@ -47,7 +49,7 @@ export function StockPage() {
           </div>
         </div>
 
-        <ModelosEnStock />
+        <ModelosEnStock stock={stock} />
 
         <div className="hidden md:block">
           <table className="w-full text-left text-sm">
@@ -63,7 +65,7 @@ export function StockPage() {
             <tbody>
               {lista.map((c) => (
                 <tr key={c.codigo} className="border-t border-ink/10 align-top">
-                  <td className="whitespace-nowrap px-4 py-2.5 font-cond text-base font-semibold">{c.codigo}</td>
+                  <td className="whitespace-nowrap px-4 py-2.5 font-cond text-base font-semibold">{c.codigo || <span className="font-normal text-ink/40">Sin código</span>}</td>
                   <td className="px-4 py-2.5">{nombreDelModelo(c.modeloId)}</td>
                   <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-ink/60">{MODELOS[c.modeloId]?.medida}</td>
                   <td className="px-4 py-2.5">
@@ -79,7 +81,7 @@ export function StockPage() {
           {lista.map((c) => (
             <li key={c.codigo} className="px-4 py-3">
               <div className="flex items-center justify-between gap-3">
-                <span className="font-cond text-lg font-semibold">{c.codigo}</span>
+                <span className="font-cond text-lg font-semibold">{c.codigo || <span className="font-normal text-ink/40">Sin código</span>}</span>
                 <EstadoStock estado={c.estado} />
               </div>
               <div className="text-sm text-ink/75">
@@ -123,11 +125,11 @@ export function StockPage() {
 }
 
 /** Cuántas hay de cada modelo, para ver de un vistazo qué falta. */
-function ModelosEnStock() {
+function ModelosEnStock({ stock }: { stock: CubiertaEnStock[] }) {
   const cuenta = Object.values(MODELOS).map((m) => ({
     modelo: m,
-    nuevas: CUBIERTAS_EN_STOCK.filter((c) => c.modeloId === m.id && c.estado === "nueva").length,
-    usadas: CUBIERTAS_EN_STOCK.filter((c) => c.modeloId === m.id && c.estado === "usada").length,
+    nuevas: stock.filter((c) => c.modeloId === m.id && c.estado === "nueva").length,
+    usadas: stock.filter((c) => c.modeloId === m.id && c.estado === "usada").length,
   }));
   return (
     <ul className="grid gap-px border-b border-ink/10 bg-ink/10 sm:grid-cols-2 lg:grid-cols-4">

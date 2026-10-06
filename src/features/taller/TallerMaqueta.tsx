@@ -1,5 +1,5 @@
 import { Link, NavLink, Navigate, Route, Routes, useParams, useSearchParams } from "react-router-dom";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { TruckMark } from "../../components/AppShell";
 import { VEHICULOS, enLaDireccion, vehiculoDe } from "./datos";
 import { TIPOS_DE_VEHICULO, tipoDeVehiculo } from "./disposicion";
@@ -7,7 +7,7 @@ import { fmtDate } from "../../lib/format";
 import { NuevoService } from "./NuevoService";
 import { ServiceGuardado } from "./ServiceGuardado";
 import { TabHistorial } from "./TabHistorial";
-import { useConServicios } from "./servicio";
+import { useConServicios, useCuantoSeCargo, volverALosDatosDeEjemplo } from "./servicio";
 import { FlotaPage } from "./FlotaPage";
 import { TabCubiertas } from "./TabCubiertas";
 import { TabComponentes } from "./TabComponentes";
@@ -55,11 +55,7 @@ export function TallerMaqueta() {
           </span>
         </div>
       </header>
-      <div className="border-b border-st-amberBd bg-st-amberBg">
-        <p className="mx-auto max-w-6xl px-4 py-2 text-xs text-st-amberTx sm:px-5">
-          Maqueta para ver cómo queda: los datos son de ejemplo y nada se guarda.
-        </p>
-      </div>
+      <BandaDeMaqueta />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-5">
         <Routes>
           <Route index element={<FlotaPage />} />
@@ -222,6 +218,57 @@ function FichaDelVehiculo() {
       ) : (
         <TabComponentes vehiculo={vehiculo} />
       )}
+    </div>
+  );
+}
+
+/**
+ * La banda amarilla de arriba: avisa que es una maqueta con datos de ejemplo y que lo que se cargue queda sólo en este
+ * navegador (no en un servidor), y ofrece volver a los datos de ejemplo. Borrar pide una confirmación en la misma banda.
+ */
+function BandaDeMaqueta() {
+  const cargados = useCuantoSeCargo();
+  const [confirmando, setConfirmando] = useState(false);
+  return (
+    <div className="border-b border-st-amberBd bg-st-amberBg">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 sm:px-5">
+        <p className="min-w-0 flex-1 basis-80 text-xs leading-snug text-st-amberTx">
+          Maqueta para ver cómo queda: los datos son de ejemplo. Lo que cargues (services, cambios de cubiertas, stock) queda{" "}
+          <b>sólo en este navegador</b>: no se manda a ningún servidor y en otro navegador no está.
+        </p>
+        {confirmando ? (
+          <span className="flex items-center gap-2" role="alert">
+            <span className="text-xs font-semibold text-st-amberTx">¿Borrar lo que cargaste?</span>
+            <button
+              type="button"
+              data-confirmar-borrado
+              onClick={() => {
+                volverALosDatosDeEjemplo();
+                setConfirmando(false);
+              }}
+              className="min-h-[44px] border border-st-redDot bg-st-redDot px-3 font-cond text-[12px] font-semibold uppercase tracking-[0.06em] text-bg"
+            >
+              Sí, borrar
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmando(false)}
+              className="min-h-[44px] border border-st-amberBd bg-white px-3 font-cond text-[12px] font-semibold uppercase tracking-[0.06em] text-st-amberTx"
+            >
+              No
+            </button>
+          </span>
+        ) : (
+          <button
+            type="button"
+            data-volver-a-ejemplo
+            onClick={() => setConfirmando(true)}
+            className="min-h-[44px] border border-st-amberBd bg-white px-3 font-cond text-[12px] font-semibold uppercase tracking-[0.06em] text-st-amberTx hover:bg-st-amberBg"
+          >
+            Volver a los datos de ejemplo{cargados > 0 ? ` (${cargados} cargado${cargados === 1 ? "" : "s"})` : ""}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

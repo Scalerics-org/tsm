@@ -2,13 +2,15 @@ import { Link } from "react-router-dom";
 import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { HOY, VEHICULOS, enLaDireccion } from "./datos";
+import { useFlotaConLoCargado } from "./servicio";
 import { TipoPill } from "./TabServices";
 import { COLOR_ESTADO } from "./VistaSuperior";
 import { cubiertasPorPosicion, fmtUso, proximoService, ultimoService } from "./tipos";
 
 /** El tablero del taller: los km de cada vehículo, su último service y cuántas cubiertas piden atención. */
 export function FlotaPage() {
-  const filas = VEHICULOS.map((v) => {
+  const flota = useFlotaConLoCargado(VEHICULOS);
+  const filas = flota.map((v) => {
     const items = cubiertasPorPosicion(v);
     return {
       v,
