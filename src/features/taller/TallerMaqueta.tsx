@@ -1,6 +1,7 @@
 import { Link, NavLink, Navigate, Route, Routes, useParams, useSearchParams } from "react-router-dom";
 import { useState, type ReactNode } from "react";
 import { VEHICULOS, vehiculoDe } from "./datos";
+import { NOMBRE_MONTACARGAS } from "./disposicion";
 import { fmtDate } from "../../lib/format";
 import { NuevoService } from "./NuevoService";
 import { ServiceGuardado } from "./ServiceGuardado";
@@ -79,7 +80,7 @@ function CabeceraDelVehiculo({ vehiculo }: { vehiculo: Vehiculo }) {
         </Link>
         <div className="kicker mt-1">Matrícula</div>
         <h1 className="font-cond text-5xl leading-none tracking-[0.02em]">{vehiculo.patente}</h1>
-        <p className="mt-1 text-sm text-ink/60">{[vehiculo.descripcion, vehiculo.disposicion?.nombre].filter(Boolean).join(" · ")}</p>
+        <p className="mt-1 text-sm text-ink/60">{[vehiculo.descripcion, vehiculo.disposicion?.nombre ?? (vehiculo.tipo === "montacargas" ? NOMBRE_MONTACARGAS : undefined)].filter(Boolean).join(" · ")}</p>
       </div>
       <div className="border-l-4 border-l-st-blueDot bg-white px-4 py-2.5 sm:text-right">
         <div className="kicker">{vehiculo.unidad === "h" ? "Horas · lectura del horímetro" : "Km del tacógrafo"}</div>

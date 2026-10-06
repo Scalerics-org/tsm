@@ -153,7 +153,7 @@ const base = (p: Plano, cadaService: number | null) => ({
 
 /** Camión (rígido o tractor): su tipo dice los ejes; los modelos van por eje, de la dirección hacia atrás. */
 const camion = (p: Plano): Vehiculo => {
-  const disposicion = tipoDeVehiculo(p.tipoId ?? "tractor-3");
+  const disposicion = tipoDeVehiculo(p.tipoId ?? "tractor");
   const ultimoTrasero = disposicion.ejes.length - 1;
   const ejeDe = (i: number) => {
     // Posiciones 0 y 1 son la dirección; de ahí, cuatro por eje trasero.
@@ -180,8 +180,8 @@ const remolque = (tipo: TipoVehiculo, p: Plano, tipoDefault: string): Vehiculo =
   services: [],
   componentes: componentesDe({ ...base(p, null), tipo }),
 });
-const semirremolque = (p: Plano) => remolque("semirremolque", p, "semi-2");
-const acoplado = (p: Plano) => remolque("acoplado", p, "acoplado-2");
+const semirremolque = (p: Plano) => remolque("semirremolque", p, "remolque-2");
+const acoplado = (p: Plano) => remolque("acoplado", p, "sorra-sencilla");
 
 /** El montacargas no tiene tacógrafo: cuenta horas de uso. Sin cubiertas en esta maqueta. */
 const montacargas = (p: Plano): Vehiculo => ({
@@ -198,7 +198,7 @@ export const VEHICULOS: Vehiculo[] = [
   camion({
     patente: "GTP 4325",
     descripcion: "Scania P 410 · 2014",
-    tipoId: "tractor-3",
+    tipoId: "tractor",
     km: 151_273,
     lectura: "2026-09-30",
     choferAsignado: "Carlos Pereira",
@@ -210,7 +210,7 @@ export const VEHICULOS: Vehiculo[] = [
   camion({
     patente: "GTP 4238",
     descripcion: "Scania R 450 · 2016",
-    tipoId: "rigido-3",
+    tipoId: "doble-eje",
     km: 284_910,
     lectura: "2026-09-29",
     choferAsignado: "Julio Techera",
@@ -222,7 +222,7 @@ export const VEHICULOS: Vehiculo[] = [
   camion({
     patente: "GTP 4267",
     descripcion: "Volvo FH 460 · 2017",
-    tipoId: "tractor-2",
+    tipoId: "tractor-sencillo",
     km: 198_540,
     lectura: "2026-09-30",
     choferAsignado: "Marcelo Núñez",
@@ -234,7 +234,7 @@ export const VEHICULOS: Vehiculo[] = [
   camion({
     patente: "GTP 4326",
     descripcion: "Scania P 410 · 2014",
-    tipoId: "rigido-2",
+    tipoId: "camion-chico",
     km: 176_020,
     lectura: "2026-09-28",
     choferAsignado: "Darío Silva",
@@ -246,7 +246,7 @@ export const VEHICULOS: Vehiculo[] = [
   camion({
     patente: "GTP 4382",
     descripcion: "Mercedes-Benz Actros 2646 · 2019",
-    tipoId: "tractor-3",
+    tipoId: "tractor",
     km: 112_760,
     lectura: "2026-09-30",
     choferAsignado: "Walter Rocha",
@@ -258,7 +258,7 @@ export const VEHICULOS: Vehiculo[] = [
   camion({
     patente: "GTP 4383",
     descripcion: "Mercedes-Benz Actros 2646 · 2019",
-    tipoId: "tractor-3",
+    tipoId: "tractor",
     km: 118_395,
     lectura: "2026-09-27",
     choferAsignado: "Carlos Pereira",
@@ -270,7 +270,7 @@ export const VEHICULOS: Vehiculo[] = [
   camion({
     patente: "GTP 4384",
     descripcion: "Iveco Stralis 480 · 2018",
-    tipoId: "tractor-3",
+    tipoId: "tractor",
     km: 241_880,
     lectura: "2026-09-30",
     choferAsignado: "Julio Techera",
@@ -282,7 +282,7 @@ export const VEHICULOS: Vehiculo[] = [
   camion({
     patente: "GTP 4413",
     descripcion: "Volvo FH 540 · 2021",
-    tipoId: "tractor-3",
+    tipoId: "tractor",
     km: 74_650,
     lectura: "2026-09-30",
     choferAsignado: "Marcelo Núñez",
@@ -294,21 +294,41 @@ export const VEHICULOS: Vehiculo[] = [
   semirremolque({
     patente: "SR 1204",
     descripcion: "Semirremolque furgón (ejemplo)",
-    tipoId: "semi-2",
+    tipoId: "remolque-2",
     km: 212_480,
     lectura: "2026-09-30",
     kmPorDia: 350,
     recorridos: [48_300, 47_900, 52_600, 54_100, 61_700, 63_200, 59_800, 62_400],
     modelos: ["fr85", "kmax"],
   }),
+  semirremolque({
+    patente: "SR 1310",
+    descripcion: "Remolque furgón (ejemplo)",
+    tipoId: "remolque-3",
+    km: 156_900,
+    lectura: "2026-09-30",
+    kmPorDia: 340,
+    recorridos: [31_200, 30_800, 33_400, 34_100, 52_700, 53_900, 51_300, 54_600, 76_200, 74_800, 77_500, 78_300],
+    modelos: ["multi", "fr85"],
+  }),
   acoplado({
     patente: "AC 0307",
-    descripcion: "Acoplado con lanza (ejemplo)",
-    tipoId: "acoplado-2",
+    descripcion: "Sorra con lanza (ejemplo)",
+    tipoId: "sorra-sencilla",
     km: 168_300,
     lectura: "2026-09-30",
     kmPorDia: 300,
     recorridos: [39_800, 41_200, 58_700, 60_100],
+    modelos: ["kmax"],
+  }),
+  acoplado({
+    patente: "AC 0412",
+    descripcion: "Sorra con lanza (ejemplo)",
+    tipoId: "sorra-doble",
+    km: 143_700,
+    lectura: "2026-09-30",
+    kmPorDia: 280,
+    recorridos: [28_400, 29_100, 47_800, 49_300, 62_500, 61_900],
     modelos: ["kmax"],
   }),
   montacargas({

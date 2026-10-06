@@ -254,7 +254,7 @@ function CuerpoAcoplado({ d }: { d: Disposicion }) {
         <Eje key={e.id} y={e.y} desde={94} hasta={ANCHO - 94} />
       ))}
       {d.ejes.map((e) => (
-        <Cota key={e.id} x={centro} y={e.y} texto={e.nombre} ancho={70} />
+        <Cota key={e.id} x={centro} y={e.y} texto={e.nombre} ancho={100} />
       ))}
     </g>
   );

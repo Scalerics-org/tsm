@@ -25,13 +25,18 @@ export interface Disposicion {
   nombre: string;
   carroceria: Carroceria;
   ejes: EjeDef[];
-  /** Cada cuántos km toca un service. `null`: este tipo (semirremolque, acoplado) no tiene service por km. */
+  /** Cada cuántos km toca un service. `null`: este tipo (remolque, sorra) no tiene service por km. */
   intervaloServiceKm: number | null;
+  /** Lo que se asumió y falta confirmar con Rodrigo sobre este tipo (una línea): se muestra en pantalla. */
+  aConfirmar?: string;
 }
+
+/** El montacargas no tiene ejes que dibujar (cuenta horas): su tipo se muestra sólo por el nombre. */
+export const NOMBRE_MONTACARGAS = "Montacargas";
 
 /**
  * Los intervalos de service (dato de Rodrigo): 25.000 km los camiones grandes y 15.000 los chicos. Qué es grande y qué
- * es chico no está definido todavía; se asume que grande = tractor de 2 y 3 ejes y rígido de 3 ejes, y chico =
+ * es chico no está definido todavía; se asume que grande = camión tractor, tractor sencillo y doble eje, y chico =
  * rígido de 2 ejes.
  */
 export const INTERVALO_GRANDE_KM = 25_000;
@@ -59,7 +64,7 @@ export interface Posicion {
   nombre: string;
 }
 
-type Plano = { simples?: number; duales: number };
+type Plano = { simples?: number; duales: number; nombres?: string[]; ys?: number[] };
 
 /** Los ejes de una configuración: la dirección (si la lleva) y los demás, de adelante hacia atrás. */
 function ejesDe(c: Carroceria, plano: Plano): EjeDef[] {
@@ -73,36 +78,48 @@ function ejesDe(c: Carroceria, plano: Plano): EjeDef[] {
   const primero = conDireccion ? (resto.length > 1 ? 330 : 372) : c === "acoplado" ? 292 : 344;
   const paso = c === "acoplado" ? 92 : conDireccion ? 90 : 84;
   resto.forEach((tipo, i) => {
-    const n = conDireccion ? (resto.length > 1 ? `Eje trasero ${i + 1}` : "Eje trasero") : `Eje ${i + 1}`;
-    ejes.push({ id: `e${i + 1}`, nombre: n, tipo, y: primero + i * paso });
+    const n = plano.nombres?.[i] ?? (conDireccion ? (resto.length > 1 ? `Eje trasero ${i + 1}` : "Eje trasero") : `Eje ${i + 1}`);
+    ejes.push({ id: `e${i + 1}`, nombre: n, tipo, y: plano.ys?.[i] ?? primero + i * paso });
   });
   return ejes;
 }
 
-const tipo = (id: string, nombre: string, carroceria: Carroceria, plano: Plano, intervaloServiceKm: number | null): Disposicion => ({
+const tipo = (id: string, nombre: string, carroceria: Carroceria, plano: Plano, intervaloServiceKm: number | null, aConfirmar?: string): Disposicion => ({
   id,
   nombre,
   carroceria,
   ejes: ejesDe(carroceria, plano),
   intervaloServiceKm,
+  aConfirmar,
 });
 
+const EJES_DUALES = "Se asumieron ejes duales: en las fotos de Rodrigo se ven de costado y no se distingue. A confirmar.";
+const EJES_SIMPLES = "Se asumieron ejes simples: en las fotos de Rodrigo se ven de costado y no se distingue. A confirmar.";
+
 /**
- * Los tipos de vehículo que se pueden elegir. Cada uno dice sus ejes, simples o duales. Camión rígido (con su caja
- * de carga) y camión tractor (sin caja, con quinta rueda) se dibujan distinto. Los ejes del acoplado van simples
- * como en la foto 19.jpg; con duales sería otro tipo.
+ * Los tipos de vehículo, con los nombres como los usa Rodrigo (se cambian acá y en ningún otro lugar), en este orden.
+ * Cada uno dice sus ejes, simples o duales: de ahí salen el dibujo, las posiciones y el intervalo de service.
+ * El camión tractor y el tractor sencillo llevan quinta rueda; el doble eje y el camión chico, caja de carga.
  */
 export const TIPOS_DE_VEHICULO: Disposicion[] = [
-  tipo("rigido-2", "Camión rígido de 2 ejes", "rigido", { duales: 1 }, INTERVALO_CHICO_KM),
-  tipo("rigido-3", "Camión rígido de 3 ejes", "rigido", { duales: 2 }, INTERVALO_GRANDE_KM),
-  tipo("tractor-2", "Camión tractor de 2 ejes", "tractor", { duales: 1 }, INTERVALO_GRANDE_KM),
-  tipo("tractor-3", "Camión tractor de 3 ejes", "tractor", { duales: 2 }, INTERVALO_GRANDE_KM),
-  tipo("semi-2", "Semirremolque de 2 ejes", "semirremolque", { duales: 2 }, null),
-  tipo("semi-3", "Semirremolque de 3 ejes", "semirremolque", { duales: 3 }, null),
-  tipo("acoplado-2", "Acoplado de 2 ejes", "acoplado", { simples: 2, duales: 0 }, null),
+  tipo("tractor", "Camión tractor", "tractor", { duales: 2 }, INTERVALO_GRANDE_KM),
+  tipo("tractor-sencillo", "Camión tractor sencillo", "tractor", { duales: 1 }, INTERVALO_GRANDE_KM, "Se asumió que es un camión grande (service cada 25.000 km). A confirmar."),
+  tipo("doble-eje", "Camión doble eje", "rigido", { duales: 2 }, INTERVALO_GRANDE_KM),
+  tipo("camion-chico", "Camión chico", "rigido", { duales: 1 }, INTERVALO_CHICO_KM),
+  tipo("remolque-3", "Remolque tres ejes", "semirremolque", { duales: 3 }, null, EJES_DUALES),
+  tipo("remolque-2", "Remolque dos ejes", "semirremolque", { duales: 2 }, null, EJES_DUALES),
+  tipo("sorra-sencilla", "Sorra sencilla", "acoplado", { simples: 2, duales: 0, nombres: ["Eje delantero", "Eje trasero"], ys: [292, 384] }, null, EJES_SIMPLES),
+  tipo(
+    "sorra-doble",
+    "Sorra doble eje",
+    "acoplado",
+    { simples: 3, duales: 0, nombres: ["Eje delantero", "Eje trasero 1", "Eje trasero 2"], ys: [262, 380, 464] },
+    null,
+    EJES_SIMPLES,
+  ),
 ];
 
-export const tipoDeVehiculo = (id: string): Disposicion => TIPOS_DE_VEHICULO.find((t) => t.id === id) ?? TIPOS_DE_VEHICULO[3];
+export const tipoDeVehiculo = (id: string): Disposicion => TIPOS_DE_VEHICULO.find((t) => t.id === id) ?? TIPOS_DE_VEHICULO[0];
 
 /**
  * Las posiciones, numeradas de adelante hacia atrás y, en cada eje, de izquierda a derecha:

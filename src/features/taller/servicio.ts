@@ -208,8 +208,8 @@ interface Guardado {
   movimientos: number;
 }
 const VACIO: Guardado = { services: {}, cubiertas: {}, stockUsadas: [], stockQuitadas: [], bajas: [], vacias: {}, movimientos: 0 };
-// v2: las cubiertas llevan id interno y recorrido. Lo guardado con la v1 no los tiene, así que no se lee.
-const CLAVE = "tsm-taller-maqueta-v2";
+// v3: cambiaron los tipos de vehículo (y con ellos las posiciones): lo guardado con los anteriores no sirve.
+const CLAVE = "tsm-taller-maqueta-v3";
 
 /** Lee lo guardado. Si no se puede (sin permiso, vacío o roto) la maqueta sigue con los datos de ejemplo. */
 function leer(): Guardado {

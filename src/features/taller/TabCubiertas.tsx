@@ -82,6 +82,7 @@ function CubiertasDe({ vehiculo, disposicion }: { vehiculo: Vehiculo; disposicio
           <span className="kicker block px-4 pb-3 sm:px-2">
             {disposicion.nombre} · vista desde arriba
           </span>
+          {disposicion.aConfirmar && <p className="px-4 pb-2 text-xs text-st-amberTx sm:px-2">{disposicion.aConfirmar}</p>}
           <VistaSuperior
             disposicion={disposicion}
             posiciones={items}

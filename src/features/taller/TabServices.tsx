@@ -139,10 +139,13 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
         </dl>
         <p className="border-t border-ink/10 px-4 py-2 text-xs leading-relaxed text-ink/55">
           Próximo service: <b className="text-ink/75">{textoDelIntervalo(vehiculo)}</b>
-          {vehiculo.tipo === "camion" && " (por ahora: grande = tractor de 2 y 3 ejes y rígido de 3 ejes; chico = rígido de 2 ejes)"}. El color: verde si
+          {vehiculo.tipo === "camion" && " (por ahora: grande = camión tractor, tractor sencillo y doble eje; chico = camión chico)"}. El color: verde si
           falta más de un tercio del intervalo, ámbar si falta un tercio o menos, rojo si faltan menos de{" "}
           {vehiculo.unidad === "h" ? "25 horas" : "1.000 km"} o ya se pasó. Orden de ejemplo: {CICLO.join(" → ")}. Qué incluye cada tipo lo define
           Rodrigo.
+          {vehiculo.disposicion?.aConfirmar && (
+            <span className="mt-1 block text-st-amberTx">A confirmar: {vehiculo.disposicion.aConfirmar}</span>
+          )}
         </p>
       </section>
 
