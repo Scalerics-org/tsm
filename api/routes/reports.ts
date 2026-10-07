@@ -18,6 +18,7 @@ import { consumoDelCamion, consumoMensualDelCamion } from "../lib/consumo-camion
 import { verificarMeses } from "../../shared/verificacion-mensual";
 import { tramosDelPeriodo, tramosDeLaVentana, ventanaDeFotos, kmVacios, vaciosDelPeriodo, paraVacios } from "../../shared/vacios";
 import { periodoAnterior } from "../../shared/domain";
+import { listaDeFacturas } from "../../shared/facturacion-por-cliente";
 import { getLectura } from "../repos/lecturas";
 import { esMes, mesDe, rangoDelMes } from "../../shared/periodo-mes";
 import { resumenCliente } from "../lib/resumen-cliente";
@@ -445,7 +446,7 @@ reports.get("/trips.csv", async (c) => {
     templateId: Number(q.plantilla) > 0 ? Number(q.plantilla) : undefined,
     facturado: q.facturado === "si" || q.facturado === "no" ? (q.facturado as "si" | "no") : undefined,
     pago: q.pago === "si" || q.pago === "no" ? (q.pago as "si" | "no") : undefined,
-    factura: q.factura?.trim() || undefined,
+    factura: listaDeFacturas(c.req.queries("factura")).slice(0, 40),
     driverId: q.driver ? Number(q.driver) : undefined,
     truckId: q.truck ? Number(q.truck) : undefined,
     status: (q.status as Trip["status"]) || undefined,
@@ -457,7 +458,7 @@ reports.get("/trips.csv", async (c) => {
   const soloFacturables = q.facturables === "1";
   // Con filtros de facturación, o para la planilla de facturar, hace falta la factura de cada cliente: por
   // cliente el estado no está en las columnas del viaje. Sin eso, el Excel filtraba distinto que la pantalla.
-  const conFacturacion = soloFacturables || !!(filtros.facturado || filtros.pago || filtros.factura) || q.planilla === "facturar";
+  const conFacturacion = soloFacturables || !!(filtros.facturado || filtros.pago || filtros.factura.length) || q.planilla === "facturar";
   const [trips, templates] = await Promise.all([
     soloFacturables
       ? listTripsFacturables(c.env.DB, filtros).then((ts) =>

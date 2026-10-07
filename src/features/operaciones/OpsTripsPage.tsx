@@ -16,6 +16,7 @@ import { FilaViaje, type ViajeDeOficina } from "./FilaViaje";
 import { FechaInput } from "../../components/FechaInput";
 import { useSoloMirar } from "../../lib/auth";
 import { AvisosCard } from "./AvisosCard";
+import { SelectorDeFacturas } from "./SelectorDeFacturas";
 
 export function OpsTripsPage() {
   // El "solo mirar" no carga viajes ni corrige nada: acá sólo se le sacan los botones. El
@@ -45,7 +46,7 @@ export function OpsTripsPage() {
       plantilla: leer("plantilla"),
       facturado: leer("facturado"),
       pago: leer("pago"),
-      factura: leer("factura"),
+      factura: params.getAll("factura").filter(Boolean),
       driver: leer("driver"),
       truck: leer("truck"),
       status: leer("status"),
@@ -57,7 +58,7 @@ export function OpsTripsPage() {
   // en vez de ir deshaciendo filtro por filtro.
   const setF = (nuevo: typeof f) =>
     setParams(
-      Object.fromEntries(Object.entries(nuevo).filter(([, v]) => v !== "")),
+      Object.fromEntries(Object.entries(nuevo).filter(([, v]) => (Array.isArray(v) ? v.length > 0 : v !== ""))),
       { replace: true },
     );
   // Se incrementa cuando una fila cambia algo, para volver a pedir la lista: corregir una
@@ -85,7 +86,7 @@ export function OpsTripsPage() {
     if (f.plantilla) p.set("plantilla", f.plantilla);
     if (f.facturado) p.set("facturado", f.facturado);
     if (f.pago) p.set("pago", f.pago);
-    if (f.factura) p.set("factura", f.factura);
+    for (const n of f.factura) p.append("factura", n);
     if (f.driver) p.set("driver", f.driver);
     if (f.truck) p.set("truck", f.truck);
     if (f.status) p.set("status", f.status);
@@ -235,14 +236,7 @@ export function OpsTripsPage() {
         {/* "Que me permita filtrar los números de factura y los proveedores ingresados, en este
             caso SAMAN." (Rodrigo, 23/9). Son las referencias que existen en los viajes, sin
             repetir: el mismo campo lleva el número de factura o a quién se le cobra. */}
-        <select className="input" value={f.factura} onChange={(e) => setF({ ...f, factura: e.target.value })}>
-          <option value="">Todas las facturas</option>
-          {facturas.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
+        <SelectorDeFacturas facturas={facturas} elegidas={f.factura} onChange={(factura) => setF({ ...f, factura })} />
         <FechaInput value={f.from} onChange={(iso) => setF({ ...f, from: iso })} />
         <FechaInput value={f.to} onChange={(iso) => setF({ ...f, to: iso })} />
       </Card>

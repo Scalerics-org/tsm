@@ -1,6 +1,6 @@
 import { marcasDeViajes } from "./facturacion-clientes";
 import { tieneAlgoFacturado } from "../../shared/bloqueo-facturacion";
-import { pasaFiltroDeCobro, type FacturaDeCliente } from "../../shared/facturacion-por-cliente";
+import { listaDeFacturas, pasaFiltroDeCobro, type FacturaDeCliente } from "../../shared/facturacion-por-cliente";
 import {
   TRIP_STATUS,
   aplicarCobro,
@@ -259,7 +259,7 @@ export interface TripFilters {
    * La factura o la referencia exacta que tiene puesta: 6029, o SAMAN cuando el viaje se arregla
    * sin factura y el campo dice a quién le corresponde pagarlo. Sin distinguir mayúsculas.
    */
-  factura?: string;
+  factura?: string | readonly string[];
   /** El tipo de viaje (plantilla) adentro del cliente: TYCSUR, Minabel o Valvis en Internacional. */
   templateId?: number;
   from?: string;
@@ -317,9 +317,14 @@ function filtrar(f: TripFilters): { sql: string; binds: unknown[] } {
   if (f.facturado === "no") where.push("t.factura_numero IS NULL AND t.status = 'COMPLETADO'");
   if (f.pago === "si") where.push("t.pago_at IS NOT NULL");
   if (f.pago === "no") where.push("t.factura_numero IS NOT NULL AND t.pago_at IS NULL");
-  if (f.factura) {
+  const facturas = listaDeFacturas(f.factura);
+  // Con una sola, la consulta es la de siempre; con varias, cualquiera de ellas.
+  if (facturas.length === 1) {
     where.push("lower(trim(t.factura_numero)) = lower(trim(?))");
-    binds.push(f.factura);
+    binds.push(facturas[0]);
+  } else if (facturas.length > 1) {
+    where.push(`lower(trim(t.factura_numero)) IN (${facturas.map(() => "lower(trim(?))").join(", ")})`);
+    binds.push(...facturas);
   }
   if (f.from) {
     where.push("substr(t.started_at,1,10) >= ?");
@@ -407,7 +412,7 @@ export async function listTripsFacturables(db: D1Database, f: TripFilters): Prom
   const filas = results ?? [];
   const marcas = await marcasDeViajes(db, filas.map((r) => r.id));
   const viajes = filas.map((r) => aFacturable(r, marcas.get(r.id) ?? []));
-  if (!facturado && !pago && !factura) return viajes;
+  if (!facturado && !pago && !listaDeFacturas(factura).length) return viajes;
   return viajes.filter((t) => pasaFiltroDeCobro(t, t.clientes_facturacion ?? [], { facturado, pago, factura }));
 }
 

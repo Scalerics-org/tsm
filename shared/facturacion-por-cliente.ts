@@ -216,11 +216,26 @@ export function clienteUnicoDelViaje(
 export interface FiltroDeCobro {
   facturado?: "si" | "no";
   pago?: "si" | "no";
-  /** La factura o referencia exacta, sin distinguir mayúsculas. */
-  factura?: string;
+  /** Una o varias facturas o referencias exactas, sin distinguir mayúsculas: pasa el viaje que tenga cualquiera. */
+  factura?: string | readonly string[];
 }
 
 const igual = (a: string | null | undefined, b: string) => (a ?? "").trim().toLowerCase() === b.trim().toLowerCase();
+
+/** Las facturas del filtro como lista: sin vacías ni repetidas (sin distinguir mayúsculas). */
+export function listaDeFacturas(factura: string | readonly (string | null | undefined)[] | null | undefined): string[] {
+  const todas = typeof factura === "string" ? [factura] : [...(factura ?? [])];
+  const vistas = new Set<string>();
+  const lista: string[] = [];
+  for (const n of todas) {
+    const limpio = (n ?? "").trim();
+    if (limpio && !vistas.has(limpio.toLowerCase())) {
+      vistas.add(limpio.toLowerCase());
+      lista.push(limpio);
+    }
+  }
+  return lista;
+}
 
 /**
  * ¿Pasa este viaje los filtros de facturación de la lista?
@@ -242,12 +257,13 @@ export function pasaFiltroDeCobro(
   marcas: readonly Pick<FacturaDeCliente, "cliente_clave" | "factura_numero" | "pago_at">[],
   f: FiltroDeCobro,
 ): boolean {
+  const facturas = listaDeFacturas(f.factura);
   if (estrategiaDeFacturacion(viaje) === "por_viaje") {
     if (f.facturado === "si" && !viaje.factura_numero) return false;
     if (f.facturado === "no" && !(!viaje.factura_numero && viaje.status === "COMPLETADO")) return false;
     if (f.pago === "si" && !viaje.pago_at) return false;
     if (f.pago === "no" && !(viaje.factura_numero && !viaje.pago_at)) return false;
-    if (f.factura && !igual(viaje.factura_numero, f.factura)) return false;
+    if (facturas.length && !facturas.some((n) => igual(viaje.factura_numero, n))) return false;
     return true;
   }
   // Por cliente los filtros buscan "algo": el "a medias" figura de los dos lados para que nada quede
@@ -259,7 +275,7 @@ export function pasaFiltroDeCobro(
   if (f.facturado === "no" && !(viaje.status === "COMPLETADO" && e.facturacion !== "facturado")) return false;
   if (f.pago === "si" && !(e.facturados > 0 && e.pagados === e.facturados)) return false;
   if (f.pago === "no" && !(e.facturados > e.pagados)) return false;
-  if (f.factura && !marcas.some((m) => igual(m.factura_numero, f.factura!))) return false;
+  if (facturas.length && !marcas.some((m) => facturas.some((n) => igual(m.factura_numero, n)))) return false;
   return true;
 }
 

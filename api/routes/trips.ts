@@ -2,6 +2,7 @@ import { llegadaCorregida } from "../lib/llegada";
 import { bloqueoPorCambioDeCargas, bloqueoPorFacturacion } from "../../shared/bloqueo-facturacion";
 import { esReenvioDeCarga } from "../../shared/reenvio-de-carga";
 import { conCantidadesFijas, grupoIncompleto, missingField, problemaDeCantidad } from "../../shared/domain";
+import { listaDeFacturas } from "../../shared/facturacion-por-cliente";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { ok, fail } from "../lib/response";
@@ -180,7 +181,7 @@ trips.get("/", async (c) => {
     templateId: Number(q.plantilla) > 0 ? Number(q.plantilla) : undefined,
     facturado: q.facturado === "si" || q.facturado === "no" ? q.facturado : undefined,
     pago: q.pago === "si" || q.pago === "no" ? q.pago : undefined,
-    factura: q.factura?.trim() || undefined,
+    factura: listaDeFacturas(c.req.queries("factura")).slice(0, 40),
     from: q.from || undefined,
     to: q.to || undefined,
   };
