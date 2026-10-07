@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Corners } from "../../components/ui";
+import { useSoloMirar } from "../../lib/auth";
 import { fmtDate } from "../../lib/format";
 import { HOY, enLaDireccion } from "./datos";
 import { UMBRAL_AMBAR_SERVICE_KM, UMBRAL_ROJO_SERVICE_KM } from "./disposicion";
@@ -40,6 +41,8 @@ export function CodigoPill({ tipos }: { tipos: TipoService[] }) {
 
 /** El botón que abre el flujo de cargar un service: lo que se hizo, marcado por secciones. */
 export function BotonNuevoService({ vehiculo }: { vehiculo: Vehiculo }) {
+  // El lector ("solo mirar") ve el Taller pero no carga services.
+  if (useSoloMirar()) return null;
   return (
     <Link to={`/panel/taller/${enLaDireccion(vehiculo.patente)}/nuevo-service`} className="btn btn-navy min-h-[44px]">
       + Nuevo service
