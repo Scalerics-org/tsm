@@ -135,6 +135,10 @@ export function ResumenClientePage() {
     return `?${p}`;
   }, [provider, plantilla, from, to, porDestino, verFacturados]);
 
+  /** El Excel del cliente y período elegidos. `conFacturados` lo pide aunque "Mostrarlos" esté apagado. */
+  const urlDelExcel = (opts: { paraFacturar?: boolean; conFacturados?: boolean } = {}) =>
+    `/reports/trips.csv?facturables=1${verFacturados || opts.conFacturados ? "&incluirFacturados=1" : ""}&provider=${encodeURIComponent(provider)}${plantilla ? `&plantilla=${plantilla}` : ""}${from ? `&from=${from}` : ""}${to ? `&to=${to}` : ""}${opts.paraFacturar ? "&planilla=facturar" : ""}`;
+
   const [falló, setFalló] = useState<string | null>(null);
   useEffect(() => {
     // Cambiar de cliente o de fechas borra lo punteado: marcar viajes que ya no están a la
@@ -353,9 +357,25 @@ export function ResumenClientePage() {
       {provider && !cargando && data && data.viajes === 0 && (
         <Empty>
           {data.facturados > 0
-            ? `No queda nada por facturar de ${provider} en ese período. Hay ${data.facturados} viaje${data.facturados === 1 ? " ya facturado" : "s ya facturados"}: marcá "Mostrarlos" para verlos.`
+            ? `No queda nada por facturar de ${provider} en ese período. Hay ${data.facturados} viaje${data.facturados === 1 ? " ya facturado" : "s ya facturados"}: marcá "Mostrarlos" para verlos, o bajá el Excel de lo facturado.`
             : `No hay viajes para facturar de ${provider} en ese período.`}
         </Empty>
+      )}
+
+      {/* Recién facturado todo, el Excel desaparecía junto con la tabla y Rodrigo no podía bajar lo que acababa de
+          facturar. Con lo facturado en el período, los botones quedan a la vista aunque no haya nada por facturar. */}
+      {provider && !cargando && data && data.viajes === 0 && data.facturados > 0 && (
+        <div className="flex flex-wrap gap-3">
+          <Button variant="secondary" onClick={() => downloadFile(urlDelExcel({ conFacturados: true }), `${provider}.csv`)}>
+            ⬇ Exportar Excel de lo facturado
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => downloadFile(urlDelExcel({ paraFacturar: true, conFacturados: true }), `facturar-${provider}.csv`)}
+          >
+            ⬇ Excel para facturar de lo facturado
+          </Button>
+        </div>
       )}
 
       {/* `!cargando`: mientras llega el resumen de otro cliente, la tabla del anterior quedaba
@@ -382,7 +402,7 @@ export function ResumenClientePage() {
             </div>
             <Button
               variant="secondary"
-              onClick={() => downloadFile(`/reports/trips.csv?facturables=1${verFacturados ? "&incluirFacturados=1" : ""}&provider=${encodeURIComponent(provider)}${plantilla ? `&plantilla=${plantilla}` : ""}${from ? `&from=${from}` : ""}${to ? `&to=${to}` : ""}`, `${provider}.csv`)}
+              onClick={() => downloadFile(urlDelExcel(), `${provider}.csv`)}
             >
               ⬇ Exportar Excel
             </Button>
@@ -391,7 +411,7 @@ export function ResumenClientePage() {
                 Observaciones y el total de kilos. El completo sigue para controlar. */}
             <Button
               variant="secondary"
-              onClick={() => downloadFile(`/reports/trips.csv?facturables=1${verFacturados ? "&incluirFacturados=1" : ""}&provider=${encodeURIComponent(provider)}${plantilla ? `&plantilla=${plantilla}` : ""}${from ? `&from=${from}` : ""}${to ? `&to=${to}` : ""}` + "&planilla=facturar", `facturar-${provider}.csv`)}
+              onClick={() => downloadFile(urlDelExcel({ paraFacturar: true }), `facturar-${provider}.csv`)}
             >
               ⬇ Excel para facturar
             </Button>

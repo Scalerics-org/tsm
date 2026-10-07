@@ -137,6 +137,15 @@ export function OpsTripsPage() {
         >
           ⬇ Exportar Excel
         </Button>
+        {/* La planilla con el Nro Fac.: filtrando por una o varias facturas, es lo que se facturó, listo para guardar. */}
+        <Button
+          variant="secondary"
+          onClick={() =>
+            downloadFile(`/reports/trips.csv${query}${query ? "&" : "?"}planilla=facturar`, "facturar.csv")
+          }
+        >
+          ⬇ Excel para facturar
+        </Button>
         </div>
       </div>
 
