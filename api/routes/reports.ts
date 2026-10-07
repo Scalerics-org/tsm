@@ -435,6 +435,11 @@ reports.get("/driver/:id", async (c) => {
 // exportan una fila, igual que antes.
 reports.get("/trips.csv", async (c) => {
   const q = c.req.query();
+  // La planilla para facturar (con el Nro Fac.) es de oficina. La lista blanca del lector mira sólo método y ruta,
+  // no la query, así que el freno va acá: el Excel común sigue siendo suyo.
+  if (q.planilla === "facturar" && c.get("user").role === ROLES.LECTOR) {
+    return fail(c, "La planilla para facturar es de oficina", 403);
+  }
   // La pantalla ya mandaba chofer, camión y estado —es el mismo `query` con el que pide la
   // lista—, pero acá se leían sólo las fechas: el Excel bajaba TODO y no lo que se estaba
   // mirando. Los nombres de los parámetros son los mismos que en GET /api/trips.

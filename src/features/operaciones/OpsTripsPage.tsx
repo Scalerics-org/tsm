@@ -137,15 +137,18 @@ export function OpsTripsPage() {
         >
           ⬇ Exportar Excel
         </Button>
-        {/* La planilla con el Nro Fac.: filtrando por una o varias facturas, es lo que se facturó, listo para guardar. */}
-        <Button
-          variant="secondary"
-          onClick={() =>
-            downloadFile(`/reports/trips.csv${query}${query ? "&" : "?"}planilla=facturar`, "facturar.csv")
-          }
-        >
-          ⬇ Excel para facturar
-        </Button>
+        {/* La planilla con el Nro Fac.: filtrando por una o varias facturas, es lo que se facturó, listo para guardar.
+            Es de oficina: el lector sólo baja el Excel común (y el servidor le contesta 403 si la pide a mano). */}
+        {!soloMirar && (
+          <Button
+            variant="secondary"
+            onClick={() =>
+              downloadFile(`/reports/trips.csv${query}${query ? "&" : "?"}planilla=facturar`, "facturar.csv")
+            }
+          >
+            ⬇ Excel para facturar
+          </Button>
+        )}
         </div>
       </div>
 

@@ -191,6 +191,25 @@ describe("el lector no toca nada", () => {
   });
 });
 
+describe("el Excel de Viajes del lector", () => {
+  it("el Excel común sigue dándole 200", async () => {
+    expect(await status("GET", "/api/reports/trips.csv", ROLES.LECTOR)).toBe(200);
+    expect(await status("GET", "/api/reports/trips.csv?from=2026-10-01&to=2026-10-31", ROLES.LECTOR)).toBe(200);
+  });
+
+  it("la planilla para facturar le da 403, con o sin filtros", async () => {
+    expect(await status("GET", "/api/reports/trips.csv?planilla=facturar", ROLES.LECTOR)).toBe(403);
+    expect(await status("GET", "/api/reports/trips.csv?factura=F-1&planilla=facturar", ROLES.LECTOR)).toBe(403);
+  });
+
+  it("la oficina sigue bajando las dos", async () => {
+    for (const role of [ROLES.ENCARGADO, ROLES.ADMIN]) {
+      expect(await status("GET", "/api/reports/trips.csv", role)).toBe(200);
+      expect(await status("GET", "/api/reports/trips.csv?planilla=facturar", role)).toBe(200);
+    }
+  });
+});
+
 describe("el lector mira los camiones, sólo mirar", () => {
   it.each([
     ["GET", "/api/trucks"],
