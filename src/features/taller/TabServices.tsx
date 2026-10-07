@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { HOY, enLaDireccion } from "./datos";
+import { UMBRAL_AMBAR_SERVICE_KM, UMBRAL_ROJO_SERVICE_KM } from "./disposicion";
 import { NOMBRE_OTRO, EXPLICACION_OTRO, TIPOS_DE_SERVICE, codigoCombinado, contenidoDeTipo, type GrupoDeService } from "./tipos-de-service";
 import { COLOR_ESTADO } from "./VistaSuperior";
 import {
@@ -100,7 +101,7 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
                   <b className="tabular-nums" style={{ color: COLOR_ESTADO[prox.estado] }}>
                     {prox.faltan.toLocaleString("es-UY")} {vehiculo.unidad}
                   </b>{" "}
-                  · alrededor del {fmtDate(prox.fechaEstimada)}. Qué letra toca, a confirmar.
+                  · alrededor del {fmtDate(prox.fechaEstimada)}.
                 </>
               ) : (
                 <b className="tabular-nums" style={{ color: COLOR_ESTADO.rojo }}>
@@ -158,14 +159,12 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
           Un service puede ser de varios tipos a la vez (por ejemplo A + D + R): sus ítems se suman y, si dos tipos comparten uno, va una sola vez.
           <span className="mt-1 block">
             Próximo service: <b className="text-ink/75">{textoDelIntervalo(vehiculo)}</b>
-            {vehiculo.tipo === "camion" && " (por ahora: grande = camión tractor, tractor sencillo y doble eje; chico = camión chico)"}. El color: verde si
-            falta más de un tercio del intervalo, ámbar si falta un tercio o menos, rojo si faltan menos de{" "}
-            {vehiculo.unidad === "h" ? "25 horas" : "1.000 km"} o ya se pasó.
+            {vehiculo.tipo === "camion" && " (por ahora: grande = camión tractor, tractor sencillo y doble eje; chico = camión chico)"}.{" "}
+            {vehiculo.unidad === "h"
+              ? "El color: verde si falta más de un tercio del intervalo, ámbar si falta un tercio o menos, rojo si faltan menos de 25 horas o ya se pasó."
+              : `El color: verde si faltan más de ${UMBRAL_AMBAR_SERVICE_KM.toLocaleString("es-UY")} km, ámbar entre ${UMBRAL_ROJO_SERVICE_KM.toLocaleString("es-UY")} y ${UMBRAL_AMBAR_SERVICE_KM.toLocaleString("es-UY")}, rojo si faltan menos de ${UMBRAL_ROJO_SERVICE_KM.toLocaleString("es-UY")} km o ya se pasó.`}
           </span>
-          <span data-a-confirmar className="mt-1 block text-st-amberTx">
-            A confirmar: falta saber en qué orden van los tipos y cada cuánto toca cada uno (C, BC, D, V…). Por eso sólo se estima el próximo service por km, sin
-            decir qué letra toca.
-          </span>
+          <span className="mt-1 block">El tipo de cada service lo elige el mecánico: no hay un orden ni un intervalo propio por tipo.</span>
           {vehiculo.disposicion?.aConfirmar && <span className="mt-1 block text-st-amberTx">A confirmar: {vehiculo.disposicion.aConfirmar}</span>}
         </p>
       </section>

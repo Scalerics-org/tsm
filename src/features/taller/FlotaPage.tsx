@@ -2,6 +2,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { HOY, VEHICULOS, enLaDireccion } from "./datos";
+import { UMBRAL_AMBAR_SERVICE_KM, UMBRAL_ROJO_SERVICE_KM } from "./disposicion";
 import { useFlotaConLoCargado } from "./servicio";
 import { CodigoPill } from "./TabServices";
 import { COLOR_ESTADO } from "./VistaSuperior";
@@ -161,9 +162,9 @@ function Proximo({ prox, unidad }: { prox: ProximoService; unidad: string }) {
 /** La leyenda corta de los colores del "próximo service". */
 function LeyendaDelProximo() {
   const filas: [keyof typeof COLOR_ESTADO, string][] = [
-    ["verde", "falta más de un tercio del intervalo"],
-    ["ambar", "falta un tercio o menos"],
-    ["rojo", "faltan menos de 1.000 km, o ya se pasó"],
+    ["verde", `faltan más de ${UMBRAL_AMBAR_SERVICE_KM.toLocaleString("es-UY")} km`],
+    ["ambar", `faltan entre ${UMBRAL_ROJO_SERVICE_KM.toLocaleString("es-UY")} y ${UMBRAL_AMBAR_SERVICE_KM.toLocaleString("es-UY")} km`],
+    ["rojo", `faltan menos de ${UMBRAL_ROJO_SERVICE_KM.toLocaleString("es-UY")} km, o ya se pasó`],
   ];
   return (
     <div className="text-xs text-ink/65">

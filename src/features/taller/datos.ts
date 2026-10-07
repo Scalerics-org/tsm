@@ -127,7 +127,7 @@ function servicesDe(p: Plano, cuantos: number, disposicion: ReturnType<typeof ti
     const km = p.ultimoService - k * cada;
     if (km <= 0) break;
     const orden = Math.round(km / cada);
-    // Los tipos de los services de ejemplo (no es un ciclo real). Un vehículo sin cubiertas no tiene tipos de cubiertas.
+    // Los tipos de los services de ejemplo (de ejemplo: no hay un orden fijo, el mecánico elige). Un vehículo sin cubiertas no tiene tipos de cubiertas.
     const deEjemplo = TIPOS_DE_LOS_EJEMPLOS[(orden - 1) % TIPOS_DE_LOS_EJEMPLOS.length];
     const conCubiertas = disposicion != null;
     const tipos: TipoService[] = conCubiertas ? deEjemplo : deEjemplo.filter((t) => !flujoDeCubiertas([t]).rotacion && !flujoDeCubiertas([t]).nueva);
