@@ -21,8 +21,12 @@ export type CambioDeCubierta =
       delStock?: string;
       /** Por qué salió la anterior: lo que escribió Raúl, o "Cambio en service". */
       motivo?: string;
+      /** Se la balanceó al colocarla (NB). */
+      balanceada?: boolean;
     }
-  | { tipo: "rotacion"; numero: number; haciaNumero: number };
+  | { tipo: "rotacion"; numero: number; haciaNumero: number; balanceada?: boolean }
+  /** Balancear la cubierta que está en esa posición, sin moverla ni cambiarla. */
+  | { tipo: "balanceo"; numero: number };
 
 export interface ResultadoDeCambios {
   cubiertas: Cubierta[];
@@ -48,8 +52,15 @@ export function aplicarCambios(
   const usadas: CubiertaEnStock[] = [];
   const quitadas: string[] = [];
   const yaRotadas = new Set<number>();
+  const balancear = (c: Cubierta) => ({ ...c, balanceos: [...(c.balanceos ?? []), { fecha: service.fecha, km: service.km }] });
 
-  for (const cambio of cambios) {
+  // Primero los balanceos sueltos, sobre las cubiertas donde están hoy; después las nuevas y las rotaciones.
+  const ordenados = [...cambios].sort((a, b) => Number(b.tipo === "balanceo") - Number(a.tipo === "balanceo"));
+  for (const cambio of ordenados) {
+    if (cambio.tipo === "balanceo") {
+      cubiertas = cubiertas.map((x) => (x.numero === cambio.numero ? balancear(x) : x));
+      continue;
+    }
     if (cambio.tipo === "nueva") {
       const vieja = cubiertas.find((c) => c.numero === cambio.numero);
       const delStock = cambio.delStock ? stock.find((s) => s.codigo === cambio.delStock && s.estado === "nueva") : undefined;
@@ -74,6 +85,7 @@ export function aplicarCambios(
           modeloId: vieja.modeloId,
           estado: "usada",
           obs: `Salió de ${v.patente} posición ${cambio.numero} el ${dd_mm(service.fecha)} · con ${recorridos.toLocaleString("es-UY")} km`,
+          balanceos: vieja.balanceos,
           desde: service.fecha,
           historial: [
             ...(vieja.historial ?? []),
@@ -91,6 +103,7 @@ export function aplicarCambios(
         kmInicial: service.km,
         obs: "",
         anteriores,
+        balanceos: cambio.balanceada ? [{ fecha: service.fecha, km: service.km }] : undefined,
       };
       cubiertas = [...cubiertas.filter((c) => c.numero !== cambio.numero), nueva];
       if (delStock) quitadas.push(uidDeStock(delStock));
@@ -98,6 +111,8 @@ export function aplicarCambios(
       if (yaRotadas.has(cambio.numero) || yaRotadas.has(cambio.haciaNumero) || cambio.numero === cambio.haciaNumero) continue;
       yaRotadas.add(cambio.numero);
       yaRotadas.add(cambio.haciaNumero);
+      // El balanceo se le anota a la cubierta que se rota (la que está en `numero`), antes de moverla.
+      if (cambio.balanceada) cubiertas = cubiertas.map((x) => (x.numero === cambio.numero ? balancear(x) : x));
       cubiertas = cubiertas.map((c) =>
         c.numero === cambio.numero ? { ...c, numero: cambio.haciaNumero } : c.numero === cambio.haciaNumero ? { ...c, numero: cambio.numero } : c,
       );

@@ -7,13 +7,13 @@ import { fmtKm, type Cubierta, type Vehiculo } from "./tipos";
 
 /** El recorrido de una cubierta que está en un vehículo: sus tramos cerrados y el de hoy, contra el tacógrafo de cada uno. */
 export const recorridoEnVehiculo = (v: Vehiculo, c: Cubierta): RecorridoDeCubierta =>
-  recorridoDeCubierta(c.historial ?? [], { tipo: "vehiculo", patente: v.patente, posicion: c.numero, desde: c.fecha, kmDesde: c.kmInicial, kmActual: v.km }, fmtDate);
+  recorridoDeCubierta(c.historial ?? [], { tipo: "vehiculo", patente: v.patente, posicion: c.numero, desde: c.fecha, kmDesde: c.kmInicial, kmActual: v.km }, fmtDate, c.balanceos);
 
 export const recorridoEnStock = (s: CubiertaEnStock): RecorridoDeCubierta =>
-  recorridoDeCubierta(s.historial ?? [], { tipo: "stock", desde: s.desde, nueva: s.estado === "nueva" }, fmtDate);
+  recorridoDeCubierta(s.historial ?? [], { tipo: "stock", desde: s.desde, nueva: s.estado === "nueva" }, fmtDate, s.balanceos);
 
 export const recorridoDeBaja = (b: CubiertaBaja): RecorridoDeCubierta =>
-  recorridoDeCubierta(b.historial, { tipo: "baja", fecha: b.fecha, motivo: b.motivo }, fmtDate);
+  recorridoDeCubierta(b.historial, { tipo: "baja", fecha: b.fecha, motivo: b.motivo }, fmtDate, b.balanceos);
 
 /**
  * Dónde estuvo la cubierta y cuántos km hizo en cada lado. Los tramos siguen a la cubierta (por su id interno) entre
@@ -34,6 +34,18 @@ export function ListaDeRecorrido({ recorrido }: { recorrido: RecorridoDeCubierta
           </li>
         ))}
       </ol>
+      {recorrido.balanceos.length > 0 && (
+        <div className="mt-3 border-t border-ink/10 pt-2">
+          <div className="font-cond text-[11px] font-semibold uppercase tracking-[0.12em] text-ink/50">Balanceos</div>
+          <ul className="mt-1 space-y-0.5 text-sm">
+            {recorrido.balanceos.map((b, i) => (
+              <li key={i} data-balanceo>
+                Balanceada el {fmtDate(b.fecha)} <span className="text-ink/50">· a los {fmtKm(b.km)} del vehículo</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-ink/10 pt-2">
         <span className="font-cond text-[11px] font-semibold uppercase tracking-[0.12em] text-ink/50">Total · suma de los tramos</span>
         <span className="whitespace-nowrap font-cond text-xl font-semibold tabular-nums">{fmtKm(recorrido.totalKm)}</span>

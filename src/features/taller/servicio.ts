@@ -4,21 +4,13 @@ import { aplicarCambios, type CambioDeCubierta } from "./cambio-cubiertas";
 import { CUBIERTAS_EN_STOCK, PIEZAS_DE_RUEDA, type CubiertaEnStock } from "./datos-extra";
 import { aplicarMovimiento, colocarEnLugarVacio, uidDeStock, type CubiertaBaja, type Movimiento, type Reemplazo, type Situacion } from "./movimientos";
 import { posiciones } from "./disposicion";
+import { FILTRO_DEL_STOCK, PIEZA, SECCION, flujoDeCubiertas, itemsDeLosTipos } from "./tipos-de-service";
 import type { AccionHecha, Cubierta, ItemHecho, PuestaAnterior, Service, TipoService, Vehiculo } from "./tipos";
 
 /**
  * Todo lo del "Nuevo service": qué se puede marcar (el catálogo, por sección), cómo se busca una pieza en el
  * historial y dónde se guardan, sólo mientras la maqueta está abierta, los services que se cargan.
  */
-
-// ── Tipos de service: contenido de EJEMPLO. Qué incluye cada uno lo dice Rodrigo después. ──
-export const TIPOS_DE_SERVICE: { id: TipoService; nombre: string; ejemplo: string }[] = [
-  { id: "A", nombre: "Service A", ejemplo: "Aceite y filtro de aceite de motor." },
-  { id: "B", nombre: "Service B", ejemplo: "Todo lo del A, más filtro de combustible y filtro de aire." },
-  { id: "C", nombre: "Service C", ejemplo: "Todo lo del B, más revisión de zapatas y rulemanes de todas las ruedas." },
-  { id: "otro", nombre: "Otro / reparación suelta", ejemplo: "Una reparación que no es un service: se marca sólo lo que se hizo." },
-];
-export const nombreDelTipo = (t: TipoService) => (t === "otro" ? "Otro" : t);
 
 // ── El catálogo de lo que se puede marcar ──
 export interface ItemCatalogo {
@@ -28,6 +20,12 @@ export interface ItemCatalogo {
   medida?: { unidad: string; ayuda: string };
   /** Si al ponerla nueva se pide el código (opcional) de la cubierta. */
   conCodigo?: boolean;
+  /** Con qué acción se marca por defecto ("nuevo" para un filtro que se cambió, "hecho" para una regulación). */
+  accionPorDefecto?: AccionHecha;
+  /** Las únicas acciones que tiene sentido elegir (una regulación de válvulas se "hace"; no se repara ni se cambia). */
+  acciones?: AccionHecha[];
+  /** El filtro del Stock que le corresponde. Todavía no se descuenta nada: ver `FILTRO_DEL_STOCK`. */
+  filtroDelStock?: string;
 }
 export interface GrupoDeItems {
   /** "Rueda 4 · Eje trasero 1 · izquierda interior" o vacío cuando la sección no se divide. */
@@ -51,15 +49,42 @@ export function seccionesDeService(v: Vehiculo): SeccionDeService[] {
   const conMotor = !!componente("motor");
 
   if (conMotor) {
+    // Los filtros y los líquidos de los tipos de service (A, B, C, BC, D) caen en estas dos secciones.
+    const cambio = (pieza: string): ItemCatalogo => ({ sujeto: "", pieza, accionPorDefecto: "nuevo", filtroDelStock: FILTRO_DEL_STOCK[pieza] });
     secciones.push({
-      id: "aceite",
-      nombre: "Aceite y filtros",
-      grupos: [soloPiezas(["Aceite de motor", "Filtro de aceite", "Filtro de combustible", "Filtro de aire", "Filtro hidráulico"])],
+      id: "filtros",
+      nombre: SECCION.filtros,
+      grupos: [
+        {
+          titulo: "",
+          items: [
+            PIEZA.filtroAceite,
+            PIEZA.centrifugo,
+            PIEZA.trampaGasoil,
+            PIEZA.cartuchoGasoil,
+            PIEZA.filtroAire,
+            PIEZA.filtroCabina,
+            PIEZA.filtroCaja,
+            PIEZA.filtroDiferencial,
+            PIEZA.filtroAps,
+            PIEZA.filtroHidraulico,
+          ].map(cambio),
+        },
+      ],
+    });
+    secciones.push({
+      id: "liquidos",
+      nombre: SECCION.liquidos,
+      grupos: [{ titulo: "", items: [PIEZA.aceiteMotor, PIEZA.liquidoCajaDiferencial, PIEZA.aguaMotor].map(cambio) }],
     });
   }
   for (const id of ["motor", "caja", "diferencial"]) {
     const c = componente(id);
-    if (c) secciones.push({ id, nombre: c.nombre, grupos: [soloPiezas(c.piezas.map((p) => p.nombre))] });
+    if (!c) continue;
+    const piezas = soloPiezas(c.piezas.map((p) => p.nombre));
+    // La regulación de válvulas (tipo V) es del motor: se "hace", no se repara ni se cambia.
+    if (id === "motor") piezas.items.push({ sujeto: "", pieza: PIEZA.valvulas, accionPorDefecto: "hecho", acciones: ["hecho"] });
+    secciones.push({ id, nombre: c.nombre, grupos: [piezas] });
   }
 
   if (v.disposicion) {
@@ -108,10 +133,12 @@ export interface Marca {
   delStock: string;
   /** Cubierta revisada o reparada que se rotó: a qué posición pasó. */
   rotaA: string;
+  /** Se la balanceó (tipos RB y NB): queda anotado en su historial, con la fecha. */
+  balanceada: boolean;
 }
 export type Marcas = Record<string, Marca>;
 
-export const marcaNueva = (): Marca => ({ accion: "revisado", medida: "", obs: "", codigo: "", modelo: "", delStock: "", rotaA: "" });
+export const marcaNueva = (parcial: Partial<Marca> = {}): Marca => ({ accion: "revisado", medida: "", obs: "", codigo: "", modelo: "", delStock: "", rotaA: "", balanceada: false, ...parcial });
 
 /** Pasa lo marcado a los ítems del service, en el orden del catálogo. Sólo lo marcado entra. */
 export function itemsDeMarcas(secciones: SeccionDeService[], marcas: Marcas): ItemHecho[] {
@@ -138,6 +165,11 @@ export function itemsDeMarcas(secciones: SeccionDeService[], marcas: Marcas): It
           medida: m.medida.trim() ? `${m.medida.trim()} ${it.medida?.unidad ?? ""}`.trim() : undefined,
           obs: extra,
         });
+        // El balanceo es un ítem aparte: así se busca ("balanceo") y se ve en el service.
+        if (it.conCodigo && m.balanceada) {
+          const n = it.sujeto.replace(/\D+/g, "");
+          hechos.push({ seccion: s.nombre, sujeto: it.sujeto, pieza: `Balanceo de la cubierta ${n}`, accion: "hecho", obs: "" });
+        }
       }
     }
   }
@@ -148,20 +180,41 @@ export function itemsDeMarcas(secciones: SeccionDeService[], marcas: Marcas): It
 export const marcadosEn = (s: SeccionDeService, marcas: Marcas) =>
   s.grupos.reduce((n, g) => n + g.items.filter((it) => marcas[claveDeItem(s.nombre, it)]).length, 0);
 
-/** Un service ya armado de ejemplo para `?demo=1`: lo que se vería después de un rato de marcar. */
-export function marcasDeEjemplo(v: Vehiculo): Marcas {
-  const m: Marcas = {};
+/**
+ * Lo marcado según los tipos elegidos. Cada tipo trae sus ítems (los filtros y líquidos): si dos tipos comparten uno, va
+ * una sola vez. Cambiar los tipos suma lo de los que se agregan y saca lo de los que se sacan (salvo lo que otro tipo
+ * también trae); lo que se marcó a mano no se toca.
+ */
+export function marcasSegunTipos(secciones: SeccionDeService[], antes: TipoService[], ahora: TipoService[], marcas: Marcas): Marcas {
+  const hay = new Set(secciones.flatMap((sec) => sec.grupos.flatMap((g) => g.items.map((it) => claveDeItem(sec.nombre, it)))));
+  const clave = (i: { seccion: string; pieza: string }) => `${i.seccion}||${i.pieza}`;
+  const deAhora = itemsDeLosTipos(ahora);
+  const siguen = new Set(deAhora.map(clave));
+  const resultado: Marcas = { ...marcas };
+  for (const i of itemsDeLosTipos(antes)) if (!siguen.has(clave(i))) delete resultado[clave(i)];
+  for (const i of deAhora) if (hay.has(clave(i)) && !resultado[clave(i)]) resultado[clave(i)] = marcaNueva({ accion: i.accion });
+  return resultado;
+}
+
+/** Cómo se marca una cubierta nueva en la sección de cubiertas según los tipos: rotación, cubierta nueva y balanceo. */
+export function marcaDeCubierta(tipos: TipoService[]): Marca {
+  const f = flujoDeCubiertas(tipos);
+  return marcaNueva({ accion: f.nueva && !f.rotacion ? "nuevo" : "revisado", balanceada: f.balanceo });
+}
+
+/** Un service ya armado de ejemplo para `?demo=1`: A + D + R, más un par de reparaciones sueltas. */
+export const TIPOS_DEL_EJEMPLO: TipoService[] = ["A", "D", "R"];
+export function marcasDeEjemplo(v: Vehiculo, secciones: SeccionDeService[]): Marcas {
+  const m = marcasSegunTipos(secciones, [], TIPOS_DEL_EJEMPLO, {});
   const pon = (seccion: string, sujeto: string, pieza: string, parcial: Partial<Marca>) => {
-    m[`${seccion}|${sujeto}|${pieza}`] = { ...marcaNueva(), ...parcial };
+    m[`${seccion}|${sujeto}|${pieza}`] = marcaNueva(parcial);
   };
-  pon("Aceite y filtros", "", "Aceite de motor", { accion: "nuevo", obs: "38 litros" });
-  pon("Aceite y filtros", "", "Filtro de aceite", { accion: "nuevo" });
+  pon(SECCION.filtros, "", PIEZA.filtroAire, { accion: "nuevo", obs: "Estaba muy sucio." });
   pon("Motor", "", "Alternador", { accion: "reparado", obs: "Rebobinado en el taller de la calle." });
   pon("Frenos y rodaje, por rueda", "Rueda 4", "Zapatas / cintas", { accion: "nuevo", medida: "18" });
-  pon("Frenos y rodaje, por rueda", "Rueda 4", "Tambor (campana)", { accion: "revisado", medida: "421,2", obs: "Se rectificó." });
-  pon("Frenos y rodaje, por rueda", "Rueda 7", "Rulemanes", { accion: "nuevo" });
-  if (v.disposicion && v.disposicion.ejes.length > 1) {
-    pon("Cubiertas", "Posición 7", `Cubierta 7 · ${posiciones(v.disposicion)[6]?.nombre ?? ""}`, { accion: "nuevo", codigo: "R-118", modelo: "multi", obs: "" });
+  if (v.disposicion) {
+    // La R del ejemplo: la cubierta 3 pasa a la posición 4 (y la 4, a la 3).
+    pon(SECCION.cubiertas, "Posición 3", `Cubierta 3 · ${posiciones(v.disposicion)[2]?.nombre ?? ""}`, { accion: "revisado", rotaA: "4" });
   }
   return m;
 }
@@ -208,8 +261,8 @@ interface Guardado {
   movimientos: number;
 }
 const VACIO: Guardado = { services: {}, cubiertas: {}, stockUsadas: [], stockQuitadas: [], bajas: [], vacias: {}, movimientos: 0 };
-// v3: cambiaron los tipos de vehículo (y con ellos las posiciones): lo guardado con los anteriores no sirve.
-const CLAVE = "tsm-taller-maqueta-v3";
+// v4: un service tiene VARIOS tipos (`tipos`, no `tipo`) y las cubiertas guardan sus balanceos: lo guardado con la forma anterior no sirve.
+const CLAVE = "tsm-taller-maqueta-v4";
 
 /** Lee lo guardado. Si no se puede (sin permiso, vacío o roto) la maqueta sigue con los datos de ejemplo. */
 function leer(): Guardado {
@@ -395,9 +448,12 @@ export function cambiosDeCubiertas(
             codigo: m.codigo,
             delStock: m.delStock || undefined,
             motivo: m.obs,
+            balanceada: m.balanceada,
           });
         } else if (m.rotaA) {
-          cambios.push({ tipo: "rotacion", numero, haciaNumero: Number(m.rotaA) });
+          cambios.push({ tipo: "rotacion", numero, haciaNumero: Number(m.rotaA), balanceada: m.balanceada });
+        } else if (m.balanceada) {
+          cambios.push({ tipo: "balanceo", numero });
         }
       }
     }
@@ -427,25 +483,31 @@ const item = (seccion: string, sujeto: string, pieza: string, accion: AccionHech
   medida,
 });
 
-/** Lo que lleva cada tipo de service (de ejemplo), más un par de reparaciones sueltas. */
-export function itemsDeService(v: Pick<Vehiculo, "patente" | "disposicion">, tipo: TipoService, orden: number, fijos?: ItemHecho[]): ItemHecho[] {
-  const hechos: ItemHecho[] = [];
-  const motor = v.disposicion !== undefined;
-  if (motor) {
-    hechos.push(item("Aceite y filtros", "", "Aceite de motor", "nuevo"), item("Aceite y filtros", "", "Filtro de aceite", "nuevo"));
-    if (tipo === "B" || tipo === "C") {
-      hechos.push(item("Aceite y filtros", "", "Filtro de combustible", "nuevo"), item("Aceite y filtros", "", "Filtro de aire", "nuevo"));
-    }
-  }
+/** Los tipos de los services de ejemplo, en el orden en que se fueron haciendo (de ejemplo: no es un ciclo real). */
+export const TIPOS_DE_LOS_EJEMPLOS: TipoService[][] = [["A"], ["B"], ["A", "R"], ["C"], ["A", "D"], ["BC", "RB"], ["B", "V"], ["A", "NB"]];
+
+/** Lo que dejaron los tipos de un service de ejemplo, más un par de reparaciones sueltas. */
+export function itemsDeService(v: Pick<Vehiculo, "patente" | "disposicion">, tipos: TipoService[], orden: number, fijos?: ItemHecho[]): ItemHecho[] {
+  const hechos: ItemHecho[] = itemsDeLosTipos(tipos).map((i) => item(i.seccion, "", i.pieza, i.accion));
   const ruedas = v.disposicion ? posiciones(v.disposicion).length : 0;
-  if (tipo === "C" && ruedas > 0) {
-    for (let n = 1; n <= Math.min(ruedas, 6); n++) {
-      hechos.push(item("Frenos y rodaje, por rueda", `Rueda ${n}`, "Zapatas / cintas", "revisado", "", `${(7 + AZAR(`${v.patente}${orden}${n}`) * 9).toFixed(1).replace(".", ",")} mm`));
+  const f = flujoDeCubiertas(tipos);
+  if (ruedas > 0 && (f.rotacion || f.nueva)) {
+    const a = 1 + Math.floor(AZAR(`${v.patente}-c-${orden}`) * ruedas);
+    const b = a === ruedas ? a - 1 : a + 1;
+    const balanceo = (n: number) => item(SECCION.cubiertas, `Posición ${n}`, `Balanceo de la cubierta ${n}`, "hecho");
+    if (f.rotacion) {
+      hechos.push(item(SECCION.cubiertas, `Posición ${a}`, `Cubierta ${a}`, "revisado", `rotada a la posición ${b}`));
+      hechos.push(item(SECCION.cubiertas, `Posición ${b}`, `Cubierta ${b}`, "revisado", `rotada a la posición ${a}`));
+      if (f.balanceo) hechos.push(balanceo(a), balanceo(b));
+    }
+    if (f.nueva) {
+      hechos.push(item(SECCION.cubiertas, `Posición ${a}`, `Cubierta ${a}`, "nuevo", "Cambio por desgaste."));
+      if (f.balanceo) hechos.push(balanceo(a));
     }
   }
   if (fijos) return [...hechos, ...fijos];
 
-  // Una o dos reparaciones sueltas por service, para que la búsqueda tenga qué encontrar.
+  // Una reparación suelta de vez en cuando, para que la búsqueda tenga qué encontrar.
   const pool: ItemHecho[] = [
     item("Motor", "", "Alternador", "reparado", "Cambio de carbones."),
     item("Motor", "", "Correas", "nuevo"),
@@ -459,10 +521,8 @@ export function itemsDeService(v: Pick<Vehiculo, "patente" | "disposicion">, tip
     pool.push(
       item("Frenos y rodaje, por rueda", `Rueda ${r}`, "Zapatas / cintas", "nuevo", "", "18 mm"),
       item("Frenos y rodaje, por rueda", `Rueda ${r}`, "Rulemanes", "nuevo"),
-      item("Cubiertas", `Posición ${r}`, `Cubierta ${r}`, "nuevo", "Cambio por desgaste."),
     );
   }
-  const a = pool[Math.floor(AZAR(`${v.patente}-a-${orden}`) * pool.length)];
-  const b = pool[Math.floor(AZAR(`${v.patente}-b-${orden}`) * pool.length)];
-  return [...hechos, a, ...(b !== a && AZAR(`${v.patente}-c-${orden}`) > 0.4 ? [b] : [])];
+  const extra = pool[Math.floor(AZAR(`${v.patente}-a-${orden}`) * pool.length)];
+  return AZAR(`${v.patente}-c2-${orden}`) > 0.45 ? [...hechos, extra] : hechos;
 }

@@ -3,8 +3,8 @@ import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { enLaDireccion } from "./datos";
 import { Accion } from "./TabHistorial";
-import { TipoPill } from "./TabServices";
-import { TIPOS_DE_SERVICE } from "./servicio";
+import { CodigoPill } from "./TabServices";
+import { NOMBRE_OTRO, TIPOS_DE_SERVICE, descripcionDeTipo } from "./tipos-de-service";
 import { fmtUso, type ItemHecho, type Vehiculo } from "./tipos";
 
 /** Un service ya guardado: la cabecera con sus datos y, debajo, SÓLO lo que se marcó, por sección. */
@@ -28,7 +28,6 @@ export function ServiceGuardado({ vehiculo }: { vehiculo: Vehiculo }) {
   }
   const porSeccion = new Map<string, ItemHecho[]>();
   for (const i of s.items) porSeccion.set(i.seccion, [...(porSeccion.get(i.seccion) ?? []), i]);
-  const tipo = TIPOS_DE_SERVICE.find((t) => t.id === s.tipo);
 
   return (
     <div className="space-y-5">
@@ -43,10 +42,19 @@ export function ServiceGuardado({ vehiculo }: { vehiculo: Vehiculo }) {
           ← Services de {vehiculo.patente}
         </Link>
         <div className="mt-1 flex flex-wrap items-center gap-3">
-          <TipoPill tipo={s.tipo} />
+          <CodigoPill tipos={s.tipos} />
           <h2 className="font-cond text-3xl leading-none">{fmtDate(s.fecha)}</h2>
         </div>
-        <p className="mt-1 text-sm text-ink/60">{tipo?.nombre}</p>
+        <ul className="mt-2 space-y-0.5 text-sm text-ink/60">
+          {s.tipos.map((t) => {
+            const def = TIPOS_DE_SERVICE.find((d) => d.codigo === t);
+            return (
+              <li key={t} data-tipo-del-service={t}>
+                <b className="text-ink/80">{t === "otro" ? "Otro" : t}</b> · {def ? descripcionDeTipo(def) : NOMBRE_OTRO}
+              </li>
+            );
+          })}
+        </ul>
       </div>
 
       <dl className="panel grid grid-cols-2 gap-x-4 gap-y-3 px-4 py-4 md:grid-cols-4">

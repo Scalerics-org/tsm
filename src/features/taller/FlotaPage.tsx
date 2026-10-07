@@ -3,7 +3,7 @@ import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { HOY, VEHICULOS, enLaDireccion } from "./datos";
 import { useFlotaConLoCargado } from "./servicio";
-import { TipoPill } from "./TabServices";
+import { CodigoPill } from "./TabServices";
 import { COLOR_ESTADO } from "./VistaSuperior";
 import { cubiertasPorPosicion, fmtUso, proximoService, ultimoService, type ProximoService } from "./tipos";
 
@@ -89,7 +89,7 @@ export function FlotaPage() {
                 <td className="px-4 py-3">
                   {ultimo ? (
                     <span className="flex items-center gap-2">
-                      <TipoPill tipo={ultimo.tipo} />
+                      <CodigoPill tipos={ultimo.tipos} />
                       <span className="text-ink/70">{fmtDate(ultimo.fecha)}</span>
                     </span>
                   ) : (
@@ -121,7 +121,7 @@ export function FlotaPage() {
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-ink/10 pt-3 text-sm">
                 {prox && ultimo ? (
                   <span className="flex items-center gap-2 text-ink/70">
-                    Último <TipoPill tipo={ultimo.tipo} /> {fmtDate(ultimo.fecha)}
+                    Último <CodigoPill tipos={ultimo.tipos} /> {fmtDate(ultimo.fecha)}
                   </span>
                 ) : (
                   <span className="text-ink/40">Sin services</span>
@@ -150,8 +150,7 @@ function Proximo({ prox, unidad }: { prox: ProximoService; unidad: string }) {
   const color = COLOR_ESTADO[prox.estado];
   return (
     <span className="flex items-center gap-x-2 whitespace-nowrap">
-      <TipoPill tipo={prox.tipo} />
-      <span className="flex items-center gap-1.5 font-semibold tabular-nums" style={{ color }}>
+            <span className="flex items-center gap-1.5 font-semibold tabular-nums" style={{ color }}>
         <i className="block h-2.5 w-2.5 flex-none" style={{ background: color }} />
         {prox.pasado ? `pasado por ${Math.abs(prox.faltan).toLocaleString("es-UY")} ${unidad}` : `faltan ${prox.faltan.toLocaleString("es-UY")} ${unidad}`}
       </span>

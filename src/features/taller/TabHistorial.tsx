@@ -3,16 +3,17 @@ import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { enLaDireccion } from "./datos";
 import { buscarEnHistorial, type Coincidencia } from "./servicio";
-import { TipoPill } from "./TabServices";
+import { CodigoPill } from "./TabServices";
 import { fmtUso, type AccionHecha, type Vehiculo } from "./tipos";
 
-const SUGERENCIAS = ["alternador", "zapatas", "cubierta 7", "rulemanes", "filtro de aire"];
+const SUGERENCIAS = ["trampa", "centrífugo", "APS", "balanceo", "alternador", "zapatas", "cubierta 7"];
 
-export const TEXTO_ACCION: Record<AccionHecha, string> = { reparado: "Reparado", nuevo: "Nuevo", revisado: "Revisado" };
+export const TEXTO_ACCION: Record<AccionHecha, string> = { reparado: "Reparado", nuevo: "Nuevo", revisado: "Revisado", hecho: "Hecho" };
 export const CLASE_ACCION: Record<AccionHecha, string> = {
   reparado: "border-st-amberBd bg-st-amberBg text-st-amberTx",
   nuevo: "border-st-greenBd bg-st-greenBg text-st-greenTx",
   revisado: "border-ink/25 bg-white text-ink/70",
+  hecho: "border-brand bg-brand-200 text-brand-800",
 };
 
 export function Accion({ accion }: { accion: AccionHecha }) {
@@ -110,7 +111,7 @@ function Resultado({ r, v }: { r: Coincidencia; v: Vehiculo }) {
       <Link to={`/panel/taller/${enLaDireccion(v.patente)}/service/${s.id}`} className="block px-4 py-3 hover:bg-brand-100/50">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
           <span className="flex items-center gap-2.5">
-            <TipoPill tipo={s.tipo} />
+            <CodigoPill tipos={s.tipos} />
             <span className="font-cond text-lg font-semibold">{fmtDate(s.fecha)}</span>
             <span className="font-cond text-sm font-semibold tabular-nums text-ink/60">{fmtUso(v, s.km)}</span>
           </span>

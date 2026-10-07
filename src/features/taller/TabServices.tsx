@@ -2,10 +2,9 @@ import { Link } from "react-router-dom";
 import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { HOY, enLaDireccion } from "./datos";
-import { TIPOS_DE_SERVICE } from "./servicio";
+import { NOMBRE_OTRO, EXPLICACION_OTRO, TIPOS_DE_SERVICE, codigoCombinado, contenidoDeTipo, type GrupoDeService } from "./tipos-de-service";
 import { COLOR_ESTADO } from "./VistaSuperior";
 import {
-  CICLO,
   fmtUso,
   proximoService,
   textoDelIntervalo,
@@ -15,18 +14,25 @@ import {
   type Vehiculo,
 } from "./tipos";
 
-export function TipoPill({ tipo }: { tipo: TipoService }) {
+/**
+ * Los códigos de un service, combinados ("A + D + R"), en una sola etiqueta. El color dice de qué es: de motor, de
+ * cubiertas, de las dos cosas o una reparación suelta.
+ */
+export function CodigoPill({ tipos }: { tipos: TipoService[] }) {
+  const grupos = new Set<GrupoDeService | "otro">(tipos.map((t) => (t === "otro" ? "otro" : TIPOS_DE_SERVICE.find((x) => x.codigo === t)?.grupo ?? "motor")));
   const clase =
-    tipo === "C"
-      ? "border-navy bg-navy text-bg"
-      : tipo === "B"
-        ? "border-brand bg-brand-200 text-brand-800"
-        : tipo === "otro"
-          ? "border-st-amberBd bg-st-amberBg text-st-amberTx"
-          : "border-ink/25 bg-white text-ink";
+    grupos.has("otro") && grupos.size === 1
+      ? "border-st-amberBd bg-st-amberBg text-st-amberTx"
+      : grupos.has("motor") && grupos.has("cubiertas")
+        ? "border-navy bg-navy text-bg"
+        : grupos.has("cubiertas")
+          ? "border-st-greenBd bg-st-greenBg text-st-greenTx"
+          : tipos.some((t) => t === "C" || t === "BC")
+            ? "border-brand bg-brand-200 text-brand-800"
+            : "border-ink/25 bg-white text-ink";
   return (
-    <span className={`inline-flex items-center border px-2 py-0.5 font-cond text-[13px] font-bold tracking-[0.06em] ${clase}`}>
-      {tipo === "otro" ? "Otro" : tipo}
+    <span data-codigo className={`inline-flex items-center whitespace-nowrap border px-2 py-0.5 font-cond text-[13px] font-bold tracking-[0.06em] ${clase}`}>
+      {codigoCombinado(tipos)}
     </span>
   );
 }
@@ -71,7 +77,7 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
             <Corners />
             <div className="flex items-center justify-between">
               <span className="kicker">Último service</span>
-              <TipoPill tipo={ultimo.tipo} />
+              <CodigoPill tipos={ultimo.tipos} />
             </div>
             <div className="mt-1 font-cond text-2xl font-semibold leading-tight">{fmtDate(ultimo.fecha)}</div>
             <div className="text-sm tabular-nums text-ink/60">
@@ -85,10 +91,7 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
 
           <div className="panel border-l-4 px-4 py-3" style={{ borderLeftColor: COLOR_ESTADO[prox.estado] }}>
             <Corners />
-            <div className="flex items-center justify-between">
-              <span className="kicker">Próximo (estimado)</span>
-              <TipoPill tipo={prox.tipo} />
-            </div>
+            <div className="kicker">Próximo service</div>
             <div className="mt-1 font-cond text-2xl font-semibold leading-tight">{fmtUso(vehiculo, prox.km)}</div>
             <div className="text-sm text-ink/60">
               {prox.faltan > 0 ? (
@@ -97,7 +100,7 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
                   <b className="tabular-nums" style={{ color: COLOR_ESTADO[prox.estado] }}>
                     {prox.faltan.toLocaleString("es-UY")} {vehiculo.unidad}
                   </b>{" "}
-                  · alrededor del {fmtDate(prox.fechaEstimada)}
+                  · alrededor del {fmtDate(prox.fechaEstimada)}. Qué letra toca, a confirmar.
                 </>
               ) : (
                 <b className="tabular-nums" style={{ color: COLOR_ESTADO.rojo }}>
@@ -125,27 +128,45 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
 
       <section className="panel">
         <Corners />
-        <h2 className="border-b border-ink/10 px-4 py-3 font-cond text-lg">Tipos de service (contenido de ejemplo)</h2>
-        <dl className="grid gap-px bg-ink/10 sm:grid-cols-2">
-          {TIPOS_DE_SERVICE.map((t) => (
-            <div key={t.id} className="flex items-start gap-3 bg-white px-4 py-3">
-              <TipoPill tipo={t.id} />
-              <div className="min-w-0">
-                <dt className="text-sm font-semibold text-ink">{t.nombre}</dt>
-                <dd className="text-xs text-ink/60">{t.ejemplo}</dd>
-              </div>
+        <h2 className="border-b border-ink/10 px-4 py-3 font-cond text-lg">Tipos de service</h2>
+        {(["motor", "cubiertas"] as const).map((grupo) => (
+          <div key={grupo}>
+            <div className="border-b border-ink/10 bg-surface/60 px-4 py-1.5 font-cond text-[11px] font-semibold uppercase tracking-[0.14em] text-ink/55">
+              {grupo === "motor" ? "Motor" : "Cubiertas"}
             </div>
-          ))}
-        </dl>
+            <dl className="grid gap-px bg-ink/10 sm:grid-cols-2">
+              {TIPOS_DE_SERVICE.filter((x) => x.grupo === grupo).map((x) => (
+                <div key={x.codigo} data-tipo-de-service={x.codigo} className="flex items-start gap-3 bg-white px-4 py-3">
+                  <CodigoPill tipos={[x.codigo]} />
+                  <div className="min-w-0">
+                    <dt className="text-sm font-semibold text-ink">{x.nombre}</dt>
+                    <dd className="text-xs text-ink/60">{contenidoDeTipo(x)}</dd>
+                  </div>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ))}
+        <div className="flex items-start gap-3 border-t border-ink/10 bg-white px-4 py-3">
+          <CodigoPill tipos={["otro"]} />
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-ink">{NOMBRE_OTRO}</div>
+            <div className="text-xs text-ink/60">{EXPLICACION_OTRO}</div>
+          </div>
+        </div>
         <p className="border-t border-ink/10 px-4 py-2 text-xs leading-relaxed text-ink/55">
-          Próximo service: <b className="text-ink/75">{textoDelIntervalo(vehiculo)}</b>
-          {vehiculo.tipo === "camion" && " (por ahora: grande = camión tractor, tractor sencillo y doble eje; chico = camión chico)"}. El color: verde si
-          falta más de un tercio del intervalo, ámbar si falta un tercio o menos, rojo si faltan menos de{" "}
-          {vehiculo.unidad === "h" ? "25 horas" : "1.000 km"} o ya se pasó. Orden de ejemplo: {CICLO.join(" → ")}. Qué incluye cada tipo lo define
-          Rodrigo.
-          {vehiculo.disposicion?.aConfirmar && (
-            <span className="mt-1 block text-st-amberTx">A confirmar: {vehiculo.disposicion.aConfirmar}</span>
-          )}
+          Un service puede ser de varios tipos a la vez (por ejemplo A + D + R): sus ítems se suman y, si dos tipos comparten uno, va una sola vez.
+          <span className="mt-1 block">
+            Próximo service: <b className="text-ink/75">{textoDelIntervalo(vehiculo)}</b>
+            {vehiculo.tipo === "camion" && " (por ahora: grande = camión tractor, tractor sencillo y doble eje; chico = camión chico)"}. El color: verde si
+            falta más de un tercio del intervalo, ámbar si falta un tercio o menos, rojo si faltan menos de{" "}
+            {vehiculo.unidad === "h" ? "25 horas" : "1.000 km"} o ya se pasó.
+          </span>
+          <span data-a-confirmar className="mt-1 block text-st-amberTx">
+            A confirmar: falta saber en qué orden van los tipos y cada cuánto toca cada uno (C, BC, D, V…). Por eso sólo se estima el próximo service por km, sin
+            decir qué letra toca.
+          </span>
+          {vehiculo.disposicion?.aConfirmar && <span className="mt-1 block text-st-amberTx">A confirmar: {vehiculo.disposicion.aConfirmar}</span>}
         </p>
       </section>
 
@@ -157,7 +178,7 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="font-cond text-[11px] uppercase tracking-[0.12em] text-ink/50">
-                  {["Fecha", "Tipo", vehiculo.unidad === "h" ? "Horas" : "Km", vehiculo.unidad === "h" ? "Operador" : "Chofer", "Mecánico", "Qué se hizo"].map((c) => (
+                  {["Fecha", "Tipos", vehiculo.unidad === "h" ? "Horas" : "Km", vehiculo.unidad === "h" ? "Operador" : "Chofer", "Mecánico", "Qué se hizo"].map((c) => (
                     <th key={c} className="px-4 py-2 font-semibold">
                       {c}
                     </th>
@@ -173,7 +194,7 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
                       </Link>
                     </td>
                     <td className="px-4 py-3">
-                      <TipoPill tipo={s.tipo} />
+                      <CodigoPill tipos={s.tipos} />
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{s.km.toLocaleString("es-UY")}</td>
                     <td className="px-4 py-3">{s.chofer}</td>
@@ -208,7 +229,7 @@ function FilaDeService({ s, v }: { s: Service; v: Vehiculo }) {
       <Link to={`/panel/taller/${enLaDireccion(v.patente)}/service/${s.id}`} className="block min-h-[44px] px-4 py-3 active:bg-brand-100">
         <div className="flex items-center justify-between gap-3">
           <span className="flex items-center gap-2.5">
-            <TipoPill tipo={s.tipo} />
+            <CodigoPill tipos={s.tipos} />
             <span className="font-cond text-base font-semibold">{fmtDate(s.fecha)}</span>
           </span>
           <span className="font-cond text-sm font-semibold tabular-nums text-ink/70">{fmtUso(v, s.km)}</span>

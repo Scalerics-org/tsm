@@ -1,5 +1,5 @@
 import type { CubiertaEnStock } from "./datos-extra";
-import { kmEnTramos, type Cubierta, type PuestaAnterior, type Tramo } from "./tipos";
+import { kmEnTramos, type Balanceo, type Cubierta, type PuestaAnterior, type Tramo } from "./tipos";
 
 /**
  * Qué pasa con una cubierta que se saca o se mueve, como cuentas puras (sin pantalla ni almacenamiento):
@@ -55,6 +55,7 @@ export interface CubiertaBaja {
   motivo: string;
   obs: string;
   historial: Tramo[];
+  balanceos?: Balanceo[];
 }
 
 export interface VehiculoEnJuego {
@@ -128,6 +129,7 @@ function armarReemplazo(
         obs: "",
         anteriores,
         historial: [...(s.historial ?? []), { tipo: "stock", desde: s.desde, hasta: fecha }],
+        balanceos: s.balanceos,
       },
     };
   }
@@ -202,6 +204,7 @@ export function aplicarMovimiento(antes: Situacion, m: Movimiento, nuevoUid: () 
         motivo: TEXTO_DE_BAJA[motivo],
         obs,
         historial: cerrado,
+        balanceos: c.balanceos,
       },
       ...bajas,
     ];
@@ -216,6 +219,7 @@ export function aplicarMovimiento(antes: Situacion, m: Movimiento, nuevoUid: () 
         obs: `Salió de ${patente} posición ${c.numero} el ${dd_mm(m.fecha)} · con ${km.toLocaleString("es-UY")} km${obs ? ` · ${obs}` : ""}`,
         desde: m.fecha,
         historial: cerrado,
+        balanceos: c.balanceos,
       },
       ...stock,
     ];
@@ -295,12 +299,14 @@ export type UbicacionActual =
 
 export interface RecorridoDeCubierta {
   lineas: LineaDeRecorrido[];
+  /** Los balanceos que se le hicieron, con su fecha. */
+  balanceos: Balanceo[];
   /** La suma de los km de todos los tramos en vehículos (cada uno contra el tacógrafo de ese vehículo). */
   totalKm: number;
 }
 
 /** Arma el recorrido: los tramos cerrados, en orden, y el tramo de hoy. El total es la suma de los tramos. */
-export function recorridoDeCubierta(historial: Tramo[], actual: UbicacionActual, fmt: (dia: string) => string): RecorridoDeCubierta {
+export function recorridoDeCubierta(historial: Tramo[], actual: UbicacionActual, fmt: (dia: string) => string, balanceos: Balanceo[] = []): RecorridoDeCubierta {
   const lineas: LineaDeRecorrido[] = [];
   let totalKm = 0;
   for (const t of historial) {
@@ -325,5 +331,5 @@ export function recorridoDeCubierta(historial: Tramo[], actual: UbicacionActual,
   } else {
     lineas.push({ donde: "De baja", cuando: `el ${fmt(actual.fecha)}: ${actual.motivo}`, actual: true });
   }
-  return { lineas, totalKm };
+  return { lineas, totalKm, balanceos };
 }

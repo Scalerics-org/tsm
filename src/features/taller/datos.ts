@@ -1,11 +1,12 @@
 import { tipoDeVehiculo } from "./disposicion";
-import { itemsDeService } from "./servicio";
+import { TIPOS_DE_LOS_EJEMPLOS, itemsDeService } from "./servicio";
+import { flujoDeCubiertas } from "./tipos-de-service";
 import {
-  CICLO,
   type Cubierta,
   type PuestaAnterior,
   type ItemHecho,
   type Service,
+  type TipoService,
   type TipoVehiculo,
   type Vehiculo,
 } from "./tipos";
@@ -106,11 +107,11 @@ function cubiertasDe(p: Plano, porEje: (i: number) => string): Cubierta[] {
 
 /** Reparaciones puestas a mano en los services de GTP 4325, para que la búsqueda tenga qué encontrar. */
 const FIJOS_4325: Record<number, ItemHecho[]> = {
-  9: [
+  5: [
     { seccion: "Motor", sujeto: "", pieza: "Alternador", accion: "reparado", obs: "Rebobinado en el taller de la calle." },
     { seccion: "Frenos y rodaje, por rueda", sujeto: "Rueda 4", pieza: "Zapatas / cintas", accion: "nuevo", medida: "18 mm", obs: "" },
   ],
-  8: [
+  3: [
     { seccion: "Cubiertas", sujeto: "Posición 7", pieza: "Cubierta 7", accion: "nuevo", obs: "Cambio por desgaste. Michelin X Multi Z." },
     { seccion: "Frenos y rodaje, por rueda", sujeto: "Rueda 7", pieza: "Rulemanes", accion: "nuevo", obs: "" },
   ],
@@ -126,16 +127,20 @@ function servicesDe(p: Plano, cuantos: number, disposicion: ReturnType<typeof ti
     const km = p.ultimoService - k * cada;
     if (km <= 0) break;
     const orden = Math.round(km / cada);
-    const tipo = CICLO[(orden - 1) % CICLO.length];
+    // Los tipos de los services de ejemplo (no es un ciclo real). Un vehículo sin cubiertas no tiene tipos de cubiertas.
+    const deEjemplo = TIPOS_DE_LOS_EJEMPLOS[(orden - 1) % TIPOS_DE_LOS_EJEMPLOS.length];
+    const conCubiertas = disposicion != null;
+    const tipos: TipoService[] = conCubiertas ? deEjemplo : deEjemplo.filter((t) => !flujoDeCubiertas([t]).rotacion && !flujoDeCubiertas([t]).nueva);
+    const tiposFinales: TipoService[] = tipos.length > 0 ? tipos : ["A"];
     lista.push({
       id: `${p.patente.replace(/\s+/g, "")}-${orden}`,
-      tipo,
+      tipos: tiposFinales,
       fecha: sumarDias(HOY, -((p.km - km) / p.kmPorDia)),
       km,
       chofer: CHOFERES[(orden * 3 + k) % CHOFERES.length],
       mecanico: MECANICO,
       obs: OBS_SERVICE[(orden * 5 + 2) % OBS_SERVICE.length],
-      items: itemsDeService({ patente: p.patente, disposicion }, tipo, orden, p.patente === "GTP 4325" ? FIJOS_4325[orden] : undefined),
+      items: itemsDeService({ patente: p.patente, disposicion }, tiposFinales, orden, p.patente === "GTP 4325" ? FIJOS_4325[orden] : undefined),
     });
   }
   return lista;

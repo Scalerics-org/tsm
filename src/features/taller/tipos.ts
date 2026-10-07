@@ -8,8 +8,10 @@ import {
   type Posicion,
 } from "./disposicion";
 
-/** Los services son A, B y C; "otro" es una reparación suelta. Qué incluye cada uno lo define Rodrigo. */
-export type TipoService = "A" | "B" | "C" | "otro";
+/** Los códigos de los tipos de service reales (qué incluye cada uno está en `tipos-de-service.ts`). */
+export type CodigoDeService = "A" | "B" | "C" | "D" | "V" | "BC" | "R" | "N" | "RB" | "NB";
+/** Un service puede ser de varios tipos a la vez ("A + D + R"); "otro" es una reparación suelta. */
+export type TipoService = CodigoDeService | "otro";
 
 export interface Modelo {
   id: string;
@@ -35,7 +37,15 @@ export type Tramo =
   | { tipo: "vehiculo"; patente: string; posicion: number; desde: string; kmDesde: number; hasta: string; kmHasta: number }
   | { tipo: "stock"; desde?: string; hasta: string };
 
+/** Un balanceo de una cubierta: cuándo, y a cuántos km del vehículo. */
+export interface Balanceo {
+  fecha: string;
+  km: number;
+}
+
 export interface Cubierta {
+  /** Los balanceos que se le hicieron (en services de tipo RB o NB). */
+  balanceos?: Balanceo[];
   /** Id interno: sigue a la cubierta entre vehículos y stock aunque no tenga código. */
   uid?: string;
   /** Dónde estuvo antes de este tramo. */
@@ -53,7 +63,7 @@ export interface Cubierta {
 }
 
 /** Una cosa que se hizo en un service: sólo lo que Raúl marcó. */
-export type AccionHecha = "reparado" | "nuevo" | "revisado";
+export type AccionHecha = "reparado" | "nuevo" | "revisado" | "hecho";
 export interface ItemHecho {
   /** La sección: Motor, Frenos y rodaje, Cubiertas… */
   seccion: string;
@@ -67,7 +77,8 @@ export interface ItemHecho {
 
 export interface Service {
   id: string;
-  tipo: TipoService;
+  /** Uno o varios: "A + D + R". */
+  tipos: TipoService[];
   fecha: string;
   km: number;
   chofer: string;
@@ -169,11 +180,8 @@ export function cubiertasPorPosicion(v: Vehiculo): PosicionConCubierta[] {
 }
 
 // ── Services ──
-/** El ciclo de services (de ejemplo): A, B, A, C. Cada cuánto toca depende del vehículo. */
-export const CICLO: TipoService[] = ["A", "B", "A", "C"];
 
 export interface ProximoService {
-  tipo: TipoService;
   km: number;
   faltan: number;
   dias: number;
@@ -203,18 +211,19 @@ export function ultimoService(v: Vehiculo): Service | undefined {
   return [...v.services].sort((a, b) => b.km - a.km)[0];
 }
 
+/**
+ * Cuándo toca el próximo service POR KM. No dice qué letra toca: no se sabe todavía el orden de los tipos ni cada cuánto va
+ * cada uno (D, V, C, BC…); sólo se sabe el intervalo por km.
+ */
 export function proximoService(v: Vehiculo, hoy: string): ProximoService | null {
   if (v.cadaService == null) return null;
   const base = ultimoService(v)?.km ?? 0;
   const km = base + v.cadaService;
-  const orden = Math.round(km / v.cadaService);
-  const tipo = CICLO[(((orden - 1) % CICLO.length) + CICLO.length) % CICLO.length];
   const faltan = km - v.km;
   const dias = Math.max(0, Math.round(faltan / v.kmPorDia));
   const fecha = new Date(`${hoy}T12:00:00Z`);
   fecha.setUTCDate(fecha.getUTCDate() + dias);
   return {
-    tipo,
     km,
     faltan,
     dias,

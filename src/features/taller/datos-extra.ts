@@ -1,5 +1,5 @@
 import { HOY, MODELOS } from "./base";
-import type { Componente, CondicionPieza, Estado, PiezaDeComponente, Tramo, TipoVehiculo, Vehiculo } from "./tipos";
+import type { Balanceo, Componente, CondicionPieza, Estado, PiezaDeComponente, Tramo, TipoVehiculo, Vehiculo } from "./tipos";
 
 /**
  * DATOS DE MENTIRA, segunda parte: los componentes (motor, caja…), las piezas de cada rueda (frenos y rodaje) y
@@ -160,6 +160,8 @@ export interface CubiertaEnStock {
   desde?: string;
   /** Dónde estuvo antes. */
   historial?: Tramo[];
+  /** Los balanceos que se le hicieron. */
+  balanceos?: Balanceo[];
 }
 
 export const CUBIERTAS_EN_STOCK: CubiertaEnStock[] = [
