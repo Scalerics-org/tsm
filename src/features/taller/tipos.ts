@@ -151,8 +151,6 @@ export const kmRecorridos = (v: Vehiculo, c: Cubierta) => Math.max(0, v.km - c.k
 export const porcentajeDeVida = (km: number) => km / VIDA_UTIL_KM;
 /** El % de uso (km recorridos sobre la vida útil), entero. Es EL número: el dibujo, la lista y el panel lo usan. */
 export const pctDeUso = (km: number) => Math.round(porcentajeDeVida(km) * 100);
-/** Los km en miles con una coma, para donde no entra más: 64200 → "64,2k". */
-export const kmEnMiles = (km: number) => `${(km / 1000).toFixed(1).replace(".", ",")}k`;
 export function estadoDe(km: number): Estado {
   const p = porcentajeDeVida(km);
   return p >= UMBRAL_ROJO ? "rojo" : p >= UMBRAL_AMBAR ? "ambar" : "verde";
@@ -185,8 +183,9 @@ export function cubiertasPorPosicion(v: Vehiculo): PosicionConCubierta[] {
 export interface ProximoService {
   km: number;
   faltan: number;
-  dias: number;
-  fechaEstimada: string;
+  /** Cuántos días faltan según lo que viene haciendo; `null` si no se sabe cuánto anda por día (un vehículo recién cargado). */
+  dias: number | null;
+  fechaEstimada: string | null;
   /** Verde, ámbar o rojo según cuánto falta (ver `estadoDelProximo`). */
   estado: Estado;
   /** Ya se pasó: `faltan` es cero o negativo. */
@@ -227,14 +226,15 @@ export function proximoService(v: Vehiculo, hoy: string): ProximoService | null 
   const base = ultimoService(v)?.km ?? 0;
   const km = base + v.cadaService;
   const faltan = km - v.km;
-  const dias = Math.max(0, Math.round(faltan / v.kmPorDia));
+  // Sin km por día (vehículo cargado desde la base, todavía sin historia) no se inventa una fecha.
+  const dias = v.kmPorDia > 0 ? Math.max(0, Math.round(faltan / v.kmPorDia)) : null;
   const fecha = new Date(`${hoy}T12:00:00Z`);
-  fecha.setUTCDate(fecha.getUTCDate() + dias);
+  if (dias != null) fecha.setUTCDate(fecha.getUTCDate() + dias);
   return {
     km,
     faltan,
     dias,
-    fechaEstimada: fecha.toISOString().slice(0, 10),
+    fechaEstimada: dias != null ? fecha.toISOString().slice(0, 10) : null,
     estado: estadoDelProximo(faltan, v.cadaService, v.unidad),
     pasado: faltan <= 0,
   };

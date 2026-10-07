@@ -104,7 +104,7 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
                   <b className="tabular-nums" style={{ color: COLOR_ESTADO[prox.estado] }}>
                     {prox.faltan.toLocaleString("es-UY")} {vehiculo.unidad}
                   </b>{" "}
-                  · alrededor del {fmtDate(prox.fechaEstimada)}.
+                  {prox.fechaEstimada ? <> · alrededor del {fmtDate(prox.fechaEstimada)}.</> : "."}
                 </>
               ) : (
                 <b className="tabular-nums" style={{ color: COLOR_ESTADO.rojo }}>
@@ -115,7 +115,9 @@ export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
             <div className="mt-3 h-2.5 bg-surface" role="img" aria-label={`${Math.round(avance * 100)}% del camino al próximo service`}>
               <div className="h-full" style={{ width: `${avance * 100}%`, background: COLOR_ESTADO[prox.estado] }} />
             </div>
-            <p className="mt-2 text-xs text-ink/50">A {Math.round(vehiculo.kmPorDia)} {vehiculo.unidad} por día, que es lo que viene haciendo.</p>
+            {vehiculo.kmPorDia > 0 && (
+              <p className="mt-2 text-xs text-ink/50">A {Math.round(vehiculo.kmPorDia)} {vehiculo.unidad} por día, que es lo que viene haciendo.</p>
+            )}
           </div>
         </div>
       ) : (

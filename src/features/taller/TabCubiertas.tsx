@@ -107,7 +107,7 @@ function CubiertasDe({ vehiculo, disposicion }: { vehiculo: Vehiculo; disposicio
               ))}
             </ul>
             <p className="mt-3 text-xs leading-relaxed text-ink/55">
-              Cada cubierta muestra sus km recorridos en miles (los km del tacógrafo menos los que tenía el vehículo al colocarla). El
+              Cada cubierta muestra sus km recorridos, enteros, y el % de uso (los km del tacógrafo menos los que tenía el vehículo al colocarla). El
               color sale de comparar esos km con una vida útil de ejemplo de {fmtKm(VIDA_UTIL_KM)}, igual para todas. La real se
               define con Rodrigo.
             </p>

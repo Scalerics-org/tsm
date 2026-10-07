@@ -2,7 +2,8 @@ import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { fmtDate } from "../../lib/format";
 import { MODELOS } from "./base";
-import { HOY, VEHICULOS, enLaDireccion } from "./datos";
+import { HOY, enLaDireccion } from "./datos";
+import { useFlota } from "./FlotaReal";
 import { Dialogo } from "./Dialogo";
 import { TEXTO_DE_BAJA, type Destino, type MotivoDeBaja, type QueHacerConLaQueEstaba, type Reemplazo } from "./movimientos";
 import { moverCubierta, ponerCubierta, useFlotaConLoCargado, useStock } from "./servicio";
@@ -163,7 +164,7 @@ const reemplazoValido = (rem: "vacia" | "stock" | "manual", uid: string | null) 
 export function MoverCubierta({ vehiculo, item: itemActual, onCerrar }: { vehiculo: Vehiculo; item: PosicionConCubierta; onCerrar: () => void }) {
   // La cubierta como estaba al abrir: después de confirmar la posición puede cambiar, y el aviso tiene que seguir hablando de ésta.
   const [item] = useState(itemActual);
-  const flota = useFlotaConLoCargado(VEHICULOS);
+  const flota = useFlotaConLoCargado(useFlota().flota);
   const stock = useStock();
   const cubierta = item.cubierta;
   const numero = item.posicion.numero;
@@ -403,7 +404,7 @@ export function MoverCubierta({ vehiculo, item: itemActual, onCerrar }: { vehicu
 
 /** Poner una cubierta en una posición que quedó vacía. */
 export function PonerCubierta({ vehiculo, numero, nombre, onCerrar }: { vehiculo: Vehiculo; numero: number; nombre: string; onCerrar: () => void }) {
-  const flota = useFlotaConLoCargado(VEHICULOS);
+  const flota = useFlotaConLoCargado(useFlota().flota);
   const stock = useStock();
   const [fecha, setFecha] = useState(HOY);
   const [km, setKm] = useState(String(vehiculo.km));

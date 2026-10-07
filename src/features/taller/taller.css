@@ -85,3 +85,8 @@
   font-size: 10.5px;
   fill: #1d1f20;
 }
+
+/* Los km enteros de la cubierta ("164.508") son más largos que el %: letra más chica para que entren en los 44px. */
+.pct-cubierta.km-entero {
+  font-size: 9.5px;
+}

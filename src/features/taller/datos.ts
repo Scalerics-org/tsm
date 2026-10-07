@@ -350,13 +350,7 @@ export const VEHICULOS: Vehiculo[] = [
   }),
 ];
 
-/** Los choferes de TSM entre los que se elige al cargar un service (de ejemplo). */
-export const CHOFERES_DE_TSM = CHOFERES;
 export const MECANICOS = [MECANICO, "Pepe (taller de la calle)"];
-
-const sinSeparadores = (s: string) => s.replace(/[\s-]/g, "").toLowerCase();
-export const vehiculoDe = (patente: string | undefined): Vehiculo | undefined =>
-  VEHICULOS.find((v) => sinSeparadores(v.patente) === sinSeparadores(patente ?? ""));
 
 /** La patente como va en la dirección: "GTP-4325". */
 export const enLaDireccion = (patente: string) => patente.replace(/\s+/g, "-");

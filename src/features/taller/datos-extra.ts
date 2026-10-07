@@ -39,6 +39,16 @@ const COMPONENTES_DE: Record<TipoVehiculo, string[]> = {
   montacargas: ["motor", "caja", "chasis", "electricidad"],
 };
 
+/** Los componentes de un vehículo real, sin historia: todo original hasta que el taller cargue lo contrario. */
+export function componentesSinHistoria(tipo: TipoVehiculo): Componente[] {
+  return COMPONENTES_DE[tipo].map((id) => ({
+    id,
+    nombre: PLANTILLA[id].nombre,
+    piezas: PLANTILLA[id].piezas.map((nombre) => ({ nombre, condicion: "original" as CondicionPieza, alKm: 0, fecha: "", obs: "" })),
+    obs: "",
+  }));
+}
+
 const OBS_PIEZA = [
   "",
   "",

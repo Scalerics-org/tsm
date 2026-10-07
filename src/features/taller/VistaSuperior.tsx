@@ -8,7 +8,7 @@ import {
   type Disposicion,
 } from "./disposicion";
 import { MODELOS } from "./datos";
-import { fmtKm, kmEnMiles, pctDeUso, type Estado, type PosicionConCubierta } from "./tipos";
+import { fmtKm, pctDeUso, type Estado, type PosicionConCubierta } from "./tipos";
 import "./taller.css";
 
 export const COLOR_ESTADO: Record<Estado, string> = {
@@ -109,9 +109,9 @@ export function VistaSuperior({ disposicion, posiciones, seleccionada, onSelecci
             <text x={x + CUBIERTA_W / 2} y={y + 17} textAnchor="middle" dominantBaseline="central" className="num-cubierta" pointerEvents="none">
               {posicion.numero}
             </text>
-            {/* Las dos cosas, una abajo de la otra: los km que lleva y el % de uso sobre la vida útil. */}
-            <text x={x + CUBIERTA_W / 2} y={y + 48} textAnchor="middle" className="pct-cubierta" pointerEvents="none">
-              {cubierta ? kmEnMiles(km) : "—"}
+            {/* Las dos cosas, una abajo de la otra: los km que lleva, enteros y en letra más chica (Rodrigo no quiere "64,2k"), y el % de uso sobre la vida útil. */}
+            <text x={x + CUBIERTA_W / 2} y={y + 48} textAnchor="middle" className="pct-cubierta km-entero" pointerEvents="none">
+              {cubierta ? Math.round(km).toLocaleString("es-UY") : "—"}
             </text>
             <text x={x + CUBIERTA_W / 2} y={y + 63} textAnchor="middle" className="pct-cubierta" pointerEvents="none">
               {cubierta ? `${pct}%` : "—"}

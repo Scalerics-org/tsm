@@ -3,7 +3,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { MODELOS } from "./base";
-import { CHOFERES_DE_TSM, HOY, MECANICOS, enLaDireccion } from "./datos";
+import { HOY, MECANICOS, enLaDireccion } from "./datos";
+import { useFlota } from "./FlotaReal";
 import { posiciones } from "./disposicion";
 import type { CubiertaEnStock } from "./datos-extra";
 import {
@@ -280,6 +281,7 @@ function PasoDatos({
   faltan: string[];
   onSiguiente: () => void;
 }) {
+  const { choferes } = useFlota();
   const esHoras = vehiculo.unidad === "h";
   const disponibles = tiposDisponibles(vehiculo);
   const alternar = (codigo: TipoService, on: boolean) => onTipos(on ? [...tipos, codigo] : tipos.filter((t) => t !== codigo));
@@ -340,15 +342,15 @@ function PasoDatos({
         </label>
         <label className="block">
           <span className="label">{esHoras ? "Operador" : "Chofer que anda en el camión"}</span>
-          <select className="input min-h-[44px]" value={datos.chofer} onChange={(e) => onCambio({ chofer: e.target.value })}>
-            {CHOFERES_DE_TSM.map((c) => (
+          <input list="choferes" className="input min-h-[44px]" value={datos.chofer} onChange={(e) => onCambio({ chofer: e.target.value })} />
+          <datalist id="choferes">
+            {choferes.map((c) => (
               <option key={c} value={c}>
-                {c}
-                {c === vehiculo.choferAsignado ? " (asignado)" : ""}
+                {c === vehiculo.choferAsignado ? "(asignado)" : ""}
               </option>
             ))}
-          </select>
-          <span className="mt-1 block text-xs text-ink/55">Se sugiere el que tiene asignado el vehículo.</span>
+          </datalist>
+          <span className="mt-1 block text-xs text-ink/55">Se elige de los choferes cargados, o se escribe el nombre si no está.</span>
         </label>
       </div>
 

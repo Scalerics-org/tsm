@@ -1,6 +1,8 @@
 import { Link, NavLink, Navigate, Route, Routes, useParams, useSearchParams } from "react-router-dom";
 import { useState, type ReactNode } from "react";
-import { VEHICULOS, vehiculoDe } from "./datos";
+import { VEHICULOS } from "./datos";
+import { FlotaProvider, useFlota } from "./FlotaReal";
+import { buscarVehiculo } from "./flota-real";
 import { NOMBRE_MONTACARGAS } from "./disposicion";
 import { fmtDate } from "../../lib/format";
 import { NuevoService } from "./NuevoService";
@@ -48,6 +50,7 @@ export function TallerMaqueta() {
         </span>
       </div>
       <BandaDeMaqueta />
+      <FlotaProvider>
       <Routes>
         <Route index element={<FlotaPage />} />
         <Route path="stock" element={<StockPage />} />
@@ -56,6 +59,7 @@ export function TallerMaqueta() {
         <Route path=":patente/service/:id" element={<EnElVehiculo>{(v) => <ServiceGuardado vehiculo={v} />}</EnElVehiculo>} />
         <Route path="*" element={<Navigate to="/panel/taller" replace />} />
       </Routes>
+      </FlotaProvider>
     </div>
   );
 }
@@ -65,7 +69,8 @@ type Pestana = "cubiertas" | "services" | "historial" | "componentes";
 /** El vehículo pedido, con lo que se cargó en este navegador (services nuevos y cubiertas como quedaron). */
 function useVehiculoPedido(): Vehiculo | null {
   const { patente } = useParams();
-  const base = vehiculoDe(patente);
+  const base = buscarVehiculo(useFlota().flota, patente);
+  // El hook se llama siempre: con una patente que no existe se usa uno de relleno y se devuelve null.
   const conLoCargado = useConServicios(base ?? VEHICULOS[0]);
   return base ? conLoCargado : null;
 }
@@ -162,7 +167,7 @@ function BandaDeMaqueta() {
     <div className="border border-st-amberBd bg-st-amberBg">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2">
         <p className="min-w-0 flex-1 basis-80 text-xs leading-snug text-st-amberTx">
-          Maqueta para ver cómo queda: los datos son de ejemplo. Lo que cargues (services, cambios de cubiertas, stock) queda{" "}
+          Maqueta para ver cómo queda. Los camiones y acoplados son los de la base (los que cargaste en Camiones), con sus km; las cubiertas y los services empiezan vacíos. Lo que cargues (services, cambios de cubiertas, stock) queda{" "}
           <b>sólo en este navegador</b>: no se manda a ningún servidor y en otro navegador no está.
         </p>
         {confirmando ? (

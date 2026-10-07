@@ -1,7 +1,8 @@
 import { Link, useSearchParams } from "react-router-dom";
 import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
-import { HOY, VEHICULOS, enLaDireccion } from "./datos";
+import { HOY, enLaDireccion } from "./datos";
+import { useFlota } from "./FlotaReal";
 import { UMBRAL_AMBAR_SERVICE_KM, UMBRAL_ROJO_SERVICE_KM } from "./disposicion";
 import { useFlotaConLoCargado } from "./servicio";
 import { CodigoPill } from "./TabServices";
@@ -15,7 +16,7 @@ const comparable = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 export function FlotaPage() {
   const [params, setParams] = useSearchParams();
   const busqueda = params.get("q") ?? "";
-  const flota = useFlotaConLoCargado(VEHICULOS);
+  const flota = useFlotaConLoCargado(useFlota().flota);
   const todas = flota.map((v) => {
     const items = cubiertasPorPosicion(v);
     return {
