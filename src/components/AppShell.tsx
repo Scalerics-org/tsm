@@ -79,7 +79,7 @@ const OPS_NAV: NavGroup[] = [
 ];
 
 /**
- * Qué ve el "solo mirar": Viajes, Consumo, Camiones (sin ningún control de edición) y el Taller (maqueta).
+ * Qué ve el "solo mirar": Viajes, Consumo y Camiones (sin ningún control de edición). El Taller se le da cuando esté pronto, con un rol propio.
  *
  * "A él le hacemos que vea SOLAMENTE LOS VIAJES (…). En principio solo viajes y ta, ahí le
  * queda bien facilito." — Rodrigo, 19/9. Y el 22/9: "Solo esas dos cosas: Viajes y Consumo."
@@ -94,7 +94,6 @@ const LECTOR_NAV: NavGroup[] = [
       // 7/10/2026: Raúl, el mecánico, tiene que ver los camiones. Sólo mirar: la lista y la ficha no le muestran
       // ningún botón de edición y el servidor le contesta 403 a cualquier escritura.
       { to: "/admin/camiones", label: "Camiones" },
-      { to: "/panel/taller", label: "Taller (maqueta)" },
     ],
   },
 ];

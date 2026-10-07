@@ -101,11 +101,12 @@ export default function App() {
         <Route path="/panel/viajes/:id" element={<RequireRole roles={VER}><OpsTripDetailPage /></RequireRole>} />
         <Route path="/panel/camion/:id" element={<RequireRole roles={VER}><TruckDetailPage /></RequireRole>} />
         <Route path="/panel/chofer/:id" element={<RequireRole roles={OPS}><DriverDetailPage /></RequireRole>} />
-        {/* La maqueta del Taller: oficina y lector, con el login de siempre. No usa la API. */}
+        {/* La maqueta del Taller: sólo oficina, con el login de siempre. No usa la API. El lector (Raúl, por ahora) no lo
+            ve: la pestaña se la damos cuando esté lista, con un rol propio para cargar services. */}
         <Route
           path="/panel/taller/*"
           element={
-            <RequireRole roles={VER}>
+            <RequireRole roles={OPS}>
               <Suspense fallback={<Spinner size={28} />}>
                 <TallerMaqueta />
               </Suspense>
