@@ -483,7 +483,7 @@ const item = (seccion: string, sujeto: string, pieza: string, accion: AccionHech
   medida,
 });
 
-/** Los tipos de los services de ejemplo, en el orden en que se fueron haciendo (de ejemplo: no es un ciclo real). */
+/** Los tipos de los services de ejemplo, (datos de ejemplo: los tipos no tienen un orden fijo, los elige el mecánico en cada service). */
 export const TIPOS_DE_LOS_EJEMPLOS: TipoService[][] = [["A"], ["B"], ["A", "R"], ["C"], ["A", "D"], ["BC", "RB"], ["B", "V"], ["A", "NB"]];
 
 /** Lo que dejaron los tipos de un service de ejemplo, más un par de reparaciones sueltas. */

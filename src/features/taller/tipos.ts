@@ -1,6 +1,7 @@
 import {
-  FRACCION_AMBAR_SERVICE,
+  FRACCION_AMBAR_SERVICE_HORAS,
   INTERVALO_GRANDE_KM,
+  UMBRAL_AMBAR_SERVICE_KM,
   UMBRAL_ROJO_SERVICE_HORAS,
   UMBRAL_ROJO_SERVICE_KM,
   posiciones,
@@ -192,11 +193,17 @@ export interface ProximoService {
   pasado: boolean;
 }
 
-/** El color de lo que falta para el próximo service: ver las constantes de `disposicion.ts`. */
+/**
+ * El color de lo que falta para el próximo service: ver las constantes de `disposicion.ts`. Por km son cortes fijos; el
+ * montacargas (horas) sigue midiendo contra su intervalo.
+ */
 export function estadoDelProximo(faltan: number, intervalo: number, unidad: "km" | "h"): Estado {
-  const rojoDesde = unidad === "h" ? UMBRAL_ROJO_SERVICE_HORAS : UMBRAL_ROJO_SERVICE_KM;
-  if (faltan < rojoDesde) return "rojo";
-  return faltan <= intervalo * FRACCION_AMBAR_SERVICE ? "ambar" : "verde";
+  if (unidad === "h") {
+    if (faltan < UMBRAL_ROJO_SERVICE_HORAS) return "rojo";
+    return faltan <= intervalo * FRACCION_AMBAR_SERVICE_HORAS ? "ambar" : "verde";
+  }
+  if (faltan < UMBRAL_ROJO_SERVICE_KM) return "rojo";
+  return faltan <= UMBRAL_AMBAR_SERVICE_KM ? "ambar" : "verde";
 }
 
 /** "cada 25.000 km · camión grande": el criterio del próximo service, para mostrarlo en pantalla. */
@@ -212,8 +219,8 @@ export function ultimoService(v: Vehiculo): Service | undefined {
 }
 
 /**
- * Cuándo toca el próximo service POR KM. No dice qué letra toca: no se sabe todavía el orden de los tipos ni cada cuánto va
- * cada uno (D, V, C, BC…); sólo se sabe el intervalo por km.
+ * Cuándo toca el próximo service, sólo por km: no dice qué letra toca. Los tipos no tienen orden ni intervalo propio; el
+ * mecánico elige cuáles hacer en cada service.
  */
 export function proximoService(v: Vehiculo, hoy: string): ProximoService | null {
   if (v.cadaService == null) return null;

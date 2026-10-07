@@ -43,12 +43,15 @@ export const INTERVALO_GRANDE_KM = 25_000;
 export const INTERVALO_CHICO_KM = 15_000;
 
 /**
- * Cómo se pinta lo que falta para el próximo service (lo confirmó Rodrigo): verde si falta más de un tercio del
- * intervalo, ámbar si falta un tercio o menos, rojo si faltan menos de 1.000 km o ya se pasó. Son constantes con nombre
- * para cambiarlas en un solo lugar; el montacargas usa el mismo criterio sobre su intervalo en horas.
+ * Cómo se pinta lo que falta para el próximo service por km (lo pidió Rodrigo): cortes FIJOS en km, iguales para camiones
+ * grandes y chicos. Rojo con menos de 3.000 km o ya pasado, ámbar entre 3.000 y 10.000, verde con más de 10.000. Son
+ * constantes con nombre para cambiarlas en un solo lugar.
  */
-export const FRACCION_AMBAR_SERVICE = 1 / 3;
-export const UMBRAL_ROJO_SERVICE_KM = 1_000;
+export const UMBRAL_ROJO_SERVICE_KM = 3_000;
+export const UMBRAL_AMBAR_SERVICE_KM = 10_000;
+
+/** El montacargas mide en horas y conserva su criterio: ámbar si falta un tercio del intervalo o menos, rojo bajo 25 horas. */
+export const FRACCION_AMBAR_SERVICE_HORAS = 1 / 3;
 export const UMBRAL_ROJO_SERVICE_HORAS = 25;
 
 export type Lado = "izquierda" | "derecha";
