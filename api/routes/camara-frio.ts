@@ -43,7 +43,8 @@ frio.get("/recientes", async (c) => {
 });
 
 // GET /api/frio?truck=N — la ficha del camión: sus surtidas de cámara y el consumo por mes.
-frio.get("/", OFICINA, async (c) => {
+// El lector también la ve (la ficha del camión en solo lectura); las escrituras siguen siendo de oficina.
+frio.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR), async (c) => {
   const truckId = Number(c.req.query("truck"));
   if (!truckId) return fail(c, "Falta el camión", 400);
   const [surtidas, horas] = await Promise.all([

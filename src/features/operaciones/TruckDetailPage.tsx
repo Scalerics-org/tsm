@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { destinoVisible, origenVisible, fmtConsumo, fmtKilos, type FuelLog, type Trip, type Truck } from "@shared/domain";
 import { api, mensajeDe } from "../../lib/api";
+import { useSoloMirar } from "../../lib/auth";
 import { Card, Corners, ErrorDeCarga, Spinner, Stat, StatusBadge } from "../../components/ui";
 import { SurtidaRow } from "./SurtidaRow";
 import { LecturasDelCamion } from "./LecturasDelCamion";
@@ -65,6 +66,7 @@ interface Ficha {
 
 export function TruckDetailPage() {
   const { id } = useParams();
+  const soloMirar = useSoloMirar();
   // El período vive en la URL (?mes=2026-09, o ?mes=todo) para poder volver atrás y compartirlo. Sin nada, el
   // mes en curso.
   const [params, setParams] = useSearchParams();
@@ -106,8 +108,8 @@ export function TruckDetailPage() {
 
   return (
     <div className="space-y-5">
-      <Link to="/panel" className="text-sm text-ink/60 hover:text-ink">
-        ← Resumen
+      <Link to={soloMirar ? "/admin/camiones" : "/panel"} className="text-sm text-ink/60 hover:text-ink">
+        {soloMirar ? "← Camiones" : "← Resumen"}
       </Link>
       {falló && (
         <ErrorDeCarga
@@ -125,7 +127,7 @@ export function TruckDetailPage() {
       </div>
       <DocumentosDeLaFicha
         documentos={DOCUMENTOS_DEL_CAMION.map((x) => ({ nombre: x.nombre, fecha: truck[x.campo] }))}
-        dondeCargar="Camiones → Editar"
+        dondeCargar={soloMirar ? "la oficina" : "Camiones → Editar"}
       />
 
       {/* El período de lo que sigue: viajes, vacíos y kilos. Lo demás (odómetro, rendimiento, documentos, consumo

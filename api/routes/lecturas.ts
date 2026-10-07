@@ -172,7 +172,7 @@ lecturas.post("/", async (c) => {
  * ahora `PUT /:id` existía y no lo llamaba ninguna pantalla: el chofer recibía "avisá a la
  * oficina" y la oficina no tenía dónde hacerlo.
  */
-lecturas.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
+lecturas.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR), async (c) => {
   const truck = c.req.query("truck");
   return ok(c, await repo.listLecturas(c.env.DB, { truckId: truck ? Number(truck) : undefined }));
 });

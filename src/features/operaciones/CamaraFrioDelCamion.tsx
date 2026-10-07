@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { fmtConsumo } from "@shared/domain";
 import type { ConsumoFrioMes, SurtidaFrio } from "@shared/camara-frio";
 import { api, mensajeDe } from "../../lib/api";
+import { useSoloMirar } from "../../lib/auth";
 import { Card, Corners, ErrorDeCarga, ErrorText, Spinner } from "../../components/ui";
 import { VisorFotos } from "../../components/VisorFotos";
 import { fmtDateTime } from "../../lib/format";
@@ -25,6 +26,7 @@ const nombreMes = (m: string) => `${MESES[Number(m.slice(5, 7)) - 1]} ${m.slice(
  * anotar las horas de inicio.
  */
 export function CamaraFrioDelCamion({ truckId }: { truckId: number }) {
+  const soloMirar = useSoloMirar();
   const [d, setD] = useState<DatosFrio | null>(null);
   const [falló, setFalló] = useState<string | null>(null);
 
@@ -62,7 +64,7 @@ export function CamaraFrioDelCamion({ truckId }: { truckId: number }) {
             sale el número cuando no cierra contra la factura. */}
         <p className="text-xs text-ink/50">
           Litros por hora = todo el gasoil cargado en la cámara dentro del mes, dividido las horas
-          del equipo (final menos inicio). Las horas se anotan acá.
+          del equipo (final menos inicio).{!soloMirar && " Las horas se anotan acá."}
         </p>
       </div>
       {falló && (
@@ -110,6 +112,7 @@ export function CamaraFrioDelCamion({ truckId }: { truckId: number }) {
 }
 
 function MesFrio({ truckId, m, onGuardado }: { truckId: number; m: ConsumoFrioMes; onGuardado: () => void }) {
+  const soloMirar = useSoloMirar();
   const [inicio, setInicio] = useState(m.horas_inicio == null ? "" : String(m.horas_inicio));
   const [fin, setFin] = useState(m.horas_fin == null ? "" : String(m.horas_fin));
   const [busy, setBusy] = useState(false);
@@ -147,10 +150,18 @@ function MesFrio({ truckId, m, onGuardado }: { truckId: number; m: ConsumoFrioMe
     <tr className="border-b border-ink/10 align-top">
       <td className="px-4 py-2 font-cond font-semibold uppercase tracking-[0.06em] text-ink/70">{nombreMes(m.mes)}</td>
       <td className="px-4 py-2">
-        <input className="input w-28 py-1" type="number" inputMode="decimal" value={inicio} onChange={(e) => setInicio(e.target.value)} placeholder="Ej: 12.340" />
+        {soloMirar ? (
+          <span className="tabular-nums text-ink/70">{m.horas_inicio ?? "—"}</span>
+        ) : (
+          <input className="input w-28 py-1" type="number" inputMode="decimal" value={inicio} onChange={(e) => setInicio(e.target.value)} placeholder="Ej: 12.340" />
+        )}
       </td>
       <td className="px-4 py-2">
-        <input className="input w-28 py-1" type="number" inputMode="decimal" value={fin} onChange={(e) => setFin(e.target.value)} placeholder="—" />
+        {soloMirar ? (
+          <span className="tabular-nums text-ink/70">{m.horas_fin ?? "—"}</span>
+        ) : (
+          <input className="input w-28 py-1" type="number" inputMode="decimal" value={fin} onChange={(e) => setFin(e.target.value)} placeholder="—" />
+        )}
       </td>
       <td className="px-4 py-2 text-right tabular-nums text-ink/70">{m.horas != null ? m.horas.toLocaleString("es-UY") : "—"}</td>
       <td className="px-4 py-2 text-right tabular-nums text-ink/70">
@@ -163,7 +174,7 @@ function MesFrio({ truckId, m, onGuardado }: { truckId: number; m: ConsumoFrioMe
         {m.litros_por_hora != null ? fmtConsumo(m.litros_por_hora) : "—"}
       </td>
       <td className="px-4 py-2 text-right">
-        {cambió && (
+        {cambió && !soloMirar && (
           <button type="button" onClick={guardar} disabled={busy} className="text-sm text-brand-700 hover:underline disabled:opacity-40">
             {busy ? <Spinner size={12} /> : "Guardar"}
           </button>
@@ -175,6 +186,7 @@ function MesFrio({ truckId, m, onGuardado }: { truckId: number; m: ConsumoFrioMe
 }
 
 function SurtidaFrioRow({ s, onChanged }: { s: SurtidaFrio; onChanged: () => void }) {
+  const soloMirar = useSoloMirar();
   const [editando, setEditando] = useState(false);
   const [litros, setLitros] = useState(String(s.liters));
   const [fecha, setFecha] = useState(s.logged_at.slice(0, 10));
@@ -244,7 +256,7 @@ function SurtidaFrioRow({ s, onChanged }: { s: SurtidaFrio; onChanged: () => voi
         )}
       </td>
       <td className="px-4 py-2 text-right">
-        {editando ? (
+        {soloMirar ? null : editando ? (
           <>
             <button type="button" onClick={guardar} disabled={busy} className="mr-3 text-sm text-brand-700 hover:underline disabled:opacity-40">
               Guardar

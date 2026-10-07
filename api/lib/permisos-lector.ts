@@ -40,6 +40,14 @@ export const LO_QUE_MIRA_EL_LECTOR: PedidoPermitido[] = [
   // Bajarse el Excel de lo que está mirando sigue siendo mirar: no cambia un solo dato.
   { metodo: "GET", ruta: /^\/api\/reports\/trips\.csv$/, porque: "el Excel de la lista filtrada" },
 
+  // Camiones, en SOLO LECTURA: la lista (`GET /api/trucks`, de arriba) y la ficha de cada uno.
+  // "Raúl tiene que poder ver los camiones" — pedido del 7/10/2026, sin rol nuevo. Sólo GET: crear,
+  // editar o borrar un camión, cargar una lectura o las horas de frío, y corregir o borrar una
+  // surtida siguen cerrados (un test fija el 403 de cada uno).
+  { metodo: "GET", ruta: /^\/api\/reports\/truck\/\d+$/, porque: "la ficha del camión: km, consumo mensual, viajes, vacíos y surtidas" },
+  { metodo: "GET", ruta: /^\/api\/lecturas$/, porque: "las fotos del tacógrafo de la ficha, mes a mes (no la auditoría)" },
+  { metodo: "GET", ruta: /^\/api\/frio$/, porque: "la cámara de frío de la ficha, en los camiones que la llevan" },
+
   // La pantalla de Consumo.
   // "Si al usuario de mi hermano le agregamos el resumen de los consumos, para ver. Solo esas dos
   // cosas: Viajes y Consumo." — Rodrigo, 22/9/2026. Es un endpoint propio y no `/reports/summary`

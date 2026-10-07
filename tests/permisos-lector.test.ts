@@ -118,7 +118,8 @@ describe("el lector no toca nada", () => {
     ["POST", "/api/frio"],
     ["POST", "/api/lecturas"],
     ["PUT", "/api/lecturas/1"],
-    ["GET", "/api/lecturas"],
+    ["GET", "/api/lecturas/auditoria"],
+    ["GET", "/api/lecturas/pendiente"],
     // Los datos con los que se arma un viaje.
     ["POST", "/api/templates"],
     ["PUT", "/api/templates/1"],
@@ -130,6 +131,13 @@ describe("el lector no toca nada", () => {
     ["PUT", "/api/drivers/1"],
     ["POST", "/api/trucks"],
     ["PUT", "/api/trucks/1"],
+    ["DELETE", "/api/trucks/1"],
+    ["PUT", "/api/trucks/1/plantillas"],
+    ["GET", "/api/trucks/1/plantillas"],
+    // Lo que se escribe desde la ficha del camión: surtidas, horas de frío y el tilde de verificada.
+    ["PUT", "/api/fuel/1/verificado"],
+    ["PUT", "/api/frio/horas/1/2026-10"],
+    ["DELETE", "/api/frio/1"],
     // Usuarios: ahí es donde se reparten los permisos.
     ["GET", "/api/users"],
     ["POST", "/api/users"],
@@ -143,7 +151,7 @@ describe("el lector no toca nada", () => {
     ["GET", "/api/reports/pendientes-cobro"],
     ["GET", "/api/reports/fuel.csv"],
     ["GET", "/api/reports/cliente.csv"],
-    ["GET", "/api/reports/truck/1"],
+    ["GET", "/api/reports/driver/1"],
     // Y lo del chofer, que tampoco es suyo.
     ["GET", "/api/trips/active"],
     ["GET", "/api/fuel"],
@@ -179,6 +187,47 @@ describe("el lector no toca nada", () => {
       ["GET", "/api/reports/summary"],
     ] as const) {
       expect(await status(method, url, ROLES.ENCARGADO)).not.toBe(403);
+    }
+  });
+});
+
+describe("el lector mira los camiones, sólo mirar", () => {
+  it.each([
+    ["GET", "/api/trucks"],
+    ["GET", "/api/reports/truck/1"],
+    ["GET", "/api/reports/truck/1?mes=2026-10"],
+    ["GET", "/api/lecturas?truck=1"],
+    ["GET", "/api/frio?truck=1"],
+  ])("%s %s no es 403", async (method, url) => {
+    expect(await status(method, url, ROLES.LECTOR)).not.toBe(403);
+  });
+
+  it("la lista blanca abre la ficha por su número y nada más de lo que la rodea", () => {
+    expect(lectorPuede("GET", "/api/reports/truck/7")).toBe(true);
+    expect(lectorPuede("GET", "/api/reports/truck/7/otra-cosa")).toBe(false);
+    expect(lectorPuede("GET", "/api/lecturas")).toBe(true);
+    expect(lectorPuede("GET", "/api/lecturas/auditoria")).toBe(false);
+    expect(lectorPuede("GET", "/api/lecturas/pendiente")).toBe(false);
+    expect(lectorPuede("GET", "/api/frio")).toBe(true);
+    expect(lectorPuede("GET", "/api/frio/estado")).toBe(false);
+  });
+
+  it("y ninguna escritura de camiones, lecturas, frío o surtidas está en la lista", () => {
+    for (const [metodo, ruta] of [
+      ["POST", "/api/trucks"],
+      ["PUT", "/api/trucks/1"],
+      ["DELETE", "/api/trucks/1"],
+      ["PUT", "/api/trucks/1/plantillas"],
+      ["POST", "/api/lecturas"],
+      ["PUT", "/api/lecturas/1"],
+      ["PUT", "/api/frio/horas/1/2026-10"],
+      ["PUT", "/api/frio/1"],
+      ["DELETE", "/api/frio/1"],
+      ["PUT", "/api/fuel/1"],
+      ["PUT", "/api/fuel/1/verificado"],
+      ["DELETE", "/api/fuel/1"],
+    ] as const) {
+      expect(lectorPuede(metodo, ruta), `${metodo} ${ruta}`).toBe(false);
     }
   });
 });
@@ -377,9 +426,9 @@ describe("lo que el lector recibe de choferes y camiones", () => {
     }
   });
 
-  it("y de cada camión sólo el id y la patente", async () => {
+  it("de los camiones recibe la lista entera, para mirarla en la pantalla de Camiones", async () => {
     const [camion] = await pedir("/api/trucks", ROLES.LECTOR);
-    expect(Object.keys(camion).sort()).toEqual(["id", "plate"]);
+    expect(camion).toMatchObject({ plate: "GTP 4325", odometer_km: 182450, avg_km_litro: 2.8 });
   });
 
   it("la oficina sigue recibiendo los campos de siempre", async () => {

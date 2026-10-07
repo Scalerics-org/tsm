@@ -74,7 +74,7 @@ export default function App() {
   // Plantillas, clientes, proveedores y lugares: sólo admin. Operaciones ve el día, choferes y
   // camiones (Rodrigo, 16/9).
   const ADM: Role[] = [ROLES.ADMIN];
-  // Las pantallas del "solo mirar": la lista de viajes, la ficha de uno y el Consumo.
+  // Las pantallas del "solo mirar": viajes, Consumo, Camiones (lista y ficha, sin editar) y el Taller (maqueta).
   // Cualquier otra dirección de /panel lo rebota a Viajes, que es su casa.
   const VER: Role[] = [ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR];
 
@@ -99,13 +99,13 @@ export default function App() {
         <Route path="/panel/resumen-cliente" element={<RequireRole roles={OPS}><ResumenClientePage /></RequireRole>} />
         <Route path="/panel/viajes/nuevo" element={<RequireRole roles={OPS}><NuevoViajePage /></RequireRole>} />
         <Route path="/panel/viajes/:id" element={<RequireRole roles={VER}><OpsTripDetailPage /></RequireRole>} />
-        <Route path="/panel/camion/:id" element={<RequireRole roles={OPS}><TruckDetailPage /></RequireRole>} />
+        <Route path="/panel/camion/:id" element={<RequireRole roles={VER}><TruckDetailPage /></RequireRole>} />
         <Route path="/panel/chofer/:id" element={<RequireRole roles={OPS}><DriverDetailPage /></RequireRole>} />
-        {/* La maqueta del Taller: sólo oficina (admin y encargado), con el login de siempre. No usa la API. */}
+        {/* La maqueta del Taller: oficina y lector, con el login de siempre. No usa la API. */}
         <Route
           path="/panel/taller/*"
           element={
-            <RequireRole roles={OPS}>
+            <RequireRole roles={VER}>
               <Suspense fallback={<Spinner size={28} />}>
                 <TallerMaqueta />
               </Suspense>
@@ -144,7 +144,7 @@ export default function App() {
 
         {/* Admin */}
         <Route path="/admin/choferes" element={<RequireRole roles={OPS}><AdminDriversPage /></RequireRole>} />
-        <Route path="/admin/camiones" element={<RequireRole roles={OPS}><AdminTrucksPage /></RequireRole>} />
+        <Route path="/admin/camiones" element={<RequireRole roles={VER}><AdminTrucksPage /></RequireRole>} />
         <Route path="/admin/usuarios" element={<RequireRole roles={[ROLES.ADMIN]}><AdminUsersPage /></RequireRole>} />
 
         <Route path="*" element={<Navigate to={homePath(user.role)} replace />} />

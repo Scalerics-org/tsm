@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { LecturaOdometro } from "@shared/domain";
 import { api, ApiError, mensajeDe } from "../../lib/api";
+import { useSoloMirar } from "../../lib/auth";
 import { compressImage } from "../../lib/image";
 import { Button, Card, Corners, ErrorDeCarga, ErrorText, Spinner } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
@@ -29,6 +30,7 @@ function nombreDelMes(periodo: string): string {
  * La foto NO se toca: es la evidencia contra la que se compara el número corregido.
  */
 export function LecturasDelCamion({ truckId }: { truckId: number }) {
+  const soloMirar = useSoloMirar();
   const [cargando, setCargando] = useState(false);
   const [lecturas, setLecturas] = useState<LecturaOdometro[] | null>(null);
   // Si fallaba, decía "Todavía no hay ninguna foto del tacógrafo", que es justo lo que hace que
@@ -51,18 +53,21 @@ export function LecturasDelCamion({ truckId }: { truckId: number }) {
         <div>
           <div className="font-cond text-lg font-semibold text-ink">Tacógrafo, mes a mes</div>
           <p className="mt-0.5 text-xs text-ink/55">
-            De acá sale la auditoría de kilómetros. Si un número está mal, corregilo: el chofer
-            no puede volver a cargar el mes.
+            {soloMirar
+              ? "De acá sale la auditoría de kilómetros."
+              : "De acá sale la auditoría de kilómetros. Si un número está mal, corregilo: el chofer no puede volver a cargar el mes."}
           </p>
         </div>
         {/* La app le pide la foto al chofer que tiene el camión asignado. Al camión sin chofer
             no se la pide nadie, y salía en Control como "falta la lectura" todos los meses sin
             que la oficina tuviera dónde cargarla — el servidor sí la aceptaba. */}
-        <Button variant="secondary" onClick={() => setCargando((v) => !v)}>
-          {cargando ? "Cancelar" : "+ Cargar lectura"}
-        </Button>
+        {!soloMirar && (
+          <Button variant="secondary" onClick={() => setCargando((v) => !v)}>
+            {cargando ? "Cancelar" : "+ Cargar lectura"}
+          </Button>
+        )}
       </div>
-      {cargando && (
+      {cargando && !soloMirar && (
         <NuevaLectura
           truckId={truckId}
           onListo={() => {
@@ -177,6 +182,7 @@ function NuevaLectura({ truckId, onListo }: { truckId: number; onListo: () => vo
 }
 
 function FilaLectura({ l, onChanged }: { l: LecturaOdometro; onChanged: () => void }) {
+  const soloMirar = useSoloMirar();
   const [editando, setEditando] = useState(false);
   const [km, setKm] = useState(String(l.kilometraje));
   const [mes, setMes] = useState(l.periodo);
@@ -316,13 +322,15 @@ function FilaLectura({ l, onChanged }: { l: LecturaOdometro; onChanged: () => vo
             </Button>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => setEditando(true)}
-            className="text-sm text-brand-700 hover:underline"
-          >
-            Corregir
-          </button>
+          !soloMirar && (
+            <button
+              type="button"
+              onClick={() => setEditando(true)}
+              className="text-sm text-brand-700 hover:underline"
+            >
+              Corregir
+            </button>
+          )
         )}
         {/* La resta de dos meses usa este número en los dos extremos: tocarlo mueve el mes
             propio y el siguiente. Mejor decirlo que sorprender. */}

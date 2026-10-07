@@ -10,13 +10,11 @@ import { CAMPOS_NUEVOS_DEL_CAMION, ETIQUETAS_CAMION, parseVencimientos } from ".
 const trucks = new Hono<{ Bindings: Env; Variables: Vars }>();
 trucks.use("*", requireAuth);
 
-// El lector la necesita para el filtro por camión de Viajes, y para eso alcanza con id y
-// patente: el odómetro y el rendimiento esperado de cada camión no son de él.
-trucks.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR), async (c) => {
-  const todos = await repo.listTrucks(c.env.DB);
-  if (c.get("user").role !== ROLES.LECTOR) return ok(c, todos);
-  return ok(c, todos.map(({ id, plate }) => ({ id, plate })));
-});
+// El lector la ve entera: sirve para el filtro por camión de Viajes y para la pantalla de Camiones,
+// que mira en solo lectura (odómetro, rendimiento y vencimientos incluidos, por pedido del 7/10).
+trucks.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR), async (c) =>
+  ok(c, await repo.listTrucks(c.env.DB)),
+);
 
 // Lista mínima (id + patente) para que el chofer elija con qué camión viaja.
 trucks.get("/options", async (c) =>

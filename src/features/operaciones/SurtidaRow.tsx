@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { fmtConsumo, litrosTotales, type FuelLog } from "@shared/domain";
+import { useSoloMirar } from "../../lib/auth";
 import { api, ApiError } from "../../lib/api";
 import { Button, ErrorText, Spinner } from "../../components/ui";
 import { fmtDateTime } from "../../lib/format";
@@ -50,6 +51,8 @@ export function SurtidaRow({
   // Optimista: el tilde tiene que responder al toque, es una fila más de una tabla que la
   // oficina va a recorrer entera. Si el servidor rechaza, vuelve solo.
   const [verificada, setVerificada] = useState(f.verificado_at != null);
+  // El lector ve el tilde pero no lo mueve, y no corrige ni borra.
+  const soloMirar = useSoloMirar();
 
   async function alternarVerificada() {
     const querido = !verificada;
@@ -163,47 +166,61 @@ export function SurtidaRow({
         <td className="px-4 py-2">
           {/* El tilde de la oficina. Cuando está puesto dice quién y cuándo: sin eso sería
               una marca sin dueño, y lo que se quiere saber es justamente quién la miró. */}
-          <button
-            type="button"
-            onClick={alternarVerificada}
-            aria-pressed={verificada}
-            title={
-              verificada
-                ? `Verificada${f.verificado_por ? ` por ${f.verificado_por}` : ""}${
-                    f.verificado_at ? ` el ${fmtDateTime(f.verificado_at)}` : ""
-                  }`
-                : "Marcar que ya chequeaste la boleta"
-            }
-            className={`flex h-6 w-6 items-center justify-center border transition ${
-              verificada
-                ? "border-st-greenDot bg-st-greenBg text-st-greenTx"
-                : "border-ink/25 text-transparent hover:border-brand hover:text-ink/25"
-            }`}
-          >
-            <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M3 8.5l3.5 3.5L13 4.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+          {soloMirar ? (
+            verificada && (
+              <span className="flex h-6 w-6 items-center justify-center border border-st-greenDot bg-st-greenBg text-st-greenTx" title="Verificada">
+                <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M3 8.5l3.5 3.5L13 4.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+            )
+          ) : (
+            <button
+              type="button"
+              onClick={alternarVerificada}
+              aria-pressed={verificada}
+              title={
+                verificada
+                  ? `Verificada${f.verificado_por ? ` por ${f.verificado_por}` : ""}${
+                      f.verificado_at ? ` el ${fmtDateTime(f.verificado_at)}` : ""
+                    }`
+                  : "Marcar que ya chequeaste la boleta"
+              }
+              className={`flex h-6 w-6 items-center justify-center border transition ${
+                verificada
+                  ? "border-st-greenDot bg-st-greenBg text-st-greenTx"
+                  : "border-ink/25 text-transparent hover:border-brand hover:text-ink/25"
+              }`}
+            >
+              <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M3 8.5l3.5 3.5L13 4.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
           {verificada && f.verificado_por && (
             <div className="mt-1 text-[11px] text-ink/45">{f.verificado_por}</div>
           )}
         </td>
         <td className="px-4 py-2 text-right">
-          <button
-            type="button"
-            onClick={() => setEditando(true)}
-            className="mr-3 text-sm text-brand-700 hover:underline"
-          >
-            Corregir
-          </button>
-          <button
-            type="button"
-            onClick={borrar}
-            disabled={busy}
-            className="text-sm text-st-redTx hover:underline disabled:opacity-40"
-          >
-            {busy ? <Spinner size={12} /> : "Borrar"}
-          </button>
+          {!soloMirar && (
+            <>
+              <button
+                type="button"
+                onClick={() => setEditando(true)}
+                className="mr-3 text-sm text-brand-700 hover:underline"
+              >
+                Corregir
+              </button>
+              <button
+                type="button"
+                onClick={borrar}
+                disabled={busy}
+                className="text-sm text-st-redTx hover:underline disabled:opacity-40"
+              >
+                {busy ? <Spinner size={12} /> : "Borrar"}
+              </button>
+            </>
+          )}
           <ErrorText>{error}</ErrorText>
         </td>
       </tr>

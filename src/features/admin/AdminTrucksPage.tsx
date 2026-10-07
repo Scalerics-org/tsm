@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useSoloMirar } from "../../lib/auth";
 import { TRUCK_STATUS, fmtConsumo, type Truck, type TruckStatus, type TripTemplate } from "@shared/domain";
 import { api, mensajeDe } from "../../lib/api";
 import { Button, Card, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
@@ -26,6 +27,8 @@ const STATUS_LABEL: Record<TruckStatus, string> = {
 };
 
 export function AdminTrucksPage() {
+  // El lector mira la lista y entra a cada ficha: nada de crear, editar ni eliminar.
+  const soloMirar = useSoloMirar();
   const [trucks, setTrucks] = useState<Truck[] | null>(null);
   const [editing, setEditing] = useState<Truck | "new" | null>(null);
   const [falló, setFalló] = useState<string | null>(null);
@@ -65,7 +68,7 @@ export function AdminTrucksPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-ink">Camiones</h1>
-        <Button onClick={() => setEditing("new")}>+ Nuevo camión</Button>
+        {!soloMirar && <Button onClick={() => setEditing("new")}>+ Nuevo camión</Button>}
       </div>
 
       {falló && (
@@ -73,7 +76,7 @@ export function AdminTrucksPage() {
       )}
       <ErrorText>{error}</ErrorText>
 
-      {editing && (
+      {editing && !soloMirar && (
         <TruckForm
           initial={editing === "new" ? EMPTY : editing}
           id={editing === "new" ? null : editing.id}
@@ -128,12 +131,16 @@ export function AdminTrucksPage() {
                   <Link to={`/panel/camion/${t.id}`} className="mr-3 text-brand-700 hover:underline">
                     Ver
                   </Link>
-                  <button className="mr-3 text-brand-700 hover:underline" onClick={() => setEditing(t)}>
-                    Editar
-                  </button>
-                  <button className="text-st-redTx hover:underline" onClick={() => remove(t.id)}>
-                    Eliminar
-                  </button>
+                  {!soloMirar && (
+                    <>
+                      <button className="mr-3 text-brand-700 hover:underline" onClick={() => setEditing(t)}>
+                        Editar
+                      </button>
+                      <button className="text-st-redTx hover:underline" onClick={() => remove(t.id)}>
+                        Eliminar
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}
