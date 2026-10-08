@@ -344,12 +344,14 @@ reports.get("/truck/:id", async (c) => {
   // La ficha muestra lo mismo que el Resumen: el mes abierto con la cuenta del chofer.
   const monthly = consumoMensualParaMostrar(
     fuel.map((f) => ({ odometer_km: f.odometer_km, liters: f.liters, is_full: !!f.is_full, logged_at: f.logged_at })),
+    hoyEnUruguay(),
   ).map((m) => ({
     month: m.month,
     km: Math.round(m.km),
     liters: Math.round(m.liters),
     kml: m.kml != null ? roundTo(m.kml, 2) : null,
     closed: m.closed,
+    en_curso: m.en_curso,
   }));
   // Los tramos vacíos, deducidos de la seguidilla de viajes de ESTE camión. Se calculan
   // sobre todos sus viajes y no sobre los 20 que se muestran: el hueco entre dos viajes

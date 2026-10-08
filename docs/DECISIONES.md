@@ -268,6 +268,7 @@ Eran dos cuentas a propósito (calendario en la oficina, de tanque lleno a tanqu
 "mientras no altere cómo medir el consumo y lo que te pedí acorde a los cierres, me gustaría ver lo mismo que
 ellos, para estar alineados".
 
+- **"Mes en curso" es el MES CALENDARIO DE HOY (hora de Uruguay), no el último mes con surtidas.** Un camión que no cargó nada este mes tiene su mes anterior como último con datos, y ese ya cerró: sale por calendario y dice "cerrado". `consumoMensualParaMostrar` recibe el "hoy" por parámetro y marca `en_curso`; la etiqueta de las pantallas sale de ahí. (`closed` de `monthlyConsumption` y la verificación mensual siguen con la semántica de siempre: el último mes con datos no se juzga, que es el lado seguro.)
 - **Mes abierto: una sola cuenta.** `consumoDelMesEnCurso` (`shared/domain.ts`) es la cuenta del chofer
   (primer a último llenado del mes, sin contar lo que sigue en el tanque). `fuelFeedback` la usa para el
   acumulado `month_kml` y la oficina para el mes abierto (`consumoMensualParaMostrar`): mismos datos, mismo número.

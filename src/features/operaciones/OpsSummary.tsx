@@ -13,6 +13,8 @@ interface MonthRow {
   liters: number;
   kml: number | null;
   closed: boolean;
+  /** Es el mes de hoy. La etiqueta sale de acá y no de `closed`: un mes pasado nunca dice "en curso". */
+  en_curso: boolean;
   /** La verificación del gasoil: si los litros alcanzan para los km de ESE mes. */
   verificacion?: {
     estado: "ok" | "faltan" | "sobran" | "en_curso" | "sin_datos";
@@ -298,8 +300,8 @@ export function OpsSummary() {
                             <span className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-ink/60">
                               {monthLabel(m.month)}
                             </span>
-                            <span className={`text-[10px] font-semibold uppercase ${m.closed ? "text-st-greenTx" : "text-st-amberTx"}`}>
-                              {m.closed ? "cerrado" : "en curso"}
+                            <span className={`text-[10px] font-semibold uppercase ${m.en_curso ? "text-st-amberTx" : "text-st-greenTx"}`}>
+                              {m.en_curso ? "en curso" : "cerrado"}
                             </span>
                           </div>
                           <div className="font-cond text-2xl font-semibold text-ink">
@@ -309,7 +311,7 @@ export function OpsSummary() {
                             {m.liters.toLocaleString("es-UY")} L · {m.km.toLocaleString("es-UY")} km
                           </div>
                           <div className="mt-0.5 text-[10.5px] leading-tight text-ink/45">
-                            {m.closed ? ORIGEN_DEL_CONSUMO_MENSUAL.cerrado : ORIGEN_DEL_CONSUMO_MENSUAL.abierto}
+                            {m.en_curso ? ORIGEN_DEL_CONSUMO_MENSUAL.abierto : ORIGEN_DEL_CONSUMO_MENSUAL.cerrado}
                           </div>
                           {/* Sólo habla cuando hay algo que decir: "dentro de lo habitual" es una línea
                               chica, y el mes en curso o sin datos no dice nada para no dar una alarma

@@ -1219,22 +1219,31 @@ export function monthlyConsumption(logs: FLog[]): MonthlyConsumption[] {
 }
 
 /**
- * El consumo mes por mes TAL COMO SE MUESTRA en la oficina: los meses cerrados por calendario (`monthlyConsumption`,
- * lo que cierra con las facturas) y el mes abierto con la cuenta del chofer (`consumoDelMesEnCurso`), para que los
- * dos vean el mismo número. Ver el bloque grande de `consumoDelMesEnCurso`.
+ * El consumo mes por mes TAL COMO SE MUESTRA en la oficina: todos los meses por calendario (`monthlyConsumption`,
+ * lo que cierra con las facturas) salvo el MES CALENDARIO ACTUAL, que va con la cuenta del chofer
+ * (`consumoDelMesEnCurso`), para que los dos vean el mismo número. Ver el bloque grande de `consumoDelMesEnCurso`.
  *
- * Los meses que aparecen y su orden son exactamente los de `monthlyConsumption`: sólo cambian los números del abierto.
+ * Los meses que aparecen y su orden son exactamente los de `monthlyConsumption`: sólo cambian los números del mes actual.
+ * `en_curso` dice si el mes es el de hoy; es lo que decide la etiqueta de la pantalla (un mes pasado nunca dice "en curso").
  * Si todavía no hay dos llenados en el mes (sin tramo que medir) se dejan los km y litros del calendario y el km/L
  * queda vacío, igual que en el celular del chofer: un "0 L" en un mes donde se cargó gasoil engañaría más que ayudar.
  *
  * Las verificaciones (litros faltantes, anomalías) siguen usando `monthlyConsumption`: no juzgan el mes abierto.
  */
-export function consumoMensualParaMostrar(logs: FLog[]): MonthlyConsumption[] {
+export function consumoMensualParaMostrar(
+  logs: FLog[],
+  hoy: string,
+): (MonthlyConsumption & { en_curso: boolean })[] {
+  const mesActual = hoy.slice(0, 7);
   return monthlyConsumption(logs).map((m) => {
-    if (m.closed) return m;
+    // EL MES EN CURSO ES EL MES CALENDARIO DE HOY, no "el último con surtidas" (`closed: false`). Un camión que
+    // todavía no cargó nada este mes tiene su mes anterior como último con datos, y ese ya cerró: cambiarle el
+    // número rompería lo que Rodrigo pidió que no se toque (los cierres). `hoy` entra por parámetro, en hora de
+    // Uruguay ("YYYY-MM-DD"), para que se pueda probar y para no depender del reloj UTC.
+    if (m.month !== mesActual) return { ...m, en_curso: false };
     const abierto = consumoDelMesEnCurso(logs, m.month);
-    if (abierto.kml == null) return { ...m, kml: null };
-    return { ...m, km: abierto.km, liters: abierto.liters, kml: abierto.kml, base_propia: false };
+    if (abierto.kml == null) return { ...m, kml: null, en_curso: true };
+    return { ...m, km: abierto.km, liters: abierto.liters, kml: abierto.kml, base_propia: false, en_curso: true };
   });
 }
 

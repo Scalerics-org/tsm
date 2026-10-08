@@ -29,13 +29,16 @@ const GTP_4382 = [
   { logged_at: "2026-09-05 21:19:35", odometer_km: 367829, liters: 230.79, is_full: true },
 ];
 
+/** "Hoy" en Uruguay: el mes de setiembre es el calendario actual. */
+const HOY = "2026-09-10";
+
 const mes = <T extends { month: string }>(r: T[], m: string) => r.find((x) => x.month === m);
 
 describe("el mes en curso: oficina y chofer dan EXACTAMENTE lo mismo", () => {
   it("el km/L del mes abierto de la oficina es el acumulado que ve el chofer al cargar la última surtida", () => {
     const ultima = GTP_4382[GTP_4382.length - 1];
     const chofer = fuelFeedback(GTP_4382, ultima);
-    const oficina = mes(consumoMensualParaMostrar(GTP_4382), "2026-09");
+    const oficina = mes(consumoMensualParaMostrar(GTP_4382, HOY), "2026-09");
 
     expect(oficina?.closed).toBe(false);
     expect(oficina?.kml).toBe(chofer.month_kml);
@@ -57,21 +60,21 @@ describe("el mes en curso: oficina y chofer dan EXACTAMENTE lo mismo", () => {
     ];
     const chorro = conChorro[conChorro.length - 1];
     const chofer = fuelFeedback(conChorro, chorro);
-    const oficina = mes(consumoMensualParaMostrar(conChorro), "2026-09");
+    const oficina = mes(consumoMensualParaMostrar(conChorro, HOY), "2026-09");
     expect(oficina?.kml).toBe(chofer.month_kml);
     expect(oficina?.liters).toBeCloseTo(230.79, 2);
   });
 
   it("la oficina ya no da el número de calendario en el mes abierto (eran distintos)", () => {
     const calendario = mes(monthlyConsumption(GTP_4382), "2026-09");
-    const mostrado = mes(consumoMensualParaMostrar(GTP_4382), "2026-09");
+    const mostrado = mes(consumoMensualParaMostrar(GTP_4382, HOY), "2026-09");
     expect(calendario?.kml).not.toBe(mostrado?.kml);
   });
 });
 
 describe("los meses cerrados no se tocan", () => {
   it("agosto de GTP 4382 sigue en 10.027 km / 3.090,26 L / 3,24 km/L por calendario", () => {
-    const agosto = mes(consumoMensualParaMostrar(GTP_4382), "2026-08");
+    const agosto = mes(consumoMensualParaMostrar(GTP_4382, HOY), "2026-08");
     expect(agosto?.closed).toBe(true);
     expect(agosto?.km).toBe(10027);
     expect(agosto?.liters).toBeCloseTo(3090.26, 2);
@@ -80,12 +83,14 @@ describe("los meses cerrados no se tocan", () => {
 
   it("es idéntico a monthlyConsumption en todo mes cerrado", () => {
     const viejos = monthlyConsumption(GTP_4382).filter((m) => m.closed);
-    const nuevos = consumoMensualParaMostrar(GTP_4382).filter((m) => m.closed);
+    const nuevos = consumoMensualParaMostrar(GTP_4382, HOY)
+      .filter((m) => m.closed)
+      .map(({ en_curso: _, ...m }) => m);
     expect(nuevos).toEqual(viejos);
   });
 
   it("aparecen los mismos meses y en el mismo orden", () => {
-    expect(consumoMensualParaMostrar(GTP_4382).map((m) => m.month)).toEqual(
+    expect(consumoMensualParaMostrar(GTP_4382, HOY).map((m) => m.month)).toEqual(
       monthlyConsumption(GTP_4382).map((m) => m.month),
     );
   });
@@ -93,6 +98,7 @@ describe("los meses cerrados no se tocan", () => {
   it("lo que manda la API (redondeado) conserva agosto cerrado y pone setiembre con la cuenta del chofer", () => {
     const filas = consumoMensualDelCamion(
       GTP_4382.map((l, i) => ({ id: i, truck_id: 1, ...l })) as any,
+      HOY,
     );
     expect(filas.find((m) => m.month === "2026-08")).toMatchObject({ km: 10027, liters: 3090, kml: 3.24, closed: true });
     expect(filas.find((m) => m.month === "2026-09")).toMatchObject({ km: 723, liters: 231, closed: false });
@@ -107,16 +113,47 @@ describe("con menos de dos llenados en el mes abierto", () => {
 
   it("no hay tramo en el mes: km/L vacío, como en el celular", () => {
     const chofer = fuelFeedback(poco, poco[1]);
-    const setiembre = mes(consumoMensualParaMostrar(poco), "2026-09");
+    const setiembre = mes(consumoMensualParaMostrar(poco, HOY), "2026-09");
     expect(chofer.month_kml).toBeNull();
     expect(setiembre?.kml).toBeNull();
   });
 
   it("el mes sigue apareciendo y conserva los km y litros del calendario", () => {
     const calendario = mes(monthlyConsumption(poco), "2026-09");
-    const setiembre = mes(consumoMensualParaMostrar(poco), "2026-09");
+    const setiembre = mes(consumoMensualParaMostrar(poco, HOY), "2026-09");
     expect(setiembre).toBeDefined();
     expect(setiembre?.km).toBe(calendario?.km);
     expect(setiembre?.liters).toBe(calendario?.liters);
+  });
+});
+
+describe("el mes en curso es el mes calendario de HOY, no el último con surtidas", () => {
+  it("un camión sin surtidas este mes: su último mes (pasado) sale idéntico a monthlyConsumption", () => {
+    // Hoy es octubre y el camión no cargó nada: setiembre es el último con datos pero YA cerró.
+    const octubre = "2026-10-08";
+    const mostrado = consumoMensualParaMostrar(GTP_4382, octubre);
+    const sinAgregado = mostrado.map(({ en_curso: _, ...m }) => m);
+    expect(sinAgregado).toEqual(monthlyConsumption(GTP_4382));
+    expect(mostrado.every((m) => !m.en_curso)).toBe(true);
+    // Setiembre conserva su cuenta por calendario, no la del chofer.
+    expect(mes(mostrado, "2026-09")?.kml).toBe(mes(monthlyConsumption(GTP_4382), "2026-09")?.kml);
+  });
+
+  it("un camión con surtidas este mes: ese mes lleva la cuenta del chofer y dice en_curso", () => {
+    const mostrado = consumoMensualParaMostrar(GTP_4382, "2026-09-10");
+    const setiembre = mes(mostrado, "2026-09");
+    expect(setiembre?.en_curso).toBe(true);
+    expect(setiembre?.kml).toBeCloseTo(3.1325, 3);
+    expect(mes(mostrado, "2026-08")?.en_curso).toBe(false);
+  });
+
+  it("el último día del mes todavía cuenta como en curso, y el 1° del siguiente ya no", () => {
+    expect(mes(consumoMensualParaMostrar(GTP_4382, "2026-09-30"), "2026-09")?.en_curso).toBe(true);
+    expect(mes(consumoMensualParaMostrar(GTP_4382, "2026-10-01"), "2026-09")?.en_curso).toBe(false);
+  });
+
+  it("la API marca en_curso sólo en el mes de hoy", () => {
+    const filas = consumoMensualDelCamion(GTP_4382.map((l, i) => ({ id: i, truck_id: 1, ...l })) as any, "2026-10-08");
+    expect(filas.map((f) => f.en_curso)).toEqual([false, false]);
   });
 });

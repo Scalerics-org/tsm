@@ -1,3 +1,4 @@
+import { hoyEnUruguay } from "../../shared/vencimientos";
 import { consumoDelPeriodo, consumoMensualParaMostrar, type FuelLog } from "../../shared/domain";
 
 /**
@@ -30,6 +31,8 @@ export interface ConsumoDelMes {
   liters: number;
   kml: number | null;
   closed: boolean;
+  /** Es el mes calendario de hoy: el único que lleva la cuenta del chofer. */
+  en_curso: boolean;
 }
 
 export function consumoDelCamion(surtidas: FuelLog[], desde?: string, hasta?: string): ConsumoDelPeriodo {
@@ -41,8 +44,8 @@ export function consumoDelCamion(surtidas: FuelLog[], desde?: string, hasta?: st
   };
 }
 
-export function consumoMensualDelCamion(surtidas: FuelLog[]): ConsumoDelMes[] {
-  // Cerrados por calendario; el mes abierto con la cuenta del chofer (ver `consumoDelMesEnCurso`).
+export function consumoMensualDelCamion(surtidas: FuelLog[], hoy: string = hoyEnUruguay()): ConsumoDelMes[] {
+  // Todos por calendario, salvo el mes de HOY con la cuenta del chofer (ver `consumoDelMesEnCurso`).
   return consumoMensualParaMostrar(
     surtidas.map((f) => ({
       odometer_km: f.odometer_km,
@@ -50,6 +53,7 @@ export function consumoMensualDelCamion(surtidas: FuelLog[]): ConsumoDelMes[] {
       is_full: !!f.is_full,
       logged_at: f.logged_at,
     })),
+    hoy,
   )
     .slice(0, MESES_A_MOSTRAR)
     .map((m) => ({
@@ -58,5 +62,6 @@ export function consumoMensualDelCamion(surtidas: FuelLog[]): ConsumoDelMes[] {
       liters: Math.round(m.liters),
       kml: m.kml != null ? redondear(m.kml, 2) : null,
       closed: m.closed,
+      en_curso: m.en_curso,
     }));
 }
