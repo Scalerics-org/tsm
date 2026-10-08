@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { soloCamiones } from "@shared/clase-vehiculo";
 import { DRIVER_STATUS, TRIP_STATUS, pesoSospechoso, type Driver, type TemplateField, type Trip, type Truck } from "@shared/domain";
 import { api, ApiError, mensajeDe } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
@@ -99,7 +100,7 @@ export function EditarCabecera({ trip, recorridoPorCargas, onGuardado, onCancela
     const falla = (e: unknown) =>
       setListasFalló(mensajeDe(e, "No se pudieron cargar los choferes y los camiones."));
     api.get<Driver[]>("/drivers").then(setDrivers).catch(falla);
-    api.get<Truck[]>("/trucks").then(setTrucks).catch(falla);
+    api.get<Truck[]>("/trucks").then((t) => setTrucks(soloCamiones(t))).catch(falla);
   }, []);
 
   const set = (k: keyof Formulario) => (e: { target: { value: string } }) =>

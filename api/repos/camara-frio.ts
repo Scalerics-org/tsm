@@ -3,7 +3,7 @@ import type { HorasFrio, SurtidaFrio } from "../../shared/camara-frio";
 /** Si el camión lleva cámara de frío. Un camión que no existe no la lleva. */
 export async function tieneCamaraFrio(db: D1Database, truckId: number): Promise<boolean> {
   const row = await db
-    .prepare("SELECT camara_frio FROM trucks WHERE id = ?")
+    .prepare("SELECT camara_frio FROM trucks WHERE id = ? AND clase = 'camion'")
     .bind(truckId)
     .first<{ camara_frio: number }>();
   return !!row?.camara_frio;

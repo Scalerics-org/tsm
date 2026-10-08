@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { soloCamiones } from "@shared/clase-vehiculo";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   DRIVER_STATUS,
@@ -72,7 +73,7 @@ export function OpsTripsPage() {
     const falla = (e: unknown) =>
       setFiltrosFalló(mensajeDe(e, "No se pudieron cargar las opciones de los filtros."));
     api.get<Driver[]>("/drivers").then(setDrivers).catch(falla);
-    api.get<Truck[]>("/trucks").then(setTrucks).catch(falla);
+    api.get<Truck[]>("/trucks").then((t) => setTrucks(soloCamiones(t))).catch(falla);
     api.get<Provider[]>("/providers").then(setProviders).catch(falla);
     api.get<{ nombre: string; cobra: boolean; soloCarga: boolean }[]>("/trips/clientes").then(setClientes).catch(falla);
     api.get<TripTemplate[]>("/templates").then(setPlantillas).catch(falla);

@@ -11,6 +11,8 @@ import { fmtDate, fmtDateTime } from "../../lib/format";
 import { esMes } from "@shared/periodo-mes";
 import { DocumentosDeLaFicha } from "../../components/DocumentosDeLaFicha";
 import { DOCUMENTOS_DEL_CAMION } from "@shared/vencimientos";
+import { esCamion } from "@shared/clase-vehiculo";
+import { FichaDeVehiculo } from "./FichaDeVehiculo";
 
 interface MonthRow {
   month: string;
@@ -102,6 +104,8 @@ export function TruckDetailPage() {
   }
 
   const { truck } = d;
+  // Un remolque o un montacargas no tiene consumo, tacógrafo ni viajes: ficha propia, más corta.
+  if (!esCamion(truck)) return <FichaDeVehiculo vehiculo={truck} />;
   const periodo = mes === "todo" ? null : porFotos ? `${nombreDelMes(mes)} (de foto a foto)` : nombreDelMes(mes);
   // Los meses con viajes, y el elegido aunque no tenga (el mes en curso recién empezado).
   const opciones = [...new Set([...(mes === "todo" ? [] : [mes]), ...d.meses])].sort().reverse();

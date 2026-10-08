@@ -1,5 +1,6 @@
 // Dominio compartido (v2) — modelo de viajes precargados.
 import { claveDeLugar } from "./distancias";
+import type { ClaseVehiculo } from "./clase-vehiculo";
 
 export const ROLES = {
   CHOFER: "chofer",
@@ -115,6 +116,12 @@ export const TRUCK_STATUS = {
 } as const;
 export type TruckStatus = (typeof TRUCK_STATUS)[keyof typeof TRUCK_STATUS];
 
+export const TRUCK_STATUS_LABEL: Record<TruckStatus, string> = {
+  disponible: "Disponible",
+  en_viaje: "En viaje",
+  mantenimiento: "Mantenimiento",
+};
+
 // ── Entidades ──
 
 export interface Truck {
@@ -124,6 +131,11 @@ export interface Truck {
   model: string;
   year: number;
   type: string;
+  /**
+   * Camión, remolque o montacargas (ver `shared/clase-vehiculo.ts`). Opcional en el tipo porque una
+   * respuesta vieja no la trae: sin clase es un camión.
+   */
+  clase?: ClaseVehiculo;
   capacity_kg: number;
   odometer_km: number;
   /** Rendimiento esperado en km por litro. Más alto es mejor. */

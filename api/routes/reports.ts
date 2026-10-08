@@ -26,7 +26,8 @@ import { listTemplates } from "../repos/templates";
 import { listFuelLogs } from "../repos/fuel";
 import { listSurtidasFrioDesde } from "../repos/camara-frio";
 import { DIAS_REPETIDAS_VIGENTES, repetidasVigentes, surtidasRepetidas } from "../../shared/surtidas-repetidas";
-import { listTrucks, getTruck } from "../repos/trucks";
+import { soloCamiones } from "../../shared/clase-vehiculo";
+import { listTrucks, listCamiones, getTruck } from "../repos/trucks";
 import { listDrivers, getDriver } from "../repos/drivers";
 import { tripPhotoStatus } from "../repos/photos";
 import { DIAS_PARA_AVISAR, avisosDeVencimientos, hoyEnUruguay } from "../../shared/vencimientos";
@@ -51,7 +52,8 @@ reports.get("/summary", async (c) => {
   const q = c.req.query();
   const range = { from: q.from, to: q.to };
   const [trucks, trips, fuel, allFuel, todosLosViajes] = await Promise.all([
-    listTrucks(c.env.DB),
+    // Sólo camiones: un remolque no tiene km, litros ni viajes que resumir.
+    listCamiones(c.env.DB),
     listTrips(c.env.DB, { from: range.from, to: range.to }),
     listFuelLogs(c.env.DB, { from: range.from, to: range.to }),
     listFuelLogs(c.env.DB, {}),
@@ -166,7 +168,7 @@ reports.get("/summary", async (c) => {
 // entra porque `permisos-lector.ts` lo nombra.
 reports.get("/consumo", async (c) => {
   const q = c.req.query();
-  const [trucks, allFuel] = await Promise.all([listTrucks(c.env.DB), listFuelLogs(c.env.DB, {})]);
+  const [trucks, allFuel] = await Promise.all([listCamiones(c.env.DB), listFuelLogs(c.env.DB, {})]);
 
   // Un camión sin una sola surtida no tiene nada que medir: queda afuera en vez de llenar la
   // pantalla de filas en blanco.
@@ -190,10 +192,11 @@ reports.get("/consumo", async (c) => {
 reports.get("/alerts", async (c) => {
   const now = Date.now();
   const desdeRepetidas = new Date(now - DIAS_REPETIDAS_VIGENTES * 86_400_000).toISOString().slice(0, 10);
-  const [trips, photoStatus, drivers, trucks, allFuel, frioReciente] = await Promise.all([
+  const [trips, photoStatus, drivers, vehiculos, allFuel, frioReciente] = await Promise.all([
     listTrips(c.env.DB, { status: TRIP_STATUS.EN_CURSO }),
     tripPhotoStatus(c.env.DB, { status: TRIP_STATUS.COMPLETADO }),
     listDrivers(c.env.DB),
+    // TODOS los vehículos: los remolques también tienen SOA y sticker que vencen.
     listTrucks(c.env.DB),
     listFuelLogs(c.env.DB, {}),
     listSurtidasFrioDesde(c.env.DB, desdeRepetidas),
@@ -237,7 +240,9 @@ reports.get("/alerts", async (c) => {
   // Un solo criterio para todos los vencimientos: el mismo del Resumen (`/vencimientos`), con el mismo
   // umbral (`DIAS_PARA_AVISAR`) y la misma cuenta de días de Uruguay. Control tenía la suya, a 60 días y
   // con `Date.now()` en UTC: el mismo chofer podía figurar "por vencer" en una pantalla y no en la otra.
-  const vencimientos = avisosDeVencimientos({ camiones: trucks, choferes: drivers }, hoyEnUruguay());
+  const vencimientos = avisosDeVencimientos({ camiones: vehiculos, choferes: drivers }, hoyEnUruguay());
+  // Todo lo demás de Control mide ruta (rendimiento, surtidas repetidas): sólo camiones.
+  const trucks = soloCamiones(vehiculos);
   // `expiringLicenses` se sigue mandando, con la misma cuenta, para una pestaña de Control abierta antes
   // del deploy: leería `undefined.length` y se rompería. Ya no la usa la pantalla nueva.
   const expiringLicenses = vencimientos

@@ -6,6 +6,8 @@ import { ROLES, DRIVER_STATUS } from "../../shared/domain";
 import { hashPassword } from "../lib/crypto";
 import * as repo from "../repos/drivers";
 import { motivoParaNoBorrarChofer } from "../lib/frenos-de-borrado";
+import { MENSAJE_NO_ES_CAMION } from "../../shared/clase-vehiculo";
+import { esRemolqueOMontacargas } from "../repos/trucks";
 import { ETIQUETAS_CHOFER_NUEVOS, parseVencimientos } from "../../shared/vencimientos";
 
 const CAMPOS_VENC_CHOFER = ["venc_permiso_puerto", "venc_carnet_salud"] as const;
@@ -40,6 +42,9 @@ drivers.post("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const b = await c.req.json<any>().catch(() => null);
   const input = parse(b);
   if (!input) return fail(c, "Nombre y documento son obligatorios", 400);
+  if (input.default_truck_id && (await esRemolqueOMontacargas(c.env.DB, input.default_truck_id))) {
+    return fail(c, MENSAJE_NO_ES_CAMION, 400);
+  }
   // El chofer entra con la patente de su camión y este PIN: sin PIN no tiene con qué entrar.
   // El mensaje lo dice porque el formulario no marcaba el campo como obligatorio y el rechazo
   // no se veía en pantalla — "no puedo dar de alta al chofer del último camión".
@@ -59,6 +64,9 @@ drivers.put("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   const b = await c.req.json<any>().catch(() => null);
   const input = parse(b);
   if (!input) return fail(c, "Nombre y documento son obligatorios", 400);
+  if (input.default_truck_id && (await esRemolqueOMontacargas(c.env.DB, input.default_truck_id))) {
+    return fail(c, MENSAJE_NO_ES_CAMION, 400);
+  }
   // Vacío significa "dejá el PIN como está". Un PIN corto NO es eso: antes se ignoraba en
   // silencio y la oficina se quedaba creyendo que lo había cambiado.
   const pin = b.pin == null ? "" : String(b.pin);

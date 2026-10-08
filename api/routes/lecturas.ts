@@ -21,7 +21,7 @@ import { claveMovida, esPeriodo, fechaDeFoto, moverLectura } from "../lib/lectur
 import * as repo from "../repos/lecturas";
 import { listTrips } from "../repos/trips";
 import { listDrivers } from "../repos/drivers";
-import { listTrucks, getTruck } from "../repos/trucks";
+import { listCamiones, getTruck } from "../repos/trucks";
 import { listTemplates } from "../repos/templates";
 import { listFuelLogs } from "../repos/fuel";
 import { surtidasARevisar } from "../lib/surtidas-a-revisar";
@@ -196,7 +196,8 @@ lecturas.get("/auditoria", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) 
   const previo = periodoAnterior(mes);
 
   const [camiones, delMes, delPrevio, viajes, plantillas, surtidas, choferes] = await Promise.all([
-    listTrucks(c.env.DB),
+    // Sólo camiones: a un remolque no se le pide foto del tacógrafo ni se le miden km.
+    listCamiones(c.env.DB),
     repo.listLecturas(c.env.DB, { periodo: mes }),
     repo.listLecturas(c.env.DB, { periodo: previo }),
     // Se piden DOS meses de viajes, no uno. La ventana que se compara no es el mes

@@ -42,8 +42,13 @@ export function tipoDesdeTexto(texto: string): { id: string; supuesto?: string }
 }
 
 /** La disposición para un texto de "Tipo". Si hubo que suponer algo queda en `aConfirmar`, que la ficha muestra. */
-export function disposicionDesdeTexto(texto: string): Disposicion {
-  const { id, supuesto } = tipoDesdeTexto(texto);
+export function disposicionDesdeTexto(texto: string, clase?: Truck["clase"]): Disposicion {
+  let { id, supuesto } = tipoDesdeTexto(texto);
+  // La clase la eligió la oficina: si dice remolque y el texto no lo dice (p. ej. "Furgón"), no se dibuja un tractor.
+  if (clase === "remolque" && !/^(remolque|sorra)/.test(id)) {
+    id = "remolque-3";
+    supuesto = `«${texto.trim() || "vacío"}» no dice qué remolque es: se asumió un semirremolque de tres ejes.`;
+  }
   const base = tipoDeVehiculo(id);
   return supuesto ? { ...base, aConfirmar: supuesto } : base;
 }
@@ -67,7 +72,7 @@ const descripcionDe = (c: Pick<Truck, "brand" | "model" | "year">) => {
  * ("no se sabe") y las pantallas no estiman fechas con eso. `choferAsignado` es el nombre, si se sabe.
  */
 export function vehiculoDeCamion(camion: Truck, choferAsignado = ""): Vehiculo {
-  const disposicion = disposicionDesdeTexto(camion.type ?? "");
+  const disposicion = disposicionDesdeTexto(camion.type ?? "", camion.clase);
   const tipo = TIPO_DE_CARROCERIA[disposicion.carroceria];
   return {
     patente: camion.plate,

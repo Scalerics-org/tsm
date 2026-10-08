@@ -7,6 +7,28 @@ export async function listTrucks(db: D1Database): Promise<Truck[]> {
   return results ?? [];
 }
 
+/**
+ * Sólo los camiones: lo que anda en ruta. Es la lista de todo lo que mide ruta o se le asigna a un
+ * chofer (salida, Control, consumo, surtidas). Los remolques y montacargas quedan afuera, y
+ * `listTrucks` —que los trae a todos— se usa sólo donde también corren: la pantalla de Camiones,
+ * los vencimientos y el Taller.
+ */
+export async function listCamiones(db: D1Database): Promise<Truck[]> {
+  const { results } = await db
+    .prepare("SELECT * FROM trucks WHERE clase = 'camion' ORDER BY plate")
+    .all<Truck>();
+  return results ?? [];
+}
+
+/**
+ * ¿Existe y NO es un camión (es un remolque o un montacargas)? Un id que no existe da `false`: de
+ * eso se queja el resto del flujo con su propio mensaje.
+ */
+export async function esRemolqueOMontacargas(db: D1Database, id: number): Promise<boolean> {
+  const fila = await db.prepare("SELECT clase FROM trucks WHERE id = ?").bind(id).first<{ clase: string }>();
+  return !!fila?.clase && fila.clase !== "camion";
+}
+
 export async function getTruck(db: D1Database, id: number): Promise<Truck | null> {
   return (await db.prepare("SELECT * FROM trucks WHERE id = ?").bind(id).first<Truck>()) ?? null;
 }
@@ -20,11 +42,11 @@ export type TruckInput = Omit<Truck, "id" | "odometer_at">;
 export async function createTruck(db: D1Database, t: TruckInput): Promise<number> {
   const res = await db
     .prepare(
-      `INSERT INTO trucks (plate, brand, model, year, type, capacity_kg, odometer_km, avg_km_litro, status, camara_frio, odometer_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? > 0 THEN datetime('now') END)`,
+      `INSERT INTO trucks (plate, brand, model, year, type, clase, capacity_kg, odometer_km, avg_km_litro, status, camara_frio, odometer_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? > 0 THEN datetime('now') END)`,
     )
     .bind(
-      t.plate, t.brand, t.model, t.year, t.type, t.capacity_kg, t.odometer_km, t.avg_km_litro,
+      t.plate, t.brand, t.model, t.year, t.type, t.clase ?? "camion", t.capacity_kg, t.odometer_km, t.avg_km_litro,
       t.status, t.camara_frio ? 1 : 0, t.odometer_km,
     )
     .run();
@@ -40,6 +62,9 @@ export async function createTruck(db: D1Database, t: TruckInput): Promise<number
  *
  * En SQLite el lado derecho del SET lee los valores VIEJOS de la fila, así que el CASE
  * compara contra el odómetro que había antes de este UPDATE.
+ *
+ * La clase sólo se toca si viene: una pantalla abierta antes del deploy no la manda, y guardar
+ * desde ahí no puede convertir un remolque en camión.
  */
 export async function updateTruck(db: D1Database, id: number, t: TruckInput): Promise<void> {
   await db
@@ -47,12 +72,12 @@ export async function updateTruck(db: D1Database, id: number, t: TruckInput): Pr
       `UPDATE trucks
           SET plate=?, brand=?, model=?, year=?, type=?, capacity_kg=?,
               odometer_at = CASE WHEN odometer_km = ? THEN odometer_at ELSE datetime('now') END,
-              odometer_km=?, avg_km_litro=?, status=?, camara_frio=?
+              odometer_km=?, avg_km_litro=?, status=?, camara_frio=?, clase = COALESCE(?, clase)
         WHERE id=?`,
     )
     .bind(
       t.plate, t.brand, t.model, t.year, t.type, t.capacity_kg,
-      t.odometer_km, t.odometer_km, t.avg_km_litro, t.status, t.camara_frio ? 1 : 0, id,
+      t.odometer_km, t.odometer_km, t.avg_km_litro, t.status, t.camara_frio ? 1 : 0, t.clase ?? null, id,
     )
     .run();
 }

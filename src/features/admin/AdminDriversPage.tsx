@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { soloCamiones } from "@shared/clase-vehiculo";
 import { Link } from "react-router-dom";
 import { DRIVER_STATUS, ROLES, type Driver, type Truck } from "@shared/domain";
 import { useAuth } from "../../lib/auth";
@@ -25,7 +26,7 @@ export function AdminDriversPage() {
     // se puede dar de alta a nadie, así que su error tampoco puede quedar callado.
     api
       .get<Truck[]>("/trucks")
-      .then(setTrucks)
+      .then((t) => setTrucks(soloCamiones(t)))
       .catch((e) => setFalló(mensajeDe(e)));
   }
   useEffect(load, []);

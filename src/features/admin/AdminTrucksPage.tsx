@@ -1,12 +1,23 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useSoloMirar } from "../../lib/auth";
-import { TRUCK_STATUS, fmtConsumo, type Truck, type TruckStatus, type TripTemplate } from "@shared/domain";
+import { TRUCK_STATUS, TRUCK_STATUS_LABEL, fmtConsumo, type Truck, type TripTemplate } from "@shared/domain";
+import {
+  CLASES_DE_VEHICULO,
+  CLASE_VEHICULO,
+  ETIQUETA_CLASE,
+  ETIQUETA_PESTANA_CLASE,
+  claseDe,
+  deLaClase,
+  esClaseDeVehiculo,
+  type ClaseVehiculo,
+} from "@shared/clase-vehiculo";
 import { api, mensajeDe } from "../../lib/api";
 import { Button, Card, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
 import { FechaInput } from "../../components/FechaInput";
 import { MarcaVencimientos } from "../../components/MarcaVencimientos";
-import { DOCUMENTOS_DEL_CAMION } from "@shared/vencimientos";
+import { DOCUMENTOS_DEL_CAMION, estadoDeVencimiento, hoyEnUruguay } from "@shared/vencimientos";
+import { fmtDate } from "../../lib/format";
 
 const EMPTY: Omit<Truck, "id"> = {
   plate: "",
@@ -20,16 +31,50 @@ const EMPTY: Omit<Truck, "id"> = {
   status: TRUCK_STATUS.DISPONIBLE,
 };
 
-const STATUS_LABEL: Record<TruckStatus, string> = {
-  disponible: "Disponible",
-  en_viaje: "En viaje",
-  mantenimiento: "Mantenimiento",
+const STATUS_LABEL = TRUCK_STATUS_LABEL;
+
+/** Lo que dice el botón de alta en cada pestaña. */
+const NUEVO: Record<ClaseVehiculo, string> = {
+  camion: "+ Nuevo camión",
+  remolque: "+ Nuevo remolque",
+  montacargas: "+ Nuevo montacargas",
 };
+
+const COLOR_DE_VENCIMIENTO = {
+  vencido: "text-st-redTx",
+  por_vencer: "text-st-amberTx",
+  vigente: "text-ink/70",
+  sin_fecha: "",
+} as const;
+
+/**
+ * Los documentos con fecha de un remolque, uno por línea ("SOA 12/03/2027"), con el color de su
+ * estado. Sin ninguna fecha cargada dice "—": no se sabe no es lo mismo que vencido.
+ */
+function DocumentosEnLinea({ vehiculo }: { vehiculo: Truck }) {
+  const hoy = hoyEnUruguay();
+  const conFecha = DOCUMENTOS_DEL_CAMION.filter((d) => vehiculo[d.campo]);
+  if (!conFecha.length) return <span className="text-ink/40">—</span>;
+  return (
+    <ul className="space-y-0.5">
+      {conFecha.map((d) => (
+        <li key={d.campo} className={COLOR_DE_VENCIMIENTO[estadoDeVencimiento(vehiculo[d.campo], hoy)]}>
+          {d.nombre} {fmtDate(vehiculo[d.campo] as string)}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export function AdminTrucksPage() {
   // El lector mira la lista y entra a cada ficha: nada de crear, editar ni eliminar.
   const soloMirar = useSoloMirar();
   const [trucks, setTrucks] = useState<Truck[] | null>(null);
+  // La pestaña vive en la URL (?clase=remolque; sin nada son los camiones) para poder volver atrás
+  // desde una ficha y compartir el enlace.
+  const [params, setParams] = useSearchParams();
+  const pedida = params.get("clase");
+  const clase: ClaseVehiculo = esClaseDeVehiculo(pedida) ? pedida : CLASE_VEHICULO.CAMION;
   const [editing, setEditing] = useState<Truck | "new" | null>(null);
   const [falló, setFalló] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -46,7 +91,7 @@ export function AdminTrucksPage() {
   // Un camión con viajes o surtidas no se puede borrar y el servidor dice por qué. Sin el
   // `catch`, se apretaba Eliminar y no pasaba nada.
   async function remove(id: number) {
-    if (!confirm("¿Eliminar este camión?")) return;
+    if (!confirm(`¿Eliminar ${clase === CLASE_VEHICULO.CAMION ? "este camión" : "este vehículo"}?`)) return;
     setError("");
     try {
       await api.del(`/trucks/${id}`);
@@ -64,11 +109,38 @@ export function AdminTrucksPage() {
     );
   }
 
+  const delaPestana = deLaClase(trucks, clase);
+  const esCamionLaPestana = clase === CLASE_VEHICULO.CAMION;
+  // Montacargas sólo aparece si hay alguno (o si se entró por el enlace): no se ofrece una pestaña vacía.
+  const pestanas = CLASES_DE_VEHICULO.filter(
+    (c) => c !== CLASE_VEHICULO.MONTACARGAS || c === clase || deLaClase(trucks, c).length > 0,
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-ink">Camiones</h1>
-        {!soloMirar && <Button onClick={() => setEditing("new")}>+ Nuevo camión</Button>}
+        {!soloMirar && <Button onClick={() => setEditing("new")}>{NUEVO[clase]}</Button>}
+      </div>
+
+      <div role="tablist" aria-label="Clase de vehículo" className="sin-barra flex overflow-x-auto border-b border-ink/15">
+        {pestanas.map((c) => (
+          <button
+            key={c}
+            role="tab"
+            type="button"
+            aria-selected={clase === c}
+            onClick={() => {
+              setEditing(null);
+              setParams(c === CLASE_VEHICULO.CAMION ? {} : { clase: c });
+            }}
+            className={`min-h-[44px] flex-none border-b-[3px] px-4 font-cond text-[15px] font-semibold uppercase tracking-[0.08em] ${
+              clase === c ? "border-brand text-ink" : "border-transparent text-ink/55 hover:text-ink"
+            }`}
+          >
+            {ETIQUETA_PESTANA_CLASE[c]} ({deLaClase(trucks, c).length})
+          </button>
+        ))}
       </div>
 
       {falló && (
@@ -78,7 +150,7 @@ export function AdminTrucksPage() {
 
       {editing && !soloMirar && (
         <TruckForm
-          initial={editing === "new" ? EMPTY : editing}
+          initial={editing === "new" ? { ...EMPTY, clase } : editing}
           id={editing === "new" ? null : editing.id}
           onClose={() => setEditing(null)}
           onSaved={() => {
@@ -95,14 +167,28 @@ export function AdminTrucksPage() {
               <th className="px-4 py-3">Patente</th>
               <th className="px-4 py-3">Marca / Modelo</th>
               <th className="px-4 py-3">Tipo</th>
-              <th className="px-4 py-3 text-right">Odómetro</th>
-              <th className="px-4 py-3 text-right">km/L</th>
+              {/* Lo que mide la ruta es de los camiones; un remolque muestra en cambio sus documentos. */}
+              {esCamionLaPestana ? (
+                <>
+                  <th className="px-4 py-3 text-right">Odómetro</th>
+                  <th className="px-4 py-3 text-right">km/L</th>
+                </>
+              ) : (
+                <th className="px-4 py-3">Documentos</th>
+              )}
               <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
-            {trucks.map((t) => (
+            {delaPestana.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-6 text-center text-ink/50">
+                  No hay {ETIQUETA_PESTANA_CLASE[clase].toLowerCase()} cargados.
+                </td>
+              </tr>
+            )}
+            {delaPestana.map((t) => (
               <tr key={t.id} className="border-b border-ink/10">
                 {/* La patente entra a la ficha del camión: es lo que uno mira y lo que va a
                     tocar. Choferes enlazaba a su ficha desde el primer día y Camiones se
@@ -123,8 +209,16 @@ export function AdminTrucksPage() {
                   {t.brand} {t.model} · {t.year}
                 </td>
                 <td className="px-4 py-3 text-ink/70">{t.type}</td>
-                <td className="px-4 py-3 text-right text-ink/70">{t.odometer_km.toLocaleString("es-UY")} km</td>
-                <td className="px-4 py-3 text-right text-ink/70">{fmtConsumo(t.avg_km_litro)}</td>
+                {esCamionLaPestana ? (
+                  <>
+                    <td className="px-4 py-3 text-right text-ink/70">{t.odometer_km.toLocaleString("es-UY")} km</td>
+                    <td className="px-4 py-3 text-right text-ink/70">{fmtConsumo(t.avg_km_litro)}</td>
+                  </>
+                ) : (
+                  <td className="px-4 py-3 text-xs">
+                    <DocumentosEnLinea vehiculo={t} />
+                  </td>
+                )}
                 <td className="px-4 py-3 text-ink/70">{STATUS_LABEL[t.status]}</td>
                 <td className="px-4 py-3 text-right">
                   {/* Y también en Acciones, igual que en Choferes: es donde se busca. */}
@@ -188,6 +282,7 @@ function TruckForm({
   }, [id]);
   const alternar = (tid: number) =>
     setLista((prev) => (prev.includes(tid) ? prev.filter((x) => x !== tid) : [...prev, tid]));
+  const esCamionForm = claseDe(f) === CLASE_VEHICULO.CAMION;
   const set = (k: keyof typeof f, num = false) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setF({ ...f, [k]: num ? Number(e.target.value) : e.target.value });
 
@@ -196,13 +291,14 @@ function TruckForm({
     setError("");
     setBusy(true);
     try {
-      if (soloEstos && lista.length === 0) {
+      if (esCamionForm && soloEstos && lista.length === 0) {
         setBusy(false);
         return setError("Marcá al menos un viaje, o elegí que vea todos.");
       }
       const guardado = id ? await api.put<Truck>(`/trucks/${id}`, f) : await api.post<Truck>("/trucks", f);
       // Si la lista no cargó no se toca: guardarla vacía le cambiaría los viajes sin que nadie lo pidiera.
-      if (!listaFalló) {
+      // Los remolques no ven viajes: no tienen lista.
+      if (!listaFalló && esCamionForm) {
         await api.put(`/trucks/${guardado.id}/plantillas`, { template_ids: soloEstos ? lista : [] });
       }
       onSaved();
@@ -218,6 +314,19 @@ function TruckForm({
   return (
     <Card>
       <form onSubmit={save} className="grid gap-4 sm:grid-cols-3">
+        <Field label="Clase">
+          <select
+            className="input"
+            value={claseDe(f)}
+            onChange={(e) => setF({ ...f, clase: e.target.value as ClaseVehiculo })}
+          >
+            {CLASES_DE_VEHICULO.map((c) => (
+              <option key={c} value={c}>
+                {ETIQUETA_CLASE[c]}
+              </option>
+            ))}
+          </select>
+        </Field>
         <Field label="Patente">
           <input className="input" value={f.plate} onChange={set("plate")} required />
         </Field>
@@ -236,12 +345,17 @@ function TruckForm({
         <Field label="Capacidad (kg)">
           <input type="number" className="input" value={f.capacity_kg} onChange={set("capacity_kg", true)} />
         </Field>
-        <Field label="Odómetro (km)">
-          <input type="number" className="input" value={f.odometer_km} onChange={set("odometer_km", true)} />
-        </Field>
-        <Field label="Rendimiento esperado (km/L)">
-          <input type="number" step="0.1" className="input" value={f.avg_km_litro} onChange={set("avg_km_litro", true)} />
-        </Field>
+        {/* Odómetro y rendimiento son de lo que anda en ruta: un remolque no tiene ni uno ni otro. */}
+        {esCamionForm && (
+          <>
+            <Field label="Odómetro (km)">
+              <input type="number" className="input" value={f.odometer_km} onChange={set("odometer_km", true)} />
+            </Field>
+            <Field label="Rendimiento esperado (km/L)">
+              <input type="number" step="0.1" className="input" value={f.avg_km_litro} onChange={set("avg_km_litro", true)} />
+            </Field>
+          </>
+        )}
         <Field label="Estado">
           <select className="input" value={f.status} onChange={set("status")}>
             {Object.values(TRUCK_STATUS).map((s) => (
@@ -265,6 +379,7 @@ function TruckForm({
         </div>
         {/* "El 4383 hace solo eso" (Rodrigo, 16/9): un camión puede tener su propia lista de
             viajes. Sin lista ve lo de siempre. */}
+        {esCamionForm && (
         <div className="col-span-full space-y-2 border border-ink/15 p-3">
           <span className="label">Viajes que ve este camión</span>
           <div className="flex flex-wrap gap-4 text-sm text-ink">
@@ -298,17 +413,20 @@ function TruckForm({
             </div>
           )}
         </div>
+        )}
 
         {/* Habilita la surtida de la cámara de frío en el celular del chofer, y las horas del
             equipo en la ficha. Si otro camión engancha el furgón, se tilda acá. */}
-        <label className="col-span-full flex items-center gap-2 text-sm text-ink">
-          <input
-            type="checkbox"
-            checked={!!f.camara_frio}
-            onChange={(e) => setF({ ...f, camara_frio: e.target.checked })}
-          />
-          Lleva cámara de frío
-        </label>
+        {esCamionForm && (
+          <label className="col-span-full flex items-center gap-2 text-sm text-ink">
+            <input
+              type="checkbox"
+              checked={!!f.camara_frio}
+              onChange={(e) => setF({ ...f, camara_frio: e.target.checked })}
+            />
+            Lleva cámara de frío
+          </label>
+        )}
         <div className="col-span-full">
           <ErrorText>{error}</ErrorText>
         </div>

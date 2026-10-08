@@ -52,6 +52,7 @@ import * as libretaRepo from "../repos/libreta";
 import * as lecturasRepo from "../repos/lecturas";
 import * as driversRepo from "../repos/drivers";
 import * as trucksRepo from "../repos/trucks";
+import { MENSAJE_NO_ES_CAMION, esCamion } from "../../shared/clase-vehiculo";
 import { periodoDeHoy } from "../lib/periodo";
 import { notificarOficina } from "../lib/avisos";
 import { cabeceraCorregida } from "../lib/cabecera-viaje";
@@ -290,6 +291,9 @@ trips.post("/", async (c) => {
     const suyo = user.role === ROLES.CHOFER;
     return fail(c, suyo ? "No tenés un camión asignado" : "Elegí el camión del viaje", 400);
   }
+
+  // Un remolque no sale de viaje: el chofer no lo ve en la lista, pero el servidor no se fía de eso.
+  if (await trucksRepo.esRemolqueOMontacargas(c.env.DB, truckId)) return fail(c, MENSAJE_NO_ES_CAMION, 400);
 
   // La foto del tacógrafo del mes, antes de salir.
   //
@@ -997,6 +1001,7 @@ trips.patch("/:id", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c) => {
   ]);
   if (!chofer) return fail(c, "Ese chofer no existe", 400);
   if (!camion) return fail(c, "Ese camión no existe", 400);
+  if (!esCamion(camion)) return fail(c, MENSAJE_NO_ES_CAMION, 400);
 
   await tripsRepo.updateCabecera(c.env.DB, trip.id, r.patch, {
     userId: c.get("user").id,
