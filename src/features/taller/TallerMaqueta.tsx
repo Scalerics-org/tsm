@@ -10,10 +10,11 @@ import { ServiceGuardado } from "./ServiceGuardado";
 import { TabHistorial } from "./TabHistorial";
 import { useConServicios, useCuantoSeCargo, volverALosDatosDeEjemplo } from "./servicio";
 import { FlotaPage } from "./FlotaPage";
-import { TabCubiertas } from "./TabCubiertas";
-import { TabComponentes } from "./TabComponentes";
+import { TabMantenimiento } from "./TabMantenimiento";
 import { TabServices } from "./TabServices";
+import { Solapas } from "./Solapas";
 import { StockPage } from "./StockPage";
+import { pestanaDeLaUrl, type Pestana } from "./ubicacion";
 import { fmtUso, type Vehiculo } from "./tipos";
 
 /**
@@ -64,7 +65,11 @@ export function TallerMaqueta() {
   );
 }
 
-type Pestana = "cubiertas" | "services" | "historial" | "componentes";
+const PESTANAS: { id: Pestana; nombre: string }[] = [
+  { id: "services", nombre: "Services" },
+  { id: "mantenimiento", nombre: "Mantenimiento" },
+  { id: "historial", nombre: "Historial" },
+];
 
 /** El vehículo pedido, con lo que se cargó en este navegador (services nuevos y cubiertas como quedaron). */
 function useVehiculoPedido(): Vehiculo | null {
@@ -114,43 +119,22 @@ function FichaDelVehiculo() {
   const [params, setParams] = useSearchParams();
   const vehiculo = useVehiculoPedido();
   if (!vehiculo) return <Navigate to="/panel/taller" replace />;
-  const tieneCubiertas = vehiculo.disposicion != null;
-  const pedida = params.get("tab");
-  const pestana: Pestana =
-    pedida === "services" || pedida === "historial" || pedida === "componentes" ? pedida : tieneCubiertas ? "cubiertas" : "services";
-  const pestanas: Pestana[] = (["cubiertas", "services", "historial", "componentes"] as const).filter((p) => p !== "cubiertas" || tieneCubiertas);
-  const ir = (t: Pestana) => setParams(t === "cubiertas" ? {} : { tab: t }, { replace: true });
-  const nombres: Record<Pestana, string> = { cubiertas: "Cubiertas", services: "Services", historial: "Historial", componentes: "Componentes" };
+  const pestana = pestanaDeLaUrl(params);
+  // Cambiar de pestaña va con historial (no con replace): el botón Atrás vuelve a la pestaña de antes.
+  const ir = (t: Pestana) => setParams(t === "services" ? {} : { tab: t });
 
   return (
     <div className="space-y-5">
       <CabeceraDelVehiculo vehiculo={vehiculo} />
 
-      <div role="tablist" aria-label="Secciones del taller" className="sin-barra -mx-5 flex overflow-x-auto border-b border-ink/15 px-5 sm:mx-0 sm:px-0">
-        {pestanas.map((t) => (
-          <button
-            key={t}
-            role="tab"
-            type="button"
-            aria-selected={pestana === t}
-            onClick={() => ir(t)}
-            className={`min-h-[44px] flex-none border-b-[3px] px-4 font-cond text-[15px] font-semibold uppercase tracking-[0.08em] ${
-              pestana === t ? "border-brand text-ink" : "border-transparent text-ink/55 hover:text-ink"
-            }`}
-          >
-            {nombres[t]}
-          </button>
-        ))}
-      </div>
+      <Solapas etiqueta="Secciones del taller" opciones={PESTANAS} actual={pestana} onElegir={ir} />
 
-      {pestana === "cubiertas" ? (
-        <TabCubiertas key={`${vehiculo.patente}-${vehiculo.disposicion?.id}`} vehiculo={vehiculo} />
-      ) : pestana === "services" ? (
+      {pestana === "services" ? (
         <TabServices vehiculo={vehiculo} />
-      ) : pestana === "historial" ? (
-        <TabHistorial vehiculo={vehiculo} />
+      ) : pestana === "mantenimiento" ? (
+        <TabMantenimiento vehiculo={vehiculo} />
       ) : (
-        <TabComponentes vehiculo={vehiculo} />
+        <TabHistorial vehiculo={vehiculo} />
       )}
     </div>
   );
