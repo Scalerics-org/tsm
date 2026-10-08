@@ -1,4 +1,5 @@
 import { HOY, MODELOS } from "./base";
+import type { ItemDeStock } from "./stock-consumibles";
 import type { Balanceo, Componente, CondicionPieza, Estado, PiezaDeComponente, Tramo, TipoVehiculo, Vehiculo } from "./tipos";
 
 /**
@@ -166,8 +167,10 @@ export interface CubiertaEnStock {
   modeloId: string;
   estado: "nueva" | "usada";
   obs: string;
-  /** Desde cuándo está en el stock. */
+  /** Desde cuándo está en el stock (la fecha de compra, si se cargó desde el alta). */
   desde?: string;
+  /** A quién se compró, si se anotó. */
+  proveedor?: string;
   /** Dónde estuvo antes. */
   historial?: Tramo[];
   /** Los balanceos que se le hicieron. */
@@ -191,20 +194,19 @@ export const CUBIERTAS_EN_STOCK: CubiertaEnStock[] = [
   { codigo: "U-0216", modeloId: "r269", estado: "usada", obs: "Con 52.000 km, de auxilio." },
 ];
 
-export const ACEITE = {
-  /** Lo que hay en el tambor. */
-  cantidadL: 200,
-  /** Lo que se consumió en el mes. */
-  consumoL: 50,
-  /** Lo que lleva el contenedor del tanque. */
-  contenidoTanqueL: 5,
-};
+/** Los aceites y líquidos del depósito de ejemplo: cada tipo con la compra con la que entró. */
+export const ACEITES_DE_EJEMPLO: ItemDeStock[] = [
+  { id: "ac-aceite-motor", nombre: "Aceite de motor", tipo: "", unidad: "L", movimientos: [{ id: "ac-aceite-motor-1", fecha: "2026-09-01", cantidad: 200, obs: "Tambor" }] },
+  { id: "ac-liquido-caja", nombre: "Líquido de caja y diferencial", tipo: "", unidad: "L", movimientos: [{ id: "ac-liquido-caja-1", fecha: "2026-09-01", cantidad: 20, obs: "" }] },
+  { id: "ac-agua-motor", nombre: "Agua del motor", tipo: "", unidad: "L", movimientos: [{ id: "ac-agua-motor-1", fecha: "2026-09-01", cantidad: 15, obs: "" }] },
+];
 
-export const FILTROS: { modelo: string; para: string; cantidad: number }[] = [
-  { modelo: "HF607", para: "Hidráulico", cantidad: 5 },
-  { modelo: "LF3000", para: "Aceite de motor", cantidad: 3 },
-  { modelo: "FF5052", para: "Combustible", cantidad: 6 },
-  { modelo: "AF25550", para: "Aire", cantidad: 2 },
+/** Los filtros del depósito de ejemplo: cada modelo, con su tipo y las unidades que hay. */
+export const FILTROS_DE_EJEMPLO: ItemDeStock[] = [
+  { id: "fi-HF607", nombre: "HF607", tipo: "hidráulico", unidad: "u", movimientos: [{ id: "fi-HF607-1", fecha: "2026-09-15", cantidad: 5, obs: "" }] },
+  { id: "fi-LF3000", nombre: "LF3000", tipo: "aceite de motor", unidad: "u", movimientos: [{ id: "fi-LF3000-1", fecha: "2026-09-15", cantidad: 3, obs: "" }] },
+  { id: "fi-FF5052", nombre: "FF5052", tipo: "combustible", unidad: "u", movimientos: [{ id: "fi-FF5052-1", fecha: "2026-09-15", cantidad: 6, obs: "" }] },
+  { id: "fi-AF25550", nombre: "AF25550", tipo: "aire", unidad: "u", movimientos: [{ id: "fi-AF25550-1", fecha: "2026-09-15", cantidad: 2, obs: "" }] },
 ];
 
 export const nombreDelModelo = (id: string) => MODELOS[id]?.nombre ?? id;

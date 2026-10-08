@@ -11,6 +11,7 @@ import {
   TIPOS_DEL_EJEMPLO,
   cambiosDeCubiertas,
   claveDeItem,
+  consumosDeMarcas,
   guardarService,
   idDeService,
   itemsDeMarcas,
@@ -20,6 +21,8 @@ import {
   marcasDeEjemplo,
   marcasSegunTipos,
   seccionesDeService,
+  useAceites,
+  useFiltros,
   useStock,
   type ItemCatalogo,
   type Marcas,
@@ -27,8 +30,10 @@ import {
 } from "./servicio";
 import { Accion, TEXTO_ACCION } from "./TabHistorial";
 import { CodigoPill } from "./TabServices";
+import { DescuentoDeStock } from "./DescuentoDeStock";
+import { faltantes } from "./stock-consumibles";
 import type { AccionHecha, TipoService, Vehiculo } from "./tipos";
-import { EXPLICACION_OTRO, NOMBRE_OTRO, contenidoDeTipo, descripcionDeTipo, flujoDeCubiertas, tiposDisponibles } from "./tipos-de-service";
+import { EXPLICACION_OTRO, NOMBRE_OTRO, SECCION, contenidoDeTipo, descripcionDeTipo, flujoDeCubiertas, tiposDisponibles } from "./tipos-de-service";
 
 const ACCIONES: AccionHecha[] = ["reparado", "nuevo", "revisado"];
 
@@ -110,6 +115,11 @@ export function NuevoService({ vehiculo }: { vehiculo: Vehiculo }) {
 
   const items = useMemo(() => itemsDeMarcas(secciones, marcas), [secciones, marcas]);
   const marcadas = items.length;
+  // Lo que el service saca del depósito: sólo lo que se marcó con un ítem del stock elegido. Opcional: si no hay, no sale nada.
+  const aceites = useAceites();
+  const filtros = useFiltros();
+  const consumos = useMemo(() => consumosDeMarcas(secciones, marcas, aceites, filtros), [secciones, marcas, aceites, filtros]);
+  const sinStock = useMemo(() => faltantes([...aceites, ...filtros], consumos), [aceites, filtros, consumos]);
 
   const marcar = (clave: string, on: boolean) =>
     setMarcas((m) => {
@@ -136,6 +146,7 @@ export function NuevoService({ vehiculo }: { vehiculo: Vehiculo }) {
         items,
       },
       cambiosDeCubiertas(secciones, marcas, contexto.modeloActual),
+      consumos,
     );
     navigate(`/panel/taller/${enLaDireccion(vehiculo.patente)}/service/${id}?guardado=1`);
   }
@@ -237,6 +248,20 @@ export function NuevoService({ vehiculo }: { vehiculo: Vehiculo }) {
                 </li>
               ))}
             </ul>
+          )}
+
+          {sinStock.length > 0 && (
+            <div role="alert" className="border border-st-redBd bg-st-redBg px-4 py-3 text-sm text-st-redTx">
+              <b className="block">No alcanza el stock, pero se puede guardar igual.</b>
+              <ul className="mt-1 list-disc pl-5">
+                {sinStock.map((f) => (
+                  <li key={f.itemId}>
+                    {f.nombre}: quedan {f.disponible.toLocaleString("es-UY")} y se piden {f.pedido.toLocaleString("es-UY")}. Va a quedar en negativo.
+                  </li>
+                ))}
+              </ul>
+              <span className="mt-1 block text-xs">Pueden haberlo comprado y no cargado: se corrige con una compra en Stock.</span>
+            </div>
           )}
 
           <div className="flex flex-wrap gap-3">
@@ -572,6 +597,9 @@ function ItemMarcable({
               </label>
             )}
             {it.conCodigo && <DatosDeCubierta it={it} marca={marca} onCambio={(p) => onCambio(clave, p)} />}
+            {(seccion === SECCION.filtros || seccion === SECCION.liquidos) && (
+              <DescuentoDeStock clase={seccion === SECCION.liquidos ? "aceite" : "filtro"} marca={marca} onCambio={(p) => onCambio(clave, p)} />
+            )}
             <label className={`block ${it.medida || it.conCodigo ? "" : "sm:col-span-2"}`}>
               <span className="label">Observaciones</span>
               <input className="input min-h-[44px]" value={marca.obs} onChange={(e) => onCambio(clave, { obs: e.target.value })} />

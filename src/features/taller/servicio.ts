@@ -1,9 +1,11 @@
 import { useSyncExternalStore } from "react";
 import { MODELOS } from "./base";
 import { aplicarCambios, type CambioDeCubierta } from "./cambio-cubiertas";
-import { CUBIERTAS_EN_STOCK, PIEZAS_DE_RUEDA, type CubiertaEnStock } from "./datos-extra";
+import { ACEITES_DE_EJEMPLO, CUBIERTAS_EN_STOCK, FILTROS_DE_EJEMPLO, PIEZAS_DE_RUEDA, type CubiertaEnStock } from "./datos-extra";
 import { aplicarMovimiento, colocarEnLugarVacio, uidDeStock, type CubiertaBaja, type Movimiento, type Reemplazo, type Situacion } from "./movimientos";
 import { posiciones } from "./disposicion";
+import { descontar, esItemDeStock, numeroDeCantidad, type ConsumoDeStock, type ItemDeStock } from "./stock-consumibles";
+import { editarCubiertaStock } from "./stock-cubiertas";
 import { FILTRO_DEL_STOCK, PIEZA, SECCION, flujoDeCubiertas, itemsDeLosTipos } from "./tipos-de-service";
 import type { AccionHecha, Cubierta, ItemHecho, PuestaAnterior, Service, TipoService, Vehiculo } from "./tipos";
 
@@ -24,7 +26,7 @@ export interface ItemCatalogo {
   accionPorDefecto?: AccionHecha;
   /** Las únicas acciones que tiene sentido elegir (una regulación de válvulas se "hace"; no se repara ni se cambia). */
   acciones?: AccionHecha[];
-  /** El filtro del Stock que le corresponde. Todavía no se descuenta nada: ver `FILTRO_DEL_STOCK`. */
+  /** El filtro del Stock que suele salir para este ítem (sólo una sugerencia: ver `FILTRO_DEL_STOCK`). */
   filtroDelStock?: string;
 }
 export interface GrupoDeItems {
@@ -135,10 +137,25 @@ export interface Marca {
   rotaA: string;
   /** Se la balanceó (tipos RB y NB): queda anotado en su historial, con la fecha. */
   balanceada: boolean;
+  /** Filtro o líquido: de qué ítem del stock sale (vacío = no se descuenta nada) y cuánto. */
+  desdeStock: string;
+  cantidadStock: string;
 }
 export type Marcas = Record<string, Marca>;
 
-export const marcaNueva = (parcial: Partial<Marca> = {}): Marca => ({ accion: "revisado", medida: "", obs: "", codigo: "", modelo: "", delStock: "", rotaA: "", balanceada: false, ...parcial });
+export const marcaNueva = (parcial: Partial<Marca> = {}): Marca => ({
+  accion: "revisado",
+  medida: "",
+  obs: "",
+  codigo: "",
+  modelo: "",
+  delStock: "",
+  rotaA: "",
+  balanceada: false,
+  desdeStock: "",
+  cantidadStock: "",
+  ...parcial,
+});
 
 /** Pasa lo marcado a los ítems del service, en el orden del catálogo. Sólo lo marcado entra. */
 export function itemsDeMarcas(secciones: SeccionDeService[], marcas: Marcas): ItemHecho[] {
@@ -250,8 +267,9 @@ export function buscarEnHistorial(services: Service[], consulta: string): Coinci
 interface Guardado {
   services: Record<string, Service[]>;
   cubiertas: Record<string, Cubierta[]>;
+  /** Las cubiertas de stock que no son de ejemplo: las compradas en el alta y las que salieron de un vehículo. */
   stockUsadas: CubiertaEnStock[];
-  /** Ids de las cubiertas de ejemplo del stock que ya no están (se usaron o se movieron). */
+  /** Ids de las cubiertas de ejemplo del stock que ya no están (se usaron, se movieron, se editaron o se eliminaron). */
   stockQuitadas: string[];
   /** Las cubiertas dadas de baja. */
   bajas: CubiertaBaja[];
@@ -259,10 +277,24 @@ interface Guardado {
   vacias: Record<string, Record<number, PuestaAnterior[]>>;
   /** Cuántas cubiertas se sacaron, movieron o pusieron (para el contador del botón de volver al ejemplo). */
   movimientos: number;
+  /** Los aceites y líquidos del depósito, cada tipo con sus compras y usos. */
+  aceites: ItemDeStock[];
+  /** Los filtros del depósito, cada modelo con sus compras y usos. */
+  filtros: ItemDeStock[];
 }
-const VACIO: Guardado = { services: {}, cubiertas: {}, stockUsadas: [], stockQuitadas: [], bajas: [], vacias: {}, movimientos: 0 };
-// v4: un service tiene VARIOS tipos (`tipos`, no `tipo`) y las cubiertas guardan sus balanceos: lo guardado con la forma anterior no sirve.
-const CLAVE = "tsm-taller-maqueta-v4";
+const VACIO: Guardado = {
+  services: {},
+  cubiertas: {},
+  stockUsadas: [],
+  stockQuitadas: [],
+  bajas: [],
+  vacias: {},
+  movimientos: 0,
+  aceites: ACEITES_DE_EJEMPLO,
+  filtros: FILTROS_DE_EJEMPLO,
+};
+// v5: aceites y filtros pasan a ser ítems con sus movimientos (compras y usos). Lo guardado con la forma de v4 no se lee.
+const CLAVE = "tsm-taller-maqueta-v5";
 
 /** Lee lo guardado. Si no se puede (sin permiso, vacío o roto) la maqueta sigue con los datos de ejemplo. */
 function leer(): Guardado {
@@ -278,6 +310,8 @@ function leer(): Guardado {
       bajas: Array.isArray(j.bajas) ? j.bajas : [],
       vacias: j.vacias && typeof j.vacias === "object" ? j.vacias : {},
       movimientos: typeof j.movimientos === "number" ? j.movimientos : 0,
+      aceites: Array.isArray(j.aceites) ? j.aceites.filter(esItemDeStock) : ACEITES_DE_EJEMPLO,
+      filtros: Array.isArray(j.filtros) ? j.filtros.filter(esItemDeStock) : FILTROS_DE_EJEMPLO,
     };
   } catch {
     return VACIO;
@@ -360,18 +394,97 @@ export function ponerCubierta(flota: Vehiculo[], c: { patente: string; posicion:
   guardarSituacion(antes, colocarEnLugarVacio(antes, c, nuevoId));
 }
 
-/** Guarda un service y, si marcó cubiertas nuevas o rotaciones, actualiza posiciones, historial y stock. */
-export function guardarService(v: Vehiculo, s: Service, cambios: CambioDeCubierta[] = []): void {
+/**
+ * Guarda un service. Si marcó cubiertas nuevas o rotaciones, actualiza posiciones, historial y stock de cubiertas. Y lo que
+ * marcó de aceites y filtros sale del depósito: cada consumo queda como un uso con el service, el vehículo y la fecha.
+ */
+export function guardarService(v: Vehiculo, s: Service, cambios: CambioDeCubierta[] = [], consumos: ConsumoDeStock[] = []): void {
   const r = cambios.length > 0 ? aplicarCambios(v, s, cambios, stockDe(guardado)) : null;
+  const uso = { patente: v.patente, servicio: s.id, fecha: s.fecha };
   guardado = {
     ...guardado,
     services: { ...guardado.services, [v.patente]: [s, ...(guardado.services[v.patente] ?? [])] },
     cubiertas: r ? { ...guardado.cubiertas, [v.patente]: r.cubiertas } : guardado.cubiertas,
     stockUsadas: r ? [...r.usadas, ...guardado.stockUsadas] : guardado.stockUsadas,
     stockQuitadas: r ? [...guardado.stockQuitadas, ...r.quitadasDelStock] : guardado.stockQuitadas,
+    aceites: descontar(guardado.aceites, consumos.filter((c) => c.de === "aceite"), uso, nuevoId),
+    filtros: descontar(guardado.filtros, consumos.filter((c) => c.de === "filtro"), uso, nuevoId),
   };
   persistir();
   avisar();
+}
+
+/** Qué sale del depósito según lo marcado en el service: los filtros y líquidos con un ítem del stock elegido. */
+export function consumosDeMarcas(secciones: SeccionDeService[], marcas: Marcas, aceites: ItemDeStock[], filtros: ItemDeStock[]): ConsumoDeStock[] {
+  const consumos: ConsumoDeStock[] = [];
+  for (const sec of secciones) {
+    for (const g of sec.grupos) {
+      for (const it of g.items) {
+        const m = marcas[claveDeItem(sec.nombre, it)];
+        if (!m?.desdeStock) continue;
+        const cantidad = numeroDeCantidad(m.cantidadStock) || 1;
+        if (filtros.some((f) => f.id === m.desdeStock)) consumos.push({ de: "filtro", itemId: m.desdeStock, cantidad, pieza: it.pieza });
+        else if (aceites.some((a) => a.id === m.desdeStock)) consumos.push({ de: "aceite", itemId: m.desdeStock, cantidad, pieza: it.pieza });
+      }
+    }
+  }
+  return consumos;
+}
+
+/** Cambia los aceites o los filtros del depósito (altas, compras, ediciones y eliminaciones salen de la pantalla de Stock). */
+export function cambiarConsumibles(cambio: { aceites?: ItemDeStock[]; filtros?: ItemDeStock[] }): void {
+  guardado = { ...guardado, ...cambio, movimientos: guardado.movimientos + 1 };
+  persistir();
+  avisar();
+}
+
+/** Da de alta cubiertas compradas (una por cada código de la compra). */
+export function altaDeCubiertasEnStock(nuevas: CubiertaEnStock[]): void {
+  guardado = { ...guardado, stockUsadas: [...guardado.stockUsadas, ...nuevas], movimientos: guardado.movimientos + 1 };
+  persistir();
+  avisar();
+}
+
+/**
+ * Edita una cubierta del stock. Si es una de ejemplo, se la saca de la lista de ejemplo y su copia editada queda como propia,
+ * con el mismo uid: el recorrido de la cubierta sigue siendo el mismo.
+ */
+export function editarCubiertaEnStock(uid: string, cambios: Partial<Pick<CubiertaEnStock, "codigo" | "modeloId" | "estado" | "desde" | "proveedor" | "obs">>): void {
+  const actual = stockDe(guardado).find((c) => uidDeStock(c) === uid);
+  if (!actual) return;
+  const editada = editarCubiertaStock(actual, cambios);
+  const deEjemplo = CUBIERTAS_EN_STOCK.some((c) => uidDeStock(c) === uid);
+  guardado = {
+    ...guardado,
+    stockUsadas: [...guardado.stockUsadas.filter((c) => uidDeStock(c) !== uid), editada],
+    stockQuitadas: deEjemplo && !guardado.stockQuitadas.includes(uid) ? [...guardado.stockQuitadas, uid] : guardado.stockQuitadas,
+    movimientos: guardado.movimientos + 1,
+  };
+  persistir();
+  avisar();
+}
+
+/** Saca del stock una cubierta que no está colocada en ningún vehículo. */
+export function eliminarCubiertaDeStock(uid: string): void {
+  const deEjemplo = CUBIERTAS_EN_STOCK.some((c) => uidDeStock(c) === uid);
+  guardado = {
+    ...guardado,
+    stockUsadas: guardado.stockUsadas.filter((c) => uidDeStock(c) !== uid),
+    stockQuitadas: deEjemplo && !guardado.stockQuitadas.includes(uid) ? [...guardado.stockQuitadas, uid] : guardado.stockQuitadas,
+    movimientos: guardado.movimientos + 1,
+  };
+  persistir();
+  avisar();
+}
+
+/** Los aceites y líquidos del depósito, con sus compras y usos. */
+export function useAceites(): ItemDeStock[] {
+  return useSyncExternalStore(suscribir, instantanea).aceites;
+}
+
+/** Los filtros del depósito, con sus compras y usos. */
+export function useFiltros(): ItemDeStock[] {
+  return useSyncExternalStore(suscribir, instantanea).filtros;
 }
 
 /** "Volver a los datos de ejemplo": borra lo cargado, también del navegador. */

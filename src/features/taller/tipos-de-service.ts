@@ -50,10 +50,9 @@ export const PIEZA = {
 } as const;
 
 /**
- * Qué filtro del Stock (ver `FILTROS` en `datos-extra.ts`) corresponde a cada ítem. POR AHORA NO SE DESCUENTA NADA del
- * stock al cargar un service: esto sólo deja anotado dónde se engancharía. El día que se descuente, el lugar es
- * `guardarService` en `servicio.ts`: por cada ítem con filtro del stock que se marcó como "nuevo", restar una unidad de
- * ese modelo.
+ * Qué filtro del Stock (ver `FILTROS_DE_EJEMPLO` en `datos-extra.ts`) suele salir para cada ítem. Es sólo una pista en
+ * "Nuevo service": el que se descuenta es el que elige quien carga, y se descuenta al guardar en `guardarService`
+ * (`servicio.ts`), no antes.
  */
 export const FILTRO_DEL_STOCK: Record<string, string> = {
   [PIEZA.filtroAceite]: "LF3000", // aceite de motor
