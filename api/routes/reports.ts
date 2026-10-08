@@ -9,6 +9,7 @@ import {
   ROLES,
   TRIP_STATUS,
   monthlyConsumption,
+  consumoMensualParaMostrar,
   type PendienteCobro,
   type Trip, destinoVisible, origenVisible } from "../../shared/domain";
 import { listTrips, listTripsFacturables } from "../repos/trips";
@@ -340,7 +341,8 @@ reports.get("/truck/:id", async (c) => {
     listTrips(c.env.DB, { truckId: id }),
     listFuelLogs(c.env.DB, { truckId: id }),
   ]);
-  const monthly = monthlyConsumption(
+  // La ficha muestra lo mismo que el Resumen: el mes abierto con la cuenta del chofer.
+  const monthly = consumoMensualParaMostrar(
     fuel.map((f) => ({ odometer_km: f.odometer_km, liters: f.liters, is_full: !!f.is_full, logged_at: f.logged_at })),
   ).map((m) => ({
     month: m.month,

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AvisosCard } from "./AvisosCard";
 import { VencimientosCard } from "./VencimientosCard";
 import { Link } from "react-router-dom";
-import { fmtConsumo, fmtKilos } from "@shared/domain";
+import { ORIGEN_DEL_CONSUMO_MENSUAL, fmtConsumo, fmtKilos } from "@shared/domain";
 import { api, downloadFile, mensajeDe } from "../../lib/api";
 import { Button, Card, Corners, ErrorDeCarga, Spinner, Stat } from "../../components/ui";
 import { FechaInput } from "../../components/FechaInput";
@@ -266,7 +266,9 @@ export function OpsSummary() {
                   pantalla, y cuando no cierra contra las facturas hay que saber dónde buscar. */}
               <p className="mb-3 text-xs text-ink/50">
                 Cada mes arranca en la última surtida del mes anterior y cuenta todos los litros
-                cargados dentro del mes. El mes en curso queda abierto.
+                cargados dentro del mes, que es lo que cierra con las facturas. El mes en curso, mientras está abierto,
+              muestra el mismo número que ve el chofer en el celular (de tanque lleno a tanque lleno) y pasa a la regla
+              del calendario cuando cierra.
               </p>
               {/* La verificación (Rodrigo, 22/9): el aviso sale sólo cuando el mes se va del
                   rango habitual de ESE camión, y dice cuántos litros son, para ir a buscar la
@@ -305,6 +307,9 @@ export function OpsSummary() {
                           </div>
                           <div className="text-xs text-ink/55">
                             {m.liters.toLocaleString("es-UY")} L · {m.km.toLocaleString("es-UY")} km
+                          </div>
+                          <div className="mt-0.5 text-[10.5px] leading-tight text-ink/45">
+                            {m.closed ? ORIGEN_DEL_CONSUMO_MENSUAL.cerrado : ORIGEN_DEL_CONSUMO_MENSUAL.abierto}
                           </div>
                           {/* Sólo habla cuando hay algo que decir: "dentro de lo habitual" es una línea
                               chica, y el mes en curso o sin datos no dice nada para no dar una alarma

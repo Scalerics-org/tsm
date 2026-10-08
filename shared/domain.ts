@@ -972,6 +972,51 @@ interface FLog {
 }
 
 /**
+ * El consumo del MES ABIERTO: de tanque lleno a tanque lleno, sin contar el gasoil que sigue en el tanque.
+ *
+ * Va del PRIMER al ÚLTIMO llenado del mes, no hasta la surtida actual: los litros cargados después del último
+ * llenado siguen en el tanque, no se quemaron. Contarlos ya mismo haría parecer que el camión rinde peor de lo
+ * que rinde —y es lo que muestra la planilla del cliente, donde el acumulado no se mueve hasta que vuelve a
+ * llenar.
+ *
+ * Se recorre por fecha y no por odómetro: una surtida sin llenar no mueve el tacógrafo, así que puede tener el
+ * mismo kilometraje que el llenado anterior.
+ *
+ * ────────────────────────────────────────────────────────────────────────────────────
+ * ES LA ÚNICA CUENTA DEL MES EN CURSO, Y LA USAN EL CHOFER Y LA OFICINA (decidido el 8/10).
+ *
+ * Antes eran dos: el chofer veía ésta y la oficina veía `consumoDelPeriodo` (por calendario, de la última surtida
+ * del mes anterior a la última de éste, con todos los litros adentro). Sobre los mismos datos daban distinto en
+ * los decimales y Rodrigo no sabía a cuál creerle. Su pedido: "mientras no altere cómo medir el consumo y lo que
+ * te pedí acorde a los cierres, me gustaría ver lo mismo que ellos, para estar alineados".
+ *
+ * Por eso el mes abierto se muestra igual en las dos puntas (`consumoMensualParaMostrar`). Cuando el mes CIERRA,
+ * la oficina vuelve al calendario (`consumoDelPeriodo`): es la cuenta que cierra contra las facturas del gasoil,
+ * porque cada litro cae en el mes en que se compró. Ese cambio de regla al cerrar es a propósito: no lo unifiques
+ * sin preguntar. La verificación de litros faltantes tampoco lo usa: al mes abierto no lo juzga.
+ * ────────────────────────────────────────────────────────────────────────────────────
+ *
+ * Con menos de dos llenados en el mes no hay tramo que medir: da 0 km, 0 litros y `kml` null, que es lo que ve
+ * el chofer en ese caso.
+ */
+export function consumoDelMesEnCurso(
+  logs: FLog[],
+  mes: string,
+): { km: number; liters: number; kml: number | null } {
+  const cronologico = cadenaContinua(
+    logs.filter((l) => l.logged_at.slice(0, 7) === mes).sort((a, b) => a.logged_at.localeCompare(b.logged_at)),
+  );
+  const primerLleno = cronologico.findIndex((l) => l.is_full);
+  const ultimoLleno = cronologico.map((l) => l.is_full).lastIndexOf(true);
+  if (primerLleno < 0 || ultimoLleno <= primerLleno) return { km: 0, liters: 0, kml: null };
+
+  const km = cronologico[ultimoLleno].odometer_km - cronologico[primerLleno].odometer_km;
+  // El llenado inicial es la línea de base y no cuenta: arranca en el siguiente.
+  const liters = cronologico.slice(primerLleno + 1, ultimoLleno + 1).reduce((acc, l) => acc + l.liters, 0);
+  return { km, liters, kml: kmPorLitro(km, liters) };
+}
+
+/**
  * Feedback de consumo al registrar una surtida (según el cliente):
  * - Si llenó, cierra el tramo desde el último llenado completo y devuelve su consumo.
  * - Si no llenó ("chorro"), el tramo queda abierto (closed=false).
@@ -1038,50 +1083,11 @@ export function fuelFeedback(logs: FLog[], current: FLog): FuelFeedback {
     }
   }
 
-  // El acumulado del mes va del PRIMER al ÚLTIMO llenado del mes, no hasta la surtida
-  // actual: los litros cargados después del último llenado siguen en el tanque, no se
-  // quemaron. Contarlos ya mismo haría parecer que el camión rinde peor de lo que rinde
-  // —y es lo que muestra la planilla del cliente, donde el acumulado no se mueve hasta
-  // que vuelve a llenar.
-  //
-  // Se recorre por fecha y no por odómetro: una surtida sin llenar no mueve el tacógrafo,
-  // así que puede tener el mismo kilometraje que el llenado anterior.
-  //
-  // ────────────────────────────────────────────────────────────────────────────────────
-  // NO ES `consumoDelPeriodo`, Y ESTÁ DECIDIDO ASÍ. No lo unifiques sin preguntar.
-  //
-  // La oficina mide por calendario: de la última surtida del mes anterior a la última del
-  // mes, con todos los litros del mes adentro. Ésta, la del chofer, mide de llenado a
-  // llenado. Sobre los mismos datos dan distinto, y es a propósito: éste es un número EN
-  // VIVO, que el chofer ve apenas carga. Con la regla de la oficina, a mitad de mes le
-  // sumaría litros que todavía están en el tanque y el camión le aparecería peor de lo
-  // que anda, justo en el momento en que mira la pantalla.
-  //
-  // La contra, que hay que tener presente: chofer y oficina pueden mostrar km/L distintos
-  // del mismo mes, y ahí no se le puede reclamar a nadie. Si algún día molesta, la salida
-  // es que la oficina siga con la suya y al chofer se le muestre el TRAMO (`segment_kml`,
-  // que es exacto) en vez del acumulado, no forzar que los dos usen la misma cuenta.
-  // ────────────────────────────────────────────────────────────────────────────────────
-  const month = current.logged_at.slice(0, 7);
-  const cronologico = cadenaContinua(
-    logs
-      .filter((l) => l.logged_at.slice(0, 7) === month)
-      .sort((a, b) => a.logged_at.localeCompare(b.logged_at)),
+  // El acumulado del mes: ver `consumoDelMesEnCurso`, que es la cuenta y la explica.
+  const { km: month_km, liters: month_liters, kml: month_kml } = consumoDelMesEnCurso(
+    logs,
+    current.logged_at.slice(0, 7),
   );
-  const primerLleno = cronologico.findIndex((l) => l.is_full);
-  const ultimoLleno = cronologico.map((l) => l.is_full).lastIndexOf(true);
-
-  let month_km = 0;
-  let month_liters = 0;
-  let month_kml: number | null = null;
-  if (primerLleno >= 0 && ultimoLleno > primerLleno) {
-    month_km = cronologico[ultimoLleno].odometer_km - cronologico[primerLleno].odometer_km;
-    // El llenado inicial es la línea de base y no cuenta: arranca en el siguiente.
-    month_liters = cronologico
-      .slice(primerLleno + 1, ultimoLleno + 1)
-      .reduce((s, l) => s + l.liters, 0);
-    month_kml = kmPorLitro(month_km, month_liters);
-  }
 
   return {
     closed,
@@ -1211,6 +1217,32 @@ export function monthlyConsumption(logs: FLog[]): MonthlyConsumption[] {
     .filter((m) => m.km > 0 || m.liters > 0)
     .reverse(); // más reciente primero
 }
+
+/**
+ * El consumo mes por mes TAL COMO SE MUESTRA en la oficina: los meses cerrados por calendario (`monthlyConsumption`,
+ * lo que cierra con las facturas) y el mes abierto con la cuenta del chofer (`consumoDelMesEnCurso`), para que los
+ * dos vean el mismo número. Ver el bloque grande de `consumoDelMesEnCurso`.
+ *
+ * Los meses que aparecen y su orden son exactamente los de `monthlyConsumption`: sólo cambian los números del abierto.
+ * Si todavía no hay dos llenados en el mes (sin tramo que medir) se dejan los km y litros del calendario y el km/L
+ * queda vacío, igual que en el celular del chofer: un "0 L" en un mes donde se cargó gasoil engañaría más que ayudar.
+ *
+ * Las verificaciones (litros faltantes, anomalías) siguen usando `monthlyConsumption`: no juzgan el mes abierto.
+ */
+export function consumoMensualParaMostrar(logs: FLog[]): MonthlyConsumption[] {
+  return monthlyConsumption(logs).map((m) => {
+    if (m.closed) return m;
+    const abierto = consumoDelMesEnCurso(logs, m.month);
+    if (abierto.kml == null) return { ...m, kml: null };
+    return { ...m, km: abierto.km, liters: abierto.liters, kml: abierto.kml, base_propia: false };
+  });
+}
+
+/** La línea chica de cada tarjeta de mes: de dónde sale el número, para no tener que adivinarlo. */
+export const ORIGEN_DEL_CONSUMO_MENSUAL = {
+  abierto: "en curso · de tanque lleno a tanque lleno, como lo ve el chofer",
+  cerrado: "cerrado · por calendario",
+} as const;
 
 /**
  * Consumo de un camión a partir de sus surtidas (modelo llenado a llenado):

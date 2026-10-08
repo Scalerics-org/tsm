@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { destinoVisible, origenVisible, fmtConsumo, fmtKilos, type FuelLog, type Trip, type Truck } from "@shared/domain";
+import { ORIGEN_DEL_CONSUMO_MENSUAL, destinoVisible, origenVisible, fmtConsumo, fmtKilos, type FuelLog, type Trip, type Truck } from "@shared/domain";
 import { api, mensajeDe } from "../../lib/api";
 import { useSoloMirar } from "../../lib/auth";
 import { Card, Corners, ErrorDeCarga, Spinner, Stat, StatusBadge } from "../../components/ui";
@@ -201,6 +201,9 @@ export function TruckDetailPage() {
                 </div>
                 <div className="text-xs text-ink/55">
                   {m.liters} L · {m.km} km
+                </div>
+                <div className="mt-0.5 text-[10.5px] leading-tight text-ink/45">
+                  {m.closed ? ORIGEN_DEL_CONSUMO_MENSUAL.cerrado : ORIGEN_DEL_CONSUMO_MENSUAL.abierto}
                 </div>
               </div>
             ))}

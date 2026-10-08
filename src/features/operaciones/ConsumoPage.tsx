@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { fmtConsumo } from "@shared/domain";
+import { ORIGEN_DEL_CONSUMO_MENSUAL, fmtConsumo } from "@shared/domain";
 import { api, mensajeDe } from "../../lib/api";
 import { Card, Corners, ErrorDeCarga, Spinner } from "../../components/ui";
 import { FechaInput } from "../../components/FechaInput";
@@ -128,7 +128,9 @@ export function ConsumoPage() {
             <h2 className="mb-1 font-cond text-lg font-semibold text-ink">Consumo mensual por camión</h2>
             <p className="mb-3 text-xs text-ink/50">
               Cada mes arranca en la última surtida del mes anterior y cuenta todos los litros
-              cargados dentro del mes. El mes en curso queda abierto.
+              cargados dentro del mes, que es lo que cierra con las facturas. El mes en curso, mientras está abierto,
+              muestra el mismo número que ve el chofer en el celular (de tanque lleno a tanque lleno) y pasa a la regla
+              del calendario cuando cierra.
             </p>
             <div className="space-y-4">
               {camiones
@@ -154,6 +156,9 @@ export function ConsumoPage() {
                           </div>
                           <div className="text-xs text-ink/55">
                             {m.liters.toLocaleString("es-UY")} L · {m.km.toLocaleString("es-UY")} km
+                          </div>
+                          <div className="mt-0.5 text-[10.5px] leading-tight text-ink/45">
+                            {m.closed ? ORIGEN_DEL_CONSUMO_MENSUAL.cerrado : ORIGEN_DEL_CONSUMO_MENSUAL.abierto}
                           </div>
                         </div>
                       ))}

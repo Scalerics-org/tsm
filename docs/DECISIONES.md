@@ -260,3 +260,26 @@ lista es concreta y estable; el séptimo documento, si aparece, es una columna m
 - Misma ruta que el chofer (`POST /photos` con `kind` y `segment_sid`) y la misma compresión. El lector lo frena la lista blanca de `requireAuth`; esconder el botón es comodidad.
 - **No se guarda quién subió la foto:** `trip_photos` no tiene esa columna. Mostrarlo pide una migración aditiva; pendiente de decidir.
 - Sin reintento automático, como el resto de las subidas.
+
+## El mes en curso: la oficina ve lo mismo que el chofer (8/10/2026)
+
+Rodrigo veía en la oficina un km/L del mes que diferia en decimales del que ven los choferes en el celular.
+Eran dos cuentas a propósito (calendario en la oficina, de tanque lleno a tanque lleno en el chofer). Su pedido:
+"mientras no altere cómo medir el consumo y lo que te pedí acorde a los cierres, me gustaría ver lo mismo que
+ellos, para estar alineados".
+
+- **Mes abierto: una sola cuenta.** `consumoDelMesEnCurso` (`shared/domain.ts`) es la cuenta del chofer
+  (primer a último llenado del mes, sin contar lo que sigue en el tanque). `fuelFeedback` la usa para el
+  acumulado `month_kml` y la oficina para el mes abierto (`consumoMensualParaMostrar`): mismos datos, mismo número.
+- **Mes cerrado: sin cambios.** Sigue por calendario (`consumoDelPeriodo` vía `monthlyConsumption`), que es lo
+  que cierra con las facturas del gasoil: cada litro cae en el mes en que se compró. Al cerrar un mes su número
+  puede moverse un poco respecto de lo que se veía abierto, y es esperable: cambia la regla, no el dato.
+- **Qué pantallas:** las tarjetas de consumo mensual del Resumen y de la pantalla Consumo, y el consumo mensual de
+  la ficha del camión (las tres por `consumoMensualDelCamion` / `consumoMensualParaMostrar`). Cada tarjeta dice de
+  dónde sale: "en curso · de tanque lleno a tanque lleno, como lo ve el chofer" o "cerrado · por calendario".
+- **Lo que NO cambia:** el "Rendimiento del período" de Consumo (Desde/Hasta es un rango libre, por defecto toda la
+  historia), la tarjeta por camión del Resumen (rango elegido), la verificación de litros faltantes (al mes abierto
+  no lo juzga: "en_curso"), las anomalías de Control (sólo meses cerrados) y el rango de surtidas.
+- **Con menos de dos llenados en el mes** no hay tramo que medir: el km/L queda vacío (igual que en el celular) y
+  los km y litros que se muestran son los del calendario.
+- No se unifican las cuentas para los meses cerrados sin preguntar: si algún día se quiere, es otra decisión.

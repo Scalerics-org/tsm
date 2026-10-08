@@ -1,4 +1,4 @@
-import { consumoDelPeriodo, monthlyConsumption, type FuelLog } from "../../shared/domain";
+import { consumoDelPeriodo, consumoMensualParaMostrar, type FuelLog } from "../../shared/domain";
 
 /**
  * El consumo de UN camión tal como lo muestran los reportes: el del período y el de cada mes.
@@ -42,7 +42,8 @@ export function consumoDelCamion(surtidas: FuelLog[], desde?: string, hasta?: st
 }
 
 export function consumoMensualDelCamion(surtidas: FuelLog[]): ConsumoDelMes[] {
-  return monthlyConsumption(
+  // Cerrados por calendario; el mes abierto con la cuenta del chofer (ver `consumoDelMesEnCurso`).
+  return consumoMensualParaMostrar(
     surtidas.map((f) => ({
       odometer_km: f.odometer_km,
       liters: f.liters,
