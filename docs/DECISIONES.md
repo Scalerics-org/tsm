@@ -322,3 +322,26 @@ un vacío que la app no veía. Una base fija por camión no sirve porque varía:
   viaje anterior, todo sigue como siempre.
 - Los números de esos camiones suben (más vacíos, menos "km sin justificar" en Control) sólo en los viajes que
   llegan con salida; los demás no cambian.
+
+## Estancias fuera de la ruta: el desvío suma a los km (migración 0058, 10/10/2026)
+
+Rodrigo: "descargamos en estancias, en el medio... son diferentes estancias, no son muchas pero son diferentes, y
+quedan entre 40 y 100 km aprox de Artigas". Están en el mismo departamento que la ciudad, así que el recorrido por
+departamentos no las veía.
+
+- **Van en la libreta que ya existe**, no en una tabla nueva: `libreta.km_desde_ciudad` (entero, nullable, aditiva).
+  Agregar un tipo de libreta obliga a recrear la tabla por su CHECK, y la 0019 cuenta cómo se llevó puestas las
+  reglas de cobro. Cualquier entrada que no sea un remitente puede ser una estancia; la oficina (admin) le pone los
+  km en la pantalla de Libreta. Vacío o 0 = no es una estancia.
+- **Se reconoce por el nombre** que el chofer escribe en "Dónde descargaste" (sin mayúsculas ni acentos, el criterio
+  de siempre de la libreta) y, si la entrada tiene departamento, que sea el de la descarga. El chofer ve las
+  estancias de sugerencia al escribir (`GET /libreta/estancias`); no hace falta que elija nada distinto. Lo hace el
+  servidor: no se confía en un campo que mande el celular.
+- **El desvío es una foto del momento:** la descarga guarda `km_desvio` (en el JSON de `trips.descargas`, sin
+  migración) cuando se cierra el viaje o la oficina corrige las descargas. Cambiarle los km a una estancia después
+  no reescribe los viajes hechos. Al corregir las descargas de un viaje se reevalúa.
+- **Cuenta:** `VECES_QUE_SE_RECORRE_LA_ESTANCIA = 2` (`shared/estancias.ts`): ir y volver a la ruta. ASUMIDO, A
+  CONFIRMAR con Rodrigo; si la estancia queda de paso, o es la última parada y no se vuelve, es 1 y se cambia ahí.
+  `kmEstimadosDelViaje` suma los desvíos a los km del recorrido.
+- **No se recalculan solos los km de un viaje ya cerrado** (se estiman una vez, al cerrar): corregir las descargas
+  guarda el desvío pero deja los km como estaban. Para eso está el script de recálculo.

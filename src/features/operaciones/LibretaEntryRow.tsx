@@ -10,6 +10,7 @@ import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText } from "../../components/ui";
 import { describirDestino, reglasDeRemitente } from "../../lib/libreta-view";
 import { ReglaCobroForm } from "./ReglaCobroForm";
+import { KmDeEstancia } from "./KmDeEstancia";
 
 interface Props {
   entry: LibretaEntry;
@@ -171,6 +172,18 @@ export function LibretaEntryRow({
           />
           Sólo para cobrar: los choferes no lo ven en su lista
         </label>
+      )}
+
+      {/* Las estancias fuera de la ruta: cuántos km quedan de la ciudad. Los remitentes (a quienes se les
+          carga) no son un lugar donde se descargue. */}
+      {!esRemitente && isAdmin && (
+        <KmDeEstancia
+          // La key rehace el estado cuando la entrada se recarga con otro valor.
+          key={`${entry.id}-${entry.km_desde_ciudad ?? ""}`}
+          kmActual={entry.km_desde_ciudad}
+          disabled={busy}
+          onGuardar={(km) => run(() => api.put(`/libreta/${entry.id}`, { km_desde_ciudad: km }))}
+        />
       )}
 
       {fusionando && (

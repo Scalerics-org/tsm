@@ -6,6 +6,7 @@ import {
   type LibretaEstado,
   type LibretaTipo,
 } from "../../shared/domain";
+import type { EstanciaConKm } from "../../shared/estancias";
 
 interface LibretaRow {
   id: number;
@@ -17,6 +18,7 @@ interface LibretaRow {
   usos: number;
   created_by: number | null;
   solo_cobro?: number;
+  km_desde_ciudad?: number | null;
 }
 
 function toEntry(r: LibretaRow): LibretaEntry {
@@ -30,6 +32,7 @@ function toEntry(r: LibretaRow): LibretaEntry {
     usos: r.usos,
     created_by: r.created_by,
     solo_cobro: !!r.solo_cobro,
+    km_desde_ciudad: r.km_desde_ciudad ?? null,
   };
 }
 
@@ -79,7 +82,7 @@ export async function listLibreta(db: D1Database, f: LibretaFilters = {}): Promi
     binds.push(f.estado);
   }
   const sql =
-    "SELECT id, tipo, nombre, provider_id, agrupador, estado, usos, created_by, solo_cobro FROM libreta" +
+    "SELECT id, tipo, nombre, provider_id, agrupador, estado, usos, created_by, solo_cobro, km_desde_ciudad FROM libreta" +
     (where.length ? ` WHERE ${where.join(" AND ")}` : "") +
     " ORDER BY usos DESC, nombre";
   const { results } = await db.prepare(sql).bind(...binds).all<LibretaRow>();
@@ -88,7 +91,7 @@ export async function listLibreta(db: D1Database, f: LibretaFilters = {}): Promi
 
 export async function getEntry(db: D1Database, id: number): Promise<LibretaEntry | null> {
   const r = await db
-    .prepare("SELECT id, tipo, nombre, provider_id, agrupador, estado, usos, created_by, solo_cobro FROM libreta WHERE id = ?")
+    .prepare("SELECT id, tipo, nombre, provider_id, agrupador, estado, usos, created_by, solo_cobro, km_desde_ciudad FROM libreta WHERE id = ?")
     .bind(id)
     .first<LibretaRow>();
   return r ? toEntry(r) : null;
@@ -149,6 +152,8 @@ export interface LibretaPatch {
   agrupador?: boolean;
   estado?: LibretaEstado;
   solo_cobro?: boolean;
+  /** `null` = deja de ser una estancia con desvío. `undefined` = no tocar. */
+  km_desde_ciudad?: number | null;
 }
 
 export async function updateEntry(db: D1Database, id: number, p: LibretaPatch): Promise<void> {
@@ -169,6 +174,10 @@ export async function updateEntry(db: D1Database, id: number, p: LibretaPatch): 
   if (p.solo_cobro != null) {
     sets.push("solo_cobro = ?");
     binds.push(p.solo_cobro ? 1 : 0);
+  }
+  if (p.km_desde_ciudad !== undefined) {
+    sets.push("km_desde_ciudad = ?");
+    binds.push(p.km_desde_ciudad);
   }
   if (!sets.length) return;
   await db.prepare(`UPDATE libreta SET ${sets.join(", ")} WHERE id = ?`).bind(...binds, id).run();
@@ -358,4 +367,20 @@ export async function aprenderDepartamento(
         .bind(p.departamento.trim(), p.entryId, p.departamento.trim()),
     ),
   );
+}
+
+/**
+ * Las estancias con desvío: lugares de la libreta a los que se les cargó cuántos km quedan de la ciudad. Es lo
+ * que reconoce `conDesvioDeEstancias` al guardar las descargas, y lo que el chofer ve de sugerencia al escribir.
+ */
+export async function estanciasConKm(db: D1Database): Promise<EstanciaConKm[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT l.nombre, l.km_desde_ciudad, d.nombre AS departamento
+         FROM libreta l LEFT JOIN departamentos d ON d.id = l.departamento_id
+        WHERE l.km_desde_ciudad IS NOT NULL
+        ORDER BY l.nombre`,
+    )
+    .all<{ nombre: string; km_desde_ciudad: number; departamento: string | null }>();
+  return results ?? [];
 }

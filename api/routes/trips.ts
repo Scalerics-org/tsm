@@ -54,6 +54,7 @@ import * as driversRepo from "../repos/drivers";
 import * as trucksRepo from "../repos/trucks";
 import { MENSAJE_NO_ES_CAMION, esCamion } from "../../shared/clase-vehiculo";
 import { salidaValida } from "../../shared/salida";
+import { conDesvioDeEstancias } from "../../shared/estancias";
 import { periodoDeHoy } from "../lib/periodo";
 import { notificarOficina } from "../lib/avisos";
 import { cabeceraCorregida } from "../lib/cabecera-viaje";
@@ -684,7 +685,8 @@ trips.put("/:id/descargas", requireRole(ROLES.ENCARGADO, ROLES.ADMIN), async (c)
   }
 
   const destination = r.descargas[r.descargas.length - 1].departamento;
-  await tripsRepo.setDescargas(c.env.DB, trip.id, r.descargas, { userId: c.get("user").id, when: nowIso() });
+  const conDesvio = conDesvioDeEstancias(r.descargas, await libretaRepo.estanciasConKm(c.env.DB));
+  await tripsRepo.setDescargas(c.env.DB, trip.id, conDesvio, { userId: c.get("user").id, when: nowIso() });
   await tripsRepo.setRecorrido(c.env.DB, trip.id, trip.origin, destination);
   return ok(c, await tripsRepo.getTrip(c.env.DB, trip.id));
 });
@@ -856,7 +858,8 @@ trips.post("/:id/finish", async (c) => {
   if (tpl?.renglon_pide_ubicacion) {
     const r = descargasDelPedido(b.descargas);
     if ("error" in r) return fail(c, r.error, 400);
-    descargasNuevas = r.descargas;
+    // Si dónde descargó es una estancia de la libreta, la descarga guarda su desvío (suma a los km de abajo).
+    descargasNuevas = conDesvioDeEstancias(r.descargas, await libretaRepo.estanciasConKm(c.env.DB));
     const origin = recorridoSegunCargas(s.trip.segments)?.origin || s.trip.origin;
     const destination = descargasNuevas[descargasNuevas.length - 1].departamento;
     await tripsRepo.setDescargas(c.env.DB, s.trip.id, descargasNuevas);

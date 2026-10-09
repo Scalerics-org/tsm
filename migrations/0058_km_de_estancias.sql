@@ -1,0 +1,13 @@
+-- Cuántos km queda un lugar de la ciudad de su departamento, para sumar el desvío de las estancias.
+--
+-- Rodrigo (10/10): "descargamos en estancias, en el medio... son diferentes estancias, no son muchas pero son
+-- diferentes, y quedan entre 40 y 100 km aprox de Artigas". Están en el mismo departamento que la ciudad, así
+-- que el recorrido por departamentos no las ve. La oficina las da de alta en la libreta (que ya existe) y les
+-- pone cuántos km quedan; al cerrar un viaje, si el lugar donde descargó coincide con una de ellas, la descarga
+-- guarda el desvío (`shared/estancias.ts`).
+--
+-- Aditiva y nullable: NULL = no es una estancia con desvío. No cambia ninguna fila existente ni recrea la
+-- tabla (el CHECK de `libreta.tipo` hace que agregar un tipo obligue a recrearla, y ya nos llevamos puestas las
+-- reglas de cobro una vez por eso: ver 0019).
+ALTER TABLE libreta ADD COLUMN km_desde_ciudad INTEGER;
+-- Va ANTES que el código en el deploy: los SELECT de la libreta ya leen la columna.

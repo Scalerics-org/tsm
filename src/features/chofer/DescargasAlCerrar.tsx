@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import type { EstanciaConKm } from "@shared/estancias";
+import { api } from "../../lib/api";
 import { TIPO_DEPARTAMENTO, LIBRETA_ESTADO, LIBRETA_TIPO, type LibretaEntry } from "@shared/domain";
 import { lugarVacio, type LugarDeDescarga } from "@shared/en-ruta";
 import { Field, Spinner } from "../../components/ui";
@@ -62,11 +65,23 @@ export function DescargasAlCerrar({
   const terminado = respondido;
   const setTerminado = onRespondido;
 
+  // Las estancias que la oficina cargó con su desvío, de sugerencia al escribir dónde descargó: si el chofer
+  // escribe una tal cual, el viaje suma sus km. Sin señal queda sin sugerencias y se escribe a mano como siempre.
+  const [estancias, setEstancias] = useState<EstanciaConKm[]>([]);
+  useEffect(() => {
+    api.get<EstanciaConKm[]>("/libreta/estancias").then(setEstancias).catch(() => undefined);
+  }, []);
+
   const cambiar = (i: number, parcial: Partial<LugarDeDescarga>) =>
     onChange(lugares.map((l, j) => (j === i ? { ...l, ...parcial } : l)));
 
   return (
     <div className="space-y-3">
+      <datalist id="estancias-conocidas">
+        {estancias.map((e) => (
+          <option key={`${e.nombre}-${e.departamento ?? ""}`} value={e.nombre} />
+        ))}
+      </datalist>
       <h3 className="font-semibold text-ink">¿Dónde descargaste?</h3>
       {lugares.map((l, i) => {
         const fotos = fotosPorSid[l.sid] ?? 0;
@@ -101,6 +116,7 @@ export function DescargasAlCerrar({
               <input
                 className="input"
                 value={l.lugar}
+                list="estancias-conocidas"
                 onChange={(e) => cambiar(i, { lugar: e.target.value })}
                 placeholder="Ej: UAM, un depósito, una estancia…"
                 autoCapitalize="words"

@@ -400,6 +400,11 @@ export interface LibretaEntry {
   nombre: string;
   /** Para poder filtrar los lugares por departamento antes de buscar. */
   departamento_id?: number | null;
+  /**
+   * Cuántos km queda de la ciudad de su departamento: lo que hace de este lugar una estancia con desvío
+   * (`shared/estancias.ts`). Vacío = no lo es.
+   */
+  km_desde_ciudad?: number | null;
   provider_id: number | null; // null = disponible para todos los clientes
   /** "Varios" y similares: se pueden usar como nombre de plantilla, nunca dentro de un renglón. */
   agrupador: boolean;
@@ -1554,6 +1559,11 @@ export interface Descarga {
   lugar: string;
   kilos: number | null;
   pallets: number | null;
+  /**
+   * Los km de más que suma haber ido a una estancia fuera de la ruta (`shared/estancias.ts`). Lo pone el servidor
+   * al guardar, si el lugar coincide con una estancia de la libreta; una foto del momento. Ausente = ninguno.
+   */
+  km_desvio?: number;
   /**
    * El chofer no pudo sacar la boleta y lo dijo ("No pude sacar la boleta"). Es lo que deja cerrar
    * el viaje sin foto: un chofer sin señal o sin cámara en un depósito no queda atrapado por un

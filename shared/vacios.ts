@@ -1,4 +1,5 @@
 import { claveDeLugar, kmEstimados } from "./distancias";
+import { kmDeDesvios } from "./estancias";
 import { salidaValida } from "./salida";
 
 /**
@@ -122,10 +123,11 @@ export function kmEstimadosDelViaje(v: {
   origin: string;
   destination: string;
   segments?: CargaConRecorrido[];
-  descargas?: { departamento?: string | null }[] | null;
+  descargas?: { departamento?: string | null; km_desvio?: number | null }[] | null;
 }): number | null {
-  const porTramos = kmPorTramos(paradasDelViaje(v));
-  return porTramos ?? kmDirectoDelViaje(v);
+  const km = kmPorTramos(paradasDelViaje(v)) ?? kmDirectoDelViaje(v);
+  // Las estancias fuera de la ruta suman lo que se desvió el camión (ver `shared/estancias.ts`).
+  return km == null ? null : km + kmDeDesvios(v.descargas);
 }
 
 /** La suma de los tramos entre paradas, o `null` si no hay recorrido que sumar o algún tramo no se conoce. */

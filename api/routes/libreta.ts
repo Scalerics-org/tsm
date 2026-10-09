@@ -41,6 +41,10 @@ libreta.get("/", async (c) => {
   );
 });
 
+// GET /api/libreta/estancias — los lugares con desvío (nombre, departamento y km desde la ciudad). El chofer los ve
+// de sugerencia al escribir dónde descargó: si escribe uno de estos, el viaje suma el desvío.
+libreta.get("/estancias", async (c) => ok(c, await repo.estanciasConKm(c.env.DB)));
+
 // POST /api/libreta — alta rápida. El chofer no queda trabado si el nombre no está;
 // entra como "nuevo" para que la oficina lo confirme. La oficina da de alta confirmado.
 libreta.post("/", async (c) => {
@@ -79,7 +83,12 @@ libreta.put("/:id", requireRole(ROLES.ADMIN), async (c) => {
     agrupador?: boolean;
     estado?: string;
     solo_cobro?: boolean;
+    km_desde_ciudad?: number | null;
   };
+  // Un número entero de km, o null para sacarle el desvío. `undefined` (no vino) no toca nada.
+  if (b.km_desde_ciudad != null && (!Number.isInteger(b.km_desde_ciudad) || b.km_desde_ciudad < 0 || b.km_desde_ciudad > 2000)) {
+    return fail(c, "Los km desde la ciudad van en número entero, de 0 a 2000", 400);
+  }
   if (b.nombre != null && !b.nombre.trim()) return fail(c, "El nombre no puede quedar vacío", 400);
   if (b.estado != null && b.estado !== LIBRETA_ESTADO.CONFIRMADO && b.estado !== LIBRETA_ESTADO.NUEVO) {
     return fail(c, "Estado inválido", 400);
@@ -89,6 +98,7 @@ libreta.put("/:id", requireRole(ROLES.ADMIN), async (c) => {
     agrupador: b.agrupador,
     estado: b.estado as typeof LIBRETA_ESTADO.CONFIRMADO | undefined,
     solo_cobro: typeof b.solo_cobro === "boolean" ? b.solo_cobro : undefined,
+    km_desde_ciudad: b.km_desde_ciudad === undefined ? undefined : b.km_desde_ciudad === null || b.km_desde_ciudad === 0 ? null : b.km_desde_ciudad,
   });
   // Las cargas ya registradas guardan el nombre copiado: sin esto, el Excel y el resumen del
   // cliente seguían saliendo con el nombre viejo después de corregirlo acá.
