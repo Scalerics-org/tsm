@@ -1,4 +1,4 @@
-import { kmEstimados } from "./distancias";
+import { claveDeLugar, kmEstimados } from "./distancias";
 
 /**
  * Los viajes vacíos, deducidos de los viajes que ya están cargados.
@@ -77,10 +77,62 @@ export function finDelViaje(v: { destination: string; segments?: CargaConRecorri
 }
 
 /**
+ * Las paradas del viaje cuando se sabe dónde descargó por lugar (Otros Viajes): donde salió, donde cargó
+ * cada carga y el departamento de cada descarga, en ese orden y sin repetir una parada seguida de sí misma.
+ * Es el mismo recorrido que dibuja `recorridoVisible`, así la cuenta y la pantalla hablan del mismo camino.
+ *
+ * `null` cuando el viaje no tiene descargas por lugar: ahí el recorrido es el de siempre (origen → destino).
+ */
+export function paradasDelViaje(v: {
+  origin: string;
+  segments?: { origen?: string | null }[];
+  descargas?: { departamento?: string | null }[] | null;
+}): string[] | null {
+  if (!v.descargas?.length) return null;
+  const paradas: string[] = [];
+  const sumar = (p: string | null | undefined) => {
+    const lugar = p?.trim();
+    if (!lugar || claveDeLugar(paradas[paradas.length - 1] ?? "") === claveDeLugar(lugar)) return;
+    paradas.push(lugar);
+  };
+  sumar(v.origin);
+  for (const s of v.segments ?? []) sumar(s.origen);
+  for (const d of v.descargas) sumar(d.departamento);
+  return paradas;
+}
+
+/**
  * Los km estimados del viaje. En una ida y vuelta —termina donde empezó— son los dos tramos:
  * la vuelta va cargada y es parte del viaje, no un vacío aparte.
+ *
+ * Con descargas por lugar es la suma de los tramos entre TODAS las paradas (`paradasDelViaje`) y no la
+ * distancia en línea de la punta a la punta: "descargamos en estancias, en el medio, y no las considera"
+ * (Rodrigo, 10/10). Por la desigualdad triangular la suma nunca da menos que el directo. Si algún tramo
+ * tiene un lugar que la app no conoce, se vuelve al directo de siempre: un hueco nuevo sería peor.
  */
 export function kmEstimadosDelViaje(v: {
+  origin: string;
+  destination: string;
+  segments?: CargaConRecorrido[];
+  descargas?: { departamento?: string | null }[] | null;
+}): number | null {
+  const porTramos = kmPorTramos(paradasDelViaje(v));
+  return porTramos ?? kmDirectoDelViaje(v);
+}
+
+/** La suma de los tramos entre paradas, o `null` si no hay recorrido que sumar o algún tramo no se conoce. */
+function kmPorTramos(paradas: string[] | null): number | null {
+  if (!paradas || paradas.length < 2) return null;
+  let total = 0;
+  for (let i = 0; i < paradas.length - 1; i++) {
+    const tramo = kmEstimados(paradas[i], paradas[i + 1]);
+    if (tramo == null) return null;
+    total += tramo;
+  }
+  return total;
+}
+
+function kmDirectoDelViaje(v: {
   origin: string;
   destination: string;
   segments?: CargaConRecorrido[];
