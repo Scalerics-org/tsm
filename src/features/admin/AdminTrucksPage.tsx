@@ -206,7 +206,7 @@ export function AdminTrucksPage() {
                   <MarcaVencimientos className="ml-2" fechas={DOCUMENTOS_DEL_CAMION.map((d) => t[d.campo])} />
                 </td>
                 <td className="px-4 py-3 text-ink/70">
-                  {t.brand} {t.model} · {t.year}
+                  {[`${t.brand} ${t.model}`.trim(), t.year ? String(t.year) : ""].filter(Boolean).join(" · ")}
                 </td>
                 <td className="px-4 py-3 text-ink/70">{t.type}</td>
                 {esCamionLaPestana ? (
