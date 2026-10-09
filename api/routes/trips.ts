@@ -36,7 +36,7 @@ import {
   type TripSegmentInput,
   type TripTemplate,
 } from "../../shared/domain";
-import { kmEstimadosDelViaje } from "../../shared/vacios";
+import { finDelViaje, kmEstimadosDelViaje } from "../../shared/vacios";
 import {
   camposDeRuta,
   descargasDelPedido,
@@ -53,6 +53,7 @@ import * as lecturasRepo from "../repos/lecturas";
 import * as driversRepo from "../repos/drivers";
 import * as trucksRepo from "../repos/trucks";
 import { MENSAJE_NO_ES_CAMION, esCamion } from "../../shared/clase-vehiculo";
+import { salidaValida } from "../../shared/salida";
 import { periodoDeHoy } from "../lib/periodo";
 import { notificarOficina } from "../lib/avisos";
 import { cabeceraCorregida } from "../lib/cabecera-viaje";
@@ -218,6 +219,19 @@ trips.get("/active", async (c) => {
   if (user.role !== ROLES.CHOFER || user.driver_id == null) return ok(c, null);
   const activo = await tripsRepo.activeTripForDriver(c.env.DB, user.driver_id);
   return ok(c, activo ? sinCobro(activo) : null);
+});
+
+// GET /api/trips/salida-sugerida?truck=ID — desde dónde sale el camión: donde terminó su último viaje.
+//
+// Es la sugerencia de la pantalla de salida ("¿Desde dónde salís?"): casi siempre el chofer sólo confirma.
+// Si no hay viaje anterior, o terminó en un lugar que la lista no conoce, no sugiere nada.
+trips.get("/salida-sugerida", async (c) => {
+  const user = c.get("user");
+  const pedido = Number(c.req.query("truck"));
+  const truckId = Number.isInteger(pedido) && pedido > 0 ? pedido : user.truck_id;
+  if (!truckId) return ok(c, { sugerida: null });
+  const ultimo = await tripsRepo.ultimoViajeDelCamion(c.env.DB, truckId);
+  return ok(c, { sugerida: ultimo ? salidaValida(finDelViaje(ultimo)) : null });
 });
 
 // GET /api/trips/:id — detalle + fotos + definición de campos de la plantilla
@@ -417,6 +431,9 @@ trips.post("/", async (c) => {
     // todos los viajes compartirían el mismo y las fotos de uno aparecerían en los demás.
     segments: [...fijos, ...extra],
     kilometros: b.kilometros != null && b.kilometros !== "" ? Number(b.kilometros) : null,
+    // Opcional y a prueba de versiones viejas: sin el campo, o con algo que la lista no reconoce, queda en
+    // null y los vacíos se calculan como siempre. Nunca frena la salida.
+    salida_desde: salidaValida(b.salida_desde),
   },
   // Si lo carga la oficina es porque el viaje ya se hizo y no quedó registrado: nace cerrado,
   // con la fecha que indique. Por eso tampoco se le exigen las fotos — no hubo app en el

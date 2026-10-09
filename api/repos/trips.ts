@@ -32,6 +32,8 @@ interface TripRow {
   created_at: string;
   segments: string | null; // JSON
   kilometros: number | null;
+  /** Desde dónde salió el camión a buscar la carga (migración 0057). `null` = no se sabe. */
+  salida_desde?: string | null;
   edited_by: number | null;
   edited_at: string | null;
   factura_numero: string | null;
@@ -123,7 +125,7 @@ const SELECT = `
   SELECT t.id, t.template_id, t.provider_name, t.origin, t.remite, t.destination, t.destinatario,
          t.driver_id, t.truck_id, t.cargo_type, t.kilos, t.field_values, t.status,
          t.started_at, t.finished_at, t.notes, t.created_at,
-         t.segments, t.descargas, t.kilometros, t.edited_by, t.edited_at,
+         t.segments, t.descargas, t.kilometros, t.salida_desde, t.edited_by, t.edited_at,
          t.factura_numero, t.facturado_at, t.facturado_by,
          t.factura_quitada, t.factura_quitada_at, t.pago_at, t.pago_by, t.numero_mes,
          d.name AS driver_name, tr.plate AS truck_plate,
@@ -188,6 +190,7 @@ function toTrip(r: TripRow): Trip {
     created_at: r.created_at,
     segments: parseSegments(r.segments),
     kilometros: r.kilometros,
+    salida_desde: r.salida_desde ?? null,
     edited_by: r.edited_by,
     edited_at: r.edited_at,
     numero_mes: r.numero_mes,
@@ -466,6 +469,20 @@ export interface StartTripInput {
   field_values: Record<string, string>;
   segments?: TripSegment[];
   kilometros?: number | null;
+  /** Ya validada contra la lista de `shared/salida.ts`, o `null`. */
+  salida_desde?: string | null;
+}
+
+/**
+ * El último viaje del camión que no se canceló, para saber dónde quedó. Es lo que se le sugiere al chofer como
+ * "desde dónde salís": casi siempre es donde terminó el anterior.
+ */
+export async function ultimoViajeDelCamion(db: D1Database, truckId: number): Promise<Trip | null> {
+  const r = await db
+    .prepare(`${SELECT} WHERE t.truck_id = ? AND t.status != 'CANCELADO' ORDER BY t.started_at DESC, t.id DESC LIMIT 1`)
+    .bind(truckId)
+    .first<TripRow>();
+  return r ? toTrip(r) : null;
 }
 
 export async function startTrip(
@@ -479,13 +496,13 @@ export async function startTrip(
 ): Promise<number> {
   const res = await db
     .prepare(
-      `INSERT INTO trips (template_id, provider_name, origin, remite, destination, destinatario, driver_id, truck_id, cargo_type, kilos, field_values, segments, kilometros, status, started_at, finished_at, edited_by, edited_at, cargado_por_oficina)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?)`,
+      `INSERT INTO trips (template_id, provider_name, origin, remite, destination, destinatario, driver_id, truck_id, cargo_type, kilos, field_values, segments, kilometros, salida_desde, status, started_at, finished_at, edited_by, edited_at, cargado_por_oficina)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?)`,
     )
     .bind(
       t.template_id, t.provider_name, t.origin, t.remite, t.destination, t.destinatario, t.driver_id, t.truck_id,
       t.cargo_type, t.kilos_carga, JSON.stringify(t.field_values ?? {}),
-      t.segments?.length ? JSON.stringify(t.segments) : null, t.kilometros ?? null,
+      t.segments?.length ? JSON.stringify(t.segments) : null, t.kilometros ?? null, t.salida_desde ?? null,
       cargadoPorOficina ? "COMPLETADO" : "EN_CURSO",
       cargadoPorOficina?.startedAt ?? null,
       // La LLEGADA es la del viaje, no la de hoy. Con `when` acá, un viaje de mayo cargado en
@@ -617,6 +634,8 @@ export interface CabeceraPatch {
   cargo_type: string;
   kilos_carga: number | null;
   kilometros: number | null;
+  /** Sólo se escribe si viene (`undefined` = no tocar): una pantalla vieja no lo manda y no tiene que borrarlo. */
+  salida_desde?: string | null;
   notes: string | null;
   driver_id: number;
   truck_id: number;
@@ -639,6 +658,7 @@ export async function updateCabecera(
       `UPDATE trips
           SET origin=?, remite=?, destination=?, destinatario=?, cargo_type=?,
               kilos=?, kilometros=?, notes=?, driver_id=?, truck_id=?, field_values=?,
+              salida_desde = CASE WHEN ? THEN ? ELSE salida_desde END,
               edited_by=?, edited_at=?
         WHERE id=?`,
     )
@@ -646,6 +666,7 @@ export async function updateCabecera(
       p.origin, p.remite, p.destination, p.destinatario, p.cargo_type,
       p.kilos_carga, p.kilometros, p.notes, p.driver_id, p.truck_id,
       JSON.stringify(p.field_values ?? {}),
+      p.salida_desde === undefined ? 0 : 1, p.salida_desde ?? null,
       editor.userId, editor.when, id,
     )
     .run();

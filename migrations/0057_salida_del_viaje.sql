@@ -1,0 +1,13 @@
+-- Desde dónde salió el camión a buscar la carga.
+--
+-- Rodrigo (10/10): "somos de base Bella Unión, pero es variable". Los 130 km de Bella Unión a Artigas, a
+-- buscar carga, son un vacío que la app no ve: el viaje dice que carga en Artigas y no hay ningún dato de
+-- dónde estaba el camión antes. No sirve una base fija por camión, porque varía; sirve preguntárselo al
+-- chofer al salir (por defecto, donde terminó el viaje anterior: casi siempre es un toque).
+--
+-- Texto con el nombre de una localidad de la lista cerrada de `shared/salida.ts`. NULL = no se sabe (el chofer
+-- no contestó, una app vieja, o un viaje anterior a esto): los vacíos se calculan como siempre.
+--
+-- Aditiva y sin valor por defecto: no cambia ningún viaje existente.
+ALTER TABLE trips ADD COLUMN salida_desde TEXT;
+-- Va ANTES que el código en el deploy: el SELECT de viajes ya lee la columna.

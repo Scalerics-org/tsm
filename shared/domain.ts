@@ -271,6 +271,11 @@ export interface Trip {
   segments: TripSegment[];
   kilometros: number | null;
   /**
+   * Desde dónde salió el camión a buscar la carga, para los km vacíos (`shared/salida.ts`). Lo dice el chofer al
+   * salir. `null` = no se sabe.
+   */
+  salida_desde?: string | null;
+  /**
    * Auditoría de correcciones de oficina sobre viajes ya cerrados.
    *
    * El nombre viene del JOIN y puede faltar —el usuario que corrigió pudo borrarse—, así que

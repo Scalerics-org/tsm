@@ -1,4 +1,5 @@
 import { claveDeLugar, kmEstimados } from "./distancias";
+import { salidaValida } from "./salida";
 
 /**
  * Los viajes vacíos, deducidos de los viajes que ya están cargados.
@@ -34,6 +35,11 @@ export interface ViajeParaVacios {
   kilometros: number | null;
   /** Las cargas, para saber dónde terminó de verdad (ver `finDelViaje`). */
   segments?: CargaConRecorrido[];
+  /**
+   * Desde dónde salió el camión a buscar la carga (ver `shared/salida.ts`). `null`/ausente = no se sabe: el
+   * vacío se calcula como siempre, del fin del viaje anterior directo al origen de éste.
+   */
+  salida_desde?: string | null;
 }
 
 type CargaConRecorrido = { origen?: string | null; destino?: string | null };
@@ -50,6 +56,7 @@ export function paraVacios(t: {
   destination: string;
   kilometros?: number | null;
   segments?: CargaConRecorrido[];
+  salida_desde?: string | null;
 }): ViajeParaVacios {
   return {
     id: t.id,
@@ -58,6 +65,7 @@ export function paraVacios(t: {
     destination: t.destination,
     kilometros: Number.isFinite(t.kilometros as number) ? (t.kilometros as number) : null,
     segments: t.segments ?? [],
+    salida_desde: t.salida_desde ?? null,
   };
 }
 
@@ -191,23 +199,39 @@ export function vaciosEntreViajes(viajes: ViajeParaVacios[]): TramoVacio[] {
     // Lo mismo con el origen del que sigue: en "Otros Viajes" el viaje nace sin origen y lo toma
     // de la primera carga. Hasta que la haya, no se sabe dónde va a cargar el camión.
     if (!siguiente.origin?.trim()) continue;
-    const estimado = kmEstimados(fin, siguiente.origin);
-    // 0 km es el mismo lugar escrito distinto: no hubo viaje. `null` es un lugar que la app
-    // no conoce, que es otra cosa —hay tramo, no se sabe cuánto— y sí se reporta.
-    if (estimado === 0) continue;
-    if (estimado != null && estimado < KM_VACIO_MINIMO) continue;
 
-    // Vuelve a cargar donde ya había cargado: el vacío es el viaje anterior al revés.
-    const esRetorno = kmEstimados(siguiente.origin, viaje.origin) === 0;
+    const agregar = (desde: string, hasta: string, puedeSerRetorno: boolean) => {
+      const estimado = kmEstimados(desde, hasta);
+      // 0 km es el mismo lugar escrito distinto: no hubo viaje. `null` es un lugar que la app
+      // no conoce, que es otra cosa —hay tramo, no se sabe cuánto— y sí se reporta.
+      if (estimado === 0) return;
+      if (estimado != null && estimado < KM_VACIO_MINIMO) return;
 
-    tramos.push({
-      desde: fin,
-      hasta: siguiente.origin,
-      km: esRetorno ? (viaje.kilometros ?? estimado) : estimado,
-      tipo: esRetorno ? "retorno" : "reposicion",
-      despues_de: viaje.id,
-      antes_de: siguiente.id,
-    });
+      // Vuelve a cargar donde ya había cargado: el vacío es el viaje anterior al revés.
+      const esRetorno = puedeSerRetorno && kmEstimados(siguiente.origin, viaje.origin) === 0;
+
+      tramos.push({
+        desde,
+        hasta,
+        km: esRetorno ? (viaje.kilometros ?? estimado) : estimado,
+        tipo: esRetorno ? "retorno" : "reposicion",
+        despues_de: viaje.id,
+        antes_de: siguiente.id,
+      });
+    };
+
+    // CON LA SALIDA REAL el camión no fue derecho del fin del viaje anterior al lugar de carga: pasó por donde
+    // salió (Montevideo → Bella Unión → Artigas), y los 130 km del final son un vacío por sí mismos. Son dos
+    // tramos, cada uno con su piso de 70 km, y ninguno es "retorno": ese número, el del viaje anterior, ya no
+    // describe el camino. Si la salida es el mismo lugar de carga o donde terminó el viaje anterior (el camión salió
+    // derecho), o no se sabe, todo sigue como siempre.
+    const salida = salidaValida(siguiente.salida_desde);
+    if (salida && claveDeLugar(salida) !== claveDeLugar(siguiente.origin) && claveDeLugar(salida) !== claveDeLugar(fin)) {
+      agregar(fin, salida, false);
+      agregar(salida, siguiente.origin, false);
+    } else {
+      agregar(fin, siguiente.origin, true);
+    }
   }
   return tramos;
 }

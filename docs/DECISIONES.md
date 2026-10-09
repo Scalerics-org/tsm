@@ -302,3 +302,23 @@ Rodrigo: "descargamos en estancias, en el medio, y no las considera" y "me gusta
   vieja (`kmDirectoDelViaje`); un número tipeado a mano casi nunca coincide. Quedan afuera los viajes de plantillas que
   piden los km y los no completados; los que la oficina tocó entran si coinciden, marcados en el CSV.
 - Setiembre no tiene salida real ni estancia elegida: en la práctica el recálculo es sólo la suma de paradas.
+
+## Desde dónde sale el camión a buscar la carga (migración 0057, 10/10/2026)
+
+Rodrigo: "somos de base Bella Unión, pero es variable". Los 130 km de Bella Unión a Artigas, a buscar carga, son
+un vacío que la app no veía. Una base fija por camión no sirve porque varía: se le pregunta al chofer al salir.
+
+- **`trips.salida_desde`** (texto, nullable, aditiva): una localidad de la lista cerrada de `shared/salida.ts`.
+  Nunca queda en la base un texto que la app no entienda (`salidaValida` lo normaliza o lo descarta). NULL = no se
+  sabe, y los vacíos se calculan como siempre.
+- **Opcional, nunca frena la salida.** No entra en `exige_carga_al_salir` ni en los campos obligatorios; una app
+  vieja que no lo manda sigue andando; lo que la lista no reconoce se ignora.
+- **El chofer** lo elige en la pantalla de salida, con la sugerencia de donde terminó el último viaje de ese camión
+  (`GET /trips/salida-sugerida`): casi siempre es confirmar. La oficina lo carga o corrige en Viaje nuevo y en
+  Editar viaje.
+- **Cómo cuenta en los vacíos:** con salida real son DOS tramos, fin del viaje anterior → salida → lugar de carga
+  (Montevideo → Bella Unión → Artigas), cada uno con su piso de 70 km, y ninguno es "retorno": el retorno copia los
+  km del viaje anterior y ya no describe el camino. Si la salida es el mismo lugar de carga o donde terminó el
+  viaje anterior, todo sigue como siempre.
+- Los números de esos camiones suben (más vacíos, menos "km sin justificar" en Control) sólo en los viajes que
+  llegan con salida; los demás no cambian.

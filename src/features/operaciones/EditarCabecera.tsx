@@ -3,6 +3,7 @@ import { soloCamiones } from "@shared/clase-vehiculo";
 import { DRIVER_STATUS, TRIP_STATUS, pesoSospechoso, type Driver, type TemplateField, type Trip, type Truck } from "@shared/domain";
 import { api, ApiError, mensajeDe } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner } from "../../components/ui";
+import { SelectorDeSalida } from "../../components/SelectorDeSalida";
 
 /**
  * Corregir la cabecera de un viaje ya cerrado, desde oficina.
@@ -40,6 +41,7 @@ interface Formulario {
   cargo_type: string;
   kilos_carga: string;
   kilometros: string;
+  salida_desde: string;
   notes: string;
   driver_id: string;
   truck_id: string;
@@ -53,6 +55,7 @@ const delViaje = (t: Trip): Formulario => ({
   cargo_type: t.cargo_type ?? "",
   kilos_carga: t.kilos_carga == null ? "" : String(t.kilos_carga),
   kilometros: t.kilometros == null ? "" : String(t.kilometros),
+  salida_desde: t.salida_desde ?? "",
   notes: t.notes ?? "",
   driver_id: String(t.driver_id),
   truck_id: String(t.truck_id),
@@ -194,7 +197,12 @@ export function EditarCabecera({ trip, recorridoPorCargas, onGuardado, onCancela
             onChange={set("kilometros")}
           />
         </Field>
-        <div />
+        <SelectorDeSalida
+          label="Salió a buscar la carga desde"
+          value={form.salida_desde}
+          onChange={(v) => setForm((f) => ({ ...f, salida_desde: v }))}
+          ayuda="Para los km vacíos: de dónde vino el camión a cargar."
+        />
 
         <Field label="Chofer">
           <select className="input" value={form.driver_id} onChange={set("driver_id")} disabled={enCurso}>

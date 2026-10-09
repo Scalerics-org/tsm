@@ -1,5 +1,6 @@
 import type { Trip } from "../../shared/domain";
 import type { CabeceraPatch } from "../repos/trips";
+import { salidaValida } from "../../shared/salida";
 
 /**
  * La cabecera corregida de un viaje: qué queda después de aplicarle lo que mandó la oficina.
@@ -170,6 +171,8 @@ export function cabeceraCorregida(
       cargo_type,
       kilos_carga,
       kilometros,
+      // Sólo si viene: la lista de `shared/salida.ts`; cualquier otra cosa ("Otra", vacío) la borra.
+      ...(trae("salida_desde") ? { salida_desde: salidaValida(body.salida_desde) } : {}),
       notes: trae("notes") ? textoONull(body.notes) : trip.notes,
       driver_id,
       truck_id,

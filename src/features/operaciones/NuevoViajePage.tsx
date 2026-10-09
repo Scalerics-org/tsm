@@ -15,6 +15,7 @@ import {
 import { api, ApiError, mensajeDe } from "../../lib/api";
 import { Button, Card, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
 import { LibretaPicker } from "../../components/LibretaPicker";
+import { SelectorDeSalida } from "../../components/SelectorDeSalida";
 import { FechaInput } from "../../components/FechaInput";
 import { CampoDePlantilla } from "../../components/CampoDePlantilla";
 
@@ -58,6 +59,7 @@ export function NuevoViajePage() {
   const [destino, setDestino] = useState("");
   const [destinatario, setDestinatario] = useState("");
   const [kilometros, setKilometros] = useState("");
+  const [salidaDesde, setSalidaDesde] = useState("");
   const [cargas, setCargas] = useState<CargaForm[]>([cargaVacia()]);
   // Los campos propios de la plantilla: hoja de ruta, remito, pallets, peso.
   const [values, setValues] = useState<Record<string, string>>({});
@@ -155,6 +157,7 @@ export function NuevoViajePage() {
         destino,
         destinatario: destinatario || null,
         kilometros: kilometros || null,
+        salida_desde: salidaDesde || undefined,
         field_values: values,
         cantidades_fijas: fijas.map((f) => ({ cantidad: Number(f.cantidad), unidad: f.unidad })),
         segments,
@@ -248,6 +251,12 @@ export function NuevoViajePage() {
               placeholder="Opcional"
             />
           </Field>
+          <SelectorDeSalida
+            label="Salió a buscar la carga desde"
+            value={salidaDesde}
+            onChange={setSalidaDesde}
+            ayuda="Opcional. Para los km vacíos."
+          />
         </div>
       </Card>
 
