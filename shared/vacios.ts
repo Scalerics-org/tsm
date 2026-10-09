@@ -132,7 +132,8 @@ function kmPorTramos(paradas: string[] | null): number | null {
   return total;
 }
 
-function kmDirectoDelViaje(v: {
+/** La estimación de punta a punta de siempre (con la vuelta de una ida y vuelta). Es la regla de antes de sumar paradas. */
+export function kmDirectoDelViaje(v: {
   origin: string;
   destination: string;
   segments?: CargaConRecorrido[];

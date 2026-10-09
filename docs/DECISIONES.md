@@ -284,3 +284,21 @@ ellos, para estar alineados".
 - **Con menos de dos llenados en el mes** no hay tramo que medir: el km/L queda vacío (igual que en el celular) y
   los km y litros que se muestran son los del calendario.
 - No se unifican las cuentas para los meses cerrados sin preguntar: si algún día se quiere, es otra decisión.
+
+## Km de un viaje: suman todas las paradas, y se recalcula setiembre (10/10/2026)
+
+Rodrigo: "descargamos en estancias, en el medio, y no las considera" y "me gustaría recalcular septiembre".
+
+- **Con descargas por lugar (Otros Viajes), los km estimados suman los tramos** entre donde salió, donde cargó cada
+  carga y el departamento de cada descarga (`paradasDelViaje` / `kmEstimadosDelViaje`, `shared/vacios.ts`): el mismo
+  recorrido que dibuja `recorridoVisible`. Nunca da menos que el directo; si un tramo tiene un lugar que la app no
+  conoce, vuelve al directo. Los viajes de recorrido fijo y la ida y vuelta de Manassi no cambian.
+- **Los km se estiman una sola vez, al cerrar, y se guardan.** Desplegar la regla nueva no mueve los ya cerrados;
+  para eso está el recálculo.
+- **El recálculo es un script que NO escribe** (`scripts/recalcular-km.mjs --mes 2026-09 [--remote]`, un solo SELECT):
+  deja un CSV con el antes/después por viaje y un .sql con los UPDATE, para aplicar a mano con respaldo hecho. Cada
+  UPDATE exige que el km siga valiendo lo de antes. La cuenta está en `shared/recalculo-km.ts`, con tests.
+- **No hay marca de "km estimado" en la base.** Se toma como estimado el que coincide con lo que habría estimado la regla
+  vieja (`kmDirectoDelViaje`); un número tipeado a mano casi nunca coincide. Quedan afuera los viajes de plantillas que
+  piden los km y los no completados; los que la oficina tocó entran si coinciden, marcados en el CSV.
+- Setiembre no tiene salida real ni estancia elegida: en la práctica el recálculo es sólo la suma de paradas.
