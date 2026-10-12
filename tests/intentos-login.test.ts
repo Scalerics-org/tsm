@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { app } from "../api/app";
 import { hashPassword } from "../api/lib/crypto";
 import {
@@ -155,9 +155,15 @@ describe("el login del chofer", () => {
   it("si la tabla no existe todavía, el login sigue andando como antes", async () => {
     // El código puede llegar a producción antes que la migración: eso no puede dejar a todos
     // los choferes sin poder entrar.
-    const { db } = fakeDB(await hashPassword("1234"), { sinTabla: true });
-    expect((await entrarChofer(db, "0000")).status).toBe(401);
-    expect((await entrarChofer(db, "1234")).status).toBe(200);
+    // La tabla caída hace que el repo avise por console.error; se silencia para no ensuciar el verify.
+    const silencio = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { db } = fakeDB(await hashPassword("1234"), { sinTabla: true });
+      expect((await entrarChofer(db, "0000")).status).toBe(401);
+      expect((await entrarChofer(db, "1234")).status).toBe(200);
+    } finally {
+      silencio.mockRestore();
+    }
   });
 });
 
