@@ -71,7 +71,10 @@ export async function signToken(user: AuthUser, secret: string): Promise<string>
 
 export async function verifyToken(token: string, secret: string): Promise<AuthUser | null> {
   try {
-    const { payload } = await jwtVerify(token, enc.encode(secret));
+    const { payload } = await jwtVerify(token, enc.encode(secret), {
+      // Solo HS256: el token lo firmamos siempre así, no se acepta otro algoritmo.
+      algorithms: ["HS256"],
+    });
     const c = payload as unknown as JwtClaims;
     return {
       id: Number(payload.sub),

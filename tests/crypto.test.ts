@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { hashPassword, verifyPassword } from "../api/lib/crypto";
+import { SignJWT } from "jose";
+import { hashPassword, signToken, verifyPassword, verifyToken } from "../api/lib/crypto";
 
 // Hash del seed para admin@demo.uy (password: demo1234). Valida que el formato
 // del backend coincide con el que se generó para las migraciones.
@@ -24,5 +25,24 @@ describe("password hashing", () => {
 
   it("rechaza hashes con formato inválido", async () => {
     expect(await verifyPassword("x", "no-es-un-hash")).toBe(false);
+  });
+});
+
+describe("verificación del token", () => {
+  const SECRETO = "secreto-de-prueba";
+  const usuario = { id: 7, email: "a@tsm.uy", name: "Ana", role: "ADMIN", driver_id: null, truck_id: null } as const;
+
+  it("acepta un token HS256 firmado por nosotros", async () => {
+    const token = await signToken(usuario as never, SECRETO);
+    expect((await verifyToken(token, SECRETO))?.id).toBe(7);
+  });
+
+  it("rechaza un token firmado con otro algoritmo aunque use el mismo secreto", async () => {
+    const hs512 = await new SignJWT({ name: "Ana", role: "ADMIN" })
+      .setProtectedHeader({ alg: "HS512" })
+      .setSubject("7")
+      .setExpirationTime("7d")
+      .sign(new TextEncoder().encode(SECRETO));
+    expect(await verifyToken(hs512, SECRETO)).toBeNull();
   });
 });
