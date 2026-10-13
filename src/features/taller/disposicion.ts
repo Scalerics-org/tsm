@@ -164,3 +164,16 @@ export function altoDelDibujo(d: Disposicion): number {
   const ultimo = Math.max(...d.ejes.map((e) => e.y));
   return ultimo + CUBIERTA_H / 2 + 52;
 }
+
+/**
+ * Lo que hay que avisar si las cubiertas guardadas de un vehículo se cargaron con OTRO tipo que el actual. Las posiciones
+ * son de la disposición, así que un cambio de tipo las reinterpreta: una cubierta puede quedar en un eje que no es el suyo,
+ * o en una posición que el dibujo nuevo no tiene (y entonces no se dibuja). No se borra nada: sólo se avisa.
+ */
+export function avisoDeCambioDeTipo(d: Disposicion, tipoGuardado: string | undefined, cubiertas: { numero: number }[]): string | undefined {
+  if (!tipoGuardado || tipoGuardado === d.id || cubiertas.length === 0) return undefined;
+  const viejo = TIPOS_DE_VEHICULO.find((t) => t.id === tipoGuardado)?.nombre ?? tipoGuardado;
+  const quedanFuera = cubiertas.filter((c) => c.numero > posiciones(d).length).length;
+  const fuera = quedanFuera ? `: ${quedanFuera} ${quedanFuera === 1 ? "cubierta no tiene" : "cubiertas no tienen"} lugar en este dibujo y no se muestran (siguen guardadas)` : "";
+  return `Las cubiertas se cargaron cuando el tipo era «${viejo}» y ahora es «${d.nombre}». Revisá cada posición${fuera}.`;
+}

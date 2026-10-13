@@ -1,6 +1,37 @@
 import { describe, it, expect } from "vitest";
-import { tipoDesdeTexto, vehiculoDeCamion } from "../src/features/taller/flota-real";
+import { disposicionDesdeTexto, tipoDesdeTexto, vehiculoDeCamion } from "../src/features/taller/flota-real";
 import type { Truck } from "../shared/domain";
+
+/** Los textos reales de la flota en producción, con su clase, el tipo del Taller y si queda algo para confirmar. */
+describe("textos reales de la flota", () => {
+  it.each<[string, Truck["clase"], string, RegExp | undefined]>([
+    ["N99-CAMION SENCILLO", "camion", "camion-chico", /camión chico/],
+    ["N2-CAMION SENCILLO", "camion", "camion-chico", /camión chico/],
+    ["099-REMOLQUE SENCILLO", "remolque", "sorra-sencilla", /«remolque» sin «semi»/],
+    ["TRACTOR DOBLE EJE", "camion", "tractor", undefined],
+    ["CAMION DOBLE EJE", "camion", "doble-eje", undefined],
+    ["N3-CAMION 3 EJE", "camion", "doble-eje", undefined],
+    // Los dos semirremolques llevan el aviso fijo de ejes duales (ya existía antes de este cambio).
+    ["099-SEMIREMOLQUE 3 EJES", "remolque", "remolque-3", /ejes duales/],
+    ["03-SEMIREMOLQUE 2 EJES", "remolque", "remolque-2", /ejes duales/],
+    ["099- EMIREMOLQUE-S48 FURGON", "remolque", "remolque-3", /ejes/],
+  ])("%s → %s (aConfirmar: %s)", (texto, clase, id, aviso) => {
+    const d = disposicionDesdeTexto(texto, clase);
+    expect(d.id).toBe(id);
+    if (aviso) expect(d.aConfirmar).toMatch(aviso);
+    else expect(d.aConfirmar).toBeUndefined();
+  });
+
+  it("un remolque sencillo o doble sin «semi» es una sorra, y avisa", () => {
+    expect(tipoDesdeTexto("REMOLQUE 3 EJES")).toMatchObject({ id: "sorra-doble", supuesto: expect.stringMatching(/sorra/) });
+    expect(tipoDesdeTexto("remolque doble eje").id).toBe("sorra-doble");
+  });
+
+  it("«semirremolque» con doble erre sigue siendo semirremolque", () => {
+    expect(tipoDesdeTexto("SEMIRREMOLQUE 2 EJES").id).toBe("remolque-2");
+    expect(tipoDesdeTexto("semirremolque 3 ejes").id).toBe("remolque-3");
+  });
+});
 
 /**
  * Los camiones y acoplados que Rodrigo carga en Camiones aparecen en el Taller. El "Tipo" es texto libre:

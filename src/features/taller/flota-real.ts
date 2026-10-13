@@ -24,17 +24,27 @@ const normalizar = (s: string) =>
 export function tipoDesdeTexto(texto: string): { id: string; supuesto?: string } {
   const t = normalizar(texto);
   const ejes = t.match(/\b([23])\s*eje/)?.[1];
+  const esDoble = ejes === "3" || /doble/.test(t);
 
-  if (/acoplado|sorra|acopl/.test(t)) return { id: ejes === "3" || /doble/.test(t) ? "sorra-doble" : "sorra-sencilla" };
+  if (/acoplado|sorra|acopl/.test(t)) return { id: esDoble ? "sorra-doble" : "sorra-sencilla" };
 
-  // "emiremolque" (sin la S) también: es como lo escribió Rodrigo en una de las patentes.
-  if (/remolque/.test(t)) {
+  // "semiremolque", "semirremolque" y "emiremolque" (sin la S, como lo escribió Rodrigo en una patente) son semirremolques.
+  if (/(semi|emi)r?\s?remolque/.test(t)) {
     if (ejes === "2") return { id: "remolque-2" };
     if (ejes === "3") return { id: "remolque-3" };
     return { id: "remolque-3", supuesto: "El tipo no dice cuántos ejes tiene: se asumieron tres." };
   }
 
+  // "remolque" a secas, sin "semi": es un acoplado (sorra), no un semirremolque.
+  if (/remolque/.test(t)) {
+    return { id: esDoble ? "sorra-doble" : "sorra-sencilla", supuesto: "«remolque» sin «semi» se tomó como sorra. A confirmar con Rodrigo." };
+  }
+
   if (/tractor/.test(t)) return { id: /sencillo/.test(t) ? "tractor-sencillo" : "tractor" };
+  // "CAMION SENCILLO" (N2 y N99 en la flota): un solo eje trasero y, en la flota, casi todos chicos.
+  if (/camion/.test(t) && /sencillo/.test(t)) {
+    return { id: "camion-chico", supuesto: "Se asumió camión chico (service cada 15.000 km). A confirmar con Rodrigo." };
+  }
   if (/chico|liviano/.test(t)) return { id: "camion-chico" };
   if (/camion|doble eje|rigido/.test(t)) return { id: "doble-eje" };
 

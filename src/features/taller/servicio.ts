@@ -3,7 +3,7 @@ import { MODELOS } from "./base";
 import { aplicarCambios, type CambioDeCubierta } from "./cambio-cubiertas";
 import { ACEITES_DE_EJEMPLO, CUBIERTAS_EN_STOCK, FILTROS_DE_EJEMPLO, PIEZAS_DE_RUEDA, type CubiertaEnStock } from "./datos-extra";
 import { aplicarMovimiento, colocarEnLugarVacio, uidDeStock, type CubiertaBaja, type Movimiento, type Reemplazo, type Situacion } from "./movimientos";
-import { posiciones } from "./disposicion";
+import { avisoDeCambioDeTipo, posiciones } from "./disposicion";
 import { descontar, esItemDeStock, numeroDeCantidad, type ConsumoDeStock, type ItemDeStock } from "./stock-consumibles";
 import { editarCubiertaStock } from "./stock-cubiertas";
 import { FILTRO_DEL_STOCK, PIEZA, SECCION, flujoDeCubiertas, itemsDeLosTipos } from "./tipos-de-service";
@@ -275,6 +275,8 @@ interface Guardado {
   bajas: CubiertaBaja[];
   /** El historial de las posiciones que quedaron sin cubierta, por matrícula. */
   vacias: Record<string, Record<number, PuestaAnterior[]>>;
+  /** El tipo de vehículo (id de disposición) con el que se cargaron las cubiertas de cada matrícula. Sin esto, un cambio de tipo pasa en silencio. */
+  tipos: Record<string, string>;
   /** Cuántas cubiertas se sacaron, movieron o pusieron (para el contador del botón de volver al ejemplo). */
   movimientos: number;
   /** Los aceites y líquidos del depósito, cada tipo con sus compras y usos. */
@@ -289,6 +291,7 @@ const VACIO: Guardado = {
   stockQuitadas: [],
   bajas: [],
   vacias: {},
+  tipos: {},
   movimientos: 0,
   aceites: ACEITES_DE_EJEMPLO,
   filtros: FILTROS_DE_EJEMPLO,
@@ -309,6 +312,7 @@ function leer(): Guardado {
       stockQuitadas: Array.isArray(j.stockQuitadas) ? j.stockQuitadas : [],
       bajas: Array.isArray(j.bajas) ? j.bajas : [],
       vacias: j.vacias && typeof j.vacias === "object" ? j.vacias : {},
+      tipos: j.tipos && typeof j.tipos === "object" ? j.tipos : {},
       movimientos: typeof j.movimientos === "number" ? j.movimientos : 0,
       aceites: Array.isArray(j.aceites) ? j.aceites.filter(esItemDeStock) : ACEITES_DE_EJEMPLO,
       filtros: Array.isArray(j.filtros) ? j.filtros.filter(esItemDeStock) : FILTROS_DE_EJEMPLO,
@@ -354,15 +358,21 @@ function situacionDe(flota: Vehiculo[]): Situacion {
   };
 }
 
+/** El tipo de cada vehículo de la flota de hoy (id de disposición), para anotar con qué tipo se guardaron sus cubiertas. */
+const tiposDe = (flota: Vehiculo[]): Record<string, string> =>
+  Object.fromEntries(flota.flatMap((v) => (v.disposicion ? [[v.patente, v.disposicion.id]] : [])));
+
 /** Guarda el resultado de un movimiento (o de poner una cubierta) y avisa a las pantallas. */
-function guardarSituacion(antes: Situacion, despues: Situacion): Situacion {
+function guardarSituacion(antes: Situacion, despues: Situacion, tipos: Record<string, string>): Situacion {
   if (despues === antes) return antes;
   const cubiertas = { ...guardado.cubiertas };
   const vacias = { ...guardado.vacias };
+  const tiposGuardados = { ...guardado.tipos };
   for (const [patente, v] of Object.entries(despues.flota)) {
     if (v === antes.flota[patente]) continue;
     cubiertas[patente] = v.cubiertas;
     vacias[patente] = v.vacias;
+    if (tipos[patente]) tiposGuardados[patente] = tipos[patente];
   }
   // El stock de ejemplo se guarda por lo que falta; todo lo demás (usadas, o una de ejemplo que volvió) tal cual.
   const deEjemplo = new Set<CubiertaEnStock>(CUBIERTAS_EN_STOCK);
@@ -370,6 +380,7 @@ function guardarSituacion(antes: Situacion, despues: Situacion): Situacion {
     ...guardado,
     cubiertas,
     vacias,
+    tipos: tiposGuardados,
     bajas: despues.bajas,
     movimientos: guardado.movimientos + 1,
     stockUsadas: despues.stock.filter((c) => !deEjemplo.has(c)),
@@ -385,13 +396,13 @@ const nuevoId = () => `c-${Date.now().toString(36)}${Math.random().toString(36).
 /** Saca o mueve una cubierta (baja, stock, otra posición o de otro vehículo). `flota` es la de hoy, con lo cargado. */
 export function moverCubierta(flota: Vehiculo[], m: Movimiento): void {
   const antes = situacionDe(flota);
-  guardarSituacion(antes, aplicarMovimiento(antes, m, nuevoId));
+  guardarSituacion(antes, aplicarMovimiento(antes, m, nuevoId), tiposDe(flota));
 }
 
 /** Pone una cubierta (del stock o a mano) en una posición que estaba vacía. */
 export function ponerCubierta(flota: Vehiculo[], c: { patente: string; posicion: number; fecha: string; km: number; reemplazo: Reemplazo }): void {
   const antes = situacionDe(flota);
-  guardarSituacion(antes, colocarEnLugarVacio(antes, c, nuevoId));
+  guardarSituacion(antes, colocarEnLugarVacio(antes, c, nuevoId), tiposDe(flota));
 }
 
 /**
@@ -405,6 +416,7 @@ export function guardarService(v: Vehiculo, s: Service, cambios: CambioDeCubiert
     ...guardado,
     services: { ...guardado.services, [v.patente]: [s, ...(guardado.services[v.patente] ?? [])] },
     cubiertas: r ? { ...guardado.cubiertas, [v.patente]: r.cubiertas } : guardado.cubiertas,
+    tipos: r && v.disposicion ? { ...guardado.tipos, [v.patente]: v.disposicion.id } : guardado.tipos,
     stockUsadas: r ? [...r.usadas, ...guardado.stockUsadas] : guardado.stockUsadas,
     stockQuitadas: r ? [...guardado.stockQuitadas, ...r.quitadasDelStock] : guardado.stockQuitadas,
     aceites: descontar(guardado.aceites, consumos.filter((c) => c.de === "aceite"), uso, nuevoId),
@@ -505,9 +517,17 @@ const conLoCargado = (v: Vehiculo, g: Guardado): Vehiculo => {
   const nuevos = g.services[v.patente];
   const cubiertas = g.cubiertas[v.patente];
   const vacias = g.vacias[v.patente];
-  return nuevos || cubiertas || vacias
-    ? { ...v, services: nuevos ? [...nuevos, ...v.services] : v.services, cubiertas: cubiertas ?? v.cubiertas, vacias: vacias ?? v.vacias }
-    : v;
+  if (!nuevos && !cubiertas && !vacias) return v;
+  // Si cambió el tipo desde que se cargaron las cubiertas, la ficha lo dice (en "A confirmar"); no se toca ninguna cubierta.
+  const aviso = v.disposicion && cubiertas ? avisoDeCambioDeTipo(v.disposicion, g.tipos[v.patente], cubiertas) : undefined;
+  const disposicion = v.disposicion && aviso ? { ...v.disposicion, aConfirmar: [v.disposicion.aConfirmar, aviso].filter(Boolean).join(" ") } : v.disposicion;
+  return {
+    ...v,
+    disposicion,
+    services: nuevos ? [...nuevos, ...v.services] : v.services,
+    cubiertas: cubiertas ?? v.cubiertas,
+    vacias: vacias ?? v.vacias,
+  };
 };
 
 /** El vehículo con lo que se cargó en este navegador: services nuevos y cubiertas como quedaron. */
