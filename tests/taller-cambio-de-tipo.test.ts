@@ -27,4 +27,18 @@ describe("avisoDeCambioDeTipo", () => {
     expect(aviso).toMatch(/Remolque tres ejes/);
     expect(aviso).not.toMatch(/no tienen lugar/);
   });
+
+  // Cubiertas guardadas antes de anotar el tipo: no se sabe con qué tipo se cargaron, sólo si entran en el dibujo.
+  it("sin tipo guardado, avisa si alguna cubierta no tiene lugar, sin nombrar un tipo viejo que no se sabe", () => {
+    // Caso real: cargadas con doble eje (10 posiciones) y el camión ahora es chico (6): la 8 ya no tiene lugar.
+    const aviso = avisoDeCambioDeTipo(tipoDeVehiculo("camion-chico"), undefined, [{ numero: 2 }, { numero: 8 }]);
+    expect(aviso).toBe(
+      "1 cubierta no tiene lugar en este dibujo y no se muestran (siguen guardadas). Revisá cada posición.",
+    );
+    expect(aviso).not.toMatch(/cuando el tipo era/);
+  });
+
+  it("sin tipo guardado y con todas las cubiertas dentro del dibujo, no avisa", () => {
+    expect(avisoDeCambioDeTipo(tipoDeVehiculo("camion-chico"), undefined, [{ numero: 1 }, { numero: 6 }])).toBeUndefined();
+  });
 });

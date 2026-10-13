@@ -166,14 +166,19 @@ export function altoDelDibujo(d: Disposicion): number {
 }
 
 /**
- * Lo que hay que avisar si las cubiertas guardadas de un vehículo se cargaron con OTRO tipo que el actual. Las posiciones
- * son de la disposición, así que un cambio de tipo las reinterpreta: una cubierta puede quedar en un eje que no es el suyo,
- * o en una posición que el dibujo nuevo no tiene (y entonces no se dibuja). No se borra nada: sólo se avisa.
+ * Lo que hay que avisar de las cubiertas guardadas de un vehículo según el dibujo actual. Las posiciones son de la
+ * disposición: si el tipo cambió, una cubierta puede quedar en un eje que no es el suyo, o en una posición que el dibujo
+ * nuevo no tiene (y entonces no se dibuja). Las cubiertas guardadas antes de anotar el tipo (`tipoGuardado` vacío) sólo
+ * se pueden mirar por lugar: si no entran, se avisa sin nombrar el tipo viejo, que no se sabe. No se borra nada.
  */
 export function avisoDeCambioDeTipo(d: Disposicion, tipoGuardado: string | undefined, cubiertas: { numero: number }[]): string | undefined {
-  if (!tipoGuardado || tipoGuardado === d.id || cubiertas.length === 0) return undefined;
-  const viejo = TIPOS_DE_VEHICULO.find((t) => t.id === tipoGuardado)?.nombre ?? tipoGuardado;
+  if (cubiertas.length === 0) return undefined;
   const quedanFuera = cubiertas.filter((c) => c.numero > posiciones(d).length).length;
-  const fuera = quedanFuera ? `: ${quedanFuera} ${quedanFuera === 1 ? "cubierta no tiene" : "cubiertas no tienen"} lugar en este dibujo y no se muestran (siguen guardadas)` : "";
-  return `Las cubiertas se cargaron cuando el tipo era «${viejo}» y ahora es «${d.nombre}». Revisá cada posición${fuera}.`;
+  const textoFuera = quedanFuera
+    ? `${quedanFuera} ${quedanFuera === 1 ? "cubierta no tiene" : "cubiertas no tienen"} lugar en este dibujo y no se muestran (siguen guardadas). `
+    : "";
+  if (!tipoGuardado) return quedanFuera ? `${textoFuera}Revisá cada posición.` : undefined;
+  if (tipoGuardado === d.id) return undefined;
+  const viejo = TIPOS_DE_VEHICULO.find((t) => t.id === tipoGuardado)?.nombre ?? tipoGuardado;
+  return `Las cubiertas se cargaron cuando el tipo era «${viejo}» y ahora es «${d.nombre}». ${textoFuera}Revisá cada posición.`;
 }
