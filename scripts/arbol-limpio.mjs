@@ -17,6 +17,10 @@
  */
 import { execSync } from "node:child_process";
 
+// `--solo-avisar` es para el ambiente de prueba: ahí desplegar con cambios sin commitear es normal (es
+// justamente para mirar algo antes de commitearlo), pero igual se muestra qué se está subiendo.
+const soloAvisar = process.argv.includes("--solo-avisar");
+
 if (process.env.TSM_DESPLEGAR_ARBOL_SUCIO === "1") {
   console.warn("Árbol sucio permitido a propósito (TSM_DESPLEGAR_ARBOL_SUCIO=1). Mirá bien qué estás subiendo.");
   process.exit(0);
@@ -30,7 +34,13 @@ try {
   process.exit(1);
 }
 
-if (salida.trim()) {
+if (salida.trim() && soloAvisar) {
+  console.warn("");
+  console.warn("Ojo: hay cambios sin commitear y el build los sube a PRUEBA igual:");
+  console.warn("");
+  console.warn(salida.trimEnd());
+  console.warn("");
+} else if (salida.trim()) {
   console.error("");
   console.error("No despliego: hay cambios sin commitear y el build los subiría a producción.");
   console.error("");

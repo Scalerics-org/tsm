@@ -53,3 +53,44 @@ port = 8788
 NOMINATIM_UA = "tsm-scalerics/1.0 (contacto@scalerics.com)"
 VAPID_SUBJECT = "mailto:contacto@scalerics.com"
 VAPID_PUBLIC = "BFwyzlZmW7CwululHYcCeGU_WHUpUvHhnzFpSMAS9iWFNoDB6Fu7GuHuxojUiMsukJyWcNw-lvS6m1XW8q1mCUc"
+
+# =====================================================================================
+# AMBIENTE DE PRUEBA  (prueba.tsm.scalerics.com)
+#
+# Una copia de producción para que Rodrigo mire cada cambio antes de que llegue a los
+# choferes. Se despliega con `npm run deploy:prueba` y NUNCA toca la base ni las fotos de
+# producción: tiene su propia D1 y su propio bucket.
+#
+# En wrangler los bindings y las vars NO se heredan en un env: por eso se repiten enteros.
+# JWT_SECRET y VAPID_PRIVATE son secrets propios de este env (`--env prueba`); con los de
+# producción, un token de un ambiente entraría en el otro.
+# =====================================================================================
+[env.prueba]
+name = "tsm-prueba"
+routes = [{ pattern = "prueba.tsm.scalerics.com", custom_domain = true }]
+
+[env.prueba.assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[env.prueba.observability]
+enabled = true
+
+[[env.prueba.d1_databases]]
+binding = "DB"
+database_name = "logistica_db_prueba"
+database_id = "0e2703c4-9711-4eb1-9b63-858908061b79"
+
+[[env.prueba.r2_buckets]]
+binding = "FOTOS"
+bucket_name = "logistica-fotos-prueba"
+
+[env.prueba.vars]
+# Es lo que prende la franja de PRUEBA en la app (la lee /api/health). En producción no existe.
+AMBIENTE = "prueba"
+NOMINATIM_UA = "tsm-scalerics/1.0 (contacto@scalerics.com)"
+VAPID_SUBJECT = "mailto:contacto@scalerics.com"
+# Claves propias de prueba: la privada es el secret VAPID_PRIVATE de este env.
+VAPID_PUBLIC = "BG63GZTLujBmDingaeWcYVeUc8AZiDsiv5vMHzbD0SsDDKlMBZgPCne9mfmACWKvwn1lPDDONWvJ-tYLf1s5VrA"
