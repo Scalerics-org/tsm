@@ -221,6 +221,49 @@ Después de cada deploy, verificá que responda:
 curl -s https://tsm.scalerics.com/api/health
 ```
 
+### Ambiente de prueba
+
+**https://prueba.tsm.scalerics.com** es una copia de producción donde Rodrigo mira cada cambio antes de que
+llegue a los choferes (el porqué está en `docs/DECISIONES.md`). Es otro Worker (`tsm-prueba`) con su propia base
+(`logistica_db_prueba`) y su propio bucket de fotos (`logistica-fotos-prueba`); la config está en
+`[env.prueba]` de `wrangler.toml`. Arriba de todas las pantallas lleva una franja amarilla que dice
+**AMBIENTE DE PRUEBA**: la prende la variable `AMBIENTE = "prueba"`, que `/api/health` devuelve y la app lee.
+
+Desplegar un cambio a la prueba (no hace falta el árbol limpio; avisa si hay cambios sin commitear):
+
+```bash
+npm run db:migrate:prueba && npm run deploy:prueba
+curl -s https://prueba.tsm.scalerics.com/api/health   # tiene que decir "ambiente":"prueba"
+```
+
+Como en producción, **primero las migraciones y después el código**.
+
+**Refrescar la prueba con los datos de hoy** (siempre de producción a prueba, nunca al revés):
+
+```bash
+# 1. Respaldo de producción (sólo lee)
+npx wrangler d1 export logistica_db --remote --output "<carpeta de respaldos>\tsm-AAAAMMDD-HHMM.sql"
+
+# 2. Arma el .sql para la prueba: sin suscripciones push ni contadores de login. Queda al lado del respaldo.
+node scripts/prueba-desde-respaldo.mjs "<carpeta de respaldos>\tsm-AAAAMMDD-HHMM.sql"
+
+# 3. Lo carga en la prueba (borra y vuelve a crear las tablas) y aplica las migraciones que la prueba tenga de más
+npx wrangler d1 execute logistica_db_prueba --env prueba --remote --file="<carpeta de respaldos>\tsm-AAAAMMDD-HHMM-para-prueba.sql"
+npm run db:migrate:prueba
+```
+
+Cosas a saber:
+
+- El archivo generado tiene datos reales (choferes, viajes, hashes de contraseñas): vive en la carpeta de
+  respaldos del cliente, nunca en el repo (el script se niega a escribirlo acá).
+- Las **fotos** no se copian: los viajes copiados apuntan a archivos del bucket de producción y en la prueba el
+  visor dice "No se pudo cargar la imagen". Las fotos que se saquen en la prueba sí andan.
+- Refrescar vuelve la base de la prueba a lo que tiene producción. Si en la prueba hay una migración que
+  producción todavía no tiene, esa tabla nueva se queda y al migrar de nuevo falla por "ya existe": en ese caso
+  recreá la base de prueba en vez de refrescarla.
+- Secrets del env prueba (`--env prueba`): `JWT_SECRET` y `VAPID_PRIVATE`, propios de la prueba. Con los de
+  producción, un token de un ambiente entraría en el otro.
+
 ## Estructura
 
 ```

@@ -345,3 +345,32 @@ departamentos no las veía.
   `kmEstimadosDelViaje` suma los desvíos a los km del recorrido.
 - **No se recalculan solos los km de un viaje ya cerrado** (se estiman una vez, al cerrar): corregir las descargas
   guarda el desvío pero deja los km como estaban. Para eso está el script de recálculo.
+
+## Ambiente de prueba: Rodrigo mira antes de que llegue a los choferes (prueba.tsm.scalerics.com, 13/10/2026)
+
+Rodrigo quiere ver cada cambio antes de que llegue a los choferes, y no había dónde: producción es lo único que
+existe y los choferes la usan todos los días. El circuito queda así: se programa, se despliega a la prueba,
+Rodrigo mira y da el OK, y recién ahí va a producción.
+
+- **Es un Worker aparte con todo propio:** `tsm-prueba` (`[env.prueba]` en `wrangler.toml`), su base
+  `logistica_db_prueba` y su bucket `logistica-fotos-prueba`. En wrangler los bindings y las vars no se heredan
+  de un env a otro, por eso se repiten enteros. `npm run deploy` (producción) no cambia: sigue desplegando el
+  mismo Worker al mismo lugar.
+- **Arranca como copia de producción** para que Rodrigo entre con su mismo usuario y vea sus camiones y viajes.
+  La copia va **siempre de producción a prueba, nunca al revés**: lo que se carga en la prueba no es real, y
+  una base de prueba que alimentara a producción es la forma más fácil de meter datos inventados en la plata
+  que se factura. `scripts/prueba-desde-respaldo.mjs` arma el .sql desde un respaldo y no ejecuta nada.
+- **Las suscripciones push NO se copian** (`push_subscriptions`): cada fila es el celular de una persona real, y
+  una prueba que dispare un aviso de viaje cerrado se lo mandaría a un chofer de verdad. La tabla sí se crea
+  (la app la usa), vacía. Tampoco `intentos_login`: son contadores de bloqueo de producción. La lista está en
+  `TABLAS_QUE_NO_SE_COPIAN` (`shared/respaldo-prueba.ts`) y un test mira que cualquier tabla de las migraciones
+  con `endpoint` o `p256dh` esté en ella.
+- **La prueba tiene claves y secrets propios:** su par VAPID y su `JWT_SECRET`. Así un token de un ambiente no
+  entra en el otro, y un celular que se suscriba a la prueba no es un celular suscripto a producción.
+- **Franja de PRUEBA:** arriba de todas las pantallas, fija, con "AMBIENTE DE PRUEBA — lo que cargues acá no es
+  real". La prende la variable `AMBIENTE = "prueba"` del Worker, que `/api/health` devuelve y la app lee; en
+  producción la variable no existe y no se dibuja nada. Sólo el valor exacto "prueba" la prende, y si la app no
+  puede averiguarlo (sin señal) asume producción: preferible una franja de menos en la prueba que una de más en
+  producción.
+- **Las fotos viejas no se copian:** los viajes copiados apuntan a archivos del bucket de producción. El visor ya
+  contesta "No se pudo cargar la imagen" cuando la foto no existe, así que la pantalla no se rompe.
