@@ -26,6 +26,17 @@
  * dispositivos, se agrega a TABLAS_QUE_NO_SE_COPIAN y los tests la cuidan.
  */
 
+/**
+ * LA TRABA. El .sql borra todas las tablas (DROP TABLE) antes de crearlas, y las bases de producción y de prueba
+ * se llaman casi igual (`logistica_db` y `logistica_db_prueba`): un nombre mal escrito en el comando de carga
+ * borraría producción entera. Por eso la PRIMERA instrucción toca una tabla marca que existe SÓLO en la base de
+ * prueba (se crea a mano una vez, `docs`/README paso 0; no va en migrations/ para que producción no la tenga
+ * nunca). En una base sin la marca esa instrucción da "no such table" y la carga se corta ahí, antes de borrar nada.
+ * Nunca se hace DROP de la marca: el refresco siguiente la necesita.
+ */
+export const TABLA_MARCA = "_solo_prueba";
+export const TRABA_SOLO_PRUEBA = `INSERT OR REPLACE INTO ${TABLA_MARCA} (id) VALUES (1);`;
+
 /** Tablas cuyos datos NO pasan a la prueba (la tabla sí se crea). */
 export const TABLAS_QUE_NO_SE_COPIAN: readonly string[] = ["push_subscriptions", "intentos_login"];
 
@@ -161,6 +172,9 @@ export function prepararRespaldoParaPrueba(respaldo: string): ResultadoDeLaCopia
     if (borrada && aVaciar.has(borrada)) continue;
     // Los DROP de una pasada anterior también: se vuelven a armar con el orden de ahora.
     if (/^DROP\s+TABLE\s+IF\s+EXISTS\b/i.test(instruccion)) continue;
+    // La marca es de la base de prueba: nunca se copia, ni se crea ni se borra desde un respaldo (si alguien
+    // respaldara la prueba, o pasara por acá su propia salida, la traba se arma una sola vez, abajo).
+    if (tablaCreada(instruccion) === TABLA_MARCA || tablaDelInsert(instruccion) === TABLA_MARCA) continue;
     const tabla = tablaDelInsert(instruccion);
     if (tabla && aVaciar.has(tabla)) {
       filasDescartadas[tabla] = (filasDescartadas[tabla] ?? 0) + 1;
@@ -175,7 +189,7 @@ export function prepararRespaldoParaPrueba(respaldo: string): ResultadoDeLaCopia
   const delFinal = tablasVaciadas.map((t) => `DELETE FROM ${t};`);
 
   return {
-    sql: [...ordenarParaCargar(quedan), ...delFinal].join("\n") + "\n",
+    sql: [TRABA_SOLO_PRUEBA, ...ordenarParaCargar(quedan), ...delFinal].join("\n") + "\n",
     filasDescartadas,
     tablasVaciadas,
     instrucciones: quedan.length,

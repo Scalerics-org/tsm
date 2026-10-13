@@ -238,6 +238,18 @@ curl -s https://prueba.tsm.scalerics.com/api/health   # tiene que decir "ambient
 
 Como en producción, **primero las migraciones y después el código**.
 
+**Paso 0, una sola vez: la marca de la base de prueba.** El .sql de la copia empieza con `DROP TABLE` de todas las
+tablas, y `logistica_db` (producción) y `logistica_db_prueba` se llaman casi igual: un nombre mal escrito en el
+comando de carga borraría producción. Por eso el .sql arranca con una instrucción que toca la tabla `_solo_prueba`,
+que existe SÓLO en la base de prueba (no va en `migrations/`, producción no la tiene nunca). En una base sin la
+marca esa primera instrucción da "no such table" y la carga se corta antes de borrar nada. Se crea una vez:
+
+```bash
+npx wrangler d1 execute logistica_db_prueba --env prueba --remote --command "CREATE TABLE IF NOT EXISTS _solo_prueba (id INTEGER PRIMARY KEY CHECK (id = 1)); INSERT OR REPLACE INTO _solo_prueba (id) VALUES (1);"
+```
+
+Nunca se borra: los refrescos siguientes la necesitan.
+
 **Refrescar la prueba con los datos de hoy** (siempre de producción a prueba, nunca al revés):
 
 ```bash

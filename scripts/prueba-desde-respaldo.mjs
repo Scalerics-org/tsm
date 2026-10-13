@@ -88,7 +88,10 @@ async function main() {
   }
   console.log(`DELETE al final: ${resultado.tablasVaciadas.join(", ")}`);
   console.log("");
-  console.log("Para cargarlo (base de prueba VACÍA, antes de migrar):");
+  console.log("Antes de cargarlo, la base de prueba tiene que tener la marca _solo_prueba (README, paso 0): sin ella");
+  console.log("la primera instrucción falla y no se borra nada, que es lo que se busca si te equivocás de base.");
+  console.log("");
+  console.log("Para cargarlo (antes de migrar):");
   console.log(`  npx wrangler d1 execute logistica_db_prueba --env prueba --remote --file="${salida}"`);
 }
 

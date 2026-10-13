@@ -5,6 +5,8 @@ import {
   prepararRespaldoParaPrueba,
   tablaDelInsert,
   tablasPorDependencia,
+  TABLA_MARCA,
+  TRABA_SOLO_PRUEBA,
 } from "../shared/respaldo-prueba";
 
 /**
@@ -99,8 +101,8 @@ describe("la copia para la base de prueba", () => {
     expect(sql).toContain("0058_km_de_estancias.sql");
   });
 
-  it("sirve para cargar una base vacía: arranca con el PRAGMA y las tablas se crean antes de llenarse", () => {
-    expect(sql.startsWith("PRAGMA defer_foreign_keys=TRUE;")).toBe(true);
+  it("sirve para cargar una base vacía: el PRAGMA va justo después de la traba y las tablas se crean antes de llenarse", () => {
+    expect(sql.split("\n")[1]).toBe("PRAGMA defer_foreign_keys=TRUE;");
     expect(sql.indexOf("CREATE TABLE users")).toBeLessThan(sql.indexOf('INSERT INTO "users"'));
   });
 
@@ -157,7 +159,7 @@ INSERT INTO "sqlite_sequence" ("name","seq") VALUES('trucks',5);
     expect(pos("users")).toBeLessThan(pos("drivers"));
     expect(pos("drivers")).toBeLessThan(pos("trucks"));
     expect(sql.lastIndexOf("DROP TABLE")).toBeLessThan(sql.indexOf("CREATE TABLE"));
-    expect(sql.indexOf("PRAGMA")).toBe(0);
+    expect(sql.indexOf("PRAGMA")).toBeLessThan(sql.indexOf("DROP TABLE"));
   });
 
   it("sólo borra tablas que el respaldo crea", () => {
@@ -180,6 +182,43 @@ INSERT INTO "sqlite_sequence" ("name","seq") VALUES('trucks',5);
       ),
     );
     expect([...orden].sort()).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("la traba: sólo se puede cargar en la base de prueba", () => {
+  const { sql } = prepararRespaldoParaPrueba(RESPALDO);
+  const instrucciones = partirInstrucciones(sql);
+
+  it("la PRIMERA instrucción toca la tabla marca, antes de cualquier DROP", () => {
+    expect(instrucciones[0]).toBe(TRABA_SOLO_PRUEBA);
+    expect(instrucciones[0]).toContain(TABLA_MARCA);
+    expect(instrucciones[0]).toMatch(/^INSERT OR REPLACE INTO _solo_prueba/);
+    expect(sql.indexOf(TABLA_MARCA)).toBeLessThan(sql.indexOf("DROP TABLE"));
+  });
+
+  it("ninguna instrucción borra, vacía ni recrea la marca", () => {
+    const tocan = instrucciones.filter((i) => i.toLowerCase().includes(TABLA_MARCA));
+    expect(tocan).toEqual([TRABA_SOLO_PRUEBA]);
+    expect(sql).not.toMatch(/DROP\s+TABLE[^;]*_solo_prueba/i);
+    expect(sql).not.toMatch(/DELETE\s+FROM\s+_solo_prueba/i);
+    expect(sql).not.toMatch(/CREATE\s+TABLE[^;]*_solo_prueba/i);
+  });
+
+  it("si el respaldo ya traía la marca (se respaldó la prueba), no se copia ni se borra", () => {
+    const conMarca = `${RESPALDO}CREATE TABLE _solo_prueba (id INTEGER PRIMARY KEY CHECK (id = 1));\nINSERT INTO "_solo_prueba" ("id") VALUES(1);\n`;
+    const salida = prepararRespaldoParaPrueba(conMarca).sql;
+    expect(partirInstrucciones(salida).filter((i) => i.toLowerCase().includes(TABLA_MARCA))).toEqual([TRABA_SOLO_PRUEBA]);
+  });
+
+  it("pasar la salida de nuevo no duplica la traba", () => {
+    expect(prepararRespaldoParaPrueba(sql).sql).toBe(sql);
+  });
+
+  it("no hay ninguna migración que cree la marca: producción no la tiene nunca", async () => {
+    const { readdirSync, readFileSync } = await import("node:fs");
+    for (const f of readdirSync("migrations").filter((n) => n.endsWith(".sql"))) {
+      expect(readFileSync(`migrations/${f}`, "utf8")).not.toContain(TABLA_MARCA);
+    }
   });
 });
 

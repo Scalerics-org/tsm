@@ -372,5 +372,9 @@ Rodrigo mira y da el OK, y recién ahí va a producción.
   producción la variable no existe y no se dibuja nada. Sólo el valor exacto "prueba" la prende, y si la app no
   puede averiguarlo (sin señal) asume producción: preferible una franja de menos en la prueba que una de más en
   producción.
+- **La carga sólo anda en la base de prueba (la traba `_solo_prueba`):** el .sql borra todas las tablas antes de
+  recrearlas, y `logistica_db` / `logistica_db_prueba` difieren en un sufijo. Su primera instrucción toca una tabla
+  marca que existe sólo en la prueba; en cualquier otra base falla ahí y no se borra nada. Es el mismo miedo del seed
+  que borraba producción (0007). La marca no está en `migrations/` y el script nunca la borra.
 - **Las fotos viejas no se copian:** los viajes copiados apuntan a archivos del bucket de producción. El visor ya
   contesta "No se pudo cargar la imagen" cuando la foto no existe, así que la pantalla no se rompe.
