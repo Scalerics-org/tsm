@@ -16,6 +16,8 @@ body {
   @apply bg-bg text-ink antialiased;
   font-family: "Public Sans", system-ui, sans-serif;
   font-size: 15px;
+  /* Ambiente de prueba: deja lugar para la franja fija de arriba. En producción la variable no existe y vale 0. */
+  padding-top: var(--franja-alto, 0px);
 }
 
 h1,

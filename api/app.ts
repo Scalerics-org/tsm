@@ -33,7 +33,11 @@ export const app = new Hono<{ Bindings: Env; Variables: Vars }>().basePath("/api
  */
 app.use("*", secureHeaders({ xFrameOptions: "DENY" }));
 
-app.get("/health", (c) => c.json({ success: true, data: { status: "ok" } }));
+// `ambiente` prende la franja de PRUEBA en la app. Sólo el valor exacto "prueba" cuenta: cualquier otra cosa
+// (o la variable ausente, que es lo que pasa en producción) es producción.
+app.get("/health", (c) =>
+  c.json({ success: true, data: { status: "ok", ambiente: c.env?.AMBIENTE === "prueba" ? "prueba" : "produccion" } }),
+);
 
 app.route("/auth", auth);
 app.route("/trips", trips);

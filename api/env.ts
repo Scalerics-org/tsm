@@ -10,6 +10,8 @@ export interface Env {
   VAPID_PUBLIC: string;
   VAPID_PRIVATE: string;
   VAPID_SUBJECT: string;
+  // "prueba" sólo en el ambiente de prueba (wrangler.toml, [env.prueba.vars]). En producción no existe.
+  AMBIENTE?: string;
 }
 
 // Variables que colgamos del contexto Hono tras autenticar.

@@ -136,7 +136,7 @@ function ChoferShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   return (
     <div className="mx-auto flex min-h-full max-w-md flex-col bg-bg">
-      <header className="sticky top-0 z-[500] flex items-center gap-3 bg-navy px-4 py-3">
+      <header className="sticky top-[var(--franja-alto,0px)] z-[500] flex items-center gap-3 bg-navy px-4 py-3">
         <Logo />
         <button
           onClick={() => {
@@ -193,7 +193,7 @@ function DesktopShell({ grupos, children }: { grupos: NavGroup[]; children: Reac
   const items = grupos.flatMap((g) => g.items);
   return (
     <div className="flex min-h-full">
-      <aside className="sticky top-0 hidden h-screen w-60 flex-none flex-col bg-navy py-5 md:flex">
+      <aside className="sticky top-[var(--franja-alto,0px)] hidden h-[calc(100vh-var(--franja-alto,0px))] w-60 flex-none flex-col bg-navy py-5 md:flex">
         <div className="px-5 pb-6">
           <Logo />
         </div>
@@ -239,7 +239,7 @@ function DesktopShell({ grupos, children }: { grupos: NavGroup[]; children: Reac
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-[500] flex items-center gap-3 bg-navy px-4 py-3 md:hidden">
+        <header className="sticky top-[var(--franja-alto,0px)] z-[500] flex items-center gap-3 bg-navy px-4 py-3 md:hidden">
           <Logo />
           <button onClick={doLogout} className="ml-auto font-cond text-sm font-semibold uppercase tracking-[0.08em] text-brand-400">
             Salir
