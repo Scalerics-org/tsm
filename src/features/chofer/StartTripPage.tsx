@@ -18,7 +18,6 @@ import { useAuth } from "../../lib/auth";
 import { Button, Card, Corners, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
 import { LibretaPicker } from "../../components/LibretaPicker";
-import { SelectorDeSalida } from "../../components/SelectorDeSalida";
 import { CampoDePlantilla } from "../../components/CampoDePlantilla";
 import { compressImage } from "../../lib/image";
 import { salidaYaCreada } from "@shared/envio-de-viaje";
@@ -56,9 +55,6 @@ export function StartTripPage() {
   const [textos, setTextos] = useState<Record<string, string>>({});
   const [trucks, setTrucks] = useState<TruckOption[]>([]);
   const [truckId, setTruckId] = useState("");
-  // Desde dónde sale el camión a buscar la carga (para los km vacíos). Opcional: nunca frena la salida.
-  const [salidaDesde, setSalidaDesde] = useState("");
-  const [salidaTocada, setSalidaTocada] = useState(false);
   /**
    * Si el camión elegido hace este viaje. Se le pregunta al servidor con la misma lista que
    * arma la pantalla de viajes (`GET /templates?truck=N`), que ya cuenta los viajes propios del
@@ -69,21 +65,6 @@ export function StartTripPage() {
    */
   const [haceElViaje, setHaceElViaje] = useState<boolean | null>(null);
 
-  // La sugerencia es donde terminó el último viaje de ESE camión: casi siempre el chofer sólo confirma. Si ya
-  // tocó el desplegable no se le pisa. Sin señal o sin viaje anterior queda vacío, que es "no sé": no molesta.
-  useEffect(() => {
-    if (!truckId) return;
-    let vigente = true;
-    api
-      .get<{ sugerida: string | null }>(`/trips/salida-sugerida?truck=${truckId}`)
-      .then((r) => {
-        if (vigente && !salidaTocada) setSalidaDesde(r.sugerida ?? "");
-      })
-      .catch(() => undefined);
-    return () => {
-      vigente = false;
-    };
-  }, [truckId, salidaTocada]);
   useEffect(() => {
     setHaceElViaje(null);
     if (!truckId || !templateId) return;
@@ -301,7 +282,6 @@ export function StartTripPage() {
             destinatario: destinatarioFinal || undefined,
             field_values: values,
             truck_id: truckId ? Number(truckId) : undefined,
-            salida_desde: salidaDesde || undefined,
             segments: cargaLista ? [cargaLista.carga] : undefined,
           }),
         async () => {
@@ -373,15 +353,6 @@ export function StartTripPage() {
               : "Cambialo solo si hoy manejás otro camión."}
           </p>
         </Field>
-        <SelectorDeSalida
-          value={salidaDesde}
-          onChange={(v) => {
-            setSalidaTocada(true);
-            setSalidaDesde(v);
-          }}
-          label="¿Desde dónde salís a buscar la carga?"
-          ayuda="Para los kilómetros vacíos. Si no sabés, dejalo en «Otra»."
-        />
         {/* La lista de viajes se arma con el camión asignado, pero acá lo puede cambiar. Si
             el que eligió no hace este viaje conviene decírselo ahora y no después de llenar
             todo: el alta lo va a rechazar igual. */}
