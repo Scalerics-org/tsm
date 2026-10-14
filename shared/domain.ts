@@ -1819,7 +1819,7 @@ export function auditoriaKilometros(
    * parámetro y no se calculan acá porque necesitan el origen y el destino de cada viaje, que
    * `ViajeAuditado` no lleva: acá sólo se restan.
    */
-  deducidos: { km: number | null; tipo: "retorno" | "reposicion" }[] = [],
+  deducidos: { km: number | null; tipo: "retorno" | "reposicion" | "buscar_carga" }[] = [],
 ): AuditoriaKm {
   const cargados = viajes.filter((v) => !v.vacio);
   const vacios = viajes.filter((v) => v.vacio);
@@ -1827,10 +1827,11 @@ export function auditoriaKilometros(
   const km_cargados = sumaKm(cargados);
   const km_vacios = sumaKm(vacios);
   // Un tramo sin estimación suma 0: no se le inventa un recorrido, igual que a un viaje sin km.
-  const sumaTramos = (tipo: "retorno" | "reposicion") =>
-    redondearKm(deducidos.filter((d) => d.tipo === tipo).reduce((s, d) => s + (d.km ?? 0), 0));
-  const km_retorno = sumaTramos("retorno");
-  const km_reposicion = sumaTramos("reposicion");
+  const sumaTramos = (cuenta: (d: { tipo: string }) => boolean) =>
+    redondearKm(deducidos.filter(cuenta).reduce((s, d) => s + (d.km ?? 0), 0));
+  const km_retorno = sumaTramos((d) => d.tipo === "retorno");
+  // "A buscar carga" es todo lo que no es retorno: la estimación de siempre y los km fijos de las reglas del cliente.
+  const km_reposicion = sumaTramos((d) => d.tipo !== "retorno");
   const km_periodo =
     lectura && previa ? redondearKm(lectura.kilometraje - previa.kilometraje) : null;
 

@@ -1,3 +1,4 @@
+import { reglaDeBuscarCarga } from "./buscar-carga";
 import { claveDeLugar, kmEstimados } from "./distancias";
 import { kmDeDesvios } from "./estancias";
 import { salidaValida } from "./salida";
@@ -41,6 +42,8 @@ export interface ViajeParaVacios {
    * vacío se calcula como siempre, del fin del viaje anterior directo al origen de éste.
    */
   salida_desde?: string | null;
+  /** La plantilla del viaje: algunas reglas de km fijos (`shared/buscar-carga.ts`) dependen de a qué viaje va a cargar. */
+  template_id?: number | null;
 }
 
 type CargaConRecorrido = { origen?: string | null; destino?: string | null };
@@ -58,6 +61,7 @@ export function paraVacios(t: {
   kilometros?: number | null;
   segments?: CargaConRecorrido[];
   salida_desde?: string | null;
+  template_id?: number | null;
 }): ViajeParaVacios {
   return {
     id: t.id,
@@ -67,6 +71,7 @@ export function paraVacios(t: {
     kilometros: Number.isFinite(t.kilometros as number) ? (t.kilometros as number) : null,
     segments: t.segments ?? [],
     salida_desde: t.salida_desde ?? null,
+    template_id: t.template_id ?? null,
   };
 }
 
@@ -158,9 +163,10 @@ export function kmDirectoDelViaje(v: {
 
 /**
  * `retorno` deshace el viaje anterior: vuelve a cargar donde ya había cargado, sin nada en el
- * medio. `reposicion` es ir a buscar carga a otro lado.
+ * medio. `reposicion` es ir a buscar carga a otro lado. `buscar_carga` también es ir a buscar carga, pero con los
+ * km fijos de una regla del cliente (`shared/buscar-carga.ts`) en vez de la estimación entre los dos lugares.
  */
-export type TipoVacio = "retorno" | "reposicion";
+export type TipoVacio = "retorno" | "reposicion" | "buscar_carga";
 
 export interface TramoVacio {
   desde: string;
@@ -202,6 +208,21 @@ export function vaciosEntreViajes(viajes: ViajeParaVacios[]): TramoVacio[] {
     // de la primera carga. Hasta que la haya, no se sabe dónde va a cargar el camión.
     if (!siguiente.origin?.trim()) continue;
 
+    // UNA REGLA FIJA manda sobre todo lo demás (el piso, la salida, el retorno): un solo tramo con los km del
+    // cliente, y sólo para viajes desde el 1/10/2026. Sin regla, todo sigue como siempre.
+    const regla = reglaDeBuscarCarga(fin, siguiente);
+    if (regla) {
+      tramos.push({
+        desde: fin,
+        hasta: siguiente.origin,
+        km: regla.km,
+        tipo: "buscar_carga",
+        despues_de: viaje.id,
+        antes_de: siguiente.id,
+      });
+      continue;
+    }
+
     const agregar = (desde: string, hasta: string, puedeSerRetorno: boolean) => {
       const estimado = kmEstimados(desde, hasta);
       // 0 km es el mismo lugar escrito distinto: no hubo viaje. `null` es un lugar que la app
@@ -237,6 +258,9 @@ export function vaciosEntreViajes(viajes: ViajeParaVacios[]): TramoVacio[] {
   }
   return tramos;
 }
+
+/** Ir a buscar carga: la estimación de siempre (`reposicion`) o los km fijos de una regla (`buscar_carga`). Todo lo que no es retorno. */
+export const esBusquedaDeCarga = (t: { tipo: TipoVacio }) => t.tipo !== "retorno";
 
 /** Los km vacíos totales. Los tramos sin estimación no suman: no se inventa un número. */
 export function kmVacios(tramos: TramoVacio[]): number {
@@ -316,7 +340,7 @@ export function vaciosDelPeriodo(
   const tramos = tramosDelPeriodo(viajes, desde, hasta);
   return {
     km_retorno: kmVacios(tramos.filter((t) => t.tipo === "retorno")),
-    km_reposicion: kmVacios(tramos.filter((t) => t.tipo === "reposicion")),
+    km_reposicion: kmVacios(tramos.filter(esBusquedaDeCarga)),
     tramos: tramos.length,
     sin_km: tramos.filter((t) => t.km == null).length,
   };

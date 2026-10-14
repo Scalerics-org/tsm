@@ -17,7 +17,7 @@ import { columnasDeCampos, encabezado, filasDeViaje, resumenParaElCliente, plani
 import { csvResponse } from "../lib/csv";
 import { consumoDelCamion, consumoMensualDelCamion } from "../lib/consumo-camiones";
 import { verificarMeses } from "../../shared/verificacion-mensual";
-import { tramosDelPeriodo, tramosDeLaVentana, ventanaDeFotos, kmVacios, vaciosDelPeriodo, paraVacios } from "../../shared/vacios";
+import { tramosDelPeriodo, tramosDeLaVentana, ventanaDeFotos, kmVacios, vaciosDelPeriodo, paraVacios, esBusquedaDeCarga } from "../../shared/vacios";
 import { periodoAnterior } from "../../shared/domain";
 import { listaDeFacturas } from "../../shared/facturacion-por-cliente";
 import { getLectura } from "../repos/lecturas";
@@ -402,7 +402,7 @@ reports.get("/truck/:id", async (c) => {
     km_vacios: kmVacios(vacios),
     // Retorno y "a buscar carga" por separado, como en el Resumen.
     km_retorno: kmVacios(vacios.filter((t) => t.tipo === "retorno")),
-    km_reposicion: kmVacios(vacios.filter((t) => t.tipo === "reposicion")),
+    km_reposicion: kmVacios(vacios.filter(esBusquedaDeCarga)),
     vacios_sin_km: vacios.filter((t) => t.km == null).length,
     // Mismo criterio que los vacíos: un viaje cancelado no cargó nada, así que sus kilos
     // no son toneladas transportadas. La lista de arriba SÍ los sigue mostrando — la

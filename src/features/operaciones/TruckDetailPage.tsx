@@ -28,7 +28,7 @@ interface TramoVacio {
   desde: string;
   hasta: string;
   km: number | null;
-  tipo: "retorno" | "reposicion";
+  tipo: "retorno" | "reposicion" | "buscar_carga";
   despues_de: number;
   antes_de: number;
   /** El día en que cuenta: el del viaje siguiente, cuando el camión fue a buscar la carga. */
@@ -271,7 +271,11 @@ export function TruckDetailPage() {
                   </span>
                   <span className="ml-2 text-xs text-ink/45">{fmtDate(t.fecha)}</span>
                   <div className="font-cond text-xs uppercase tracking-[0.06em] text-ink/45">
-                    {t.tipo === "retorno" ? "Retorno · vuelve a cargar donde ya cargó" : "Va a buscar carga"}
+                    {t.tipo === "retorno"
+                      ? "Retorno · vuelve a cargar donde ya cargó"
+                      : t.tipo === "buscar_carga"
+                        ? "Va a buscar carga · km fijos"
+                        : "Va a buscar carga"}
                   </div>
                 </td>
                 <td className="px-4 py-2 text-right tabular-nums text-ink/70">

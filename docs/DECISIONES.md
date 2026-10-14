@@ -322,6 +322,10 @@ un vacío que la app no veía. Una base fija por camión no sirve porque varía:
   viaje anterior, todo sigue como siempre.
 - Los números de esos camiones suben (más vacíos, menos "km sin justificar" en Control) sólo en los viajes que
   llegan con salida; los demás no cambian.
+- **14/10/2026: el chofer ya no la responde.** Rodrigo pidió no preguntarle nada más y los km salen de reglas fijas
+  (ver "Km fijos de buscar carga"). La pregunta se sacó de la pantalla del chofer; la columna, la corrección de la
+  oficina y el cálculo con la salida (para los viajes de antes del 1/10 y los pares sin regla) siguen. Sólo 6 viajes
+  llegaron a tenerla y en los 6 coincidía con donde terminó el viaje anterior: nunca movió un número.
 
 ## Estancias fuera de la ruta: el desvío suma a los km (migración 0058, 10/10/2026)
 
@@ -378,3 +382,28 @@ Rodrigo mira y da el OK, y recién ahí va a producción.
   que borraba producción (0007). La marca no está en `migrations/` y el script nunca la borra.
 - **Las fotos viejas no se copian:** los viajes copiados apuntan a archivos del bucket de producción. El visor ya
   contesta "No se pudo cargar la imagen" cuando la foto no existe, así que la pantalla no se rompe.
+
+## Km fijos de buscar carga, por lugar (13 y 14/10/2026, desde el 1/10)
+
+Rodrigo pidió no preguntarle nada al chofer y que los km de "ir a buscar carga" salgan de reglas fijas. El 14/10 las
+precisó: "Siempre que descargue en Bella Unión y vaya Artigas hay que sumar los 137. Excepto que el camión haga un
+viaje [que] descargue agencia, Bella Unión - Artigas. Pero ahí él lo debe cargar porque es un viaje cargado."
+
+- **Las reglas viven en `shared/buscar-carga.ts`** (`REGLAS_BUSCAR_CARGA`), una tabla {fin del viaje anterior, a qué
+  carga va (origen o plantilla)} → km. Hoy son dos: Bella Unión → carga en Artigas = 137 (Casarone, Manassi Artigas -
+  Minas o cualquier otro), y Bella Unión → plantilla 12 (Manassi, carga en ALUR) = 15. Van a venir más (otros viajes
+  que descargan en el departamento de Artigas, estancias): se agrega una fila, gana la primera que coincide.
+- **Por lugar y no por la plantilla del viaje anterior:** no importa qué viaje dejó al camión en Bella Unión (5, 19, 20,
+  22 o cualquiera). La excepción de Rodrigo sale sola: "Viaje Agencia Artigas" (plantilla 28) termina en Artigas, así
+  que el siguiente no tiene tramo.
+- **Fijos y sin el piso de 70 km:** son los km que el cliente da por buenos para ese movimiento; los 15 de ALUR cuentan.
+  Le ganan al retorno y a la salida que el chofer haya cargado. Es UN tramo, de tipo nuevo `buscar_carga`, que en los
+  totales cuenta como "a buscar carga" (todo lo que no es retorno).
+- **Sólo desde el 1/10/2026**, por el día de Uruguay en que arrancó el viaje siguiente (`started_at` está en UTC: las
+  02:59 del 1/10 todavía son 30/9). Setiembre está cerrado y facturado con la cuenta de antes: probado con el respaldo
+  del 13/10, setiembre da exactamente igual, camión por camión.
+- **Con el respaldo del 13/10, octubre sólo cambia en 15 km** (camión 9, viaje 418 → 423, ALUR): los 137 de Bella Unión
+  → Artigas ya salían de la estimación entre los dos lugares. El "cero" que veía Rodrigo no es de esta cuenta: ver la
+  ventana de fotos de Control (los viajes de octubre entran recién con la foto de noviembre).
+- **Riesgo conocido, no resuelto:** un viaje de "Otros viajes" que descarga en Bella Unión y carga el departamento
+  "Artigas" deja el destino guardado como "Artigas" y el tramo da 0. No hay casos así hoy.
