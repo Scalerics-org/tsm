@@ -265,6 +265,10 @@ npm run db:migrate:prueba
 
 # 4. La zafra de arroz no viene de producción: se vuelve a cargar a mano (script, nunca migración)
 npx wrangler d1 execute logistica_db_prueba --env prueba --remote --file=scripts/zafra-de-arroz.sql
+
+# 5. SÓLO EN LA PRUEBA: el script la deja con fecha (los choferes la ven recién el 15/1/2027); para que Rodrigo la
+#    vea ya, se le saca la fecha a las 7 plantillas
+npx wrangler d1 execute logistica_db_prueba --env prueba --remote --command "UPDATE trip_templates SET visible_desde = NULL WHERE provider_id = (SELECT id FROM providers WHERE name = 'Zafra de arroz');"
 ```
 
 Cosas a saber:
@@ -277,7 +281,11 @@ Cosas a saber:
   producción todavía no tiene, esa tabla nueva se queda y al migrar de nuevo falla por "ya existe": en ese caso
   recreá la base de prueba en vez de refrescarla.
 - La zafra de arroz vive en `scripts/zafra-de-arroz.sql`, no en `migrations/`: el refresco la borra, así que hay que volver
-  a correr el paso 4. En producción se corre sólo con el OK de Rodrigo.
+  a correr el paso 4 (y el 5). En producción se corre sólo con el OK de Rodrigo, y SIN el paso 5: queda cargada y
+  activa con `visible_desde = 2027-01-15`, invisible para los choferes hasta ese día, y después le aparece sola al GTP 4371.
+- **Plantillas con fecha:** en Plantillas, "Visible para los choferes desde" hace que una plantilla aparezca sola en el
+  celular a partir de ese día (de Uruguay). La oficina la ve siempre, con la marca "Choferes: desde …" mientras falte.
+  Para que la vean antes, se borra la fecha y se guarda.
 - Secrets del env prueba (`--env prueba`): `JWT_SECRET` y `VAPID_PRIVATE`, propios de la prueba. Con los de
   producción, un token de un ambiente entraría en el otro.
 

@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { app } from "../api/app";
 import { signToken } from "../api/lib/crypto";
 import { periodoDeHoy } from "../api/lib/periodo";
@@ -35,6 +35,10 @@ const correrMigracion = async () => {
 };
 
 beforeAll(async () => {
+  // El reloj clavado en un día de octubre: las plantillas de la zafra tienen fecha 15/1/2027 y, con el reloj real, estos
+  // tests dejarían de decir lo mismo el día que la fecha llegue. Sólo se falsea Date: la D1 de verdad sigue andando.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-19T15:00:00Z"));
   base = await baseReal();
   const camion = (placa: string) =>
     base.db
@@ -62,6 +66,7 @@ beforeAll(async () => {
 }, 180_000);
 
 afterAll(async () => {
+  vi.useRealTimers();
   await base?.cerrar();
 });
 
@@ -122,8 +127,9 @@ describe("el script de la zafra", () => {
     expect(primera.arrival_photo_label).toBe("Foto del remito de descarga");
   });
 
-  it("nacen apagadas", async () => {
-    expect((await filasDeLaZafra()).every((f) => f.active === 0)).toBe(true);
+  it("nacen activas pero con fecha: los choferes las ven recién el 15/1/2027", async () => {
+    const filas = await filasDeLaZafra();
+    expect(filas.every((f) => f.active === 1 && f.visible_desde === "2027-01-15")).toBe(true);
   });
 
   it("no asigna a ningún camión si GTP 4371 no existe en la base", async () => {
@@ -182,8 +188,11 @@ describe("la zafra no va en las migraciones", () => {
     expect(existsSync(RUTA_DEL_SCRIPT)).toBe(true);
   });
 
-  it("si la base no tiene la 0059, el script corta antes de insertar: ni el proveedor queda cargado", async () => {
-    const vieja = await baseReal("0058_km_de_estancias.sql");
+  it.each([
+    ["0058_km_de_estancias.sql", "la 0059"],
+    ["0059_km_fijos_y_orden.sql", "la 0060"],
+  ])("si la base no tiene %s (sin %s), el script corta antes de insertar: ni el proveedor queda cargado", async (hasta) => {
+    const vieja = await baseReal(hasta);
     try {
       let error: unknown = null;
       try {
@@ -222,11 +231,11 @@ describe("los choferes no la ven", () => {
     expect(r.status).toBe(404);
   });
 
-  it("la oficina sí las ve, inactivas y en el orden de Rodrigo", async () => {
+  it("la oficina sí las ve, con su fecha y en el orden de Rodrigo", async () => {
     const r = await pedir(await tokenOficina(), "/api/templates");
     const zafra = (r.body.data as any[]).filter((t) => t.provider_name === "Zafra de arroz");
     expect(zafra.map((t) => t.name)).toEqual(VIAJES.map((v) => v.nombre));
-    expect(zafra.every((t) => t.active === false)).toBe(true);
+    expect(zafra.every((t) => t.active === true && t.visible_desde === "2027-01-15")).toBe(true);
   });
 });
 
@@ -266,14 +275,14 @@ describe("el orden de las plantillas", () => {
 });
 
 describe("prenderla desde la oficina, sin programar", () => {
-  it("tildar «Activa» en Plantillas la deja visible para el camión asignado y para ningún otro", async () => {
+  it("borrarle la fecha en Plantillas la deja visible para el camión asignado y para ningún otro", async () => {
     const oficina = await tokenOficina();
     const { body } = await pedir(oficina, "/api/templates");
     const primera = (body.data as any[]).find((t) => t.name === VIAJES[0].nombre);
     expect(primera.truck_ids).toEqual([ids.camionDeLaZafra]);
-    // Se prenden las 7 igual que lo haría la oficina: una por una, tildando «Activa» y guardando.
+    // Se adelantan las 7 igual que lo haría la oficina: una por una, borrando la fecha y guardando.
     for (const t of (body.data as any[]).filter((x) => x.provider_name === "Zafra de arroz")) {
-      const guardada = await pedir(oficina, `/api/templates/${t.id}`, { method: "PUT", json: { ...t, active: true } });
+      const guardada = await pedir(oficina, `/api/templates/${t.id}`, { method: "PUT", json: { ...t, visible_desde: null } });
       expect(guardada.status, JSON.stringify(guardada.body)).toBe(200);
     }
 

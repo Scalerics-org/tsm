@@ -7,23 +7,29 @@
 --     npx wrangler d1 execute logistica_db_prueba --env prueba --remote --file=scripts/zafra-de-arroz.sql
 --   Producción: el mismo archivo contra logistica_db, SÓLO con el OK de Rodrigo.
 --
--- Requiere la 0059 (km_fijos y orden). La primera sentencia lo comprueba y, si faltan, corta antes de insertar nada.
--- Refrescar la prueba desde producción borra esto: después de cada refresco hay que volver a correrlo.
+-- Requiere la 0059 (km_fijos y orden) y la 0060 (visible_desde). La primera sentencia lo comprueba y, si faltan, corta
+-- antes de insertar nada. Refrescar la prueba desde producción borra esto: después de cada refresco hay que volver a correrlo.
 --
--- NACEN APAGADAS Y SIN QUE LAS VEA NINGÚN CHOFER. `active = 0` las saca de la lista de los choferes y además el alta de un
--- viaje las rechaza ("Plantilla de viaje no disponible", api/routes/trips.ts): aunque alguien mande el id a mano, no sale
--- ningún viaje. La oficina sí las ve en Plantillas (con "inactiva") y las puede revisar o editar.
+-- NACEN ACTIVAS PERO CON FECHA: `visible_desde = '2027-01-15'`. Hasta ese día (de Uruguay) ningún chofer las ve: la lista del
+-- celular no se las ofrece y el alta de un viaje las rechaza ("Plantilla de viaje no disponible", api/routes/trips.ts),
+-- aunque alguien mande el id a mano. El 15/1 le aparecen solas al camión que tienen asignado, sin tocar nada ni correr nada.
+-- La oficina las ve siempre en Plantillas (con la marca "Choferes: desde 15/01/2027") y las puede revisar o editar.
 --
--- Quedan además asignadas al camión GTP 4371 (el de prueba de Rodrigo): el día que se prendan —tildar "Activa" en
--- Plantillas— las ve sólo ese camión y no toda la flota. Si el camión no existe en la base, no se asigna nada.
+-- Quedan asignadas al camión GTP 4371 (el de prueba de Rodrigo): el 15/1 las ve sólo ese camión y no toda la flota. Si el
+-- camión no existe en la base, no se asigna nada (y entonces las vería toda la flota ese día: confirmar la patente).
 --
--- Se puede correr dos veces: cada fila se inserta sólo si todavía no está.
+-- PARA LA PRUEBA, que Rodrigo las vea YA: correr esto después del script (sacarle la fecha a las 7):
+--
+-- UPDATE trip_templates SET visible_desde = NULL
+--  WHERE provider_id = (SELECT id FROM providers WHERE name = 'Zafra de arroz');
+--
+-- Se puede correr dos veces: cada fila se inserta sólo si todavía no está (no pisa lo que ya esté cargado).
 --
 -- Destinos: las tres plantas de Samán (T.G = Tomás Gomensoro, TBO = Tacuarembó). Los nombres de los viajes y los
 -- lugares van como los escribió Rodrigo.
 
--- Primera sentencia: falla si la base no tiene la 0059. Así no queda el proveedor cargado sin sus plantillas.
-SELECT km_fijos, orden FROM trip_templates LIMIT 0;
+-- Primera sentencia: falla si la base no tiene la 0059 y la 0060. Así no queda el proveedor cargado sin sus plantillas.
+SELECT km_fijos, orden, visible_desde FROM trip_templates LIMIT 0;
 
 INSERT INTO providers (name)
 SELECT 'Zafra de arroz'
@@ -43,7 +49,7 @@ INSERT INTO trip_templates (
   provider_id, name, origin, destinations, cargo_type, requires_kilos, extra_type, extra_required,
   active, dest_options, fields, arrival_photo_label, remite, campos_ubicacion, multi_renglon,
   pide_kilometros, viaje_vacio, foto_carga_requerida, renglon_pide_ubicacion, carga_photo_label,
-  renglon_pide_departamento, exige_carga_al_salir, km_fijos, orden
+  renglon_pide_departamento, exige_carga_al_salir, km_fijos, orden, visible_desde
 )
 SELECT
   p.id,
@@ -54,7 +60,7 @@ SELECT
   0,
   'none',
   0,
-  0,
+  1,
   '[]',
   -- Carga (al iniciar el viaje): número de remito + foto. Descarga (para cerrar): kilos, sobrepeso Sí/No,
   -- número de boleta de balanza (Samán siempre emite la boleta de la balanza) + foto.
@@ -75,7 +81,8 @@ SELECT
   0,
   0,
   v.km,
-  v.orden
+  v.orden,
+  '2027-01-15'
 FROM viajes v
 JOIN providers p ON p.name = 'Zafra de arroz'
 WHERE NOT EXISTS (
