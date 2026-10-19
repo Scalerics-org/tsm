@@ -30,6 +30,7 @@ interface TemplateRow {
   active: number;
   km_fijos: number | null;
   orden: number | null;
+  visible_desde: string | null;
   truck_ids?: string; // group_concat de template_trucks
 }
 
@@ -67,13 +68,14 @@ function toTemplate(r: TemplateRow): TripTemplate {
     active: !!r.active,
     km_fijos: r.km_fijos ?? null,
     orden: r.orden ?? null,
+    visible_desde: r.visible_desde ?? null,
   };
 }
 
 const SELECT = `
   SELECT tt.id, tt.provider_id, tt.name, tt.origin, tt.remite, tt.cargo_type,
          tt.dest_options, tt.fields, tt.arrival_photo_label, tt.carga_photo_label, tt.campos_ubicacion,
-         tt.multi_renglon, tt.renglon_pide_ubicacion, tt.renglon_pide_departamento, tt.renglones_fijos, tt.exige_carga_al_salir, tt.pide_kilometros, tt.viaje_vacio, tt.foto_carga_requerida, tt.active, tt.km_fijos, tt.orden,
+         tt.multi_renglon, tt.renglon_pide_ubicacion, tt.renglon_pide_departamento, tt.renglones_fijos, tt.exige_carga_al_salir, tt.pide_kilometros, tt.viaje_vacio, tt.foto_carga_requerida, tt.active, tt.km_fijos, tt.orden, tt.visible_desde,
          p.name AS provider_name,
          (SELECT group_concat(truck_id) FROM template_trucks WHERE template_id = tt.id) AS truck_ids
   FROM trip_templates tt JOIN providers p ON p.id = tt.provider_id
@@ -117,6 +119,8 @@ export interface TemplateInput {
   /** `undefined` = el pedido no trajo el campo: no se toca (una pantalla vieja no puede borrarlos al guardar). */
   km_fijos?: number | null;
   orden?: number | null;
+  /** AAAA-MM-DD desde el que la ven los choferes; `null` = sin fecha; `undefined` = no se toca. */
+  visible_desde?: string | null;
 }
 
 /**
@@ -153,6 +157,7 @@ function columnasYValores(t: TemplateInput): [string, unknown][] {
     // Sólo si el pedido los trae: guardar la plantilla desde una pantalla que no los conoce no los pone en null.
     ...(t.km_fijos !== undefined ? ([["km_fijos", t.km_fijos]] as [string, unknown][]) : []),
     ...(t.orden !== undefined ? ([["orden", t.orden]] as [string, unknown][]) : []),
+    ...(t.visible_desde !== undefined ? ([["visible_desde", t.visible_desde]] as [string, unknown][]) : []),
   ];
 }
 

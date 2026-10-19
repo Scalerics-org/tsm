@@ -19,6 +19,7 @@ import {
   corrimientoEnDias,
   esFechaValida,
   plantillaParaCamion,
+  plantillaVisibleParaChofer,
   TRIP_STATUS,
   UNIDAD,
   aplicarCobro,
@@ -37,6 +38,7 @@ import {
   type TripTemplate,
 } from "../../shared/domain";
 import { finDelViaje, kmEstimadosDelViaje } from "../../shared/vacios";
+import { hoyEnUruguay } from "../../shared/vencimientos";
 import {
   camposDeRuta,
   descargasDelPedido,
@@ -336,6 +338,12 @@ trips.post("/", async (c) => {
 
   const tpl = await templatesRepo.getTemplate(c.env.DB, Number(b.template_id));
   if (!tpl || !tpl.active) return fail(c, "Plantilla de viaje no disponible", 404);
+  // Una plantilla con fecha `visible_desde` futura (la zafra de arroz, hasta el 15/1) no existe para el chofer: la lista
+  // no se la ofrece y esto cierra el otro lado, el id mandado a mano. Es la misma regla que la lista
+  // (`plantillaVisibleParaChofer`). La oficina pasa: carga viajes que ya pasaron y ve la plantilla siempre.
+  if (user.role === ROLES.CHOFER && !plantillaVisibleParaChofer(tpl, hoyEnUruguay())) {
+    return fail(c, "Plantilla de viaje no disponible", 404);
+  }
 
   // El destino se sigue exigiendo, SALVO en los viajes donde cada carga trae su propia
   // ubicación: ahí el recorrido lo arman las cargas y preguntarlo antes de arrancar era

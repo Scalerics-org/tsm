@@ -278,6 +278,11 @@ export interface TripTemplate {
    * alfabéticas como siempre. `null`/ausente = sin orden.
    */
   orden?: number | null;
+  /**
+   * Desde qué día (de Uruguay, AAAA-MM-DD) la ven los choferes. `null`/ausente = sin fecha, como siempre. La oficina la
+   * ve y la edita siempre. Ver `plantillaVisibleParaChofer`.
+   */
+  visible_desde?: string | null;
 }
 
 /**
@@ -1383,6 +1388,43 @@ export function plantillaParaCamion(
 ): boolean {
   if (listaDelCamion.length) return listaDelCamion.includes(tpl.id);
   return plantillaHabilitada(tpl, truckId);
+}
+
+/** Si el texto es un día real escrito AAAA-MM-DD (el 31/02 no lo es). */
+export function esDiaIso(v: unknown): v is string {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const fecha = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(fecha.getTime()) && fecha.toISOString().slice(0, 10) === v;
+}
+
+/**
+ * Si los CHOFERES ven la plantilla hoy, sin mirar los camiones: está activa Y ya llegó su fecha `visible_desde`.
+ *
+ * La zafra de arroz tiene que aparecerle sola a los choferes el 15/01/2027: la plantilla se carga antes con esa fecha y
+ * listo, no hay nada que programar ni que tenga que correr ese día. `hoy` es el día de Uruguay ("AAAA-MM-DD",
+ * `hoyEnUruguay`): a las 00:00 del 15/1 de Uruguay son las 03:00 UTC, y comparar contra el día UTC la mostraría tres
+ * horas tarde... o, el 14 a la noche, tres horas antes de tiempo.
+ *
+ * Sin fecha (NULL, todas las plantillas de hoy) es como siempre. Una fecha que no se puede leer NO la muestra: si
+ * alguien la escribe mal a mano, es preferible que no aparezca a que aparezca antes de lo que pidió el cliente.
+ */
+export function plantillaVisibleParaChofer(tpl: Pick<TripTemplate, "active" | "visible_desde">, hoy: string): boolean {
+  if (!tpl.active) return false;
+  if (tpl.visible_desde == null || tpl.visible_desde === "") return true;
+  return esDiaIso(tpl.visible_desde) && tpl.visible_desde <= hoy;
+}
+
+/**
+ * Lo que ve un chofer: la plantilla tiene que estar visible hoy (`plantillaVisibleParaChofer`) Y su camión tiene que
+ * poder hacerla (`plantillaParaCamion`). Es la regla de la lista del celular y del alta del viaje: no pueden ser dos.
+ */
+export function plantillaParaChofer(
+  tpl: Pick<TripTemplate, "id" | "truck_ids" | "active" | "visible_desde">,
+  truckId: number | null | undefined,
+  listaDelCamion: number[],
+  hoy: string,
+): boolean {
+  return plantillaVisibleParaChofer(tpl, hoy) && plantillaParaCamion(tpl, truckId, listaDelCamion);
 }
 
 /** Lo que se le manda al celular cuando se cierra un viaje. */

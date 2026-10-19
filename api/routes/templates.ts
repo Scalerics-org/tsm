@@ -9,11 +9,13 @@ import {
   CAMPO_MODO,
   LIBRETA_TIPO,
   TIPO_DEPARTAMENTO,
+  esDiaIso,
   parseRenglon,
-  plantillaParaCamion,
+  plantillaParaChofer,
   type CamposUbicacion,
   type RenglonFijo,
 } from "../../shared/domain";
+import { hoyEnUruguay } from "../../shared/vencimientos";
 import * as repo from "../repos/templates";
 import { plantillasDelCamion } from "../repos/trucks";
 
@@ -38,7 +40,10 @@ templates.get("/", async (c) => {
   const truckId = q ? Number(q) : user.truck_id;
   // Y si el camión tiene su propia lista ("el 4383 hace solo eso"), ve sólo esa.
   const lista = await plantillasDelCamion(c.env.DB, truckId);
-  return ok(c, todas.filter((t) => plantillaParaCamion(t, truckId, lista)));
+  // Y las que tienen fecha `visible_desde` sólo desde ese día (de Uruguay): la zafra de arroz le aparece sola al chofer
+  // el 15/1. La MISMA regla que el alta del viaje (api/routes/trips.ts), así no hay un viaje que se ve y no se puede salir.
+  const hoy = hoyEnUruguay();
+  return ok(c, todas.filter((t) => plantillaParaChofer(t, truckId, lista, hoy)));
 });
 
 function slug(s: string): string {
@@ -193,8 +198,30 @@ function parse(b: any): repo.TemplateInput | null {
     active: b.active === undefined ? true : !!b.active,
     km_fijos: enteroPositivoOpcional(b.km_fijos),
     orden: enteroPositivoOpcional(b.orden),
+    visible_desde: diaOpcional(b.visible_desde),
   };
 }
+
+/**
+ * La fecha "visible para los choferes desde": un día real AAAA-MM-DD, `null` si viene vacío (sin fecha), o `undefined`
+ * si el pedido no trae el campo (no se toca). Lo que no se puede leer NO se toma por "vacío": ver `fechaMalEscrita`.
+ */
+function diaOpcional(v: unknown): string | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null || String(v).trim() === "") return null;
+  return esDiaIso(String(v).trim()) ? String(v).trim() : undefined;
+}
+
+/**
+ * Una fecha escrita pero ilegible se RECHAZA, no se descarta: descartarla la dejaría sin fecha, y una plantilla que tenía
+ * que aparecerle a los choferes el 15/1 les aparecería hoy.
+ */
+function fechaMalEscrita(b: any): boolean {
+  const v = b?.visible_desde;
+  return v !== undefined && v !== null && String(v).trim() !== "" && !esDiaIso(String(v).trim());
+}
+
+const MENSAJE_FECHA = "La fecha «visible desde» tiene que ser un día real (AAAA-MM-DD).";
 
 /**
  * Un entero mayor que cero, `null` si viene vacío (borrarlo), o `undefined` si el pedido no trae el campo (no tocarlo).
@@ -208,7 +235,9 @@ function enteroPositivoOpcional(v: unknown): number | null | undefined {
 }
 
 templates.post("/", requireRole(ROLES.ADMIN), async (c) => {
-  const input = parse(await c.req.json().catch(() => null));
+  const body = await c.req.json().catch(() => null);
+  if (fechaMalEscrita(body)) return fail(c, MENSAJE_FECHA, 400);
+  const input = parse(body);
   if (!input) return fail(c, "Faltan campos (proveedor, nombre, origen)", 400);
   const id = await repo.createTemplate(c.env.DB, input);
   // Recién creada no tiene ninguna fila, así que null y lista vacía dan lo mismo.
@@ -217,7 +246,9 @@ templates.post("/", requireRole(ROLES.ADMIN), async (c) => {
 });
 
 templates.put("/:id", requireRole(ROLES.ADMIN), async (c) => {
-  const input = parse(await c.req.json().catch(() => null));
+  const body = await c.req.json().catch(() => null);
+  if (fechaMalEscrita(body)) return fail(c, MENSAJE_FECHA, 400);
+  const input = parse(body);
   if (!input) return fail(c, "Faltan campos (proveedor, nombre, origen)", 400);
   const id = Number(c.req.param("id"));
   await repo.updateTemplate(c.env.DB, id, input);

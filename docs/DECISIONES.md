@@ -433,6 +433,8 @@ cosas, y los datos de la zafra van por un script aparte.
 - **Cómo se prende en febrero:** Plantillas → abrir cada una → tildar "Activa" → guardar (7 veces). El script las deja
   asignadas de antemano al camión GTP 4371 (lo busca por la patente; si no existe no asigna nada), así que al prenderlas
   las ve sólo ese camión y no toda la flota. Para ampliarlo, se agregan camiones en el mismo editor.
+  (Superado: ahora el script las carga activas con `visible_desde = 2027-01-15` y aparecen solas ese día; ver "Plantillas que
+  aparecen solas desde una fecha" más abajo. `active = 0` queda para apagarlas a mano.)
 - **Destinos: las tres plantas de Samán** (Saman T.G, Saman Salto y Saman TBO, Tacuarembó). Rodrigo los corrigió el 19/10,
   después de que se escribió la carga; el nombre del viaje sigue el mismo patrón ("Puesto-SAMAN TBO").
 - **Campo de la descarga: "Número de boleta de balanza"** (`boleta_balanza`, texto, obligatorio). Samán siempre emite la
@@ -451,3 +453,27 @@ cosas, y los datos de la zafra van por un script aparte.
 - **Pendiente, no hecho:** los lugares de la zafra (B. Brum, Patitas, Puesto, Saman T.G, Saman Salto y Saman TBO) no los
   conoce `shared/distancias.ts`, así que entre dos viajes seguidos de un camión los vacíos van a salir como tramos "sin
   estimar". Cuando se prenda hay que decidir cómo cuentan (una regla fija de `shared/buscar-carga.ts`, como las de Bella Unión).
+
+## Plantillas que aparecen solas desde una fecha (migración 0060, 19/10/2026)
+
+La zafra de arroz tiene que aparecerle a los choferes el 15/1/2027. La plantilla lleva una fecha, `trip_templates.visible_desde`
+(texto AAAA-MM-DD, día de Uruguay, nullable, aditiva), y la lista del chofer y el alta del viaje la comparan con el "hoy" de
+Uruguay en cada pedido.
+
+- **Por qué una fecha en la plantilla y no una tarea programada:** no hay nada que tenga que correr ese día. Una tarea (un cron, un
+  "prender" automático) es una pieza más que puede no correr, y si falla se entera el chofer, en la ruta, el 15/1 a la mañana. Con la
+  fecha escrita en la fila no hay nada que ejecutar, y si algo está mal se ve ANTES: en Plantillas, con la marca "Choferes: desde
+  15/01/2027". Y prenderla antes, o atrasarla, es cambiar la fecha en esa misma pantalla.
+- **La regla** (`plantillaVisibleParaChofer`, shared/domain.ts): el chofer ve la plantilla si está `active` Y (no tiene fecha O la
+  fecha ya llegó). Después se sigue aplicando lo de los camiones asignados (`plantillaParaChofer` junta las dos). La fecha se compara
+  contra `hoyEnUruguay`: a las 00:00 del 15/1 de Uruguay son las 03:00 UTC, y el día UTC la mostraría tres horas tarde.
+- **Dónde se aplica:** la lista que ve el chofer (`GET /templates`, con y sin `?truck=`) y el alta del viaje
+  (`POST /trips`: rechaza con 404 "Plantilla de viaje no disponible" aunque llegue el id a mano). El celular no guarda plantillas:
+  ni el service worker ni el almacenamiento del navegador las cachean, así que no hay otra copia que vigilar. La oficina ve y edita
+  la plantilla siempre, tenga o no fecha, y puede cargar viajes con ella.
+- **Una fecha mal escrita se rechaza (400), no se descarta:** descartarla la dejaría "sin fecha" y la plantilla le aparecería a los
+  choferes hoy. Y una fecha ilegible que ya estuviera en la base no la muestra.
+- **Las plantillas que existen** tienen `visible_desde` NULL: se comportan exactamente igual que hasta hoy.
+- **La zafra** (`scripts/zafra-de-arroz.sql`) ahora se carga activa y con `visible_desde = '2027-01-15'`: si el script se corre en
+  producción queda invisible hasta ese día y después le aparece sola al GTP 4371. En la prueba se corre además un UPDATE (en el
+  README) que le saca la fecha, para que Rodrigo la vea ya.

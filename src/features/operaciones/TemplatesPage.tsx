@@ -18,6 +18,11 @@ import { api, ApiError, mensajeDe } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { ROLES } from "@shared/domain";
 import { Button, Card, ErrorDeCarga, ErrorText, Field, Spinner } from "../../components/ui";
+import { FechaInput } from "../../components/FechaInput";
+import { hoyEnUruguay } from "@shared/vencimientos";
+
+/** "2027-01-15" → "15/01/2027". */
+const diaLegible = (iso: string): string => iso.split("-").reverse().join("/");
 
 /** Lo que devuelve /trucks/options: alcanza con la patente para elegir. */
 interface TruckOption {
@@ -202,6 +207,12 @@ export function TemplatesPage() {
               <div>
                 <div className="font-cond text-[12px] font-semibold uppercase tracking-[0.1em] text-brand-700">
                   {t.provider_name} {!t.active && "· inactiva"}
+                  {/* Con fecha futura, la oficina la ve y la edita igual, pero los choferes todavía no. */}
+                  {t.active && t.visible_desde && t.visible_desde > hoyEnUruguay() && (
+                    <span className="ml-2 bg-st-amberBg px-1.5 py-0.5 text-st-amberTx">
+                      Choferes: desde {diaLegible(t.visible_desde)}
+                    </span>
+                  )}
                 </div>
                 <div className="font-cond text-xl font-semibold text-ink">{t.name}</div>
                 <div className="mt-1 text-sm text-ink/60">
@@ -264,6 +275,8 @@ function TemplateForm({
     // Como texto para el input; vacío = sin km fijos / sin orden.
     km_fijos: initial?.km_fijos != null ? String(initial.km_fijos) : "",
     orden: initial?.orden != null ? String(initial.orden) : "",
+    // "AAAA-MM-DD" o vacío: desde qué día la ven los choferes (vacío = ya, como siempre).
+    visible_desde: initial?.visible_desde ?? "",
   });
   const [origen, setOrigen] = useState(aFormulario(initial?.campos_ubicacion?.origen));
   const [destino, setDestino] = useState(aFormulario(initial?.campos_ubicacion?.destino));
@@ -295,6 +308,7 @@ function TemplateForm({
       // Vacío = null explícito: es la forma de sacarle los km fijos o el orden a una plantilla.
       km_fijos: f.km_fijos.trim() ? Number(f.km_fijos) : null,
       orden: f.orden.trim() ? Number(f.orden) : null,
+      visible_desde: f.visible_desde || null,
       dest_options: dests.filter((d) => d.destino.trim()),
       fields: fields.filter((x) => x.label.trim()),
       truck_ids: truckIds,
@@ -379,6 +393,29 @@ function TemplateForm({
               placeholder="Ej: 45"
             />
           </Field>
+          {/* Aparece sola en el celular de los choferes a partir de ese día (de Uruguay). La oficina la ve siempre.
+              Vacío = la ven ya, como cualquier otra. Hace falta además tener "Activa" tildada. */}
+          <div>
+            <Field label="Visible para los choferes desde (opcional)">
+              <div className="flex gap-2">
+                <FechaInput value={f.visible_desde} onChange={(v) => setF({ ...f, visible_desde: v })} />
+                {f.visible_desde && (
+                  <button
+                    type="button"
+                    className="shrink-0 text-sm text-brand-700 hover:underline"
+                    onClick={() => setF({ ...f, visible_desde: "" })}
+                  >
+                    Borrar fecha
+                  </button>
+                )}
+              </div>
+            </Field>
+            <p className="mt-1 text-xs text-ink/50">
+              {f.visible_desde && f.visible_desde > hoyEnUruguay()
+                ? `Los choferes la van a ver desde el ${diaLegible(f.visible_desde)}.`
+                : "Sin fecha, o ya pasada: la ven los choferes (si está activa)."}
+            </p>
+          </div>
           {/* El lugar adentro de su cliente: las que tienen orden van primero, por orden; las demás, por nombre. */}
           <Field label="Orden dentro del cliente (opcional)">
             <input
