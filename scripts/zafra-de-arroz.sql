@@ -1,5 +1,15 @@
 -- Zafra de arroz (febrero 2027): el cliente nuevo y sus 7 viajes, con los km y el orden que pidió Rodrigo (19/10/2026).
 --
+-- NO ES UNA MIGRACIÓN. Vive en scripts/ y se corre A MANO contra la base que corresponda. Nunca va en migrations/: el
+-- deploy aplica las migraciones pendientes a producción, y la zafra se prueba primero en el ambiente de prueba.
+--
+--   Prueba (por ahora, la única base donde se corre):
+--     npx wrangler d1 execute logistica_db_prueba --env prueba --remote --file=scripts/zafra-de-arroz.sql
+--   Producción: el mismo archivo contra logistica_db, SÓLO con el OK de Rodrigo.
+--
+-- Requiere la 0059 (km_fijos y orden). La primera sentencia lo comprueba y, si faltan, corta antes de insertar nada.
+-- Refrescar la prueba desde producción borra esto: después de cada refresco hay que volver a correrlo.
+--
 -- NACEN APAGADAS Y SIN QUE LAS VEA NINGÚN CHOFER. `active = 0` las saca de la lista de los choferes y además el alta de un
 -- viaje las rechaza ("Plantilla de viaje no disponible", api/routes/trips.ts): aunque alguien mande el id a mano, no sale
 -- ningún viaje. La oficina sí las ve en Plantillas (con "inactiva") y las puede revisar o editar.
@@ -9,8 +19,11 @@
 --
 -- Se puede correr dos veces: cada fila se inserta sólo si todavía no está.
 --
--- Los lugares van como los escribió Rodrigo, salvo Tacuarembó, que la base ya escribe con tilde en todos lados
--- (departamentos, viajes, plantillas). El NOMBRE del viaje queda como en su tabla: "Puesto-TACUAREMBO".
+-- Destinos: las tres plantas de Samán (T.G = Tomás Gomensoro, TBO = Tacuarembó). Los nombres de los viajes y los
+-- lugares van como los escribió Rodrigo.
+
+-- Primera sentencia: falla si la base no tiene la 0059. Así no queda el proveedor cargado sin sus plantillas.
+SELECT km_fijos, orden FROM trip_templates LIMIT 0;
 
 INSERT INTO providers (name)
 SELECT 'Zafra de arroz'
@@ -18,13 +31,13 @@ SELECT 'Zafra de arroz'
 
 WITH viajes (orden, nombre, origen, destino, km) AS (
   VALUES
-    (1, 'B.Brum-SAMAN T.G',    'B. Brum', 'Saman T.G',   45),
-    (2, 'Patitas-SAMAN T.G',   'Patitas', 'Saman T.G',   83),
-    (3, 'Patitas-SALTO',       'Patitas', 'Salto',      110),
-    (4, 'Puesto-SALTO',        'Puesto',  'Salto',      160),
-    (5, 'Puesto-SAMAN T.G',    'Puesto',  'Saman T.G',  225),
-    (6, 'Puesto-TACUAREMBO',   'Puesto',  'Tacuarembó', 240),
-    (7, 'B.Brum-SALTO',        'B. Brum', 'Salto',       72)
+    (1, 'B.Brum-SAMAN T.G',    'B. Brum', 'Saman T.G',    45),
+    (2, 'Patitas-SAMAN T.G',   'Patitas', 'Saman T.G',    83),
+    (3, 'Patitas-SAMAN SALTO', 'Patitas', 'Saman Salto', 110),
+    (4, 'Puesto-SAMAN SALTO',  'Puesto',  'Saman Salto', 160),
+    (5, 'Puesto-SAMAN T.G',    'Puesto',  'Saman T.G',   225),
+    (6, 'Puesto-SAMAN TBO',    'Puesto',  'Saman TBO',   240),
+    (7, 'B.Brum-SAMAN SALTO',  'B. Brum', 'Saman Salto',  72)
 )
 INSERT INTO trip_templates (
   provider_id, name, origin, destinations, cargo_type, requires_kilos, extra_type, extra_required,
@@ -44,11 +57,11 @@ SELECT
   0,
   '[]',
   -- Carga (al iniciar el viaje): número de remito + foto. Descarga (para cerrar): kilos, sobrepeso Sí/No,
-  -- número de remito o boleta (texto: todavía no se sabe si es el de Samán o el de la balanza) + foto.
+  -- número de boleta de balanza (Samán siempre emite la boleta de la balanza) + foto.
   '[{"key":"remito_carga","label":"Número de remito","type":"numero","required":true,"stage":"carga"},'
   || '{"key":"kilos","label":"Kilos","type":"numero","required":true,"stage":"descarga","is_weight":true},'
   || '{"key":"sobrepeso","label":"Sobrepeso","type":"si_no","required":true,"stage":"descarga"},'
-  || '{"key":"remito_boleta","label":"Número de remito / boleta","type":"texto","required":true,"stage":"descarga"}]',
+  || '{"key":"boleta_balanza","label":"Número de boleta de balanza","type":"texto","required":true,"stage":"descarga"}]',
   'Foto del remito de descarga',
   NULL,
   '{"origen":{"modo":"fijo","valor":"' || v.origen || '","requerido":true},'

@@ -408,10 +408,11 @@ viaje [que] descargue agencia, Bella Unión - Artigas. Pero ahí él lo debe car
 - **Riesgo conocido, no resuelto:** un viaje de "Otros viajes" que descarga en Bella Unión y carga el departamento
   "Artigas" deja el destino guardado como "Artigas" y el tramo da 0. No hay casos así hoy.
 
-## Zafra de arroz: km fijos por plantilla, orden y campo Sí/No (migraciones 0059 y 0060, 19/10/2026)
+## Zafra de arroz: km fijos por plantilla, orden, campo Sí/No y carga por script, solo a prueba (migración 0059 y scripts/zafra-de-arroz.sql, 19/10/2026)
 
-Rodrigo pidió un cliente nuevo, "Zafra de arroz", con 7 viajes (B.Brum-SAMAN T.G, Patitas-SALTO, Puesto-TACUAREMBO…) con los
-km que él da por buenos, "que aún no les figure a ellos" y listos para febrero. Para eso la app necesitaba tres cosas.
+Rodrigo pidió un cliente nuevo, "Zafra de arroz", con 7 viajes (B.Brum-SAMAN T.G, Patitas-SAMAN SALTO, Puesto-SAMAN TBO…)
+con los km que él da por buenos, "que aún no les figure a ellos" y listos para febrero. Para eso la app necesitaba tres
+cosas, y los datos de la zafra van por un script aparte.
 
 - **Km fijos por plantilla** (`trip_templates.km_fijos`, nullable, aditiva). Al cerrar, si nadie cargó los km reales, el viaje
   toma los de la plantilla en vez de la estimación entre ciudades (que no conoce B. Brum, Patitas ni Puesto). Los km reales del
@@ -429,11 +430,24 @@ km que él da por buenos, "que aún no les figure a ellos" y listos para febrero
   id a mano se sale de viaje. La oficina sí las ve en Plantillas ("inactiva") y las edita. Se descartó dejarlas activas pero
   sin camiones: una plantilla sin camiones asignados la ven TODOS. Se descartó `camion_plantillas`: eso es la lista cerrada
   de un camión y habría que tocar camiones que hoy no se tocan.
-- **Cómo se prende en febrero:** Plantillas → abrir cada una → tildar "Activa" → guardar (7 veces). Quedan asignadas de
-  antemano al camión GTP 4371 (la migración lo busca por la patente; si no existe no asigna nada), así que al prenderlas las
-  ve sólo ese camión y no toda la flota. Para ampliarlo, se agregan camiones en el mismo editor.
-- **Tacuarembó va con tilde** en el origen/destino de la plantilla "Puesto-TACUAREMBO" (la base la escribe así en
-  departamentos, viajes y plantillas); el NOMBRE del viaje queda como lo escribió Rodrigo.
-- **Pendiente, no hecho:** los lugares de la zafra (B. Brum, Patitas, Puesto, Saman T.G) no los conoce `shared/distancias.ts`,
-  así que entre dos viajes seguidos de un camión los vacíos van a salir como tramos "sin estimar". Cuando se prenda hay que
-  decidir cómo cuentan (una regla fija de `shared/buscar-carga.ts`, como las de Bella Unión).
+- **Cómo se prende en febrero:** Plantillas → abrir cada una → tildar "Activa" → guardar (7 veces). El script las deja
+  asignadas de antemano al camión GTP 4371 (lo busca por la patente; si no existe no asigna nada), así que al prenderlas
+  las ve sólo ese camión y no toda la flota. Para ampliarlo, se agregan camiones en el mismo editor.
+- **Destinos: las tres plantas de Samán** (Saman T.G, Saman Salto y Saman TBO, Tacuarembó). Rodrigo los corrigió el 19/10,
+  después de que se escribió la carga; el nombre del viaje sigue el mismo patrón ("Puesto-SAMAN TBO").
+- **Campo de la descarga: "Número de boleta de balanza"** (`boleta_balanza`, texto, obligatorio). Samán siempre emite la
+  boleta de la balanza, así que es un solo número, no "remito o boleta".
+- **La zafra va por script, solo a prueba: NO es una migración.** Se descartó dejarla en `migrations/`, porque el deploy
+  aplica las migraciones pendientes a producción y la zafra no puede llegar a producción sin el OK de Rodrigo. Vive en
+  `scripts/zafra-de-arroz.sql`, se corre a mano y el comando para prueba está en su encabezado (`--env prueba`, base
+  `logistica_db_prueba`). En producción se corre sólo con el OK de Rodrigo. La primera sentencia del script falla si la base
+  no tiene la 0059, así que no deja el proveedor cargado sin sus plantillas. Refrescar la prueba desde producción borra la
+  zafra: después de cada refresco se vuelve a correr el script (README, "Ambiente de prueba"). El test de la zafra verifica que
+  ninguna migración la crea.
+- **Pendiente, no hecho: facturación de la zafra** (Rodrigo, 19/10): "El sobrepeso es a los productores y solo lo que se
+  pasó." El viaje se le cobra a Samán, y los kilos de más, al productor. Faltan dos datos: (a) cuántos kilos se pasó: o lo
+  carga el chofer, o sale de comparar los kilos con un máximo permitido por camión; (b) quién es el productor de cada viaje.
+  Se resuelve antes de febrero. No se programó nada todavía.
+- **Pendiente, no hecho:** los lugares de la zafra (B. Brum, Patitas, Puesto, Saman T.G, Saman Salto y Saman TBO) no los
+  conoce `shared/distancias.ts`, así que entre dos viajes seguidos de un camión los vacíos van a salir como tramos "sin
+  estimar". Cuando se prenda hay que decidir cómo cuentan (una regla fija de `shared/buscar-carga.ts`, como las de Bella Unión).

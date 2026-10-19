@@ -262,6 +262,9 @@ node scripts/prueba-desde-respaldo.mjs "<carpeta de respaldos>\tsm-AAAAMMDD-HHMM
 # 3. Lo carga en la prueba (borra y vuelve a crear las tablas) y aplica las migraciones que la prueba tenga de más
 npx wrangler d1 execute logistica_db_prueba --env prueba --remote --file="<carpeta de respaldos>\tsm-AAAAMMDD-HHMM-para-prueba.sql"
 npm run db:migrate:prueba
+
+# 4. La zafra de arroz no viene de producción: se vuelve a cargar a mano (script, nunca migración)
+npx wrangler d1 execute logistica_db_prueba --env prueba --remote --file=scripts/zafra-de-arroz.sql
 ```
 
 Cosas a saber:
@@ -273,6 +276,8 @@ Cosas a saber:
 - Refrescar vuelve la base de la prueba a lo que tiene producción. Si en la prueba hay una migración que
   producción todavía no tiene, esa tabla nueva se queda y al migrar de nuevo falla por "ya existe": en ese caso
   recreá la base de prueba en vez de refrescarla.
+- La zafra de arroz vive en `scripts/zafra-de-arroz.sql`, no en `migrations/`: el refresco la borra, así que hay que volver
+  a correr el paso 4. En producción se corre sólo con el OK de Rodrigo.
 - Secrets del env prueba (`--env prueba`): `JWT_SECRET` y `VAPID_PRIVATE`, propios de la prueba. Con los de
   producción, un token de un ambiente entraría en el otro.
 

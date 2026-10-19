@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { app } from "../api/app";
@@ -10,26 +10,26 @@ import { baseReal, sentenciasDe } from "./helpers/d1-real";
 
 /**
  * La zafra de arroz (febrero 2027): un cliente nuevo con 7 viajes que Rodrigo quiere mirar antes de que los vea
- * ningún chofer. Contra una D1 de verdad con todas las migraciones: los datos de la 0060, que no los vea un chofer,
- * que se prenda desde la oficina, los km fijos al cerrar y el campo Sí/No obligatorio.
+ * ningún chofer. Contra una D1 de verdad con todas las migraciones: el script de scripts/ (que NO es una migración),
+ * que no los vea un chofer, que se prenda desde la oficina, los km fijos al cerrar y el campo Sí/No obligatorio.
  */
 
 const SECRET = "test-secret-tsm";
 const VIAJES = [
   { orden: 1, nombre: "B.Brum-SAMAN T.G", origen: "B. Brum", destino: "Saman T.G", km: 45 },
   { orden: 2, nombre: "Patitas-SAMAN T.G", origen: "Patitas", destino: "Saman T.G", km: 83 },
-  { orden: 3, nombre: "Patitas-SALTO", origen: "Patitas", destino: "Salto", km: 110 },
-  { orden: 4, nombre: "Puesto-SALTO", origen: "Puesto", destino: "Salto", km: 160 },
+  { orden: 3, nombre: "Patitas-SAMAN SALTO", origen: "Patitas", destino: "Saman Salto", km: 110 },
+  { orden: 4, nombre: "Puesto-SAMAN SALTO", origen: "Puesto", destino: "Saman Salto", km: 160 },
   { orden: 5, nombre: "Puesto-SAMAN T.G", origen: "Puesto", destino: "Saman T.G", km: 225 },
-  { orden: 6, nombre: "Puesto-TACUAREMBO", origen: "Puesto", destino: "Tacuarembó", km: 240 },
-  { orden: 7, nombre: "B.Brum-SALTO", origen: "B. Brum", destino: "Salto", km: 72 },
+  { orden: 6, nombre: "Puesto-SAMAN TBO", origen: "Puesto", destino: "Saman TBO", km: 240 },
+  { orden: 7, nombre: "B.Brum-SAMAN SALTO", origen: "B. Brum", destino: "Saman Salto", km: 72 },
 ];
 
 let base: Awaited<ReturnType<typeof baseReal>>;
 const ids = { camionDeLaZafra: 0, otroCamion: 0, choferZafra: 0, otroChofer: 0, oficina: 0 };
 
-const sqlDeLaMigracion = () =>
-  readFileSync(path.resolve(__dirname, "../migrations/0060_zafra_de_arroz.sql"), "utf8");
+const RUTA_DEL_SCRIPT = path.resolve(__dirname, "../scripts/zafra-de-arroz.sql");
+const sqlDeLaMigracion = () => readFileSync(RUTA_DEL_SCRIPT, "utf8");
 const correrMigracion = async () => {
   for (const s of sentenciasDe(sqlDeLaMigracion())) await base.db.prepare(s).run();
 };
@@ -57,6 +57,8 @@ beforeAll(async () => {
       .prepare("INSERT INTO users (email, password_hash, name, role) VALUES ('zafra@prueba.test', 'x', 'Oficina', 'admin')")
       .run()
   ).meta.last_row_id as number;
+  // El script no es una migración: en la base de prueba se corre a mano. Acá lo corremos como se corre allá.
+  await correrMigracion();
 }, 180_000);
 
 afterAll(async () => {
@@ -90,7 +92,7 @@ const filasDeLaZafra = async () =>
       .all<any>()
   ).results;
 
-describe("la migración 0060", () => {
+describe("el script de la zafra", () => {
   it("crea el cliente y las 7 plantillas con los km y el orden de Rodrigo", async () => {
     const filas = await filasDeLaZafra();
     expect(filas.map((f) => [f.orden, f.name, f.km_fijos])).toEqual(VIAJES.map((v) => [v.orden, v.nombre, v.km]));
@@ -106,14 +108,14 @@ describe("la migración 0060", () => {
     }
   });
 
-  it("la carga pide remito y foto; la descarga, kilos, sobrepeso Sí/No, remito o boleta y foto: todo obligatorio", async () => {
+  it("la carga pide remito y foto; la descarga, kilos, sobrepeso Sí/No, boleta de balanza y foto: todo obligatorio", async () => {
     const [primera] = await filasDeLaZafra();
     const campos = JSON.parse(primera.fields) as any[];
-    expect(campos.map((c) => [c.stage, c.label, c.type, c.required])).toEqual([
-      ["carga", "Número de remito", "numero", true],
-      ["descarga", "Kilos", "numero", true],
-      ["descarga", "Sobrepeso", "si_no", true],
-      ["descarga", "Número de remito / boleta", "texto", true],
+    expect(campos.map((c) => [c.stage, c.key, c.label, c.type, c.required])).toEqual([
+      ["carga", "remito_carga", "Número de remito", "numero", true],
+      ["descarga", "kilos", "Kilos", "numero", true],
+      ["descarga", "sobrepeso", "Sobrepeso", "si_no", true],
+      ["descarga", "boleta_balanza", "Número de boleta de balanza", "texto", true],
     ]);
     expect(campos.find((c) => c.label === "Kilos").is_weight).toBe(true);
     expect(primera.foto_carga_requerida).toBe(1);
@@ -171,6 +173,31 @@ describe("la migración 0060", () => {
     ).results;
     expect(filas).toHaveLength(7);
   });
+});
+
+describe("la zafra no va en las migraciones", () => {
+  it("ninguna migración crea la zafra: sólo el script, que se corre a mano", () => {
+    const dir = path.resolve(__dirname, "../migrations");
+    for (const f of readdirSync(dir)) expect(readFileSync(path.join(dir, f), "utf8")).not.toMatch(/Zafra de arroz/);
+    expect(existsSync(RUTA_DEL_SCRIPT)).toBe(true);
+  });
+
+  it("si la base no tiene la 0059, el script corta antes de insertar: ni el proveedor queda cargado", async () => {
+    const vieja = await baseReal("0058_km_de_estancias.sql");
+    try {
+      let error: unknown = null;
+      try {
+        for (const s of sentenciasDe(sqlDeLaMigracion())) await vieja.db.prepare(s).run();
+      } catch (e) {
+        error = e;
+      }
+      expect(error).not.toBeNull();
+      const n = await vieja.db.prepare("SELECT COUNT(*) AS n FROM providers WHERE name = 'Zafra de arroz'").first<{ n: number }>();
+      expect(n?.n).toBe(0);
+    } finally {
+      await vieja.cerrar();
+    }
+  }, 180_000);
 });
 
 describe("los choferes no la ven", () => {
@@ -287,7 +314,7 @@ describe("prenderla desde la oficina, sin programar", () => {
 });
 
 describe("un viaje de la zafra, de punta a punta", () => {
-  const descarga = { kilos: "28500", sobrepeso: SI_NO.NO, remito_boleta: "B-1234" };
+  const descarga = { kilos: "28500", sobrepeso: SI_NO.NO, boleta_balanza: "B-1234" };
   let tripId = 0;
 
   const salir = async (nombre: string, origen: string, destino: string) => {
@@ -325,7 +352,7 @@ describe("un viaje de la zafra, de punta a punta", () => {
   });
 
   it("no cierra sin elegir Sobrepeso: Sí o No es obligatorio", async () => {
-    const r = await cerrar(tripId, { field_values: { kilos: "28500", remito_boleta: "B-1234" } });
+    const r = await cerrar(tripId, { field_values: { kilos: "28500", boleta_balanza: "B-1234" } });
     expect(r.status).toBe(400);
     expect(r.body.error).toBe("Falta: Sobrepeso");
   });
@@ -337,7 +364,7 @@ describe("un viaje de la zafra, de punta a punta", () => {
   });
 
   it("falta cualquiera de los otros obligatorios de la descarga y no cierra", async () => {
-    for (const falta of ["kilos", "remito_boleta"]) {
+    for (const falta of ["kilos", "boleta_balanza"]) {
       const valores: Record<string, string> = { ...descarga };
       delete valores[falta];
       const r = await cerrar(tripId, { field_values: valores });
@@ -351,7 +378,7 @@ describe("un viaje de la zafra, de punta a punta", () => {
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     expect(await kmDe(tripId)).toBe(45);
     const guardado = await base.db.prepare("SELECT field_values, kilos FROM trips WHERE id = ?").bind(tripId).first<any>();
-    expect(JSON.parse(guardado.field_values)).toMatchObject({ sobrepeso: "No", remito_boleta: "B-1234", kilos: "28500" });
+    expect(JSON.parse(guardado.field_values)).toMatchObject({ sobrepeso: "No", boleta_balanza: "B-1234", kilos: "28500" });
     expect(guardado.kilos).toBe(28500);
   });
 
