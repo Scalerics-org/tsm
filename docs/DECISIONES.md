@@ -407,3 +407,33 @@ viaje [que] descargue agencia, Bella Unión - Artigas. Pero ahí él lo debe car
   ventana de fotos de Control (los viajes de octubre entran recién con la foto de noviembre).
 - **Riesgo conocido, no resuelto:** un viaje de "Otros viajes" que descarga en Bella Unión y carga el departamento
   "Artigas" deja el destino guardado como "Artigas" y el tramo da 0. No hay casos así hoy.
+
+## Zafra de arroz: km fijos por plantilla, orden y campo Sí/No (migraciones 0059 y 0060, 19/10/2026)
+
+Rodrigo pidió un cliente nuevo, "Zafra de arroz", con 7 viajes (B.Brum-SAMAN T.G, Patitas-SALTO, Puesto-TACUAREMBO…) con los
+km que él da por buenos, "que aún no les figure a ellos" y listos para febrero. Para eso la app necesitaba tres cosas.
+
+- **Km fijos por plantilla** (`trip_templates.km_fijos`, nullable, aditiva). Al cerrar, si nadie cargó los km reales, el viaje
+  toma los de la plantilla en vez de la estimación entre ciudades (que no conoce B. Brum, Patitas ni Puesto). Los km reales del
+  chofer o de la oficina mandan siempre. Las plantillas que existen quedan en NULL y se estiman como hasta hoy.
+- **Orden de las plantillas** (`trip_templates.orden`, nullable). El orden sigue siendo por cliente y, ADENTRO de cada cliente,
+  primero las que tienen orden (de menor a mayor) y después las demás por nombre: las plantillas existentes no cambian de
+  lugar, y Zafra de arroz queda en su lugar alfabético entre los clientes. La API (`ORDER BY`) y las pantallas que repiten el
+  orden usan lo mismo (`compararPlantillas`, shared/domain.ts).
+- **Tipo de campo Sí/No** (`si_no`). En el celular son dos botones grandes, y "obligatorio" es haber elegido uno (nada viene
+  preelegido). Se guarda como el texto "Sí" o "No", no como true/false, así el Excel, el resumen por cliente y la ficha lo
+  muestran como se lee sin traducir nada. El servidor rechaza cualquier otro valor al cerrar, al completar el puente y al
+  corregir desde la oficina.
+- **Cómo se esconde a los choferes: `active = 0`.** Es lo único que cierra los dos lados: la lista del chofer sólo trae las
+  activas, y el alta de un viaje rechaza una plantilla inactiva ("Plantilla de viaje no disponible"), así que ni mandando el
+  id a mano se sale de viaje. La oficina sí las ve en Plantillas ("inactiva") y las edita. Se descartó dejarlas activas pero
+  sin camiones: una plantilla sin camiones asignados la ven TODOS. Se descartó `camion_plantillas`: eso es la lista cerrada
+  de un camión y habría que tocar camiones que hoy no se tocan.
+- **Cómo se prende en febrero:** Plantillas → abrir cada una → tildar "Activa" → guardar (7 veces). Quedan asignadas de
+  antemano al camión GTP 4371 (la migración lo busca por la patente; si no existe no asigna nada), así que al prenderlas las
+  ve sólo ese camión y no toda la flota. Para ampliarlo, se agregan camiones en el mismo editor.
+- **Tacuarembó va con tilde** en el origen/destino de la plantilla "Puesto-TACUAREMBO" (la base la escribe así en
+  departamentos, viajes y plantillas); el NOMBRE del viaje queda como lo escribió Rodrigo.
+- **Pendiente, no hecho:** los lugares de la zafra (B. Brum, Patitas, Puesto, Saman T.G) no los conoce `shared/distancias.ts`,
+  así que entre dos viajes seguidos de un camión los vacíos van a salir como tramos "sin estimar". Cuando se prenda hay que
+  decidir cómo cuentan (una regla fija de `shared/buscar-carga.ts`, como las de Bella Unión).
