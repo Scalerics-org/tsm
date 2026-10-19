@@ -25,6 +25,7 @@ import {
 import { api, ApiError } from "../../lib/api";
 import { Button, Card, ErrorText, Field, Spinner, StatusBadge } from "../../components/ui";
 import { CameraCapture } from "../../components/CameraCapture";
+import { SiNoBotones, etiquetaDeCampo } from "../../components/CampoDePlantilla";
 import { PhotoImage } from "../../components/PhotoImage";
 import { VisorFotos, type FotoDelVisor } from "../../components/VisorFotos";
 import { CargasPanel } from "./CargasPanel";
@@ -399,7 +400,9 @@ function ArrivalForm({
     if ("error" in descargas) return setError(descargas.error);
     if (descargaPorCarga && !respondioOtroLugar) return setError("Contestá si agregamos otro lugar de descarga.");
     for (const f of pedidos) {
-      if (f.required && !f.requiere_uno_de && !String(values[f.key] ?? "").trim()) return setError(`Cargá ${f.label}.`);
+      if (f.required && !f.requiere_uno_de && !String(values[f.key] ?? "").trim()) {
+        return setError(f.type === "si_no" ? `Elegí Sí o No: ${f.label}.` : `Cargá ${f.label}.`);
+      }
     }
     const grupo =
       grupoIncompleto({ fields: descargaFields }, FIELD_STAGE.DESCARGA, values) ??
@@ -456,19 +459,27 @@ function ArrivalForm({
           onRespondido={setRespondioOtroLugar}
         />
       )}
-      {pedidos.map((f) => (
-        <Field
-          key={f.key}
-          label={`${f.label}${f.requiere_uno_de ? " (alcanza con uno)" : f.required ? "" : " (opcional)"}`}
-        >
-          <input
-            className="input"
-            type={f.type === "numero" ? "number" : "text"}
-            value={values[f.key] ?? ""}
-            onChange={(e) => setValues((p) => ({ ...p, [f.key]: e.target.value }))}
-          />
-        </Field>
-      ))}
+      {pedidos.map((f) =>
+        f.type === "si_no" ? (
+          // Sí / No en dos botones grandes: es el celular en la ruta (el "Sobrepeso" de la zafra de arroz).
+          <Field key={f.key} label={etiquetaDeCampo(f)}>
+            <SiNoBotones
+              valor={values[f.key] ?? ""}
+              etiqueta={f.label}
+              onChange={(v) => setValues((p) => ({ ...p, [f.key]: v }))}
+            />
+          </Field>
+        ) : (
+          <Field key={f.key} label={etiquetaDeCampo(f)}>
+            <input
+              className="input"
+              type={f.type === "numero" ? "number" : "text"}
+              value={values[f.key] ?? ""}
+              onChange={(e) => setValues((p) => ({ ...p, [f.key]: e.target.value }))}
+            />
+          </Field>
+        ),
+      )}
       {pideKilometros && (
         <Field label="Kilómetros del recorrido">
           <input

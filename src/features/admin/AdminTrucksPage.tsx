@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useSoloMirar } from "../../lib/auth";
-import { TRUCK_STATUS, TRUCK_STATUS_LABEL, fmtConsumo, type Truck, type TripTemplate } from "@shared/domain";
+import { TRUCK_STATUS, TRUCK_STATUS_LABEL, compararPlantillas, fmtConsumo, type Truck, type TripTemplate } from "@shared/domain";
 import {
   CLASES_DE_VEHICULO,
   CLASE_VEHICULO,
@@ -399,7 +399,7 @@ function TruckForm({
                   guardadas sin forma de destildarlas. */}
               {plantillas
                 .filter((t) => t.active || lista.includes(t.id))
-                .sort((a, b) => (a.provider_name ?? "").localeCompare(b.provider_name ?? "") || a.name.localeCompare(b.name))
+                .sort(compararPlantillas)
                 .map((t) => (
                   <label key={t.id} className="flex items-center gap-2 text-sm text-ink">
                     <input type="checkbox" checked={lista.includes(t.id)} onChange={() => alternar(t.id)} />

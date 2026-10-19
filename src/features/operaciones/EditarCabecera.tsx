@@ -234,14 +234,28 @@ export function EditarCabecera({ trip, recorridoPorCargas, onGuardado, onCancela
 
         {camposPlantilla.map((f) => (
           <Field key={f.key} label={f.label}>
-            <input
-              className="input"
-              // En curso los carga el chofer (MIC, descarga): se corrigen cuando lo cierre.
-              disabled={enCurso}
-              inputMode={f.type === "numero" ? "decimal" : undefined}
-              value={campos[f.key] ?? ""}
-              onChange={(e) => setCampos((c) => ({ ...c, [f.key]: e.target.value }))}
-            />
+            {f.type === "si_no" ? (
+              <select
+                className="input"
+                disabled={enCurso}
+                value={campos[f.key] ?? ""}
+                onChange={(e) => setCampos((c) => ({ ...c, [f.key]: e.target.value }))}
+              >
+                {/* Un obligatorio no se puede dejar vacío: el servidor lo rechaza igual. */}
+                <option value="">{f.required ? "Elegí…" : "Sin dato"}</option>
+                <option value="Sí">Sí</option>
+                <option value="No">No</option>
+              </select>
+            ) : (
+              <input
+                className="input"
+                // En curso los carga el chofer (MIC, descarga): se corrigen cuando lo cierre.
+                disabled={enCurso}
+                inputMode={f.type === "numero" ? "decimal" : undefined}
+                value={campos[f.key] ?? ""}
+                onChange={(e) => setCampos((c) => ({ ...c, [f.key]: e.target.value }))}
+              />
+            )}
           </Field>
         ))}
 

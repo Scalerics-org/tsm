@@ -1,4 +1,4 @@
-import type { Trip } from "../../shared/domain";
+import { esValorSiNo, type Trip } from "../../shared/domain";
 import type { CabeceraPatch } from "../repos/trips";
 import { salidaValida } from "../../shared/salida";
 
@@ -132,6 +132,10 @@ export function cabeceraCorregida(
       if (campo.required) return { error: `${campo.label ?? campo.key} no puede quedar vacío.` };
       delete field_values[campo.key];
       continue;
+    }
+    // Un Sí/No sólo vale "Sí" o "No": el selector de la oficina no manda otra cosa, y esto frena un pedido armado a mano.
+    if (campo.type === "si_no" && !esValorSiNo(valor)) {
+      return { error: `${campo.label ?? campo.key}: elegí Sí o No.` };
     }
     if (campo.type === "numero") {
       // Se guarda con punto: el resumen suma con Number(), y "31,21" le daba 0.

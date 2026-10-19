@@ -1,7 +1,48 @@
-import { pesoSospechoso, type TripTemplate } from "@shared/domain";
+import { FIELD_TYPE, SI_NO, pesoSospechoso, type TripTemplate } from "@shared/domain";
 import { Field } from "./ui";
 
 type Campo = TripTemplate["fields"][number];
+
+/**
+ * Sí / No en dos botones grandes, para el celular en la ruta (el "Sobrepeso" de la zafra de arroz). Nada viene
+ * elegido de entrada: un campo obligatorio no se contesta solo, y "obligatorio" es haber tocado uno. Se puede
+ * cambiar de opinión tocando el otro.
+ */
+export function SiNoBotones({
+  valor,
+  onChange,
+  etiqueta,
+}: {
+  valor: string;
+  onChange: (v: string) => void;
+  etiqueta: string;
+}) {
+  return (
+    <div role="group" aria-label={etiqueta} className="grid grid-cols-2 gap-3">
+      {[SI_NO.SI, SI_NO.NO].map((opcion) => {
+        const elegido = valor === opcion;
+        return (
+          <button
+            key={opcion}
+            type="button"
+            aria-pressed={elegido}
+            onClick={() => onChange(opcion)}
+            className={`h-16 border-2 font-cond text-xl font-bold uppercase tracking-[0.08em] transition-colors ${
+              elegido ? "border-brand bg-brand text-white" : "border-ink/25 bg-surface text-ink/70 hover:border-brand"
+            }`}
+          >
+            {opcion}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** La etiqueta de un campo según sea obligatorio, opcional o de un grupo "alcanza con uno". */
+export function etiquetaDeCampo(campo: Campo): string {
+  return `${campo.label}${campo.requiere_uno_de ? " (alcanza con uno)" : campo.required ? "" : " (opcional)"}`;
+}
 
 /**
  * Un campo propio de la plantilla —remito, hoja de ruta, pallets, peso— como input.
@@ -20,6 +61,14 @@ export function CampoDePlantilla({
   valor: string;
   onChange: (v: string) => void;
 }) {
+  if (campo.type === FIELD_TYPE.SI_NO) {
+    return (
+      <Field label={etiquetaDeCampo(campo)}>
+        <SiNoBotones valor={valor} onChange={onChange} etiqueta={campo.label} />
+      </Field>
+    );
+  }
+
   /* El peso va SIEMPRE en kilos enteros, como viene en el remito — el de Casarone
      marca "Neto 29.710". Antes el campo pedía toneladas y el papel decía kilos, así
      que unos convertían de cabeza y otros copiaban: en la base terminaron conviviendo

@@ -142,7 +142,12 @@ function parse(b: any): repo.TemplateInput | null {
         .map((f: any) => ({
           key: String(f?.key || slug(String(f?.label ?? ""))),
           label: String(f?.label ?? "").trim(),
-          type: f?.type === FIELD_TYPE.NUMERO ? FIELD_TYPE.NUMERO : FIELD_TYPE.TEXTO,
+          type:
+            f?.type === FIELD_TYPE.NUMERO
+              ? FIELD_TYPE.NUMERO
+              : f?.type === FIELD_TYPE.SI_NO
+                ? FIELD_TYPE.SI_NO
+                : FIELD_TYPE.TEXTO,
           required: !!f?.required,
           // Lo que no se reconoce cae en la carga, como siempre. "ruta" tiene que estar en la
           // lista: si no, abrir un internacional y apretar Guardar devolvía el N° de MIC a la
@@ -186,7 +191,20 @@ function parse(b: any): repo.TemplateInput | null {
       ? b.truck_ids.map(Number).filter((n: number) => !isNaN(n))
       : null,
     active: b.active === undefined ? true : !!b.active,
+    km_fijos: enteroPositivoOpcional(b.km_fijos),
+    orden: enteroPositivoOpcional(b.orden),
   };
+}
+
+/**
+ * Un entero mayor que cero, `null` si viene vacío (borrarlo), o `undefined` si el pedido no trae el campo (no tocarlo).
+ * Algo que no es un entero positivo se descarta como vacío: nunca se guarda a medias.
+ */
+function enteroPositivoOpcional(v: unknown): number | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null || String(v).trim() === "") return null;
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : null;
 }
 
 templates.post("/", requireRole(ROLES.ADMIN), async (c) => {

@@ -216,6 +216,7 @@ export function TemplatesPage() {
                   {t.arrival_photo_label ? ` · foto: ${t.arrival_photo_label}` : ""}
                   {t.viaje_vacio ? " · sin carga" : ""}
                   {t.pide_kilometros ? " · pide kilómetros" : ""}
+                  {t.km_fijos != null ? ` · ${t.km_fijos} km fijos` : ""}
                 </div>
               </div>
               <div className="flex shrink-0 gap-3 text-sm">
@@ -260,6 +261,9 @@ function TemplateForm({
     renglon_pide_departamento: initial?.renglon_pide_departamento ?? false,
     exige_carga_al_salir: initial?.exige_carga_al_salir ?? false,
     active: initial?.active ?? true,
+    // Como texto para el input; vacío = sin km fijos / sin orden.
+    km_fijos: initial?.km_fijos != null ? String(initial.km_fijos) : "",
+    orden: initial?.orden != null ? String(initial.orden) : "",
   });
   const [origen, setOrigen] = useState(aFormulario(initial?.campos_ubicacion?.origen));
   const [destino, setDestino] = useState(aFormulario(initial?.campos_ubicacion?.destino));
@@ -288,6 +292,9 @@ function TemplateForm({
       arrival_photo_label: f.arrival_photo_label || null,
       foto_carga_requerida: f.foto_carga_requerida,
       active: f.active,
+      // Vacío = null explícito: es la forma de sacarle los km fijos o el orden a una plantilla.
+      km_fijos: f.km_fijos.trim() ? Number(f.km_fijos) : null,
+      orden: f.orden.trim() ? Number(f.orden) : null,
       dest_options: dests.filter((d) => d.destino.trim()),
       fields: fields.filter((x) => x.label.trim()),
       truck_ids: truckIds,
@@ -357,6 +364,33 @@ function TemplateForm({
           </Field>
           <Field label="Foto que se pide al descargar (opcional)">
             <input className="input" value={f.arrival_photo_label} onChange={(e) => setF({ ...f, arrival_photo_label: e.target.value })} placeholder="Hoja rosada firmada" />
+          </Field>
+          {/* Los km que el cliente da por buenos: al cerrar, si nadie cargó los reales, el viaje toma éstos
+              y no la estimación entre ciudades. Vacío = se estiman como siempre. */}
+          <Field label="Km fijos del viaje (opcional)">
+            <input
+              className="input"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              step={1}
+              value={f.km_fijos}
+              onChange={(e) => setF({ ...f, km_fijos: e.target.value })}
+              placeholder="Ej: 45"
+            />
+          </Field>
+          {/* El lugar adentro de su cliente: las que tienen orden van primero, por orden; las demás, por nombre. */}
+          <Field label="Orden dentro del cliente (opcional)">
+            <input
+              className="input"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              step={1}
+              value={f.orden}
+              onChange={(e) => setF({ ...f, orden: e.target.value })}
+              placeholder="Ej: 1"
+            />
           </Field>
         </div>
 
@@ -551,6 +585,7 @@ function TemplateForm({
                 <select className="input sm:col-span-2" value={fld.type} onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, type: e.target.value as TemplateField["type"] } : x)))}>
                   <option value={FIELD_TYPE.TEXTO}>Texto</option>
                   <option value={FIELD_TYPE.NUMERO}>Número</option>
+                  <option value={FIELD_TYPE.SI_NO}>Sí / No</option>
                 </select>
                 <select className="input sm:col-span-2" value={fld.stage} onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, stage: e.target.value as TemplateField["stage"] } : x)))}>
                   <option value={FIELD_STAGE.CARGA}>En carga</option>

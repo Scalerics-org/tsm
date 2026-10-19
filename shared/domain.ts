@@ -64,8 +64,36 @@ export const PHOTO_KIND_LABEL: Record<PhotoKind, string> = {
 export const FIELD_TYPE = {
   TEXTO: "texto",
   NUMERO: "numero",
+  /** Sí o No ("Sobrepeso" de la zafra de arroz): en el celular son dos botones, y obligatorio es haber elegido uno. */
+  SI_NO: "si_no",
 } as const;
 export type FieldType = (typeof FIELD_TYPE)[keyof typeof FIELD_TYPE];
+
+/**
+ * Lo que se guarda en `field_values` de un campo Sí/No: el texto tal cual se lee. Así el Excel, el resumen por
+ * cliente y la ficha lo muestran como "Sí" / "No" sin traducir nada, y no hay un "true" que se cuele en una factura.
+ * Sin elegir es vacío, y para un campo obligatorio vacío es "Falta: …" como cualquier otro.
+ */
+export const SI_NO = { SI: "Sí", NO: "No" } as const;
+
+/** Si el valor de un campo Sí/No es uno de los dos (o está vacío: sin elegir todavía). */
+export const esValorSiNo = (v: unknown): boolean => v === SI_NO.SI || v === SI_NO.NO;
+
+/**
+ * El primer campo Sí/No de la etapa con un valor que no es "Sí" ni "No", o `null`. El servidor lo exige igual que
+ * `missingField`: lo único que puede traer un campo así es lo que sacó de los dos botones.
+ */
+export function campoSiNoInvalido(
+  tpl: Pick<TripTemplate, "fields">,
+  stage: string,
+  values: Record<string, string>,
+): string | null {
+  for (const f of tpl.fields) {
+    const v = String(values[f.key] ?? "").trim();
+    if (f.stage === stage && f.type === FIELD_TYPE.SI_NO && v && !esValorSiNo(v)) return f.label;
+  }
+  return null;
+}
 
 export const FIELD_STAGE = {
   CARGA: "carga",
@@ -239,6 +267,38 @@ export interface TripTemplate {
   /** Camiones que ven esta plantilla. Vacío = la ven todos. */
   truck_ids: number[];
   active: boolean;
+  /**
+   * Km del viaje que el cliente da por buenos para esta plantilla (la zafra de arroz: "B.Brum-SAMAN T.G, 45 km").
+   * Al cerrar, si nadie cargó los km reales, el viaje toma éstos en vez de la estimación entre ciudades.
+   * `null`/ausente = como siempre, se estiman.
+   */
+  km_fijos?: number | null;
+  /**
+   * Lugar de la plantilla dentro de su cliente. Las que tienen orden van primero, por orden; las demás,
+   * alfabéticas como siempre. `null`/ausente = sin orden.
+   */
+  orden?: number | null;
+}
+
+/**
+ * El orden en que se muestran las plantillas: por cliente (alfabético, como siempre) y, adentro de cada cliente,
+ * primero las que tienen `orden` —de menor a mayor— y después las demás por nombre. Una sola cuenta para la API y
+ * las pantallas que la repiten, así ninguna ordena distinto.
+ */
+export function compararPlantillas(
+  a: { provider_name?: string; name: string; orden?: number | null },
+  b: { provider_name?: string; name: string; orden?: number | null },
+): number {
+  const porCliente = (a.provider_name ?? "").localeCompare(b.provider_name ?? "");
+  if (porCliente) return porCliente;
+  const ordenA = a.orden ?? null;
+  const ordenB = b.orden ?? null;
+  if (ordenA !== ordenB) {
+    if (ordenA == null) return 1;
+    if (ordenB == null) return -1;
+    return ordenA - ordenB;
+  }
+  return a.name.localeCompare(b.name);
 }
 
 export interface Trip {

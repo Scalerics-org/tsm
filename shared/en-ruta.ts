@@ -2,6 +2,7 @@ import {
   CAMPO_MODO,
   FIELD_STAGE,
   FIELD_TYPE,
+  esValorSiNo,
   type CampoUbicacion,
   type CamposUbicacion,
   type Descarga,
@@ -57,6 +58,9 @@ export function valoresDeRuta(
     const texto = valor == null ? "" : String(valor).trim();
     if (campo.type === FIELD_TYPE.NUMERO && !esNumeroValido(texto)) {
       return { error: `${campo.label} va en número` };
+    }
+    if (campo.type === FIELD_TYPE.SI_NO && texto && !esValorSiNo(texto)) {
+      return { error: `${campo.label}: elegí Sí o No` };
     }
     values[key] = texto;
   }

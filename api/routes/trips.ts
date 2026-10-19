@@ -1,7 +1,7 @@
 import { llegadaCorregida } from "../lib/llegada";
 import { bloqueoPorCambioDeCargas, bloqueoPorFacturacion } from "../../shared/bloqueo-facturacion";
 import { esReenvioDeCarga } from "../../shared/reenvio-de-carga";
-import { conCantidadesFijas, grupoIncompleto, missingField, problemaDeCantidad } from "../../shared/domain";
+import { campoSiNoInvalido, conCantidadesFijas, grupoIncompleto, missingField, problemaDeCantidad } from "../../shared/domain";
 import { listaDeFacturas } from "../../shared/facturacion-por-cliente";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
@@ -352,6 +352,8 @@ trips.post("/", async (c) => {
   if (missing) return fail(c, `Falta: ${missing}`, 400);
   const grupo = grupoIncompleto(tpl, "carga", values);
   if (grupo) return fail(c, grupo, 400);
+  const noEsSiNo = campoSiNoInvalido(tpl, "carga", values);
+  if (noEsSiNo) return fail(c, `${noEsSiNo}: elegí Sí o No`, 400);
 
   const weightField = tpl.fields.find((f) => f.is_weight);
   const weight = weightField && values[weightField.key] ? Number(values[weightField.key]) : null;
@@ -829,6 +831,8 @@ trips.post("/:id/finish", async (c) => {
     if (missing) return fail(c, `Falta: ${missing}`, 400);
     const grupo = grupoIncompleto(tpl, FIELD_STAGE.DESCARGA, merged) ?? grupoIncompleto(tpl, FIELD_STAGE.RUTA, merged);
     if (grupo) return fail(c, grupo, 400);
+    const noEsSiNo = campoSiNoInvalido(tpl, FIELD_STAGE.DESCARGA, merged) ?? campoSiNoInvalido(tpl, FIELD_STAGE.RUTA, merged);
+    if (noEsSiNo) return fail(c, `${noEsSiNo}: elegí Sí o No`, 400);
   }
 
   // "Cuando lleguen: departamento, donde descargo…". Se valida con los campos, antes de
@@ -892,7 +896,11 @@ trips.post("/:id/finish", async (c) => {
     // Si no reconoce alguna de las dos puntas queda en null, que es lo honesto: mejor un
     // hueco visible que un número inventado que después nadie sabe de dónde salió.
     // Con las cargas: una ida y vuelta cuenta los dos tramos, la vuelta va cargada (Manassi).
-    const estimado = kmEstimadosDelViaje(trip);
+    //
+    // Si la plantilla trae km fijos (la zafra de arroz: los km que el cliente da por buenos para cada viaje), son esos
+    // y no la estimación: la app no conoce B. Brum, Patitas ni Puesto. Los km reales que cargó el chofer o la oficina
+    // mandan siempre: este bloque sólo corre cuando nadie los puso.
+    const estimado = tpl?.km_fijos ?? kmEstimadosDelViaje(trip);
     if (estimado != null) await tripsRepo.setKilometros(c.env.DB, s.trip.id, estimado);
   }
 

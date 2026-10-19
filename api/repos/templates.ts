@@ -28,6 +28,8 @@ interface TemplateRow {
   viaje_vacio: number;
   foto_carga_requerida: number;
   active: number;
+  km_fijos: number | null;
+  orden: number | null;
   truck_ids?: string; // group_concat de template_trucks
 }
 
@@ -63,20 +65,24 @@ function toTemplate(r: TemplateRow): TripTemplate {
     foto_carga_requerida: !!r.foto_carga_requerida,
     truck_ids: r.truck_ids ? r.truck_ids.split(",").map(Number).filter((n) => !isNaN(n)) : [],
     active: !!r.active,
+    km_fijos: r.km_fijos ?? null,
+    orden: r.orden ?? null,
   };
 }
 
 const SELECT = `
   SELECT tt.id, tt.provider_id, tt.name, tt.origin, tt.remite, tt.cargo_type,
          tt.dest_options, tt.fields, tt.arrival_photo_label, tt.carga_photo_label, tt.campos_ubicacion,
-         tt.multi_renglon, tt.renglon_pide_ubicacion, tt.renglon_pide_departamento, tt.renglones_fijos, tt.exige_carga_al_salir, tt.pide_kilometros, tt.viaje_vacio, tt.foto_carga_requerida, tt.active,
+         tt.multi_renglon, tt.renglon_pide_ubicacion, tt.renglon_pide_departamento, tt.renglones_fijos, tt.exige_carga_al_salir, tt.pide_kilometros, tt.viaje_vacio, tt.foto_carga_requerida, tt.active, tt.km_fijos, tt.orden,
          p.name AS provider_name,
          (SELECT group_concat(truck_id) FROM template_trucks WHERE template_id = tt.id) AS truck_ids
   FROM trip_templates tt JOIN providers p ON p.id = tt.provider_id
 `;
 
 export async function listTemplates(db: D1Database, onlyActive = false): Promise<TripTemplate[]> {
-  const sql = SELECT + (onlyActive ? " WHERE tt.active = 1" : "") + " ORDER BY p.name, tt.name";
+  // Por cliente y, adentro, primero las que tienen `orden` (de menor a mayor) y después las demás por nombre, como
+  // siempre: una plantilla sin orden queda exactamente donde estaba (ver `compararPlantillas`, shared/domain.ts).
+  const sql = SELECT + (onlyActive ? " WHERE tt.active = 1" : "") + " ORDER BY p.name, tt.orden IS NULL, tt.orden, tt.name";
   const { results } = await db.prepare(sql).all<TemplateRow>();
   return (results ?? []).map(toTemplate);
 }
@@ -108,6 +114,9 @@ export interface TemplateInput {
   /** Camiones que ven la plantilla. `null` = el pedido no trajo el campo: no tocar. */
   truck_ids: number[] | null;
   active: boolean;
+  /** `undefined` = el pedido no trajo el campo: no se toca (una pantalla vieja no puede borrarlos al guardar). */
+  km_fijos?: number | null;
+  orden?: number | null;
 }
 
 /**
@@ -141,6 +150,9 @@ function columnasYValores(t: TemplateInput): [string, unknown][] {
     ["viaje_vacio", t.viaje_vacio ? 1 : 0],
     ["foto_carga_requerida", t.foto_carga_requerida ? 1 : 0],
     ["active", t.active ? 1 : 0],
+    // Sólo si el pedido los trae: guardar la plantilla desde una pantalla que no los conoce no los pone en null.
+    ...(t.km_fijos !== undefined ? ([["km_fijos", t.km_fijos]] as [string, unknown][]) : []),
+    ...(t.orden !== undefined ? ([["orden", t.orden]] as [string, unknown][]) : []),
   ];
 }
 
