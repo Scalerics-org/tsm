@@ -182,6 +182,7 @@ que `npm run db:migrate:local` aplica junto con el resto):
 |-----|--------|
 | Administrador | `admin@demo.uy` · `demo1234` |
 | Encargado | `ops@demo.uy` · `demo1234` |
+| Mecánico (Raúl) | `raul@demo.uy` · `demo1234` — no viene en las migraciones: se crea desde Usuarios con el rol "Mecánico" |
 | Choferes | patentes `STZ 4821`, `BQL 7390`, `MRC 1177` · PIN `1234` |
 
 ## Tests

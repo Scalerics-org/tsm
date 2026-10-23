@@ -505,3 +505,32 @@ y no cambia lo que ve ningún usuario, salvo un error que se confirmó.
   cerrar antes de sumar el rol de mecánico, que va a tener su propia lista blanca como la del lector. Al cerrarlo salió que tres tests
   (`chofer-sin-cobro`, `facturado-cancelar-foto`, `foto-ajena`) devolvían al usuario de oficina SIN rol y pasaban por ese agujero: se
   les agregó el rol que firma cada token.
+
+## Rol mecánico, para Raúl (migración 0061, 23/10/2026)
+
+Fase 1 del plan del Taller real. Raúl hoy entra como lector sólo para ver Camiones; con el Taller real necesita cargar services, así
+que tiene un rol propio: `mecanico` ("Mecánico").
+
+- **La migración rehace `users`** (opción A: el rol sigue siendo una columna con CHECK) porque SQLite no deja cambiar un CHECK. El
+  riesgo era `DROP TABLE users`: con las claves foráneas prendidas dispara `ON DELETE CASCADE` y `SET NULL` en las tablas que apuntan
+  a `users`. Por eso la migración resguarda `push_subscriptions` (cascade) y cada columna `*_by` (set null) antes del DROP y las repone
+  después. Son 10 columnas: `trips.facturado_by`, `trips.pago_by`, `fuel_logs.edited_by`, `fuel_logs.verificado_by`,
+  `lecturas_odometro.edited_by`, `surtidas_frio.edited_by`, `horas_frio.updated_by`, `viaje_cliente_facturacion.facturado_by` y
+  `.pago_by`, más `push_subscriptions.user_id`. El grep del código da una más (`trips.created_by`, de la 0001) que ya no existe: la
+  0004 rehízo `trips` sin ella. Un test recorre `PRAGMA foreign_key_list` de todas las tablas y falla si aparece una columna nueva hacia
+  `users`: quien la sume tiene que agregarla a esta lista.
+- **Se probó con una copia de datos reales**: todas las tablas idénticas antes y después, `foreign_key_check` vacío, los NULL siguen
+  NULL. `horas_frio.updated_by` no tenía filas reales para ejercitar: se cubre con el test de D1 real.
+- **Lista blanca igual que la del lector** (`api/lib/permisos-mecanico.ts`, aplicada en `requireAuth`). Sólo lecturas: `auth/me`,
+  `trucks`, `reports/truck/:id`, `lecturas`, `frio`, fotos del tacógrafo y de la cámara de frío, y `drivers`. Todo lo demás es 403:
+  viajes, Consumo, facturación, surtidas, plantillas, lugares, usuarios y los avisos de la oficina (no está en `push.ts`).
+- **`drivers` le llega recortada**: id, nombre, estado y camión asignado, sin teléfono, documento ni licencia. El Taller muestra
+  quién anda en cada camión.
+- **`reports.use("*")` quedó abierto al mecánico** para poder llegar a la ficha; lo que le cierra el resto de los reportes es la lista
+  blanca, no el `requireRole`. Si se agrega otra ruta de reportes a esa lista hay que pensar qué datos trae.
+- **La ficha del camión incluye viajes y surtidas de ese camión** (el lector ya la veía igual). Raúl los ve ahí, no en las pantallas
+  de viajes ni de surtidas, que le dan 403. Si Rodrigo no quiere que los vea, se recorta en la ruta de la ficha.
+- **Pantallas**: cae en Camiones; menú con Camiones y Taller; `/panel/taller` abierto a oficina y mecánico, cualquier otra ruta lo
+  rebota a Camiones. `useSoloMirar` da true para él (Camiones sin botones de edición) y `usePuedeCargarTaller` es la excepción: en el
+  Taller sí escribe. El Taller sigue siendo la maqueta (localStorage); sus rutas de API se suman a la lista blanca en la fase 2.
+- **Para dar de alta a Raúl**: Usuarios → rol "Mecánico". Si hoy es lector, se le cambia el rol desde ahí.
