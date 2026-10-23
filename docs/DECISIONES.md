@@ -477,3 +477,31 @@ Uruguay en cada pedido.
 - **La zafra** (`scripts/zafra-de-arroz.sql`) ahora se carga activa y con `visible_desde = '2027-01-15'`: si el script se corre en
   producción queda invisible hasta ese día y después le aparece sola al GTP 4371. En la prueba se corre además un UPDATE (en el
   README) que le saca la fecha, para que Rodrigo la vea ya.
+
+## Taller real, fase 0: preparar el terreno (23/10/2026)
+
+La primera fase del plan para pasar el Taller de la maqueta a la base (`instrucciones/PLAN-taller-real.md`). No tiene migraciones
+y no cambia lo que ve ningún usuario, salvo un error que se confirmó.
+
+- **La lógica pura del Taller pasó a `shared/taller/`** (regla 3 de CLAUDE.md: funciones puras, sin pantalla ni almacenamiento):
+  `tipos` (km y vida de la cubierta, `proximoService`, `estadoDelProximo`, `ultimoService`), `disposicion` (tipos de vehículo,
+  ejes, posiciones, intervalos y umbrales, `avisoDeCambioDeTipo`), `tipos-de-service`, `cambio-cubiertas`, `movimientos`,
+  `stock-consumibles`, `stock-cubiertas`, `flota-real` (`tipoDesdeTexto`, `disposicionDesdeTexto`), `servicio` (el catálogo de lo que
+  se marca, `seccionesDeService`, `itemsDeMarcas`, `marcasSegunTipos`, `consumosDeMarcas`, `cambiosDeCubiertas`,
+  `buscarEnHistorial`), más `modelos` y `piezas-de-rueda`, que la lógica necesita y salieron de los datos de ejemplo. Nada de
+  `shared/taller/` importa de `src/` ni de React. Se quedan en `src/features/taller/`: el store de localStorage y los hooks
+  (`servicio.ts`), los datos de ejemplo (`datos.ts`, `datos-extra.ts`, `base.ts`), `vehiculoDeCamion` y el dibujo (`dibujo.ts`:
+  `ANCHO`, `lugarEnElDibujo`, `altoDelDibujo`, que son de pantalla). Los tests existentes siguen pasando cambiando sólo los imports.
+- **Se sacó la fecha fija `HOY = "2026-10-05"`** de la maqueta: las pantallas usan el día real de Uruguay (`hoyEnUruguay`) y las
+  funciones puras reciben "hoy" por parámetro (`proximoService(v, hoy)`, `piezasDeRueda(v, n, hoy)`, `componentesDe(v, hoy)`). Los
+  tests usan una fecha fija pasada por parámetro, no la del reloj. Los datos de ejemplo se arman relativos al día en que carga el módulo.
+- **"Frenos y rodaje" se rompía con los camiones reales** (confirmado con un test): un camión de la base no sabe cuánto anda por día
+  (`kmPorDia = 0`), `piezasDeRueda` dividía por ese cero y `toISOString` tiraba `RangeError` al abrir la ficha de una cubierta. Ahora
+  sin km por día la fecha queda en `null` (se muestra "—"), igual que `proximoService`. No se rehizo Frenos y rodaje: esos datos son de
+  ejemplo y en la fase 5 salen de los services.
+- **El servidor rechaza por defecto los roles que no conoce** (`esRolConocido`, shared/domain.ts, en `requireAuth`): 403 para
+  cualquier rol que no esté en `ROLES`. Antes un rol así caía del lado "oficina" en las rutas que sólo piden estar autenticado (crear
+  un viaje, cancelarlo, borrar una foto, cargar una surtida o una lectura…), que es el lado que escribe y borra. Es lo que hay que
+  cerrar antes de sumar el rol de mecánico, que va a tener su propia lista blanca como la del lector. Al cerrarlo salió que tres tests
+  (`chofer-sin-cobro`, `facturado-cancelar-foto`, `foto-ajena`) devolvían al usuario de oficina SIN rol y pasaban por ese agujero: se
+  les agregó el rol que firma cada token.
