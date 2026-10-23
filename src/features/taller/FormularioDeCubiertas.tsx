@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { MODELOS } from "./base";
-import { HOY } from "./datos";
+import { hoyEnUruguay } from "@shared/vencimientos";
 import type { CubiertaEnStock } from "@shared/taller/tipos";
 import { nuevoIdDeStock, numeroDeCantidad } from "@shared/taller/stock-consumibles";
 import { altaDeCubiertas, erroresDeCubiertas, type DatosDeCompraDeCubiertas } from "@shared/taller/stock-cubiertas";
@@ -19,7 +19,7 @@ export function FormularioDeAltaDeCubiertas({
   onGuardar: (nuevas: CubiertaEnStock[]) => void;
   onCancelar: () => void;
 }) {
-  const [datos, setDatos] = useState<DatosDeCompraDeCubiertas>({ modeloId: "multi", estado: "nueva", fecha: HOY, proveedor: "", obs: "" });
+  const [datos, setDatos] = useState<DatosDeCompraDeCubiertas>({ modeloId: "multi", estado: "nueva", fecha: hoyEnUruguay(), proveedor: "", obs: "" });
   const [cantidad, setCantidad] = useState("1");
   const [codigos, setCodigos] = useState<string[]>([""]);
   const [errores, setErrores] = useState<string[]>([]);
@@ -121,7 +121,7 @@ export function FormularioDeEdicionDeCubierta({
   const [codigo, setCodigo] = useState(c.codigo);
   const [modeloId, setModeloId] = useState(c.modeloId);
   const [estado, setEstado] = useState<"nueva" | "usada">(c.estado);
-  const [fecha, setFecha] = useState(c.desde ?? HOY);
+  const [fecha, setFecha] = useState(c.desde ?? hoyEnUruguay());
   const [proveedor, setProveedor] = useState(c.proveedor ?? "");
   const [obs, setObs] = useState(c.obs);
   const [errores, setErrores] = useState<string[]>([]);

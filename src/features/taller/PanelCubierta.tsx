@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { hoyEnUruguay } from "@shared/vencimientos";
 import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { MODELOS } from "./datos";
@@ -89,7 +90,7 @@ export function PanelCubierta({
         </div>
 
         {vista === "frenos" ? (
-          <FrenosYRodaje vehiculo={vehiculo} piezas={piezasDeRueda(vehiculo, posicion.numero)} />
+          <FrenosYRodaje vehiculo={vehiculo} piezas={piezasDeRueda(vehiculo, posicion.numero, hoyEnUruguay())} />
         ) : !cubierta || !modelo ? (
           <div className="space-y-4 px-4 py-4">
             <div className="border border-dashed border-ink/30 bg-surface/60 px-4 py-3">

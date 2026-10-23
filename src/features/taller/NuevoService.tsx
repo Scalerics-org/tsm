@@ -3,7 +3,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { MODELOS } from "./base";
-import { HOY, MECANICOS, enLaDireccion } from "./datos";
+import { MECANICOS, enLaDireccion } from "./datos";
+import { hoyEnUruguay } from "@shared/vencimientos";
 import { useFlota } from "./FlotaReal";
 import { posiciones } from "@shared/taller/disposicion";
 import type { CubiertaEnStock } from "@shared/taller/tipos";
@@ -60,7 +61,7 @@ export function NuevoService({ vehiculo }: { vehiculo: Vehiculo }) {
     [stock, vehiculo],
   );
   const [datos, setDatos] = useState<Datos>({
-    fecha: HOY,
+    fecha: hoyEnUruguay(),
     km: String(vehiculo.km),
     mecanico: MECANICOS[0],
     chofer: vehiculo.choferAsignado,

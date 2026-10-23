@@ -1,4 +1,4 @@
-import { HOY, MODELOS } from "./base";
+import { MODELOS } from "./base";
 import { PIEZAS_DE_RUEDA, type GrupoDePieza, type MedidaDePieza } from "@shared/taller/piezas-de-rueda";
 import type { ItemDeStock } from "@shared/taller/stock-consumibles";
 import type { Componente, CondicionPieza, CubiertaEnStock, Estado, PiezaDeComponente, TipoVehiculo, Vehiculo } from "@shared/taller/tipos";
@@ -61,7 +61,7 @@ const OBS_PIEZA = [
   "Quedó pendiente revisar.",
 ];
 
-export function componentesDe(v: Pick<Vehiculo, "patente" | "tipo" | "km" | "kmPorDia">): Componente[] {
+export function componentesDe(v: Pick<Vehiculo, "patente" | "tipo" | "km" | "kmPorDia">, hoy: string): Componente[] {
   return COMPONENTES_DE[v.tipo].map((id) => {
     const molde = PLANTILLA[id];
     const piezas: PiezaDeComponente[] = molde.piezas.map((nombre, i) => {
@@ -72,7 +72,7 @@ export function componentesDe(v: Pick<Vehiculo, "patente" | "tipo" | "km" | "kmP
         nombre,
         condicion,
         alKm,
-        fecha: condicion === "original" ? "" : sumarDias(HOY, -(v.km - alKm) / v.kmPorDia),
+        fecha: condicion === "original" ? "" : sumarDias(hoy, -(v.km - alKm) / v.kmPorDia),
         obs: condicion === "original" ? "" : OBS_PIEZA[Math.floor(azar(`${v.patente}-${id}-${i}-o`) * OBS_PIEZA.length)],
       };
     });
@@ -111,7 +111,7 @@ const OBS_RUEDA: Record<string, string> = {
 /** El estado de una pieza según cuánto de su vida útil (de ejemplo) lleva. */
 const estadoPorUso = (uso: number): Estado => (uso >= 0.9 ? "rojo" : uso >= 0.7 ? "ambar" : "verde");
 
-export function piezasDeRueda(v: Pick<Vehiculo, "patente" | "km" | "kmPorDia">, numero: number): PiezaDeRueda[] {
+export function piezasDeRueda(v: Pick<Vehiculo, "patente" | "km" | "kmPorDia">, numero: number, hoy: string): PiezaDeRueda[] {
   return PIEZAS_DE_RUEDA.map((p) => {
     const uso = 0.12 + 0.95 * azar(`${v.patente}-${numero}-${p.id}`);
     const kmDesde = Math.min(v.km, Math.round((p.vida * uso) / 100) * 100);
@@ -133,7 +133,7 @@ export function piezasDeRueda(v: Pick<Vehiculo, "patente" | "km" | "kmPorDia">, 
       estado,
       medida,
       kmDesde,
-      fecha: sumarDias(HOY, -kmDesde / v.kmPorDia),
+      fecha: sumarDias(hoy, -kmDesde / v.kmPorDia),
       obs: estado === "verde" ? "" : (OBS_RUEDA[p.id] ?? ""),
     };
   });

@@ -1,5 +1,5 @@
 import type { Truck } from "@shared/domain";
-import { HOY } from "./base";
+import { hoyEnUruguay } from "@shared/vencimientos";
 import { componentesSinHistoria } from "./datos-extra";
 import { disposicionDesdeTexto } from "@shared/taller/flota-real";
 import type { Disposicion } from "@shared/taller/disposicion";
@@ -31,7 +31,7 @@ const descripcionDe = (c: Pick<Truck, "brand" | "model" | "year">) => {
  * Lo que la base no tiene —cubiertas, services— arranca vacío: se carga desde el Taller. `kmPorDia` queda en 0
  * ("no se sabe") y las pantallas no estiman fechas con eso. `choferAsignado` es el nombre, si se sabe.
  */
-export function vehiculoDeCamion(camion: Truck, choferAsignado = ""): Vehiculo {
+export function vehiculoDeCamion(camion: Truck, choferAsignado = "", hoy: string = hoyEnUruguay()): Vehiculo {
   const disposicion = disposicionDesdeTexto(camion.type ?? "", camion.clase);
   const tipo = TIPO_DE_CARROCERIA[disposicion.carroceria];
   return {
@@ -39,7 +39,7 @@ export function vehiculoDeCamion(camion: Truck, choferAsignado = ""): Vehiculo {
     tipo,
     descripcion: descripcionDe(camion),
     disposicion,
-    lectura: camion.odometer_at ? camion.odometer_at.slice(0, 10) : HOY,
+    lectura: camion.odometer_at ? camion.odometer_at.slice(0, 10) : hoy,
     choferAsignado,
     unidad: "km",
     km: camion.odometer_km ?? 0,

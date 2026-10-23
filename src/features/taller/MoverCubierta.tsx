@@ -2,7 +2,8 @@ import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { fmtDate } from "../../lib/format";
 import { MODELOS } from "./base";
-import { HOY, enLaDireccion } from "./datos";
+import { enLaDireccion } from "./datos";
+import { hoyEnUruguay } from "@shared/vencimientos";
 import { useFlota } from "./FlotaReal";
 import { Dialogo } from "./Dialogo";
 import { TEXTO_DE_BAJA, type Destino, type MotivoDeBaja, type QueHacerConLaQueEstaba, type Reemplazo } from "@shared/taller/movimientos";
@@ -170,7 +171,7 @@ export function MoverCubierta({ vehiculo, item: itemActual, onCerrar }: { vehicu
   const numero = item.posicion.numero;
 
   const [op, setOp] = useState<Op | null>(null);
-  const [fecha, setFecha] = useState(HOY);
+  const [fecha, setFecha] = useState(hoyEnUruguay());
   const [km, setKm] = useState(String(vehiculo.km));
   const [obs, setObs] = useState("");
   const [busca, setBusca] = useState("");
@@ -406,7 +407,7 @@ export function MoverCubierta({ vehiculo, item: itemActual, onCerrar }: { vehicu
 export function PonerCubierta({ vehiculo, numero, nombre, onCerrar }: { vehiculo: Vehiculo; numero: number; nombre: string; onCerrar: () => void }) {
   const flota = useFlotaConLoCargado(useFlota().flota);
   const stock = useStock();
-  const [fecha, setFecha] = useState(HOY);
+  const [fecha, setFecha] = useState(hoyEnUruguay());
   const [km, setKm] = useState(String(vehiculo.km));
   const [rem, setRem] = useState<"vacia" | "stock" | "manual">("stock");
   const [remUid, setRemUid] = useState<string | null>(null);

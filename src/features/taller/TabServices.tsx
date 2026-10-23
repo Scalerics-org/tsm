@@ -2,7 +2,8 @@ import { Link } from "react-router-dom";
 import { Corners } from "../../components/ui";
 import { useSoloMirar } from "../../lib/auth";
 import { fmtDate } from "../../lib/format";
-import { HOY, enLaDireccion } from "./datos";
+import { enLaDireccion } from "./datos";
+import { hoyEnUruguay } from "@shared/vencimientos";
 import { UMBRAL_AMBAR_SERVICE_KM, UMBRAL_ROJO_SERVICE_KM } from "@shared/taller/disposicion";
 import { NOMBRE_OTRO, EXPLICACION_OTRO, TIPOS_DE_SERVICE, codigoCombinado, contenidoDeTipo, type GrupoDeService } from "@shared/taller/tipos-de-service";
 import { COLOR_ESTADO } from "./VistaSuperior";
@@ -53,7 +54,7 @@ export function BotonNuevoService({ vehiculo }: { vehiculo: Vehiculo }) {
 export function TabServices({ vehiculo }: { vehiculo: Vehiculo }) {
   const ultimo = ultimoService(vehiculo);
   const orden = [...vehiculo.services].sort((a, b) => b.km - a.km);
-  const prox = ultimo ? proximoService(vehiculo, HOY) : null;
+  const prox = ultimo ? proximoService(vehiculo, hoyEnUruguay()) : null;
   const desdeUltimo = ultimo ? vehiculo.km - ultimo.km : 0;
   const avance = ultimo && vehiculo.cadaService ? Math.min(1, desdeUltimo / vehiculo.cadaService) : 0;
 

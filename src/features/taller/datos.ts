@@ -17,9 +17,12 @@ import {
  * queda la pantalla.
  */
 
-export { HOY, MODELOS } from "./base";
-import { HOY } from "./base";
+export { MODELOS } from "./base";
+import { hoyEnUruguay } from "@shared/vencimientos";
 import { componentesDe } from "./datos-extra";
+
+/** Los datos de ejemplo se arman relativos al día de hoy (de Uruguay), calculado al cargar el módulo. */
+const HOY_DE_LOS_EJEMPLOS = hoyEnUruguay();
 
 const CHOFERES = ["Carlos Pereira", "Julio Techera", "Marcelo Núñez", "Darío Silva", "Walter Rocha"];
 const MECANICO = "Raúl";
@@ -74,7 +77,7 @@ const CADA_SERVICE_KM = 15_000;
 function cubiertasDe(p: Plano, porEje: (i: number) => string): Cubierta[] {
   return p.recorridos.map((rec, i) => {
     const numero = i + 1;
-    const fecha = sumarDias(HOY, -rec / p.kmPorDia);
+    const fecha = sumarDias(HOY_DE_LOS_EJEMPLOS, -rec / p.kmPorDia);
     const anteriores: PuestaAnterior[] = [];
     let hasta = fecha;
     const cuantas = i % 3 === 2 ? 0 : (i % 3) + 1;
@@ -135,7 +138,7 @@ function servicesDe(p: Plano, cuantos: number, disposicion: ReturnType<typeof ti
     lista.push({
       id: `${p.patente.replace(/\s+/g, "")}-${orden}`,
       tipos: tiposFinales,
-      fecha: sumarDias(HOY, -((p.km - km) / p.kmPorDia)),
+      fecha: sumarDias(HOY_DE_LOS_EJEMPLOS, -((p.km - km) / p.kmPorDia)),
       km,
       chofer: CHOFERES[(orden * 3 + k) % CHOFERES.length],
       mecanico: MECANICO,
@@ -172,7 +175,7 @@ const camion = (p: Plano): Vehiculo => {
     unidad: "km",
     cubiertas: cubiertasDe(p, (i) => (ejeDe(i) === 0 ? p.modelos[0] : ejeDe(i) === 1 ? (p.modelos[1] ?? p.modelos[0]) : (p.modelos[2] ?? p.modelos[1] ?? p.modelos[0]))),
     services: servicesDe(p, 6, disposicion),
-    componentes: componentesDe({ ...base(p, disposicion.intervaloServiceKm), tipo: "camion" }),
+    componentes: componentesDe({ ...base(p, disposicion.intervaloServiceKm), tipo: "camion" }, HOY_DE_LOS_EJEMPLOS),
   };
 };
 
@@ -183,7 +186,7 @@ const remolque = (tipo: TipoVehiculo, p: Plano, tipoDefault: string): Vehiculo =
   unidad: "km",
   cubiertas: cubiertasDe(p, (i) => (i < 4 ? p.modelos[0] : (p.modelos[1] ?? p.modelos[0]))),
   services: [],
-  componentes: componentesDe({ ...base(p, null), tipo }),
+  componentes: componentesDe({ ...base(p, null), tipo }, HOY_DE_LOS_EJEMPLOS),
 });
 const semirremolque = (p: Plano) => remolque("semirremolque", p, "remolque-2");
 const acoplado = (p: Plano) => remolque("acoplado", p, "sorra-sencilla");
@@ -196,7 +199,7 @@ const montacargas = (p: Plano): Vehiculo => ({
   unidad: "h",
   cubiertas: [],
   services: servicesDe(p, 6, null),
-  componentes: componentesDe({ ...base(p, p.cadaService ?? 250), tipo: "montacargas" }),
+  componentes: componentesDe({ ...base(p, p.cadaService ?? 250), tipo: "montacargas" }, HOY_DE_LOS_EJEMPLOS),
 });
 
 export const VEHICULOS: Vehiculo[] = [

@@ -1,7 +1,8 @@
 import { Link, useSearchParams } from "react-router-dom";
 import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
-import { HOY, enLaDireccion } from "./datos";
+import { enLaDireccion } from "./datos";
+import { hoyEnUruguay } from "@shared/vencimientos";
 import { useFlota } from "./FlotaReal";
 import { UMBRAL_AMBAR_SERVICE_KM, UMBRAL_ROJO_SERVICE_KM } from "@shared/taller/disposicion";
 import { useFlotaConLoCargado } from "./servicio";
@@ -22,7 +23,7 @@ export function FlotaPage() {
     return {
       v,
       ultimo: ultimoService(v),
-      prox: v.services.length ? proximoService(v, HOY) : null,
+      prox: v.services.length ? proximoService(v, hoyEnUruguay()) : null,
       rojas: items.filter((i) => i.estado === "rojo").length,
       ambar: items.filter((i) => i.estado === "ambar").length,
     };

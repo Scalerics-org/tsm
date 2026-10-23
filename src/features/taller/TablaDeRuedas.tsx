@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { hoyEnUruguay } from "@shared/vencimientos";
 import { Corners } from "../../components/ui";
 import { piezasDeRueda, type PiezaDeRueda } from "./datos-extra";
 import { posiciones, type Disposicion } from "@shared/taller/disposicion";
@@ -47,7 +48,7 @@ export function TablaDeRuedas({ vehiculo, disposicion, grupo }: { vehiculo: Vehi
           </thead>
           <tbody>
             {posiciones(disposicion).map((posicion) => {
-              const piezas = piezasDeRueda(vehiculo, posicion.numero);
+              const piezas = piezasDeRueda(vehiculo, posicion.numero, hoyEnUruguay());
               const porId = new Map(piezas.map((p) => [p.id, p]));
               const obs = piezas
                 .filter((p) => p.grupo === grupo && p.obs)

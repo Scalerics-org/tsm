@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Corners } from "../../components/ui";
 import { useSoloMirar } from "../../lib/auth";
 import { fmtDate } from "../../lib/format";
-import { HOY } from "./datos";
+import { hoyEnUruguay } from "@shared/vencimientos";
 import { AccionDeFila, Campo, ConfirmarBorrado, Errores } from "./CamposDeStock";
 import { cambiarConsumibles, useAceites, useFiltros } from "./servicio";
 import {
@@ -185,7 +185,7 @@ function FormularioDeAlta({ clase, items, onGuardar, onCancelar }: { clase: Clas
   const [nombre, setNombre] = useState("");
   const [tipo, setTipo] = useState(TIPOS_DE_FILTRO[0]);
   const [cantidad, setCantidad] = useState("");
-  const [fecha, setFecha] = useState(HOY);
+  const [fecha, setFecha] = useState(hoyEnUruguay());
   const [obs, setObs] = useState("");
   const [errores, setErrores] = useState<string[]>([]);
 
@@ -260,7 +260,7 @@ function FormularioDeAlta({ clase, items, onGuardar, onCancelar }: { clase: Clas
 
 /** Una compra más de un ítem que ya existe. */
 function FormularioDeCompra({ unidad, onGuardar, onCancelar }: { unidad: UnidadDeStock; onGuardar: (c: { id: string; fecha: string; cantidad: number; obs: string }) => void; onCancelar: () => void }) {
-  const [fecha, setFecha] = useState(HOY);
+  const [fecha, setFecha] = useState(hoyEnUruguay());
   const [cantidad, setCantidad] = useState("");
   const [obs, setObs] = useState("");
   const [errores, setErrores] = useState<string[]>([]);
