@@ -50,7 +50,8 @@ async function pedirFoto(role: string, driverId: number | null, dueno: number | 
       const stmt: any = {
         bind: () => stmt,
         first: async () => {
-          if (q.includes("from users")) return { id: 2 };
+          // El rol se relee de la base y tiene que coincidir con el del token (antes faltaba y el usuario quedaba "sin rol").
+          if (q.includes("from users")) return { id: 2, role };
           if (q.includes("from drivers")) return { status: "activo", default_truck_id: 1 };
           return dueno === undefined ? null : { driver_id: dueno };
         },

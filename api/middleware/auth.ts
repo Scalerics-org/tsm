@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import type { Env, Vars } from "../env";
-import { DRIVER_STATUS, ROLES, type Role } from "../../shared/domain";
+import { DRIVER_STATUS, ROLES, esRolConocido, type Role } from "../../shared/domain";
 import { verifyToken } from "../lib/crypto";
 import { sesionDelChofer } from "../repos/drivers";
 import { usuarioDeOficina } from "../repos/users";
@@ -38,6 +38,18 @@ export const requireAuth: MiddlewareHandler<Ctx> = async (c, next) => {
       return fail(c, "Tu usuario ya no existe. Hablá con la oficina.", 401);
     }
     c.set("user", { ...user, role: fila.role });
+  }
+
+  /**
+   * UN ROL QUE EL SERVIDOR NO CONOCE NO PASA, por defecto.
+   *
+   * Varias rutas no llevan `requireRole` —`POST /api/trips`, cancelar un viaje, `DELETE /api/photos/:id`—: se apoyan en
+   * la diferencia chofer/oficina, y un rol que no es chofer cae del lado de la oficina, que es el lado que escribe y
+   * borra. Con un rol nuevo (o uno inventado en la base) que nadie sumó a ninguna lista, eso es abrirle todo. Se frena
+   * acá, que es por donde pasan todas las rutas, y cada rol nuevo tiene que entrar a `ROLES` a propósito.
+   */
+  if (!esRolConocido(c.get("user").role)) {
+    return fail(c, "Tu usuario tiene un rol que el sistema no conoce. Hablá con la oficina.", 403);
   }
 
   /**

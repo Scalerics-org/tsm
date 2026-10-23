@@ -73,7 +73,9 @@ const VIAJE = {
 function fakeDB() {
   const responder = (sql: string) => {
     const s = sql.toLowerCase();
-    if (s.includes("from users")) return { id: 1 };
+    // El rol se relee de la base y tiene que ser uno de los que el servidor conoce: sin `role`, este fake dejaba al usuario
+    // de oficina "sin rol", que antes pasaba por oficina por el agujero que ahora se cerró. Las pruebas de oficina firman ENCARGADO.
+    if (s.includes("from users")) return { id: 1, role: ROLES.ENCARGADO };
     if (s.includes("from drivers") && s.includes("default_truck_id"))
       return { default_truck_id: 1, status: "activo" };
     if (s.includes("from trips")) return VIAJE;

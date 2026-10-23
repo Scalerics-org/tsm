@@ -55,10 +55,12 @@ function viaje(overrides: Record<string, unknown> = {}) {
 const FOTO = { id: 9, trip_id: 1, r2_key: "trips/1/carga-1.jpg", kind: "carga", taken_at: "2026-08-18 08:00:00", segment_sid: null };
 
 /** Anota lo que se escribió, para poder afirmar que un 409 no toca nada. */
-function fakeDB(trip: ReturnType<typeof viaje>, escrituras: string[]) {
+function fakeDB(trip: ReturnType<typeof viaje>, escrituras: string[], role: string = ROLES.ENCARGADO) {
   const responder = (sql: string) => {
     const s = sql.toLowerCase();
-    if (s.includes("from users")) return { id: 2 };
+    // El rol se relee de la base y tiene que coincidir con el del token: sin `role`, el usuario quedaba "sin rol", que antes
+    // pasaba por oficina por el agujero que ahora se cerró.
+    if (s.includes("from users")) return { id: 2, role };
     if (s.includes("from trip_photos")) return FOTO;
     if (s.includes("from trips")) return trip;
     if (s.includes("from drivers")) return { id: 1, name: "Carlos Méndez", status: "activo", default_truck_id: 1 };
@@ -135,7 +137,7 @@ async function cancelarSinMotivo(trip: ReturnType<typeof viaje>, role: string) {
         bind: () => stmt,
         first: async () => {
           const s = q.toLowerCase();
-          if (s.includes("from users")) return { id: 1 };
+          if (s.includes("from users")) return { id: 1, role };
           if (s.includes("from drivers")) return { id: 1, status: "activo", default_truck_id: 1 };
           if (s.includes("from trips")) return trip;
           return null;
@@ -194,7 +196,7 @@ async function borrarFoto(trip: ReturnType<typeof viaje>) {
   const res = await app.request(
     "/api/photos/9",
     { method: "DELETE", headers: { authorization: `Bearer ${await tokenAdmin()}` } },
-    { DB: fakeDB(trip, escrituras), FOTOS: fakeR2(borrados), JWT_SECRET: SECRET } as any,
+    { DB: fakeDB(trip, escrituras, ROLES.ADMIN), FOTOS: fakeR2(borrados), JWT_SECRET: SECRET } as any,
   );
   return { status: res.status, json: (await res.json()) as any, escrituras, borrados };
 }

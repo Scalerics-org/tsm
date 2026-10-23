@@ -22,6 +22,15 @@ export const ROLES = {
 export type Role = (typeof ROLES)[keyof typeof ROLES];
 
 /**
+ * Si el rol es uno de los que el sistema conoce (`ROLES`). El servidor rechaza por defecto cualquier otro: un rol que no
+ * está acá no tiene ninguna lista de permisos, y dejarlo pasar por las rutas que sólo piden estar autenticado sería
+ * darle lo mismo que a la oficina. Cada rol nuevo entra a `ROLES` a propósito, con su lista blanca.
+ */
+export function esRolConocido(rol: unknown): rol is Role {
+  return typeof rol === "string" && (Object.values(ROLES) as string[]).includes(rol);
+}
+
+/**
  * Cómo se nombra cada rol en pantalla.
  *
  * Vive acá y no en la pantalla de usuarios porque el rol se muestra en dos lados —el
