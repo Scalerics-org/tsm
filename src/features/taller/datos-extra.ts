@@ -24,6 +24,16 @@ function sumarDias(dia: string, dias: number): string {
   return f.toISOString().slice(0, 10);
 }
 
+/**
+ * El día en que, a ese ritmo, el vehículo tenía `km` menos, o `null` si no se puede saber. Un camión que viene de la base
+ * no sabe cuánto anda por día (`kmPorDia = 0`): dividir por ese cero daba Infinity, una fecha inválida, y `toISOString`
+ * tiraba RangeError al abrir la ficha de una cubierta. Igual que `proximoService`: sin km por día no se inventa una fecha.
+ */
+function fechaHaceKm(hoy: string, km: number, kmPorDia: number): string | null {
+  if (!(kmPorDia > 0) || !Number.isFinite(km)) return null;
+  return sumarDias(hoy, -km / kmPorDia);
+}
+
 // ── Componentes ──
 const PLANTILLA: Record<string, { nombre: string; piezas: string[] }> = {
   motor: { nombre: "Motor", piezas: ["Alternador", "Arranque", "Correas", "Radiadores", "Otros"] },
@@ -72,7 +82,7 @@ export function componentesDe(v: Pick<Vehiculo, "patente" | "tipo" | "km" | "kmP
         nombre,
         condicion,
         alKm,
-        fecha: condicion === "original" ? "" : sumarDias(hoy, -(v.km - alKm) / v.kmPorDia),
+        fecha: condicion === "original" ? "" : (fechaHaceKm(hoy, v.km - alKm, v.kmPorDia) ?? ""),
         obs: condicion === "original" ? "" : OBS_PIEZA[Math.floor(azar(`${v.patente}-${id}-${i}-o`) * OBS_PIEZA.length)],
       };
     });
@@ -97,7 +107,8 @@ export interface PiezaDeRueda {
   medida?: MedidaDePieza;
   /** Hace cuántos km (o horas) se la cambió o revisó. */
   kmDesde: number;
-  fecha: string;
+  /** El día aproximado; `null` si no se sabe cuánto anda por día el vehículo (los camiones reales). */
+  fecha: string | null;
   obs: string;
 }
 
@@ -133,7 +144,7 @@ export function piezasDeRueda(v: Pick<Vehiculo, "patente" | "km" | "kmPorDia">, 
       estado,
       medida,
       kmDesde,
-      fecha: sumarDias(hoy, -kmDesde / v.kmPorDia),
+      fecha: fechaHaceKm(hoy, kmDesde, v.kmPorDia),
       obs: estado === "verde" ? "" : (OBS_RUEDA[p.id] ?? ""),
     };
   });
