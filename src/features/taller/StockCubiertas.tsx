@@ -3,13 +3,13 @@ import { Corners } from "../../components/ui";
 import { useSoloMirar } from "../../lib/auth";
 import { fmtDate } from "../../lib/format";
 import { MODELOS } from "./base";
-import type { CubiertaEnStock } from "./datos-extra";
+import type { CubiertaEnStock } from "@shared/taller/tipos";
 import { nombreDelModelo } from "./datos-extra";
 import { FormularioDeAltaDeCubiertas, FormularioDeEdicionDeCubierta } from "./FormularioDeCubiertas";
 import { AccionDeFila, ConfirmarBorrado } from "./CamposDeStock";
 import { DialogoDeRecorrido, recorridoDeBaja, recorridoEnStock } from "./RecorridoDeCubierta";
-import type { RecorridoDeCubierta } from "./movimientos";
-import { uidDeStock } from "./movimientos";
+import type { RecorridoDeCubierta } from "@shared/taller/movimientos";
+import { uidDeStock } from "@shared/taller/movimientos";
 import { altaDeCubiertasEnStock, editarCubiertaEnStock, eliminarCubiertaDeStock, useBajas, useStock } from "./servicio";
 
 type Filtro = "todas" | "nueva" | "usada";

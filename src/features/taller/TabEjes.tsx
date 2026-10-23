@@ -4,7 +4,7 @@ import { Solapas } from "./Solapas";
 import { TabCubiertas } from "./TabCubiertas";
 import { TablaDeRuedas } from "./TablaDeRuedas";
 import { parteDeEjesDeLaUrl, type ParteDeEjes } from "./ubicacion";
-import type { Vehiculo } from "./tipos";
+import type { Vehiculo } from "@shared/taller/tipos";
 
 const PARTES: { id: ParteDeEjes; nombre: string }[] = [
   { id: "cubiertas", nombre: "Cubiertas" },

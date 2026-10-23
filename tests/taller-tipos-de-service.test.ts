@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { aplicarCambios } from "../src/features/taller/cambio-cubiertas";
+import { aplicarCambios } from "../shared/taller/cambio-cubiertas";
 import { VEHICULOS } from "../src/features/taller/datos";
-import { claveDeItem, itemsDeMarcas, marcasSegunTipos, seccionesDeService } from "../src/features/taller/servicio";
-import type { Cubierta, TipoService } from "../src/features/taller/tipos";
-import { TIPOS_DE_SERVICE, codigoCombinado, contenidoDeTipo, flujoDeCubiertas, itemsDeLosTipos, tipoDeService } from "../src/features/taller/tipos-de-service";
+import { claveDeItem, itemsDeMarcas, marcasSegunTipos, seccionesDeService } from "../shared/taller/servicio";
+import type { Cubierta, TipoService } from "../shared/taller/tipos";
+import { TIPOS_DE_SERVICE, codigoCombinado, contenidoDeTipo, flujoDeCubiertas, itemsDeLosTipos, tipoDeService } from "../shared/taller/tipos-de-service";
 
 const piezas = (tipos: TipoService[]) => itemsDeLosTipos(tipos).map((i) => i.pieza);
 

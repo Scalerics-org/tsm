@@ -5,12 +5,12 @@ import { MODELOS } from "./base";
 import { HOY, enLaDireccion } from "./datos";
 import { useFlota } from "./FlotaReal";
 import { Dialogo } from "./Dialogo";
-import { TEXTO_DE_BAJA, type Destino, type MotivoDeBaja, type QueHacerConLaQueEstaba, type Reemplazo } from "./movimientos";
+import { TEXTO_DE_BAJA, type Destino, type MotivoDeBaja, type QueHacerConLaQueEstaba, type Reemplazo } from "@shared/taller/movimientos";
 import { moverCubierta, ponerCubierta, useFlotaConLoCargado, useStock } from "./servicio";
 import { VistaSuperior } from "./VistaSuperior";
-import { cubiertasPorPosicion, fmtKm, type PosicionConCubierta, type Vehiculo } from "./tipos";
-import { posiciones } from "./disposicion";
-import type { CubiertaEnStock } from "./datos-extra";
+import { cubiertasPorPosicion, fmtKm, type PosicionConCubierta, type Vehiculo } from "@shared/taller/tipos";
+import { posiciones } from "@shared/taller/disposicion";
+import type { CubiertaEnStock } from "@shared/taller/tipos";
 
 /** Todo lo de "Sacar o mover esta cubierta": una sola pantalla que va mostrando lo que falta decidir. */
 

@@ -2,9 +2,9 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { enLaDireccion } from "./datos";
-import { buscarEnHistorial, type Coincidencia } from "./servicio";
+import { buscarEnHistorial, type Coincidencia } from "@shared/taller/servicio";
 import { CodigoPill } from "./TabServices";
-import { fmtUso, type AccionHecha, type Vehiculo } from "./tipos";
+import { fmtUso, type AccionHecha, type Vehiculo } from "@shared/taller/tipos";
 
 const SUGERENCIAS = ["trampa", "centrífugo", "APS", "balanceo", "alternador", "zapatas", "cubierta 7"];
 

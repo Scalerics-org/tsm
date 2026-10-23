@@ -18,7 +18,7 @@ import {
   numeroDeCantidad,
   type ItemDeStock,
   type UnidadDeStock,
-} from "./stock-consumibles";
+} from "@shared/taller/stock-consumibles";
 
 /** Los aceites y líquidos de cada tipo, o los filtros de cada modelo: cuánto hay, cuánto entró y en qué se usó. */
 type Clase = "aceite" | "filtro";

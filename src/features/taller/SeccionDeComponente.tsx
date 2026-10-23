@@ -1,6 +1,6 @@
 import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
-import { fmtUso, type Componente, type PiezaDeComponente, type Vehiculo } from "./tipos";
+import { fmtUso, type Componente, type PiezaDeComponente, type Vehiculo } from "@shared/taller/tipos";
 
 /**
  * La hoja de un componente, como la planilla: por pieza, la fecha y los km en que se repuso o reparó, y la observación del

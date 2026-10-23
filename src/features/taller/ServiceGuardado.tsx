@@ -4,8 +4,8 @@ import { fmtDate } from "../../lib/format";
 import { enLaDireccion } from "./datos";
 import { Accion } from "./TabHistorial";
 import { CodigoPill } from "./TabServices";
-import { NOMBRE_OTRO, TIPOS_DE_SERVICE, descripcionDeTipo } from "./tipos-de-service";
-import { fmtUso, type ItemHecho, type Vehiculo } from "./tipos";
+import { NOMBRE_OTRO, TIPOS_DE_SERVICE, descripcionDeTipo } from "@shared/taller/tipos-de-service";
+import { fmtUso, type ItemHecho, type Vehiculo } from "@shared/taller/tipos";
 
 /** Un service ya guardado: la cabecera con sus datos y, debajo, SÓLO lo que se marcó, por sección. */
 export function ServiceGuardado({ vehiculo }: { vehiculo: Vehiculo }) {

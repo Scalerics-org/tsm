@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { aplicarCambios } from "../src/features/taller/cambio-cubiertas";
-import type { CubiertaEnStock } from "../src/features/taller/datos-extra";
-import type { Cubierta } from "../src/features/taller/tipos";
+import { aplicarCambios } from "../shared/taller/cambio-cubiertas";
+import type { CubiertaEnStock } from "../shared/taller/tipos";
+import type { Cubierta } from "../shared/taller/tipos";
 
 /**
  * Un service que cambia una cubierta actualiza la ficha de su posición, el historial de esa posición y el stock.

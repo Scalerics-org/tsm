@@ -1,6 +1,7 @@
 import { HOY, MODELOS } from "./base";
-import type { ItemDeStock } from "./stock-consumibles";
-import type { Balanceo, Componente, CondicionPieza, Estado, PiezaDeComponente, Tramo, TipoVehiculo, Vehiculo } from "./tipos";
+import { PIEZAS_DE_RUEDA, type GrupoDePieza, type MedidaDePieza } from "@shared/taller/piezas-de-rueda";
+import type { ItemDeStock } from "@shared/taller/stock-consumibles";
+import type { Componente, CondicionPieza, CubiertaEnStock, Estado, PiezaDeComponente, TipoVehiculo, Vehiculo } from "@shared/taller/tipos";
 
 /**
  * DATOS DE MENTIRA, segunda parte: los componentes (motor, caja…), las piezas de cada rueda (frenos y rodaje) y
@@ -85,7 +86,7 @@ export function componentesDe(v: Pick<Vehiculo, "patente" | "tipo" | "km" | "kmP
 }
 
 // ── Piezas de cada rueda: frenos y rodaje ──
-export type GrupoDePieza = "rueda" | "freno" | "rodaje";
+export type { GrupoDePieza } from "@shared/taller/piezas-de-rueda";
 
 export interface PiezaDeRueda {
   id: string;
@@ -93,32 +94,12 @@ export interface PiezaDeRueda {
   nombre: string;
   estado: Estado;
   /** Una medida que se controla con calibre, si la pieza la tiene. */
-  medida?: { valor: number; limite: number; sentido: "min" | "max"; unidad: string };
+  medida?: MedidaDePieza;
   /** Hace cuántos km (o horas) se la cambió o revisó. */
   kmDesde: number;
   fecha: string;
   obs: string;
 }
-
-/** Las piezas del despiece de 21.jpg, más las que pide el Excel (bujes, retén, grasa). */
-export const PIEZAS_DE_RUEDA: { id: string; grupo: GrupoDePieza; nombre: string; medida?: PiezaDeRueda["medida"]; vida: number }[] = [
-  { id: "llanta", grupo: "rueda", nombre: "Llanta", vida: 400_000 },
-  { id: "disco", grupo: "rueda", nombre: "Disco de rueda", vida: 400_000 },
-  { id: "bulones", grupo: "rueda", nombre: "Bulones y tuercas", vida: 200_000 },
-  { id: "tambor", grupo: "freno", nombre: "Tambor (campana)", medida: { valor: 0, limite: 422, sentido: "max", unidad: "mm" }, vida: 300_000 },
-  { id: "zapatas", grupo: "freno", nombre: "Zapatas / cintas", medida: { valor: 0, limite: 5, sentido: "min", unidad: "mm" }, vida: 120_000 },
-  { id: "leva", grupo: "freno", nombre: "Leva S", vida: 250_000 },
-  { id: "bujes", grupo: "freno", nombre: "Bujes", vida: 150_000 },
-  { id: "matraca", grupo: "freno", nombre: "Matraca", vida: 200_000 },
-  { id: "pulmon", grupo: "freno", nombre: "Pulmón de freno", vida: 250_000 },
-  { id: "maza", grupo: "rodaje", nombre: "Maza", vida: 500_000 },
-  { id: "rulemanes", grupo: "rodaje", nombre: "Rulemanes", vida: 250_000 },
-  { id: "reten", grupo: "rodaje", nombre: "Retén", vida: 150_000 },
-  { id: "tapa", grupo: "rodaje", nombre: "Tapa de maza", vida: 300_000 },
-  { id: "punta", grupo: "rodaje", nombre: "Punta de eje", vida: 500_000 },
-  { id: "grasa", grupo: "rodaje", nombre: "Grasa", vida: 60_000 },
-  { id: "eje", grupo: "rodaje", nombre: "Eje", vida: 600_000 },
-];
 
 const OBS_RUEDA: Record<string, string> = {
   reten: "Transpira un poco de grasa.",
@@ -159,23 +140,6 @@ export function piezasDeRueda(v: Pick<Vehiculo, "patente" | "km" | "kmPorDia">, 
 }
 
 // ── Stock ──
-export interface CubiertaEnStock {
-  /** Id interno (las de ejemplo usan su código). */
-  uid?: string;
-  /** Puede quedar vacío: una cubierta sin código igual está en el stock y tiene su historial. */
-  codigo: string;
-  modeloId: string;
-  estado: "nueva" | "usada";
-  obs: string;
-  /** Desde cuándo está en el stock (la fecha de compra, si se cargó desde el alta). */
-  desde?: string;
-  /** A quién se compró, si se anotó. */
-  proveedor?: string;
-  /** Dónde estuvo antes. */
-  historial?: Tramo[];
-  /** Los balanceos que se le hicieron. */
-  balanceos?: Balanceo[];
-}
 
 export const CUBIERTAS_EN_STOCK: CubiertaEnStock[] = [
   { codigo: "N-0101", modeloId: "r269", estado: "nueva", obs: "" },

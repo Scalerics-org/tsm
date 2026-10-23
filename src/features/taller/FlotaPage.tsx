@@ -3,11 +3,11 @@ import { Corners } from "../../components/ui";
 import { fmtDate } from "../../lib/format";
 import { HOY, enLaDireccion } from "./datos";
 import { useFlota } from "./FlotaReal";
-import { UMBRAL_AMBAR_SERVICE_KM, UMBRAL_ROJO_SERVICE_KM } from "./disposicion";
+import { UMBRAL_AMBAR_SERVICE_KM, UMBRAL_ROJO_SERVICE_KM } from "@shared/taller/disposicion";
 import { useFlotaConLoCargado } from "./servicio";
 import { CodigoPill } from "./TabServices";
 import { COLOR_ESTADO } from "./VistaSuperior";
-import { cubiertasPorPosicion, fmtUso, proximoService, ultimoService, type ProximoService } from "./tipos";
+import { cubiertasPorPosicion, fmtUso, proximoService, ultimoService, type ProximoService } from "@shared/taller/tipos";
 
 /** Una matrícula sin espacios, guiones ni mayúsculas: "GTP 4325", "gtp-4325" y "4325" se comparan igual. */
 const comparable = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");

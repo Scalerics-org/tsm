@@ -4,8 +4,8 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { VEHICULOS } from "../src/features/taller/datos";
 import { TabMantenimiento } from "../src/features/taller/TabMantenimiento";
-import { posiciones } from "../src/features/taller/disposicion";
-import type { Vehiculo } from "../src/features/taller/tipos";
+import { posiciones } from "../shared/taller/disposicion";
+import type { Vehiculo } from "../shared/taller/tipos";
 
 /** Renderiza la pestaña Mantenimiento con la URL dada (el router en memoria lee la query igual que el de la app). */
 function renderizar(vehiculo: Vehiculo, query: string): string {

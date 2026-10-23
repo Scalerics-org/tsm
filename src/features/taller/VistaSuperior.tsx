@@ -1,14 +1,8 @@
 import { useId, type KeyboardEvent } from "react";
-import {
-  ANCHO,
-  CUBIERTA_H,
-  CUBIERTA_W,
-  altoDelDibujo,
-  lugarEnElDibujo,
-  type Disposicion,
-} from "./disposicion";
+import type { Disposicion } from "@shared/taller/disposicion";
+import { ANCHO, CUBIERTA_H, CUBIERTA_W, altoDelDibujo, lugarEnElDibujo } from "./dibujo";
 import { MODELOS } from "./datos";
-import { fmtKm, pctDeUso, type Estado, type PosicionConCubierta } from "./tipos";
+import { fmtKm, pctDeUso, type Estado, type PosicionConCubierta } from "@shared/taller/tipos";
 import "./taller.css";
 
 export const COLOR_ESTADO: Record<Estado, string> = {

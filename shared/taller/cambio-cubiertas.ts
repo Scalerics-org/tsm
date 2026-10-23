@@ -1,6 +1,5 @@
-import type { CubiertaEnStock } from "./datos-extra";
 import { uidDeCubierta, uidDeStock } from "./movimientos";
-import { kmEnTramos, type Cubierta, type PuestaAnterior, type Service } from "./tipos";
+import { kmEnTramos, type Cubierta, type CubiertaEnStock, type PuestaAnterior, type Service } from "./tipos";
 
 /**
  * Lo que un service hace con las cubiertas, como cuentas puras (sin pantalla ni almacenamiento):

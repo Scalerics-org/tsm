@@ -144,27 +144,6 @@ export function posiciones(d: Disposicion): Posicion[] {
   return lista.map((p, i) => ({ ...p, numero: i + 1 }));
 }
 
-/** Las medidas del dibujo, en unidades del viewBox (que mide 360 de ancho: en el celular es 1 a 1). */
-export const ANCHO = 360;
-export const CUBIERTA_W = 44;
-export const CUBIERTA_H = 74;
-const SEPARACION_DUAL = 4;
-
-/** Dónde va la esquina de arriba a la izquierda de una cubierta. */
-export function lugarEnElDibujo(p: Posicion): { x: number; y: number } {
-  const y = p.eje.y - CUBIERTA_H / 2;
-  if (p.lugar === "unica") return { x: p.lado === "izquierda" ? 50 : ANCHO - 50 - CUBIERTA_W, y };
-  const afuera = 28;
-  const adentro = afuera + CUBIERTA_W + SEPARACION_DUAL;
-  const izquierda = p.lugar === "exterior" ? afuera : adentro;
-  return { x: p.lado === "izquierda" ? izquierda : ANCHO - izquierda - CUBIERTA_W, y };
-}
-
-export function altoDelDibujo(d: Disposicion): number {
-  const ultimo = Math.max(...d.ejes.map((e) => e.y));
-  return ultimo + CUBIERTA_H / 2 + 52;
-}
-
 /**
  * Lo que hay que avisar de las cubiertas guardadas de un vehículo según el dibujo actual. Las posiciones son de la
  * disposición: si el tipo cambió, una cubierta puede quedar en un eje que no es el suyo, o en una posición que el dibujo

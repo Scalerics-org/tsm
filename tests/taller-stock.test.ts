@@ -12,12 +12,13 @@ import {
   faltantes,
   numeroDeCantidad,
   type ItemDeStock,
-} from "../src/features/taller/stock-consumibles";
-import { altaDeCubiertas, editarCubiertaStock, erroresDeCubiertas } from "../src/features/taller/stock-cubiertas";
-import { ACEITES_DE_EJEMPLO, FILTROS_DE_EJEMPLO, type CubiertaEnStock } from "../src/features/taller/datos-extra";
+} from "../shared/taller/stock-consumibles";
+import { altaDeCubiertas, editarCubiertaStock, erroresDeCubiertas } from "../shared/taller/stock-cubiertas";
+import { ACEITES_DE_EJEMPLO, FILTROS_DE_EJEMPLO } from "../src/features/taller/datos-extra";
+import type { CubiertaEnStock } from "../shared/taller/tipos";
 import { VEHICULOS } from "../src/features/taller/datos";
-import { PIEZA, SECCION } from "../src/features/taller/tipos-de-service";
-import { claveDeItem, consumosDeMarcas, marcaNueva, seccionesDeService, type Marcas } from "../src/features/taller/servicio";
+import { PIEZA, SECCION } from "../shared/taller/tipos-de-service";
+import { claveDeItem, consumosDeMarcas, marcaNueva, seccionesDeService, type Marcas } from "../shared/taller/servicio";
 
 const filtroLF: ItemDeStock = {
   id: "fi-LF3000",

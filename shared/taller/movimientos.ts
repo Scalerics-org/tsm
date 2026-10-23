@@ -1,5 +1,4 @@
-import type { CubiertaEnStock } from "./datos-extra";
-import { kmEnTramos, type Balanceo, type Cubierta, type PuestaAnterior, type Tramo } from "./tipos";
+import { kmEnTramos, type Balanceo, type Cubierta, type CubiertaEnStock, type PuestaAnterior, type Tramo } from "./tipos";
 
 /**
  * Qué pasa con una cubierta que se saca o se mueve, como cuentas puras (sin pantalla ni almacenamiento):

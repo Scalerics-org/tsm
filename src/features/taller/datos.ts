@@ -1,6 +1,6 @@
-import { tipoDeVehiculo } from "./disposicion";
+import { tipoDeVehiculo } from "@shared/taller/disposicion";
 import { TIPOS_DE_LOS_EJEMPLOS, itemsDeService } from "./servicio";
-import { flujoDeCubiertas } from "./tipos-de-service";
+import { flujoDeCubiertas } from "@shared/taller/tipos-de-service";
 import {
   type Cubierta,
   type PuestaAnterior,
@@ -9,7 +9,7 @@ import {
   type TipoService,
   type TipoVehiculo,
   type Vehiculo,
-} from "./tipos";
+} from "@shared/taller/tipos";
 
 /**
  * DATOS DE MENTIRA para la maqueta. Nada de esto sale de la base ni se guarda: las patentes son las de la

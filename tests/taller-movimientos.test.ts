@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import type { CubiertaEnStock } from "../src/features/taller/datos-extra";
-import { aplicarMovimiento, recorridoDeCubierta, type Situacion } from "../src/features/taller/movimientos";
-import { kmRecorridos, type Cubierta, type Vehiculo } from "../src/features/taller/tipos";
+import type { CubiertaEnStock } from "../shared/taller/tipos";
+import { aplicarMovimiento, recorridoDeCubierta, type Situacion } from "../shared/taller/movimientos";
+import { kmRecorridos, type Cubierta, type Vehiculo } from "../shared/taller/tipos";
 
 /**
  * Sacar o mover una cubierta: baja, stock, otra posición del mismo vehículo u otra de OTRO vehículo. El historial de cada

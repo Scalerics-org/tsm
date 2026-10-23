@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { VEHICULOS } from "./datos";
 import { FlotaProvider, useFlota } from "./FlotaReal";
 import { buscarVehiculo } from "./flota-real";
-import { NOMBRE_MONTACARGAS } from "./disposicion";
+import { NOMBRE_MONTACARGAS } from "@shared/taller/disposicion";
 import { fmtDate } from "../../lib/format";
 import { NuevoService } from "./NuevoService";
 import { ServiceGuardado } from "./ServiceGuardado";
@@ -15,7 +15,7 @@ import { TabServices } from "./TabServices";
 import { Solapas } from "./Solapas";
 import { StockPage } from "./StockPage";
 import { pestanaDeLaUrl, type Pestana } from "./ubicacion";
-import { fmtUso, type Vehiculo } from "./tipos";
+import { fmtUso, type Vehiculo } from "@shared/taller/tipos";
 
 /**
  * MAQUETA del módulo de Taller: navegable, con datos de ejemplo y sin base de datos ni API. Vive dentro del panel

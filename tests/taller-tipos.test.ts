@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { TIPOS_DE_VEHICULO, posiciones, tipoDeVehiculo } from "../src/features/taller/disposicion";
+import { TIPOS_DE_VEHICULO, posiciones, tipoDeVehiculo } from "../shared/taller/disposicion";
 
 /**
  * Los tipos de vehículo como los pasó Rodrigo: nombres exactos y en orden, cantidad de cubiertas, cómo se numeran las

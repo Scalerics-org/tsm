@@ -1,6 +1,6 @@
 import { useAceites, useFiltros } from "./servicio";
-import type { Marcas } from "./servicio";
-import { existencia, numeroDeCantidad, type ItemDeStock } from "./stock-consumibles";
+import type { Marcas } from "@shared/taller/servicio";
+import { existencia, numeroDeCantidad, type ItemDeStock } from "@shared/taller/stock-consumibles";
 
 /**
  * Para un filtro o un líquido del service: de qué ítem del stock sale y cuánto. Es opcional: si no se elige nada, no se

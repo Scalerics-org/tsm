@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MODELOS } from "./datos";
-import type { Disposicion } from "./disposicion";
+import type { Disposicion } from "@shared/taller/disposicion";
 import { PanelCubierta, type VistaDeRueda } from "./PanelCubierta";
 import { COLOR_ESTADO, VistaSuperior } from "./VistaSuperior";
 import {
@@ -13,7 +13,7 @@ import {
   pctDeUso,
   type Estado,
   type Vehiculo,
-} from "./tipos";
+} from "@shared/taller/tipos";
 
 const LEYENDA: { estado: Estado; titulo: string; rango: string }[] = [
   { estado: "verde", titulo: "En buen estado", rango: `hasta ${fmtKm(VIDA_UTIL_KM * UMBRAL_AMBAR)}` },

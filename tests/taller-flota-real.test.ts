@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { disposicionDesdeTexto, tipoDesdeTexto, vehiculoDeCamion } from "../src/features/taller/flota-real";
+import { disposicionDesdeTexto, tipoDesdeTexto } from "../shared/taller/flota-real";
+import { vehiculoDeCamion } from "../src/features/taller/flota-real";
 import type { Truck } from "../shared/domain";
 
 /** Los textos reales de la flota en producción, con su clase, el tipo del Taller y si queda algo para confirmar. */

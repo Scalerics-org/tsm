@@ -2,7 +2,7 @@ import { useState } from "react";
 import { fmtDate } from "../../lib/format";
 import type { GrupoDePieza, PiezaDeRueda } from "./datos-extra";
 import { COLOR_ESTADO } from "./VistaSuperior";
-import { type Estado, type Vehiculo, fmtUso } from "./tipos";
+import { type Estado, type Vehiculo, fmtUso } from "@shared/taller/tipos";
 
 const FONDO: Record<Estado, string> = { verde: "#e0eee3", ambar: "#f6ecd9", rojo: "#f6e2df" };
 const TEXTO_ESTADO: Record<Estado, string> = { verde: "Bien", ambar: "A mirar", rojo: "Para cambiar" };

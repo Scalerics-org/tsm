@@ -3,7 +3,7 @@
  * parte de Ejes (`?sub=`). Son funciones puras para que las reglas de los enlaces viejos (`?tab=cubiertas`,
  * `?cubierta=4`) se prueben sin el router.
  */
-import type { Componente } from "./tipos";
+import type { Componente } from "@shared/taller/tipos";
 
 export type Pestana = "services" | "mantenimiento" | "historial";
 export type Seccion = "ejes" | "motor" | "caja" | "diferencial" | "chasis" | "electricidad";

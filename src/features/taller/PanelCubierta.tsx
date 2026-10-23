@@ -18,7 +18,7 @@ import {
   porcentajeDeVida,
   type PosicionConCubierta,
   type Vehiculo,
-} from "./tipos";
+} from "@shared/taller/tipos";
 
 /** La ficha de una cubierta: en el escritorio queda al lado del dibujo; en el celular sube desde abajo. */
 export type VistaDeRueda = "cubierta" | "frenos";

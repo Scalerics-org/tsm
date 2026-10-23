@@ -244,3 +244,22 @@ export const fmtKm = (km: number) => `${Math.round(km).toLocaleString("es-UY")} 
 /** Km u horas, según lo que mida el vehículo. */
 export const fmtUso = (v: Pick<Vehiculo, "unidad">, n: number) =>
   `${Math.round(n).toLocaleString("es-UY")} ${v.unidad}`;
+
+// ── Stock de cubiertas ──
+export interface CubiertaEnStock {
+  /** Id interno (las de ejemplo usan su código). */
+  uid?: string;
+  /** Puede quedar vacío: una cubierta sin código igual está en el stock y tiene su historial. */
+  codigo: string;
+  modeloId: string;
+  estado: "nueva" | "usada";
+  obs: string;
+  /** Desde cuándo está en el stock (la fecha de compra, si se cargó desde el alta). */
+  desde?: string;
+  /** A quién se compró, si se anotó. */
+  proveedor?: string;
+  /** Dónde estuvo antes. */
+  historial?: Tramo[];
+  /** Los balanceos que se le hicieron. */
+  balanceos?: Balanceo[];
+}

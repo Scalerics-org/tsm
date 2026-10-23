@@ -1,9 +1,9 @@
 import { Link } from "react-router-dom";
 import { Corners } from "../../components/ui";
 import { piezasDeRueda, type PiezaDeRueda } from "./datos-extra";
-import { posiciones, type Disposicion } from "./disposicion";
+import { posiciones, type Disposicion } from "@shared/taller/disposicion";
 import { COLOR_ESTADO } from "./VistaSuperior";
-import { fmtUso, type Vehiculo } from "./tipos";
+import { fmtUso, type Vehiculo } from "@shared/taller/tipos";
 
 /** Las columnas de la planilla por grupo: la pieza de datos-extra que cuenta para cada una. */
 const COLUMNAS: Record<"frenos" | "rodaje", { id: string; titulo: string }[]> = {

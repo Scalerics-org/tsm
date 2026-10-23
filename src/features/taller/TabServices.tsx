@@ -3,8 +3,8 @@ import { Corners } from "../../components/ui";
 import { useSoloMirar } from "../../lib/auth";
 import { fmtDate } from "../../lib/format";
 import { HOY, enLaDireccion } from "./datos";
-import { UMBRAL_AMBAR_SERVICE_KM, UMBRAL_ROJO_SERVICE_KM } from "./disposicion";
-import { NOMBRE_OTRO, EXPLICACION_OTRO, TIPOS_DE_SERVICE, codigoCombinado, contenidoDeTipo, type GrupoDeService } from "./tipos-de-service";
+import { UMBRAL_AMBAR_SERVICE_KM, UMBRAL_ROJO_SERVICE_KM } from "@shared/taller/disposicion";
+import { NOMBRE_OTRO, EXPLICACION_OTRO, TIPOS_DE_SERVICE, codigoCombinado, contenidoDeTipo, type GrupoDeService } from "@shared/taller/tipos-de-service";
 import { COLOR_ESTADO } from "./VistaSuperior";
 import {
   fmtUso,
@@ -14,7 +14,7 @@ import {
   type Service,
   type TipoService,
   type Vehiculo,
-} from "./tipos";
+} from "@shared/taller/tipos";
 
 /**
  * Los códigos de un service, combinados ("A + D + R"), en una sola etiqueta. El color dice de qué es: de motor, de

@@ -1,9 +1,9 @@
 import { fmtDate } from "../../lib/format";
 import { MODELOS } from "./base";
 import { Dialogo } from "./Dialogo";
-import { recorridoDeCubierta, type CubiertaBaja, type RecorridoDeCubierta } from "./movimientos";
-import type { CubiertaEnStock } from "./datos-extra";
-import { fmtKm, type Cubierta, type Vehiculo } from "./tipos";
+import { recorridoDeCubierta, type CubiertaBaja, type RecorridoDeCubierta } from "@shared/taller/movimientos";
+import type { CubiertaEnStock } from "@shared/taller/tipos";
+import { fmtKm, type Cubierta, type Vehiculo } from "@shared/taller/tipos";
 
 /** El recorrido de una cubierta que está en un vehículo: sus tramos cerrados y el de hoy, contra el tacógrafo de cada uno. */
 export const recorridoEnVehiculo = (v: Vehiculo, c: Cubierta): RecorridoDeCubierta =>

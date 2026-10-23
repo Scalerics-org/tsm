@@ -3,7 +3,7 @@ import { SeccionDeComponente } from "./SeccionDeComponente";
 import { Solapas } from "./Solapas";
 import { TabEjes } from "./TabEjes";
 import { seccionDeLaUrl, seccionesDelVehiculo, type Seccion } from "./ubicacion";
-import type { Vehiculo } from "./tipos";
+import type { Vehiculo } from "@shared/taller/tipos";
 
 const NOMBRES: Record<Seccion, string> = {
   ejes: "Ejes",

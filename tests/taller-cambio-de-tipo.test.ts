@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { avisoDeCambioDeTipo, tipoDeVehiculo } from "../src/features/taller/disposicion";
+import { avisoDeCambioDeTipo, tipoDeVehiculo } from "../shared/taller/disposicion";
 
 /**
  * Las cubiertas se guardan por matrícula con el número de su posición. Si el tipo del vehículo cambió desde que se

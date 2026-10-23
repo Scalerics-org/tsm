@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { MODELOS } from "./base";
 import { HOY } from "./datos";
-import type { CubiertaEnStock } from "./datos-extra";
-import { nuevoIdDeStock, numeroDeCantidad } from "./stock-consumibles";
-import { altaDeCubiertas, erroresDeCubiertas, type DatosDeCompraDeCubiertas } from "./stock-cubiertas";
+import type { CubiertaEnStock } from "@shared/taller/tipos";
+import { nuevoIdDeStock, numeroDeCantidad } from "@shared/taller/stock-consumibles";
+import { altaDeCubiertas, erroresDeCubiertas, type DatosDeCompraDeCubiertas } from "@shared/taller/stock-cubiertas";
 import { Campo, Errores } from "./CamposDeStock";
 
 /**

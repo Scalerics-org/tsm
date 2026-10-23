@@ -2,8 +2,8 @@
  * El alta, la validación y la edición de las cubiertas del stock. Una compra puede traer varias iguales, cada una con su código
  * (opcional). Es una cuenta pura: la pantalla le pasa lo que escribieron y guarda lo que devuelve.
  */
-import { MODELOS } from "./base";
-import type { CubiertaEnStock } from "./datos-extra";
+import { MODELOS } from "./modelos";
+import type { CubiertaEnStock } from "./tipos";
 
 export interface DatosDeCompraDeCubiertas {
   modeloId: string;

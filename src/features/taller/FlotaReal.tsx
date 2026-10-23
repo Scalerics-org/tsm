@@ -4,7 +4,7 @@ import { api, mensajeDe } from "../../lib/api";
 import { Spinner } from "../../components/ui";
 import { VEHICULOS } from "./datos";
 import { vehiculoDeCamion } from "./flota-real";
-import type { Vehiculo } from "./tipos";
+import type { Vehiculo } from "@shared/taller/tipos";
 
 /**
  * La flota del Taller: los camiones y acoplados que Rodrigo carga en Camiones, y los choferes de la base.

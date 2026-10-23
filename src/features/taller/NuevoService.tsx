@@ -5,35 +5,16 @@ import { fmtDate } from "../../lib/format";
 import { MODELOS } from "./base";
 import { HOY, MECANICOS, enLaDireccion } from "./datos";
 import { useFlota } from "./FlotaReal";
-import { posiciones } from "./disposicion";
-import type { CubiertaEnStock } from "./datos-extra";
-import {
-  TIPOS_DEL_EJEMPLO,
-  cambiosDeCubiertas,
-  claveDeItem,
-  consumosDeMarcas,
-  guardarService,
-  idDeService,
-  itemsDeMarcas,
-  marcaNueva,
-  marcadosEn,
-  marcaDeCubierta,
-  marcasDeEjemplo,
-  marcasSegunTipos,
-  seccionesDeService,
-  useAceites,
-  useFiltros,
-  useStock,
-  type ItemCatalogo,
-  type Marcas,
-  type SeccionDeService,
-} from "./servicio";
+import { posiciones } from "@shared/taller/disposicion";
+import type { CubiertaEnStock } from "@shared/taller/tipos";
+import { TIPOS_DEL_EJEMPLO, guardarService, idDeService, marcasDeEjemplo, useAceites, useFiltros, useStock } from "./servicio";
+import { cambiosDeCubiertas, claveDeItem, consumosDeMarcas, itemsDeMarcas, marcaNueva, marcadosEn, marcaDeCubierta, marcasSegunTipos, seccionesDeService, type ItemCatalogo, type Marcas, type SeccionDeService } from "@shared/taller/servicio";
 import { Accion, TEXTO_ACCION } from "./TabHistorial";
 import { CodigoPill } from "./TabServices";
 import { DescuentoDeStock } from "./DescuentoDeStock";
-import { faltantes } from "./stock-consumibles";
-import type { AccionHecha, TipoService, Vehiculo } from "./tipos";
-import { EXPLICACION_OTRO, NOMBRE_OTRO, SECCION, contenidoDeTipo, descripcionDeTipo, flujoDeCubiertas, tiposDisponibles } from "./tipos-de-service";
+import { faltantes } from "@shared/taller/stock-consumibles";
+import type { AccionHecha, TipoService, Vehiculo } from "@shared/taller/tipos";
+import { EXPLICACION_OTRO, NOMBRE_OTRO, SECCION, contenidoDeTipo, descripcionDeTipo, flujoDeCubiertas, tiposDisponibles } from "@shared/taller/tipos-de-service";
 
 const ACCIONES: AccionHecha[] = ["reparado", "nuevo", "revisado"];
 
