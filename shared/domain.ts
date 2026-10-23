@@ -18,6 +18,12 @@ export const ROLES = {
    * a todo lo que no sea mirar viajes y prender sus propios avisos.
    */
   LECTOR: "lector",
+  /**
+   * Raúl, el mecánico: ve Camiones en solo lectura y usa el Taller (services, cubiertas, stock). Nada de viajes, facturación,
+   * consumo ni choferes. Igual que el lector, lo que lo garantiza es una lista blanca en el servidor
+   * (`api/lib/permisos-mecanico.ts`); esconder botones es comodidad.
+   */
+  MECANICO: "mecanico",
 } as const;
 export type Role = (typeof ROLES)[keyof typeof ROLES];
 
@@ -42,6 +48,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   encargado: "Encargado",
   admin: "Administrador",
   lector: "Solo mirar",
+  mecanico: "Mecánico",
 };
 
 export const TRIP_STATUS = {

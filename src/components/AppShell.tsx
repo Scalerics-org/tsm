@@ -98,6 +98,16 @@ const LECTOR_NAV: NavGroup[] = [
   },
 ];
 
+/** Qué ve el mecánico (Raúl): Camiones, en solo lectura, y el Taller. Nada de viajes, Consumo ni plata. */
+const MECANICO_NAV: NavGroup[] = [
+  {
+    items: [
+      { to: "/admin/camiones", label: "Camiones" },
+      { to: "/panel/taller", label: "Taller (maqueta)" },
+    ],
+  },
+];
+
 const ADMIN_NAV: NavGroup[] = [
   DIA,
   {
@@ -126,7 +136,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (!user) return <>{children}</>;
   if (user.role === ROLES.CHOFER) return <ChoferShell>{children}</ChoferShell>;
   const grupos =
-    user.role === ROLES.ADMIN ? ADMIN_NAV : user.role === ROLES.LECTOR ? LECTOR_NAV : OPS_NAV;
+    user.role === ROLES.ADMIN
+      ? ADMIN_NAV
+      : user.role === ROLES.LECTOR
+        ? LECTOR_NAV
+        : user.role === ROLES.MECANICO
+          ? MECANICO_NAV
+          : OPS_NAV;
   return <DesktopShell grupos={grupos}>{children}</DesktopShell>;
 }
 

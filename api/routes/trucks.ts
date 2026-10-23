@@ -13,7 +13,7 @@ trucks.use("*", requireAuth);
 
 // El lector la ve entera: sirve para el filtro por camión de Viajes y para la pantalla de Camiones,
 // que mira en solo lectura (odómetro, rendimiento y vencimientos incluidos, por pedido del 7/10).
-trucks.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR), async (c) =>
+trucks.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR, ROLES.MECANICO), async (c) =>
   ok(c, await repo.listTrucks(c.env.DB)),
 );
 

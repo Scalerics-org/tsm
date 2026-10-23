@@ -36,6 +36,7 @@ import { AdminUsersPage } from "./features/admin/AdminUsersPage";
  */
 function homePath(role: Role): string {
   if (role === ROLES.CHOFER) return "/";
+  if (role === ROLES.MECANICO) return "/admin/camiones";
   return role === ROLES.LECTOR ? "/panel/viajes" : "/panel";
 }
 
@@ -77,6 +78,10 @@ export default function App() {
   // Las pantallas del "solo mirar": viajes, Consumo, Camiones (lista y ficha, sin editar) y el Taller (maqueta).
   // Cualquier otra dirección de /panel lo rebota a Viajes, que es su casa.
   const VER: Role[] = [ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR];
+  // Camiones (lista y ficha) también los ve el mecánico; Viajes y Consumo no.
+  const CAMIONES: Role[] = [...VER, ROLES.MECANICO];
+  // El Taller: oficina y mecánico. El lector no.
+  const TALLER: Role[] = [...OPS, ROLES.MECANICO];
 
   return (
     <AppShell>
@@ -99,14 +104,13 @@ export default function App() {
         <Route path="/panel/resumen-cliente" element={<RequireRole roles={OPS}><ResumenClientePage /></RequireRole>} />
         <Route path="/panel/viajes/nuevo" element={<RequireRole roles={OPS}><NuevoViajePage /></RequireRole>} />
         <Route path="/panel/viajes/:id" element={<RequireRole roles={VER}><OpsTripDetailPage /></RequireRole>} />
-        <Route path="/panel/camion/:id" element={<RequireRole roles={VER}><TruckDetailPage /></RequireRole>} />
+        <Route path="/panel/camion/:id" element={<RequireRole roles={CAMIONES}><TruckDetailPage /></RequireRole>} />
         <Route path="/panel/chofer/:id" element={<RequireRole roles={OPS}><DriverDetailPage /></RequireRole>} />
-        {/* La maqueta del Taller: sólo oficina, con el login de siempre. No usa la API. El lector (Raúl, por ahora) no lo
-            ve: la pestaña se la damos cuando esté lista, con un rol propio para cargar services. */}
+        {/* La maqueta del Taller: oficina y mecánico (Raúl), con el login de siempre. No usa la API. El lector no la ve. */}
         <Route
           path="/panel/taller/*"
           element={
-            <RequireRole roles={OPS}>
+            <RequireRole roles={TALLER}>
               <Suspense fallback={<Spinner size={28} />}>
                 <TallerMaqueta />
               </Suspense>
@@ -145,7 +149,7 @@ export default function App() {
 
         {/* Admin */}
         <Route path="/admin/choferes" element={<RequireRole roles={OPS}><AdminDriversPage /></RequireRole>} />
-        <Route path="/admin/camiones" element={<RequireRole roles={VER}><AdminTrucksPage /></RequireRole>} />
+        <Route path="/admin/camiones" element={<RequireRole roles={CAMIONES}><AdminTrucksPage /></RequireRole>} />
         <Route path="/admin/usuarios" element={<RequireRole roles={[ROLES.ADMIN]}><AdminUsersPage /></RequireRole>} />
 
         <Route path="*" element={<Navigate to={homePath(user.role)} replace />} />

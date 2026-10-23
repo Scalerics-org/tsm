@@ -12,13 +12,13 @@ import { ROLES, esRolConocido } from "@shared/domain";
  */
 
 describe("esRolConocido", () => {
-  it("reconoce los cuatro roles de hoy", () => {
+  it("reconoce los cinco roles de hoy", () => {
     for (const rol of Object.values(ROLES)) expect(esRolConocido(rol), rol).toBe(true);
-    expect(Object.values(ROLES).sort()).toEqual(["admin", "chofer", "encargado", "lector"]);
+    expect(Object.values(ROLES).sort()).toEqual(["admin", "chofer", "encargado", "lector", "mecanico"]);
   });
 
   it("rechaza cualquier otra cosa: roles inventados, vacío, mayúsculas, no-textos", () => {
-    for (const raro of ["mecanico", "superadmin", "", "ADMIN", "Chofer", " admin", null, undefined, 1, {}, ["admin"]]) {
+    for (const raro of ["contador", "superadmin", "", "ADMIN", "Chofer", " admin", null, undefined, 1, {}, ["admin"]]) {
       expect(esRolConocido(raro), String(raro)).toBe(false);
     }
   });
@@ -80,7 +80,7 @@ describe("un rol inventado no pasa por ninguna ruta", () => {
     ["POST", "/api/facturacion/marcar"],
     ["GET", "/api/users"],
   ])("%s %s da 403", async (method, url) => {
-    const r = await pedir(method, url, "mecanico");
+    const r = await pedir(method, url, "contador");
     expect(r.status).toBe(403);
     expect(r.body.error).toContain("rol que el sistema no conoce");
   });
@@ -90,7 +90,7 @@ describe("un rol inventado no pasa por ninguna ruta", () => {
   });
 });
 
-describe("los cuatro roles de hoy siguen exactamente igual", () => {
+describe("los roles de hoy siguen exactamente igual", () => {
   it("el admin sigue entrando a lo suyo", async () => {
     expect((await pedir("GET", "/api/auth/me", ROLES.ADMIN)).status).toBe(200);
     expect((await pedir("GET", "/api/users", ROLES.ADMIN)).status).toBe(200);

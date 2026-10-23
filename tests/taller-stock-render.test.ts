@@ -6,7 +6,7 @@ import { StockPage } from "../src/features/taller/StockPage";
 
 // El rol del usuario: el lector ("solo mirar") no ve los botones de escribir. Se controla desde cada prueba.
 const rol = vi.hoisted(() => ({ soloMirar: false }));
-vi.mock("../src/lib/auth", () => ({ useSoloMirar: () => rol.soloMirar }));
+vi.mock("../src/lib/auth", () => ({ usePuedeCargarTaller: () => !rol.soloMirar }));
 
 // Los hooks del store usan useSyncExternalStore, que no se puede renderizar en el servidor. Acá se leen datos de ejemplo fijos;
 // el resto del módulo (las acciones) queda como está.

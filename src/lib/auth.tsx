@@ -107,7 +107,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
  * Esconder el botón es comodidad, no seguridad: quien de verdad lo frena es el servidor.
  */
 export function useSoloMirar(): boolean {
-  return useAuth().user?.role === ROLES.LECTOR;
+  const rol = useAuth().user?.role;
+  // El mecánico mira todo lo que ve (Camiones, la ficha): lo único que escribe es el Taller, y eso lo pregunta
+  // `usePuedeCargarTaller`.
+  return rol === ROLES.LECTOR || rol === ROLES.MECANICO;
+}
+
+/**
+ * ¿Puede cargar y corregir cosas en el Taller (services, cubiertas, consumibles)?
+ *
+ * Es la excepción al "solo mirar" del mecánico: el Taller es su pantalla. El lector, en cambio, ni lo ve. Aparte de
+ * `useSoloMirar` para que ese hook siga significando una sola cosa en el resto de las pantallas.
+ */
+export function usePuedeCargarTaller(): boolean {
+  const rol = useAuth().user?.role;
+  return rol !== ROLES.LECTOR && rol !== ROLES.CHOFER;
 }
 
 export function useAuth(): AuthState {

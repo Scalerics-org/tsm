@@ -15,13 +15,17 @@ const CAMPOS_VENC_CHOFER = ["venc_permiso_puerto", "venc_carnet_salud"] as const
 const drivers = new Hono<{ Bindings: Env; Variables: Vars }>();
 drivers.use("*", requireAuth);
 
-// El lector la necesita para el filtro por chofer de Viajes; escribir choferes, no. Y para ese
-// desplegable alcanza con quién es y si está activo: el teléfono, el documento y la licencia de
-// cada chofer no son de él.
-drivers.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR), async (c) => {
+// El lector la necesita para el filtro por chofer de Viajes, y el mecánico para los nombres del Taller; escribir
+// choferes, no. Y para eso alcanza con quién es y si está activo: el teléfono, el documento y la licencia de cada chofer
+// no son de ellos. El mecánico recibe además el camión asignado: el Taller muestra quién anda en cada camión.
+drivers.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR, ROLES.MECANICO), async (c) => {
   const todos = await repo.listDrivers(c.env.DB);
-  if (c.get("user").role !== ROLES.LECTOR) return ok(c, todos);
-  return ok(c, todos.map(({ id, name, status }) => ({ id, name, status })));
+  const rol = c.get("user").role;
+  if (rol === ROLES.LECTOR) return ok(c, todos.map(({ id, name, status }) => ({ id, name, status })));
+  if (rol === ROLES.MECANICO) {
+    return ok(c, todos.map(({ id, name, status, default_truck_id }) => ({ id, name, status, default_truck_id })));
+  }
+  return ok(c, todos);
 });
 
 function parse(b: any): repo.DriverInput | null {

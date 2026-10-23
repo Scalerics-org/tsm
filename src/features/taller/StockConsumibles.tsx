@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Corners } from "../../components/ui";
-import { useSoloMirar } from "../../lib/auth";
+import { usePuedeCargarTaller } from "../../lib/auth";
 import { fmtDate } from "../../lib/format";
 import { hoyEnUruguay } from "@shared/vencimientos";
 import { AccionDeFila, Campo, ConfirmarBorrado, Errores } from "./CamposDeStock";
@@ -32,7 +32,7 @@ const TEXTO = {
 };
 
 export function StockConsumibles({ clase }: { clase: Clase }) {
-  const soloMirar = useSoloMirar();
+  const soloMirar = !usePuedeCargarTaller();
   const aceites = useAceites();
   const filtros = useFiltros();
   const items = clase === "aceite" ? aceites : filtros;

@@ -6,6 +6,7 @@ import { sesionDelChofer } from "../repos/drivers";
 import { usuarioDeOficina } from "../repos/users";
 import { fail } from "../lib/response";
 import { lectorPuede } from "../lib/permisos-lector";
+import { mecanicoPuede } from "../lib/permisos-mecanico";
 
 type Ctx = { Bindings: Env; Variables: Vars };
 
@@ -62,6 +63,10 @@ export const requireAuth: MiddlewareHandler<Ctx> = async (c, next) => {
    */
   if (c.get("user").role === ROLES.LECTOR && !lectorPuede(c.req.method, c.req.path)) {
     return fail(c, "Tu usuario es de solo mirar", 403);
+  }
+  // Y el mecánico, igual: Camiones en solo lectura y el Taller, y nada más.
+  if (c.get("user").role === ROLES.MECANICO && !mecanicoPuede(c.req.method, c.req.path)) {
+    return fail(c, "Tu usuario es de mecánico: ve Camiones y el Taller", 403);
   }
   await next();
 };

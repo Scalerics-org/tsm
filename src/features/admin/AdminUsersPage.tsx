@@ -12,7 +12,7 @@ import { useAuth } from "../../lib/auth";
  * cambia desde este desplegable, no desde la base. Los nombres viven en `shared/domain.ts`
  * porque el rol también se muestra en la firma del menú.
  */
-const OFFICE_ROLES: Role[] = [ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR];
+const OFFICE_ROLES: Role[] = [ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR, ROLES.MECANICO];
 
 export function AdminUsersPage() {
   const { user: me } = useAuth();

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Corners } from "../../components/ui";
-import { useSoloMirar } from "../../lib/auth";
+import { usePuedeCargarTaller } from "../../lib/auth";
 import { fmtDate } from "../../lib/format";
 import { MODELOS } from "./base";
 import type { CubiertaEnStock } from "@shared/taller/tipos";
@@ -19,7 +19,7 @@ type Filtro = "todas" | "nueva" | "usada";
  * está colocado en ningún vehículo es lo único que se puede eliminar, y eso ya es así porque acá sólo está el stock.
  */
 export function StockCubiertas() {
-  const soloMirar = useSoloMirar();
+  const soloMirar = !usePuedeCargarTaller();
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [viendo, setViendo] = useState<{ titulo: string; codigo?: string; modeloId: string; recorrido: RecorridoDeCubierta } | null>(null);
   const [alta, setAlta] = useState(false);
