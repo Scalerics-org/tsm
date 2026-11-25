@@ -108,9 +108,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
  */
 export function useSoloMirar(): boolean {
   const rol = useAuth().user?.role;
-  // El mecánico mira todo lo que ve (Camiones, la ficha): lo único que escribe es el Taller, y eso lo pregunta
-  // `usePuedeCargarTaller`.
-  return rol === ROLES.LECTOR || rol === ROLES.MECANICO;
+  // El mecánico no entra a estas pantallas (sólo ve el Taller), y lo que escribe ahí lo pregunta `usePuedeCargarTaller`.
+  return rol === ROLES.LECTOR;
 }
 
 /**

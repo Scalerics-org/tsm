@@ -64,9 +64,9 @@ export const requireAuth: MiddlewareHandler<Ctx> = async (c, next) => {
   if (c.get("user").role === ROLES.LECTOR && !lectorPuede(c.req.method, c.req.path)) {
     return fail(c, "Tu usuario es de solo mirar", 403);
   }
-  // Y el mecánico, igual: Camiones en solo lectura y el Taller, y nada más.
+  // Y el mecánico, igual: sólo lo que usa el Taller, y nada más.
   if (c.get("user").role === ROLES.MECANICO && !mecanicoPuede(c.req.method, c.req.path)) {
-    return fail(c, "Tu usuario es de mecánico: ve Camiones y el Taller", 403);
+    return fail(c, "Tu usuario es de mecánico: ve sólo el Taller", 403);
   }
   await next();
 };

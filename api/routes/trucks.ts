@@ -12,7 +12,8 @@ const trucks = new Hono<{ Bindings: Env; Variables: Vars }>();
 trucks.use("*", requireAuth);
 
 // El lector la ve entera: sirve para el filtro por camión de Viajes y para la pantalla de Camiones,
-// que mira en solo lectura (odómetro, rendimiento y vencimientos incluidos, por pedido del 7/10).
+// que mira en solo lectura (odómetro, rendimiento y vencimientos incluidos, por pedido del 7/10). El mecánico la usa para la
+// flota del Taller; ahí se queda: la pantalla de Camiones y la ficha no son suyas.
 trucks.get("/", requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR, ROLES.MECANICO), async (c) =>
   ok(c, await repo.listTrucks(c.env.DB)),
 );

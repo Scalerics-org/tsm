@@ -19,7 +19,7 @@ export const ROLES = {
    */
   LECTOR: "lector",
   /**
-   * Raúl, el mecánico: ve Camiones en solo lectura y usa el Taller (services, cubiertas, stock). Nada de viajes, facturación,
+   * Raúl, el mecánico: ve sólo el Taller (services, cubiertas, stock). Nada de viajes, facturación,
    * consumo ni choferes. Igual que el lector, lo que lo garantiza es una lista blanca en el servidor
    * (`api/lib/permisos-mecanico.ts`); esconder botones es comodidad.
    */

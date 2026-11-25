@@ -91,20 +91,20 @@ const LECTOR_NAV: NavGroup[] = [
     items: [
       { to: "/panel/viajes", label: "Viajes" },
       { to: "/panel/consumo", label: "Consumo" },
-      // 7/10/2026: Raúl, el mecánico, tiene que ver los camiones. Sólo mirar: la lista y la ficha no le muestran
-      // ningún botón de edición y el servidor le contesta 403 a cualquier escritura.
+      // 7/10/2026: Camiones en solo lectura: la lista y la ficha no le muestran ningún botón de edición y el servidor le
+      // contesta 403 a cualquier escritura.
       { to: "/admin/camiones", label: "Camiones" },
     ],
   },
 ];
 
-/** Qué ve el mecánico (Raúl): Camiones, en solo lectura, y el Taller. Nada de viajes, Consumo ni plata. */
+/**
+ * Qué ve el mecánico (Raúl): sólo el Taller. El presupuesto dice que "entra sólo a la pestaña de mantenimiento" y que no ve
+ * viajes, facturación, cobranza ni las surtidas de gasoil: por eso tampoco tiene Camiones, cuya ficha las muestra.
+ */
 const MECANICO_NAV: NavGroup[] = [
   {
-    items: [
-      { to: "/admin/camiones", label: "Camiones" },
-      { to: "/panel/taller", label: "Taller (maqueta)" },
-    ],
+    items: [{ to: "/panel/taller", label: "Taller (maqueta)" }],
   },
 ];
 

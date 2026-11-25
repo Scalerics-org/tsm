@@ -521,16 +521,21 @@ que tiene un rol propio: `mecanico` ("Mecánico").
   `users`: quien la sume tiene que agregarla a esta lista.
 - **Se probó con una copia de datos reales**: todas las tablas idénticas antes y después, `foreign_key_check` vacío, los NULL siguen
   NULL. `horas_frio.updated_by` no tenía filas reales para ejercitar: se cubre con el test de D1 real.
-- **Lista blanca igual que la del lector** (`api/lib/permisos-mecanico.ts`, aplicada en `requireAuth`). Sólo lecturas: `auth/me`,
-  `trucks`, `reports/truck/:id`, `lecturas`, `frio`, fotos del tacógrafo y de la cámara de frío, y `drivers`. Todo lo demás es 403:
-  viajes, Consumo, facturación, surtidas, plantillas, lugares, usuarios y los avisos de la oficina (no está en `push.ts`).
+- **Lista blanca igual que la del lector** (`api/lib/permisos-mecanico.ts`, aplicada en `requireAuth`). Sólo lecturas, y sólo lo que
+  usa el Taller: `auth/me`, `trucks` (la flota) y `drivers`. Todo lo demás es 403: viajes, Consumo, facturación, surtidas, plantillas,
+  lugares, usuarios, la ficha del camión y los avisos de la oficina (no está en `push.ts`).
+- **Sólo el Taller, por el presupuesto.** La primera versión le daba también Camiones y la ficha de cada camión, y la ficha muestra
+  viajes, surtidas y consumo. El presupuesto que aceptó Rodrigo dice que el usuario de mantenimiento "entra sólo a la pestaña de
+  mantenimiento" y "no ve viajes, ni facturación, ni cobranza, ni las surtidas de gasoil". Se corrigió antes de aplicar la 0061: salieron
+  de la lista blanca `reports/truck/:id`, `lecturas`, `frio` y las fotos del tacógrafo y de la cámara de frío, y el mecánico dejó de
+  figurar en el `requireRole` de esas rutas y de `reports.use("*")`. Sigue en `trucks` y `drivers`, que el Taller usa para armar su flota.
 - **`drivers` le llega recortada**: id, nombre, estado y camión asignado, sin teléfono, documento ni licencia. El Taller muestra
   quién anda en cada camión.
-- **`reports.use("*")` quedó abierto al mecánico** para poder llegar a la ficha; lo que le cierra el resto de los reportes es la lista
-  blanca, no el `requireRole`. Si se agrega otra ruta de reportes a esa lista hay que pensar qué datos trae.
-- **La ficha del camión incluye viajes y surtidas de ese camión** (el lector ya la veía igual). Raúl los ve ahí, no en las pantallas
-  de viajes ni de surtidas, que le dan 403. Si Rodrigo no quiere que los vea, se recorta en la ruta de la ficha.
-- **Pantallas**: cae en Camiones; menú con Camiones y Taller; `/panel/taller` abierto a oficina y mecánico, cualquier otra ruta lo
-  rebota a Camiones. `useSoloMirar` da true para él (Camiones sin botones de edición) y `usePuedeCargarTaller` es la excepción: en el
-  Taller sí escribe. El Taller sigue siendo la maqueta (localStorage); sus rutas de API se suman a la lista blanca en la fase 2.
+- **Pantallas**: cae en `/panel/taller`; su menú tiene sólo el Taller. `/admin/camiones` y `/panel/camion/:id` lo rebotan al Taller, y
+  cualquier otra ruta también. `useSoloMirar` ya no lo incluye (no entra a esas pantallas); `usePuedeCargarTaller` es lo que le deja
+  escribir en el Taller. El Taller sigue siendo la maqueta (localStorage); sus rutas de API se suman a la lista blanca en la fase 2.
+- **El rol `cliente` queda RESERVADO en el CHECK** (pedido de Rodrigo, 24/11/2026: que un cliente o proveedor vea sólo sus cargas).
+  Se agregó en esta misma 0061 para no rehacer `users` otra vez, pero no tiene permisos ni pantallas: no está en `ROLES`, así que si
+  alguien lo pusiera a mano en la base el servidor lo rechaza por defecto (403 en todas las rutas, `auth/me` incluida). Tampoco hay
+  columna para saber de qué cliente es: eso es un `ADD COLUMN` aditivo que se decide cuando se programe la funcionalidad.
 - **Para dar de alta a Raúl**: Usuarios → rol "Mecánico". Si hoy es lector, se le cambia el rol desde ahí.

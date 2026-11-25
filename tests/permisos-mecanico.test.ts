@@ -5,7 +5,7 @@ import { mecanicoPuede, LO_QUE_MIRA_EL_MECANICO } from "../api/lib/permisos-meca
 import { ROLES } from "@shared/domain";
 
 /**
- * Qué puede pedirle al servidor el rol "mecánico" (Raúl): Camiones en solo lectura y el Taller.
+ * Qué puede pedirle al servidor el rol "mecánico" (Raúl): sólo lo que usa el Taller (sesión, flota y nombres de choferes).
  *
  * Igual que con el lector, lo que se prueba es el servidor y no la pantalla: las direcciones se escriben a mano y varias
  * rutas no llevan `requireRole`. La lista blanca vive en `api/lib/permisos-mecanico.ts`.
@@ -65,20 +65,26 @@ async function pedir(method: string, url: string, role: string, body: unknown = 
   return { status: res.status, body: json };
 }
 
-describe("el mecánico mira Camiones y lo que la ficha muestra", () => {
+describe("el mecánico ve lo que usa el Taller", () => {
   it.each([
     ["GET", "/api/auth/me"],
     ["GET", "/api/trucks"],
+    ["GET", "/api/drivers"],
+  ])("%s %s no lo frena el rol", async (method, url) => {
+    expect((await pedir(method, url, ROLES.MECANICO)).status).not.toBe(403);
+  });
+});
+
+describe("el mecánico no ve la ficha del camión: viajes, surtidas y consumo no son suyos", () => {
+  it.each([
     ["GET", "/api/reports/truck/3"],
     ["GET", "/api/reports/truck/3?month=2026-09"],
     ["GET", "/api/lecturas?truck_id=3"],
     ["GET", "/api/frio?truck_id=3"],
-    ["GET", "/api/drivers"],
-    // Sin R2 la foto contesta 404; lo que importa es que NO sea 403.
     ["GET", "/api/photos/odometro/3/abc.jpg"],
     ["GET", "/api/photos/frio/3/abc.jpg"],
-  ])("%s %s no lo frena el rol", async (method, url) => {
-    expect((await pedir(method, url, ROLES.MECANICO)).status).not.toBe(403);
+  ])("%s %s da 403", async (method, url) => {
+    expect((await pedir(method, url, ROLES.MECANICO)).status).toBe(403);
   });
 });
 
@@ -90,7 +96,7 @@ describe("el mecánico no ve ni toca nada más", () => {
     ["PUT", "/api/trucks/3"],
     ["DELETE", "/api/trucks/3"],
     ["GET", "/api/trucks/options"],
-    // Lecturas, frío y surtidas: leer la ficha sí, escribir no.
+    // Lecturas, frío y surtidas: ni leer ni escribir.
     ["POST", "/api/lecturas"],
     ["PATCH", "/api/lecturas/1"],
     ["DELETE", "/api/lecturas/1"],
@@ -164,6 +170,14 @@ describe("la lista blanca del mecánico", () => {
     expect(mecanicoPuede("GET", "/api/reports/truck/abc")).toBe(false);
     expect(mecanicoPuede("GET", "/api/photos/trips/3/abc.jpg")).toBe(false);
     expect(mecanicoPuede("GET", "/api/photos/odometro/3/a/b.jpg")).toBe(false);
+  });
+
+  it("es exactamente lo que usa el Taller: sesión, camiones y choferes", () => {
+    expect(LO_QUE_MIRA_EL_MECANICO.map((p) => p.ruta.source)).toEqual([
+      "^\\/api\\/auth\\/me$",
+      "^\\/api\\/trucks$",
+      "^\\/api\\/drivers$",
+    ]);
   });
 
   it("acepta el método en minúsculas pero no otro método", () => {

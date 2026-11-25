@@ -1,4 +1,4 @@
--- El rol "mecánico": Raúl ve Camiones y usa el Taller, y no toca nada más.
+-- El rol "mecánico": Raúl ve sólo el Taller, y no toca nada más.
 --
 -- Plan del Taller real (instrucciones/PLAN-taller-real.md, fase 1), con la opción A que eligió Gonzalo: 'mecanico' entra
 -- al CHECK de `users.role`, que se sigue validando en la base. Esta migración NO le cambia el rol a nadie: eso lo hace el

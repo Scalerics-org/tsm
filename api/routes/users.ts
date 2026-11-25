@@ -14,7 +14,7 @@ users.get("/", async (c) => ok(c, await repo.listUsers(c.env.DB)));
 // Sólo usuarios de oficina; los choferes se crean como "choferes" con PIN.
 // `lector` entra acá porque el rol se asigna desde esta pantalla: es como Rodrigo va a pasar
 // a Aníbal, que ya está dado de alta, a "solo mirar".
-// `mecanico` es Raúl: ve Camiones y el Taller (ver `permisos-mecanico.ts`).
+// `mecanico` es Raúl: ve sólo el Taller (ver `permisos-mecanico.ts`).
 const VALID_ROLES: Role[] = [ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR, ROLES.MECANICO];
 
 users.post("/", async (c) => {

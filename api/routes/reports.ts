@@ -41,9 +41,9 @@ const reports = new Hono<{ Bindings: Env; Variables: Vars }>();
  * que este `requireRole` y su lista blanca sólo tiene esas dos rutas. Está nombrado acá para que
  * el permiso no parezca un descuido al leer el archivo.
  */
-// El mecánico entra acá sólo por la ficha del camión: la lista blanca de `permisos-mecanico.ts` (en `requireAuth`) es lo único
-// que le cierra el resto de los reportes. Si se suma otra ruta de acá a esa lista, hay que pensar qué datos trae.
-reports.use("*", requireAuth, requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR, ROLES.MECANICO));
+// El mecánico no entra a ningún reporte: la ficha del camión muestra viajes, surtidas y consumo, y el presupuesto dice que no
+// los ve (ver `permisos-mecanico.ts`).
+reports.use("*", requireAuth, requireRole(ROLES.ENCARGADO, ROLES.ADMIN, ROLES.LECTOR));
 
 function roundTo(n: number, d = 1): number {
   const f = 10 ** d;
