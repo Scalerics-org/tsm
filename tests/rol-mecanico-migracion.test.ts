@@ -175,15 +175,21 @@ describe("el CHECK nuevo", () => {
     expect(r.id).toBe(maxIdDeUsers + 1);
   });
 
+  it("acepta 'cliente', el rol reservado para el usuario de un cliente o proveedor", async () => {
+    await base.db.prepare("INSERT INTO users (email, password_hash, name, role) VALUES ('cliente@mig.test', 'hash', 'Cliente', 'cliente')").run();
+    const r = await base.db.prepare("SELECT role FROM users WHERE email = 'cliente@mig.test'").first<any>();
+    expect(r.role).toBe("cliente");
+  });
+
   it("sigue rechazando un rol inventado", async () => {
     await expect(
       base.db.prepare("INSERT INTO users (email, password_hash, name, role) VALUES ('x@mig.test', 'hash', 'X', 'superadmin')").run(),
     ).rejects.toThrow(/CHECK|constraint/i);
   });
 
-  it("los cinco roles válidos están en la definición de la tabla", async () => {
+  it("los seis roles válidos están en la definición de la tabla", async () => {
     const sql = (await base.db.prepare("SELECT sql FROM sqlite_master WHERE name = 'users'").first<any>()).sql as string;
-    for (const rol of ["chofer", "encargado", "admin", "lector", "mecanico"]) expect(sql).toContain(`'${rol}'`);
+    for (const rol of ["chofer", "encargado", "admin", "lector", "mecanico", "cliente"]) expect(sql).toContain(`'${rol}'`);
   });
 
   it("el email sigue siendo único", async () => {

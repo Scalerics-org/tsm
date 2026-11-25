@@ -4,6 +4,12 @@
 -- al CHECK de `users.role`, que se sigue validando en la base. Esta migración NO le cambia el rol a nadie: eso lo hace el
 -- administrador desde la pantalla de Usuarios, como con el lector.
 --
+-- 'cliente' queda RESERVADO en la base: es el usuario de un cliente o proveedor que vea solo sus cargas (pedido de Rodrigo,
+-- 24/11/2026). Se agrega acá para no tener que rehacer `users` otra vez, pero todavía NO tiene permisos ni pantallas: no está
+-- en ROLES de shared/domain.ts, así que el servidor lo rechaza por defecto (403 en cualquier ruta) si alguien lo pusiera a
+-- mano en la base. Tampoco hay una columna para saber de qué cliente es: eso es un ADD COLUMN aditivo y se decide cuando se
+-- programe la funcionalidad.
+--
 -- SQLite no sabe cambiar un CHECK: hay que rehacer la tabla, y rehacerla a lo bruto rompe datos. Es el mismo problema de
 -- la 0049 (el rol 'lector'), con una diferencia que importa: DESDE ENTONCES APARECIERON MÁS COLUMNAS QUE APUNTAN A users, y
 -- copiar la 0049 tal cual se llevaría puesto el rastro de quién facturó y quién cobró por cliente.
@@ -54,13 +60,13 @@ INSERT INTO _resguardo_users_ref SELECT 'viaje_cliente_facturacion', 'pago_by', 
 CREATE TABLE _resguardo_horas_frio AS
   SELECT truck_id, mes, updated_by FROM horas_frio WHERE updated_by IS NOT NULL;
 
--- ── 2. La tabla de nuevo, igual pero con 'mecanico' entre los roles válidos ──
+-- ── 2. La tabla de nuevo, igual pero con 'mecanico' y 'cliente' entre los roles válidos ──
 CREATE TABLE users_nueva (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   email         TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   name          TEXT NOT NULL DEFAULT '',
-  role          TEXT NOT NULL CHECK (role IN ('chofer','encargado','admin','lector','mecanico')),
+  role          TEXT NOT NULL CHECK (role IN ('chofer','encargado','admin','lector','mecanico','cliente')),
   driver_id     INTEGER REFERENCES drivers(id) ON DELETE SET NULL,
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );

@@ -85,6 +85,25 @@ describe("un rol inventado no pasa por ninguna ruta", () => {
     expect(r.body.error).toContain("rol que el sistema no conoce");
   });
 
+  // 'cliente' está reservado en el CHECK de la base (0061) pero todavía no es un rol del sistema: si alguien lo pusiera a mano
+  // en `users`, el servidor lo rechaza en TODAS las rutas, empezando por la sesión.
+  it.each([
+    ["GET", "/api/auth/me"],
+    ["GET", "/api/trips"],
+    ["GET", "/api/trucks"],
+    ["POST", "/api/trips"],
+    ["DELETE", "/api/photos/1"],
+    ["GET", "/api/users"],
+  ])("un usuario con rol 'cliente' reservado en la base: %s %s da 403", async (method, url) => {
+    const r = await pedir(method, url, "cliente");
+    expect(r.status).toBe(403);
+    expect(r.body.error).toContain("rol que el sistema no conoce");
+  });
+
+  it("'cliente' no es un rol conocido", () => {
+    expect(esRolConocido("cliente")).toBe(false);
+  });
+
   it("el mensaje no depende del rol inventado: da igual cómo se llame", async () => {
     for (const rol of ["superadmin", "ADMIN", "x"]) expect((await pedir("DELETE", "/api/photos/1", rol)).status, rol).toBe(403);
   });
